@@ -1,0 +1,1815 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>80分(上海规则)</title>
+<style>
+  :root{--felt:#0f5132;--felt2:#0b3d26;--gold:#ffd75e}
+  *{box-sizing:border-box}
+  body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;margin:0;
+       background:radial-gradient(ellipse at center,var(--felt),var(--felt2));
+       color:#fff;min-height:100vh}
+  #app{display:flex;flex-direction:column;min-height:100vh;padding:8px;max-width:1150px;margin:0 auto}
+  #status{display:flex;gap:16px;flex-wrap:wrap;background:rgba(0,0,0,.35);border-radius:8px;
+          padding:8px 14px;font-size:14px;min-height:38px;align-items:center}
+  #status b{color:var(--gold)}
+  #banner{background:rgba(255,215,94,.12);border:1px solid rgba(255,215,94,.4);border-radius:8px;
+          padding:6px 14px;font-size:14px;margin-top:6px;min-height:34px;display:flex;align-items:center}
+  #table{display:grid;grid-template-rows:86px 220px 86px;grid-template-columns:110px 1fr 110px;
+         gap:6px;margin:8px 0}
+  .seat{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:13px}
+  .seat .name{background:rgba(0,0,0,.35);padding:2px 10px;border-radius:10px}
+  .seat .name.turn{background:var(--gold);color:#222;font-weight:bold}
+  .backs{color:#9fd6b5;font-size:12px}
+  #center{grid-area:2/2;display:grid;grid-template-rows:1fr 1fr 1fr;grid-template-columns:1fr 1fr 1fr;
+          align-items:center;justify-items:center}
+  .played{display:flex;gap:2px;min-height:66px;align-items:center}
+  #msg{text-align:center;font-size:15px;color:var(--gold);pointer-events:none}
+  .card{position:relative;display:inline-block;width:50px;height:72px;flex:none;
+        background:#fff;color:#111;border-radius:5px;border:1px solid #999;
+        font-weight:bold;user-select:none;box-shadow:0 1px 3px rgba(0,0,0,.4)}
+  .card.red{color:#c0392b}
+  .card .tl{position:absolute;top:2px;left:4px;font-size:16px;line-height:1}
+  .card .br{position:absolute;bottom:2px;right:4px;font-size:16px;line-height:1;transform:rotate(180deg)}
+  .card .tr{position:absolute;top:2px;right:4px;font-size:14px;line-height:1}
+  .card .bl{position:absolute;bottom:2px;left:4px;font-size:14px;line-height:1}
+  .card .joker{position:absolute;left:0;right:0;top:8px;bottom:0;writing-mode:vertical-lr;
+               text-align:left;font-size:9px;letter-spacing:1px;padding-left:16px}
+  .mini{width:34px;height:48px}
+  .mini .tl,.mini .br{font-size:11px}
+  .mini .tr,.mini .bl{font-size:9px}
+  .mini .joker{font-size:7px;padding-left:12px;top:5px}
+  #handRow{display:flex;gap:10px;align-items:stretch}
+  #hand{flex:1;display:flex;flex-wrap:wrap;gap:0;justify-content:center;align-content:center;
+        padding:6px;min-height:96px}
+  #hand .card{margin-left:-14px;cursor:pointer;transition:transform .08s}
+  #hand .card:first-child{margin-left:0}
+  #hand .card.sel{transform:translateY(-14px);outline:2px solid var(--gold)}
+  #hand .card.hintc{outline:2px dashed #6ec9ff;box-shadow:0 0 8px #6ec9ff}
+  .coachBox{background:rgba(110,201,255,.1);border:1px solid rgba(110,201,255,.4);
+            border-radius:8px;padding:8px 10px;margin:6px 0;line-height:1.7}
+  .coachStep{color:#6ec9ff;font-weight:bold}
+  #notes{width:250px;height:190px;flex:none;background:rgba(0,0,0,.35);border-radius:8px;padding:6px;
+         display:flex;flex-direction:column;font-size:12px}
+  #noteList{flex:1;overflow-y:auto;height:120px;display:flex;
+            flex-direction:column-reverse;gap:4px}
+  .note{background:#245c41;border-radius:10px 10px 10px 2px;padding:4px 8px;align-self:flex-start;
+        max-width:95%;word-break:break-all}
+  #noteInputRow{display:flex;gap:4px;margin-top:4px}
+  #noteInput{flex:1;border:0;border-radius:6px;padding:4px 8px;font-size:12px}
+  #noteSend{padding:4px 10px;font-size:12px}
+  #controls{display:flex;gap:10px;justify-content:center;align-items:center;padding:8px;min-height:52px}
+  #declStrip{display:flex;gap:8px;justify-content:center;align-items:center;min-height:40px;
+             font-size:13px;color:#9fd6b5;flex-wrap:wrap}
+  button{background:var(--gold);color:#222;border:0;border-radius:6px;padding:8px 18px;
+         font-size:15px;font-weight:bold;cursor:pointer}
+  button.minor{background:#c8d6cf}
+  button:disabled{opacity:.35;cursor:default}
+  #tabs{display:flex;gap:8px;padding:4px 0}
+  #tabs button{font-size:13px;padding:5px 14px;background:#2c6e4f;color:#fff}
+  #tabs button.on{background:var(--gold);color:#222}
+  #panel{background:rgba(0,0,0,.3);border-radius:8px;padding:8px 12px;font-size:13px;
+         height:280px;overflow-y:auto;color:#cfe8d9}
+  .trickRow{display:flex;gap:10px;align-items:center;margin:3px 0;flex-wrap:wrap}
+  .trickRow .who{color:var(--gold);min-width:110px}
+  .suitGroup{margin:4px 0}
+  .toggleRow{display:flex;gap:14px;align-items:center;margin-bottom:6px;color:#9fd6b5}
+  #overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;
+           align-items:center;justify-content:center;z-index:10}
+  #overlay .panel{background:#173b2a;border:2px solid var(--gold);border-radius:12px;
+                  padding:26px 34px;text-align:center;font-size:17px;line-height:1.9;
+                  max-height:80vh;overflow-y:auto}
+  #tests{font-family:ui-monospace,Menlo,monospace;padding:20px;display:none}
+  .pass{color:#7ee787}.fail{color:#ff7b72;font-weight:bold}
+  /* ---- 动画 ---- */
+  @keyframes playIn{from{opacity:0;transform:translateY(-16px) scale(.85)}to{opacity:1;transform:none}}
+  .played .card{animation:playIn .28s ease-out}
+  @keyframes winPulse{0%,100%{box-shadow:none}50%{box-shadow:0 0 14px var(--gold)}}
+  .seat .name.won{animation:winPulse .9s ease-in-out 2;background:var(--gold);color:#222}
+  #hand .card:hover{transform:translateY(-6px)}
+  #hand .card.sel:hover{transform:translateY(-14px)}
+  #versionTag{position:fixed;right:10px;bottom:6px;font-size:11px;color:rgba(255,255,255,.35)}
+  /* ---- 窄屏(手机) ---- */
+  @media (max-width:760px){
+    .card{width:38px;height:56px}
+    .card .tl,.card .br{font-size:13px}
+    .card .tr,.card .bl{font-size:11px}
+    .mini{width:28px;height:40px}
+    #table{grid-template-rows:64px 150px 64px;grid-template-columns:70px 1fr 70px}
+    #center{min-height:150px}
+    .played{min-height:48px}
+    #handRow{flex-direction:column}
+    #notes{width:100%;height:130px}
+    #panel{height:200px}
+    button{padding:7px 12px;font-size:13px}
+    #status{font-size:12px;gap:8px}
+    #hand .card{margin-left:-16px}
+  }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <div id="status"></div>
+  <div id="banner"></div>
+  <div id="table">
+    <div class="seat" style="grid-area:1/2"><span class="name" id="n2">北(队友)</span><span class="backs" id="b2"></span></div>
+    <div class="seat" style="grid-area:2/1"><span class="name" id="n3">西</span><span class="backs" id="b3"></span></div>
+    <div class="seat" style="grid-area:2/3"><span class="name" id="n1">东</span><span class="backs" id="b1"></span></div>
+    <div id="center">
+      <div class="played" id="p2" style="grid-area:1/2"></div>
+      <div class="played" id="p3" style="grid-area:2/1"></div>
+      <div id="msg" style="grid-area:2/2"></div>
+      <div class="played" id="p1" style="grid-area:2/3"></div>
+      <div class="played" id="p0" style="grid-area:3/2"></div>
+    </div>
+    <div class="seat" style="grid-area:3/2;align-self:end"><span class="name" id="n0">南(你)</span></div>
+  </div>
+  <div id="declStrip"></div>
+  <div id="handRow">
+    <div id="hand"></div>
+    <div id="notes">
+      <div style="color:#9fd6b5;margin-bottom:4px">📝 我的笔记</div>
+      <div id="noteList"></div>
+      <div id="noteInputRow">
+        <input id="noteInput" placeholder="记点什么…" maxlength="120">
+        <button id="noteSend">发送</button>
+      </div>
+    </div>
+  </div>
+  <div id="controls">
+    <button id="btnPlay">出牌</button>
+    <button id="btnClear" class="minor">重选</button>
+    <button id="btnBury" class="minor">扣底</button>
+    <button id="btnHint" style="background:#6ec9ff">问教练</button>
+  </div>
+  <div id="tabs">
+    <button data-tab="score">抢分记录</button>
+    <button data-tab="log">对局记录</button>
+    <button data-tab="hist">出牌历史</button>
+    <button data-tab="coach">教练</button>
+    <button data-tab="mem">记牌表</button>
+  </div>
+  <div id="panel"></div>
+</div>
+<div id="overlay"><div class="panel" id="overlayContent"></div></div>
+<div id="tests"></div>
+<div id="versionTag">80分 v0.1.0</div>
+
+<script src="terms-shanghai.js"></script>
+<script>
+/* ============================================================
+ * 80分 游戏引擎 —— 纯函数,不碰 DOM。
+ * trump = {suit:'S'|'H'|'D'|'C'|null, rank}。suit 为 null 表示无主。
+ * ============================================================ */
+
+const RULES = {
+  levelStart: 2,
+  handSize: 25,
+  kittySize: 8,
+  // 抠底倍数 = 最后一墩每人出牌数 × 2
+  kittyMultiplier: (lastLeadSize)=>2*(lastLeadSize||1),
+  offsuitRankTractor: true,     // 主AA+副常主对可连(常驻)
+  strictTractorFollow: true,    // 领出拖拉机、手中有同长(或更长可拆)拖拉机必须跟
+  partialTractorFollow: true,   // 【可调】领出长拖拉机、手中只有更短拖拉机时必须跟出短的(默认开)
+  pointRebelThreshold: 15,      // 【可调】手牌分数 ≤ 此值可完全造反(5的倍数,≤30;0=关闭)
+  trumpRebelThreshold: 3,       // 【可调】手牌主牌张数 ≤ 此值也可完全造反(-1=关闭)
+};
+
+const SUITS = ['S','H','D','C'];
+
+function makeDeck(){                      // 两副牌 108 张,id 唯一
+  const cards=[]; let id=0;
+  for(let copy=0;copy<2;copy++){
+    for(const s of SUITS) for(let r=2;r<=14;r++) cards.push({suit:s,rank:r,id:id++});
+    cards.push({suit:'X',rank:15,id:id++});   // 小王
+    cards.push({suit:'X',rank:16,id:id++});   // 大王
+  }
+  return cards;
+}
+
+function cardPoints(c){ return c.rank===5?5 : (c.rank===10||c.rank===13)?10 : 0; }
+function countPoints(cards){ return cards.reduce((a,c)=>a+cardPoints(c),0); }
+
+function rng(seed){ let a=seed>>>0; return function(){ a|=0; a=(a+0x6D2B79F5)|0;
+  let t=Math.imul(a^(a>>>15),1|a); t=(t+Math.imul(t^(t>>>7),61|t))^t;
+  return ((t^(t>>>14))>>>0)/4294967296; }; }
+
+function shuffle(arr, rand){ const a=arr.slice();
+  for(let i=a.length-1;i>0;i--){ const j=Math.floor(rand()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a; }
+
+// 切牌定先:各抽一张按自然大小(无级数,A>K>…>2,王最大;平手按黑桃>红桃>梅花>方块)
+function cutForFirst(seed){
+  const deck=shuffle(makeDeck(), rng(seed*7+3));
+  const cuts=[0,1,2,3].map(s=>deck[s]);
+  const sv={S:3,H:2,C:1,D:0,X:4};
+  let first=0;
+  for(let s=1;s<4;s++){
+    const a=cuts[s],b=cuts[first];
+    if(a.rank>b.rank||(a.rank===b.rank&&sv[a.suit]>sv[b.suit])) first=s;
+  }
+  return {cuts, first};
+}
+
+// firstTaker 先拿牌,逆时针轮流;前 100 张为手牌,后 8 张为底
+function dealRound(seed, firstTaker=0){
+  const deck=shuffle(makeDeck(), rng(seed));
+  const hands=[[],[],[],[]];
+  for(let i=0;i<100;i++) hands[(firstTaker+i)%4].push(deck[i]);
+  return {hands, kitty:deck.slice(100), deck};
+}
+
+// ---- 主牌与大小序 ----
+function effSuit(c, trump){
+  if(c.suit==='X' || c.rank===trump.rank) return 'T';
+  if(trump.suit && c.suit===trump.suit) return 'T';
+  return c.suit;
+}
+
+function natOrder(trumpRank){ const r=[]; for(let x=2;x<=14;x++) if(x!==trumpRank) r.push(x); return r; }
+
+// 有主:0..11 主花色散牌,12 副常主,13 正常主,14 小王,15 大王。
+// 相邻可连:主A+副常、副常+正常、正常+小王、小王+大王;异花副常同级不连。
+// 无主:13 常主(各花色同级),14 小王,15 大王。
+function ordIdx(c, trump){
+  if(c.rank===16) return 15;
+  if(c.rank===15) return 14;
+  if(c.rank===trump.rank){
+    if(!trump.suit) return 13;
+    return c.suit===trump.suit?13:12;
+  }
+  return natOrder(trump.rank).indexOf(c.rank);
+}
+
+// ---- 牌型判定 ----
+function pairKey(c){ return c.suit+':'+c.rank; }
+
+function decompose(cards, trump){
+  const by={};
+  for(const c of cards)(by[pairKey(c)]=by[pairKey(c)]||[]).push(c);
+  const pairs=[], singles=[];
+  for(const k in by){
+    const arr=by[k];
+    if(arr.length>=2) pairs.push([arr[0],arr[1]]);
+    if(arr.length%2===1) singles.push(arr[arr.length-1]);
+  }
+  pairs.sort((a,b)=>ordIdx(a[0],trump)-ordIdx(b[0],trump));
+  const comps=[]; let run=[];
+  const flush=()=>{
+    if(!run.length) return;
+    if(run.length>=2) comps.push({type:'tractor',len:run.length,cards:run.flat(),
+                                  top:ordIdx(run[run.length-1][0],trump)});
+    else comps.push({type:'pair',cards:run[0],top:ordIdx(run[0][0],trump)});
+    run=[];
+  };
+  for(const p of pairs){
+    if(run.length && ordIdx(p[0],trump)===ordIdx(run[run.length-1][0],trump)+1) run.push(p);
+    else { flush(); run=[p]; }
+  }
+  flush();
+  for(const s of singles) comps.push({type:'single',cards:[s],top:ordIdx(s,trump)});
+  return comps;
+}
+
+function classify(cards, trump){
+  if(!cards||!cards.length) return null;
+  const es=effSuit(cards[0],trump);
+  if(!cards.every(c=>effSuit(c,trump)===es)) return null;
+  if(cards.length===1) return {type:'single',suit:es,top:ordIdx(cards[0],trump),cards};
+  const comps=decompose(cards,trump);
+  if(comps.length===1){ const c=comps[0]; return {type:c.type,len:c.len,suit:es,top:c.top,cards}; }
+  return {type:'throw',suit:es,cards,comps,top:Math.max(...comps.map(c=>c.top))};
+}
+
+// ---- 跟牌合法性(门内有对必对) ----
+function countPairsIn(cards){
+  const by={}; for(const c of cards) by[pairKey(c)]=(by[pairKey(c)]||0)+1;
+  return Object.values(by).reduce((a,n)=>a+Math.floor(n/2),0);
+}
+function maxTractorLen(cards, trump){
+  return Math.max(0,...decompose(cards,trump).filter(c=>c.type==='tractor').map(c=>c.len));
+}
+function pairsInLead(lead){
+  if(lead.type==='pair') return 1;
+  if(lead.type==='tractor') return lead.len;
+  if(lead.type==='throw') return lead.comps.reduce((a,c)=>a+(c.type==='pair'?1:c.type==='tractor'?c.len:0),0);
+  return 0;
+}
+
+function isLegalFollow(hand, lead, chosen, trump){
+  const n=lead.cards.length;
+  if(chosen.length!==n) return false;
+  const ids=new Set(hand.map(c=>c.id));
+  const seen=new Set();
+  for(const c of chosen){ if(!ids.has(c.id)||seen.has(c.id)) return false; seen.add(c.id); }
+  const suitInHand=hand.filter(c=>effSuit(c,trump)===lead.suit);
+  const chosenInSuit=chosen.filter(c=>effSuit(c,trump)===lead.suit);
+  if(chosenInSuit.length!==Math.min(n,suitInHand.length)) return false;
+  const need=pairsInLead(lead);
+  if(need>0){
+    const must=Math.min(need,countPairsIn(suitInHand));
+    if(countPairsIn(chosenInSuit)<must) return false;
+  }
+  if(RULES.strictTractorFollow && lead.type==='tractor'){
+    const m=maxTractorLen(suitInHand,trump);
+    const cm=maxTractorLen(chosenInSuit,trump);
+    if(m>=lead.len && cm<lead.len) return false;                    // 有长必跟(可拆子拖拉机)
+    if(RULES.partialTractorFollow && m>=2 && m<lead.len && cm<m) return false; // 【可调】短拖也必须跟
+  }
+  return true;
+}
+
+// ---- 一墩胜负 ----
+function structSig(comps){ return comps.map(c=>c.type+(c.len||'')).sort().join(','); }
+function structMatches(cand, lead){
+  const a=cand.type==='throw'?cand.comps:[cand];
+  const b=lead.type==='throw'?lead.comps:[lead];
+  return structSig(a)===structSig(b);
+}
+
+function resolveTrick(plays, trump){
+  const lead=classify(plays[0].cards,trump);
+  let winIdx=0, best=lead;
+  for(let i=1;i<plays.length;i++){
+    const cl=classify(plays[i].cards,trump);
+    if(!cl || !structMatches(cl,lead)) continue;
+    if(cl.suit===best.suit){ if(cl.top>best.top){winIdx=i;best=cl;} }
+    else if(cl.suit==='T'){ winIdx=i; best=cl; }
+  }
+  return {winner:plays[winIdx].seat,
+          points:countPoints(plays.flatMap(p=>p.cards)),
+          winningPlay:best};
+}
+
+// ---- 甩牌校验(失败仅强制出小,不罚分) ----
+function canBeatComp(suitCards, comp, trump){
+  if(comp.type==='single') return suitCards.some(c=>ordIdx(c,trump)>comp.top);
+  const comps=decompose(suitCards,trump);
+  if(comp.type==='pair')
+    return comps.some(c=>(c.type==='pair'||c.type==='tractor')&&c.top>comp.top);
+  return comps.some(c=>c.type==='tractor'&&c.len>=comp.len&&c.top>comp.top);
+}
+function checkThrow(hands, seat, cards, trump){
+  const lead=classify(cards,trump);
+  if(!lead||lead.type!=='throw') return {ok:true};
+  for(const comp of lead.comps){
+    for(let p=0;p<4;p++){
+      if(p===seat) continue;
+      const sc=hands[p].filter(c=>effSuit(c,trump)===lead.suit);
+      if(canBeatComp(sc,comp,trump)){
+        const lowest=lead.comps.reduce((a,c)=>c.top<a.top?c:a);
+        return {ok:false, forced:lowest.cards};
+      }
+    }
+  }
+  return {ok:true};
+}
+
+// ---- 亮主/反主/造反/加固 ----
+// strength: 1=单张常主,2=一对常主,3=小王对,4=大王对(王对→无主)。
+function declarationOf(cards, trumpRank){
+  if(cards.length===1 && cards[0].rank===trumpRank) return {suit:cards[0].suit,strength:1};
+  if(cards.length===2 && pairKey(cards[0])===pairKey(cards[1])){
+    if(cards[0].rank===trumpRank) return {suit:cards[0].suit,strength:2};
+    if(cards[0].rank===15) return {suit:null,strength:3};
+    if(cards[0].rank===16) return {suit:null,strength:4};
+  }
+  return null;
+}
+function canOverride(cur, next){ return !cur || next.strength>cur.strength; }
+function declOptions(hand, trumpRank){
+  const opts=[];
+  for(const s of SUITS){
+    const n=hand.filter(c=>c.suit===s&&c.rank===trumpRank).length;
+    if(n>=2) opts.push({suit:s,strength:2});
+    else if(n===1) opts.push({suit:s,strength:1});
+  }
+  return opts.sort((a,b)=>b.strength-a.strength);
+}
+function jokerPairOf(hand){
+  const bj=hand.filter(c=>c.rank===16).length, sj=hand.filter(c=>c.rank===15).length;
+  if(bj>=2) return {suit:null,strength:4};
+  if(sj>=2) return {suit:null,strength:3};
+  return null;
+}
+// 加固:仅亮主者本人、单张→一对、且必须先于任何造反(王对/低分造反)
+function canReinforce2(decl, seat, hand, trumpRank, rebelHappened){
+  if(!decl||decl.seat!==seat||decl.strength!==1||rebelHappened||decl.suit===null) return false;
+  return hand.filter(c=>c.suit===decl.suit&&c.rank===trumpRank).length>=2;
+}
+
+// 完全造反资格:手牌分数 ≤ pointRebelThreshold,或主牌张数 ≤ trumpRebelThreshold
+function canFullRebel(hand, trump){
+  const p=RULES.pointRebelThreshold, t=RULES.trumpRebelThreshold;
+  const pts=countPoints(hand);
+  const nT=hand.filter(c=>effSuit(c,trump)==='T').length;
+  const byPts=p>0&&pts<=p, byTrump=t>=0&&nT<=t;
+  return {ok:byPts||byTrump, pts, nT, byPts, byTrump};
+}
+
+// ---- 本局结算 ----
+function scoreRound({defPoints, kitty, defWonLastTrick, lastLeadSize}){
+  const kittyPts=countPoints(kitty);
+  const mult=RULES.kittyMultiplier(lastLeadSize);
+  const total=defPoints + (defWonLastTrick ? kittyPts*mult : 0);
+  if(total<80){
+    return {defendersWin:false, total, kittyPts, mult, declarerLevelsUp: total===0?3 : total<40?2 : 1};
+  }
+  return {defendersWin:true, total, kittyPts, mult, defenderLevelsUp: Math.floor((total-80)/40)};
+}
+
+// ---- 整场推进:升级与庄家轮换 ----
+// 庄家方守住 → 升级、前庄对家连庄;闲家上台 → 闲家升级、前庄下家坐庄。
+// 任一队级数打过 A(>14)整场获胜。
+function advanceMatch(levels, declSeat, sc){
+  const declTeam=declSeat%2;
+  const L=levels.slice();
+  let dealer;
+  if(!sc.defendersWin){ L[declTeam]+=sc.declarerLevelsUp; dealer=(declSeat+2)%4; }
+  else { L[1-declTeam]+=sc.defenderLevelsUp; dealer=(declSeat+1)%4; }
+  const matchOver=L[0]>14||L[1]>14;
+  return {levels:L, dealer, matchOver, winnerTeam:matchOver?(L[0]>14?0:1):null};
+}
+
+/* ---- 随机合法 AI(M3 换启发式) ---- */
+function removeCard(hand,c){ const i=hand.findIndex(x=>x.id===c.id); hand.splice(i,1); }
+function pickRandom(arr,k,rand){ return shuffle(arr,rand).slice(0,k); }
+
+function aiLead(hand, trump, rand){
+  if(rand()<0.3){
+    const bySuit={};
+    hand.forEach(c=>{(bySuit[effSuit(c,trump)]=bySuit[effSuit(c,trump)]||[]).push(c);});
+    const pairs=[];
+    for(const s in bySuit) decompose(bySuit[s],trump).forEach(c=>{
+      if(c.type==='pair') pairs.push(c.cards);
+      if(c.type==='tractor') for(let i=0;i<c.len;i++) pairs.push(c.cards.slice(i*2,i*2+2));
+    });
+    if(pairs.length) return pairs[Math.floor(rand()*pairs.length)];
+  }
+  return [hand[Math.floor(rand()*hand.length)]];
+}
+
+function bruteFollow(hand, lead, trump, rand){
+  const n=lead.cards.length;
+  for(let t=0;t<300;t++){
+    const c=pickRandom(hand,n,rand);
+    if(isLegalFollow(hand,lead,c,trump)) return c;
+  }
+  return hand.slice(0,n);
+}
+
+function genFollow(hand, lead, trump, rand){
+  const n=lead.cards.length;
+  const inSuit=hand.filter(c=>effSuit(c,trump)===lead.suit);
+  const rest=hand.filter(c=>effSuit(c,trump)!==lead.suit);
+  let chosen=[];
+  if(inSuit.length<=n){
+    chosen=[...inSuit, ...pickRandom(rest,n-inSuit.length,rand)];
+  }else{
+    const comps=decompose(inSuit,trump);
+    if(RULES.strictTractorFollow && lead.type==='tractor'){
+      const full=comps.find(c=>c.type==='tractor'&&c.len>=lead.len);
+      if(full) chosen=full.cards.slice(0,lead.len*2);
+      else if(RULES.partialTractorFollow){
+        const part=comps.filter(c=>c.type==='tractor').sort((a,b)=>b.len-a.len)[0];
+        if(part) chosen=part.cards.slice();
+      }
+    }
+    const targetPairs=Math.min(pairsInLead(lead),countPairsIn(inSuit));
+    if(targetPairs>0){
+      const used=new Set(chosen.map(c=>c.id));
+      const pairUnits=[];
+      comps.forEach(c=>{
+        if(c.type==='pair') pairUnits.push(c.cards);
+        if(c.type==='tractor') for(let i=0;i<c.len;i++) pairUnits.push(c.cards.slice(i*2,i*2+2));
+      });
+      let have=Math.floor(chosen.length/2);
+      for(const u of pairUnits){
+        if(have>=targetPairs||chosen.length+2>n) break;
+        if(u.some(c=>used.has(c.id))) continue;
+        u.forEach(c=>used.add(c.id));
+        chosen.push(...u); have++;
+      }
+    }
+    const used2=new Set(chosen.map(c=>c.id));
+    chosen.push(...pickRandom(inSuit.filter(c=>!used2.has(c.id)),n-chosen.length,rand));
+  }
+  return isLegalFollow(hand,lead,chosen,trump)?chosen:bruteFollow(hand,lead,trump,rand);
+}
+
+function aiDiscard(hand, trump){
+  const scored=hand.map(c=>({c,w:(effSuit(c,trump)==='T'?100:0)+(cardPoints(c)?50:0)+ordIdx(c,trump)}));
+  scored.sort((a,b)=>a.w-b.w);
+  return scored.slice(0,RULES.kittySize).map(x=>x.c);
+}
+
+/* ============================================================
+ * M3 启发式 AI:记牌 + 规则评估。
+ * 返回 {cards, reason, score} —— reason 供教练模式复用。
+ * view = {seat, hand, trump, history:[{seat,cards}...], buriedKnown}
+ * ============================================================ */
+function keyToCard(k){ const i=k.indexOf(':'); return {suit:k.slice(0,i),rank:+k.slice(i+1)}; }
+
+// 记牌:已见 = 自己手牌 + 全部出牌历史 + (庄家还知道底牌)
+function makeMemory(view){
+  const seen={};
+  const add=c=>{ const k=pairKey(c); seen[k]=(seen[k]||0)+1; };
+  view.hand.forEach(add);
+  (view.history||[]).forEach(p=>p.cards.forEach(add));
+  (view.buriedKnown||[]).forEach(add);
+  const unseen={};
+  makeDeck().slice(0,54).forEach(c=>{ const k=pairKey(c); unseen[k]=2-(seen[k]||0); });
+  return {unseen};
+}
+function maxUnseenIdx(mem, suitEff, trump){
+  let m=-1;
+  for(const k in mem.unseen){
+    if(mem.unseen[k]<=0) continue;
+    const c=keyToCard(k);
+    if(effSuit(c,trump)!==suitEff) continue;
+    m=Math.max(m,ordIdx(c,trump));
+  }
+  return m;
+}
+function unseenPairAbove(mem, suitEff, idx, trump){
+  for(const k in mem.unseen){
+    if(mem.unseen[k]<2) continue;
+    const c=keyToCard(k);
+    if(effSuit(c,trump)===suitEff && ordIdx(c,trump)>idx) return true;
+  }
+  return false;
+}
+// 该牌型是否已是本门在外最大(“钢板”)
+function isBossPlay(cl, mem, trump){
+  if(cl.type==='single') return cl.top>=maxUnseenIdx(mem,cl.suit,trump);
+  return !unseenPairAbove(mem,cl.suit,cl.top,trump);
+}
+
+const cheapSort=(cards,trump)=>cards.slice().sort((a,b)=>
+  (ordIdx(a,trump)+(cardPoints(a)?8:0))-(ordIdx(b,trump)+(cardPoints(b)?8:0)));
+const dumpSort=(cards,trump)=>cards.slice().sort((a,b)=>
+  (cardPoints(b)-cardPoints(a))||(ordIdx(a,trump)-ordIdx(b,trump)));
+
+// 构造性跟牌:满足全部义务,自由部分按策略挑(cheap=跟小 / dump=贴分)。seed 为预选结构。
+function buildFollow(hand, lead, trump, strat, seed){
+  const n=lead.cards.length;
+  const inSuit=hand.filter(c=>effSuit(c,trump)===lead.suit);
+  const rest=hand.filter(c=>effSuit(c,trump)!==lead.suit);
+  let chosen=(seed||[]).slice();
+  const used=new Set(chosen.map(c=>c.id));
+  const fillSort=strat==='dump'?dumpSort:cheapSort;
+  if(inSuit.length<=n){
+    inSuit.forEach(c=>{ if(!used.has(c.id)){chosen.push(c);used.add(c.id);} });
+    for(const c of fillSort(rest,trump)){ if(chosen.length>=n)break;
+      if(!used.has(c.id)){chosen.push(c);used.add(c.id);} }
+  }else{
+    const comps=decompose(inSuit,trump);
+    if(RULES.strictTractorFollow && lead.type==='tractor' && !chosen.length){
+      const full=comps.find(c=>c.type==='tractor'&&c.len>=lead.len);
+      if(full) full.cards.slice(0,lead.len*2).forEach(c=>{chosen.push(c);used.add(c.id);});
+      else if(RULES.partialTractorFollow){
+        const part=comps.filter(c=>c.type==='tractor').sort((a,b)=>b.len-a.len)[0];
+        if(part) part.cards.forEach(c=>{chosen.push(c);used.add(c.id);});
+      }
+    }
+    const targetPairs=Math.min(pairsInLead(lead),countPairsIn(inSuit));
+    let have=Math.floor(chosen.length/2);
+    if(targetPairs>have){
+      const units=[];
+      comps.forEach(c=>{
+        if(c.type==='pair') units.push(c.cards);
+        if(c.type==='tractor') for(let i=0;i<c.len;i++) units.push(c.cards.slice(i*2,i*2+2));
+      });
+      const uval=u=>strat==='dump'
+        ? -countPoints(u)*10+ordIdx(u[0],trump)
+        : ordIdx(u[0],trump)+(countPoints(u)?16:0);
+      units.sort((a,b)=>uval(a)-uval(b));
+      for(const u of units){
+        if(have>=targetPairs||chosen.length+2>n) break;
+        if(u.some(c=>used.has(c.id))) continue;
+        u.forEach(c=>{chosen.push(c);used.add(c.id);}); have++;
+      }
+    }
+    for(const c of fillSort(inSuit.filter(c=>!used.has(c.id)),trump)){
+      if(chosen.length>=n) break;
+      chosen.push(c); used.add(c.id);
+    }
+  }
+  return isLegalFollow(hand,lead,chosen,trump)?chosen:null;
+}
+
+// 当前墩暂时的赢家
+function currentWinner(plays, trump){
+  const lead=classify(plays[0].cards,trump);
+  let win=0,best=lead;
+  for(let i=1;i<plays.length;i++){
+    const cl=classify(plays[i].cards,trump);
+    if(!cl||!structMatches(cl,lead)) continue;
+    if(cl.suit===best.suit){ if(cl.top>best.top){win=i;best=cl;} }
+    else if(cl.suit==='T'){ win=i;best=cl; }
+  }
+  return {seat:plays[win].seat, cl:best};
+}
+
+// 最省的吃法(本门压过,或断门时用主敲脱);吃不动返回 null
+function minWinFollow(hand, lead, trump, curBest){
+  if(lead.type==='throw') return null;
+  const n=lead.cards.length;
+  const inSuit=hand.filter(c=>effSuit(c,trump)===lead.suit);
+  const pairUnitsOf=cards=>{
+    const us=[];
+    decompose(cards,trump).forEach(c=>{
+      if(c.type==='pair') us.push(c.cards);
+      if(c.type==='tractor') for(let i=0;i<c.len;i++) us.push(c.cards.slice(i*2,i*2+2));
+    });
+    return us;
+  };
+  let seed=null;
+  if(inSuit.length>=n){
+    if(curBest.suit!==lead.suit) return null;   // 已被主吃,本门压不了
+    if(lead.type==='single'){
+      const c=cheapSort(inSuit.filter(x=>ordIdx(x,trump)>curBest.top),trump)[0];
+      if(c) seed=[c];
+    }else if(lead.type==='pair'){
+      seed=pairUnitsOf(inSuit).filter(u=>ordIdx(u[0],trump)>curBest.top)
+        .sort((a,b)=>ordIdx(a[0],trump)-ordIdx(b[0],trump))[0]||null;
+    }else{
+      const tr=decompose(inSuit,trump)
+        .filter(c=>c.type==='tractor'&&c.len>=lead.len&&c.top>curBest.top)
+        .sort((a,b)=>a.top-b.top)[0];
+      if(tr) seed=tr.cards.slice((tr.len-lead.len)*2);
+    }
+  }else if(inSuit.length===0 && lead.suit!=='T'){
+    const trumps=hand.filter(c=>effSuit(c,trump)==='T');
+    if(trumps.length<n) return null;
+    const mustBeat=curBest.suit==='T'?curBest.top:-1;
+    if(lead.type==='single'){
+      const c=cheapSort(trumps.filter(x=>ordIdx(x,trump)>mustBeat),trump)[0];
+      if(c) seed=[c];
+    }else if(lead.type==='pair'){
+      seed=pairUnitsOf(trumps).filter(u=>ordIdx(u[0],trump)>mustBeat)
+        .sort((a,b)=>ordIdx(a[0],trump)-ordIdx(b[0],trump))[0]||null;
+    }else{
+      const tr=decompose(trumps,trump)
+        .filter(c=>c.type==='tractor'&&c.len>=lead.len&&c.top>mustBeat)
+        .sort((a,b)=>a.top-b.top)[0];
+      if(tr) seed=tr.cards.slice((tr.len-lead.len)*2);
+    }
+  }
+  if(!seed) return null;
+  return buildFollow(hand,lead,trump,'cheap',seed);
+}
+
+// 跟牌决策
+function aiChooseFollow(view, plays){
+  const trump=view.trump;
+  const lead=classify(plays[0].cards,trump);
+  const cur=currentWinner(plays,trump);
+  const partnerWinning=cur.seat%2===view.seat%2;
+  const isLast=plays.length===3;
+  const ptsTable=countPoints(plays.flatMap(p=>p.cards));
+  const mem=makeMemory(view);
+  const cands=[];
+  if(!partnerWinning){
+    const win=minWinFollow(view.hand,lead,trump,cur.cl);
+    if(win){
+      const cost=Math.max(...win.map(c=>ordIdx(c,trump)))+countPoints(win)*2;
+      cands.push({cards:win,score:30+ptsTable*1.5+(isLast?25:0)-cost*0.8,
+        reason:isLast?'最后一手,稳吃这墩':'能吃住,争这墩'});
+    }
+  }
+  if(partnerWinning){
+    const dump=buildFollow(view.hand,lead,trump,'dump',null);
+    if(dump){
+      const certainty=isLast?1:(isBossPlay(cur.cl,mem,trump)?0.9:0.4);
+      cands.push({cards:dump,score:certainty*(20+countPoints(dump)*4),
+        reason:certainty>0.8?'队友稳赢,贴分':'队友暂大,试贴分'});
+    }
+  }
+  const cheap=buildFollow(view.hand,lead,trump,'cheap',null);
+  if(cheap) cands.push({cards:cheap,score:10-countPoints(cheap)*5,reason:'跟小,保留实力'});
+  cands.sort((a,b)=>b.score-a.score);
+  const ctx={partnerWinning,isLast,ptsTable,curSeat:cur.seat,
+             curBoss:isBossPlay(cur.cl,mem,trump),leadSuit:lead.suit};
+  if(cands.length) return {...cands[0],cands,ctx};
+  return {cards:genFollow(view.hand,lead,trump,rng(view.seat+1)),reason:'兜底',score:0,cands:[],ctx};
+}
+
+// 教练用:给任意一手(合法)跟牌打分,与 aiChooseFollow 同一套标尺
+function coachScoreFollow(view, plays, cards){
+  const trump=view.trump, lead=classify(plays[0].cards,trump);
+  const cur=currentWinner(plays,trump);
+  const partnerWinning=cur.seat%2===view.seat%2;
+  const isLast=plays.length===3;
+  const ptsTable=countPoints(plays.flatMap(p=>p.cards));
+  const mem=makeMemory(view);
+  const cl=classify(cards,trump);
+  let wouldWin=false;
+  if(cl&&structMatches(cl,lead)){
+    if(cl.suit===cur.cl.suit) wouldWin=cl.top>cur.cl.top;
+    else if(cl.suit==='T') wouldWin=true;
+  }
+  const myPts=countPoints(cards);
+  if(wouldWin&&!partnerWinning){
+    const cost=Math.max(...cards.map(c=>ordIdx(c,trump)))+myPts*2;
+    return 30+ptsTable*1.5+(isLast?25:0)-cost*0.8;
+  }
+  if(partnerWinning){
+    const certainty=isLast?1:(isBossPlay(cur.cl,mem,trump)?0.9:0.4);
+    return certainty*(20+myPts*4)-(wouldWin?5:0);   // 压过队友略减分
+  }
+  return 10-myPts*5;
+}
+// 教练用:给任意一手领出打分
+function coachScoreLead(view, cards){
+  const trump=view.trump, mem=makeMemory(view);
+  const cl=classify(cards,trump);
+  if(!cl) return -20;
+  const boss=cl.type==='throw'
+    ? cl.comps.every(c=>isBossPlay({type:c.type,len:c.len,suit:cl.suit,top:c.top},mem,trump))
+    : isBossPlay(cl,mem,trump);
+  const pts=countPoints(cards), size=cards.length;
+  if(boss) return 55+size*8-(cl.suit==='T'&&cl.type==='single'?33:cl.suit==='T'?5:0);
+  if(cl.type==='tractor') return 30+size*4;
+  if(cl.type==='pair') return 20-cl.top*0.5-pts*4;
+  if(cl.type==='throw') return 12-pts*4;
+  return 16-cl.top*0.8-pts*6-(cl.suit==='T'?6:0);
+}
+
+// 领出决策
+function aiChooseLead(view){
+  const trump=view.trump, hand=view.hand, mem=makeMemory(view);
+  const bySuit={};
+  hand.forEach(c=>{(bySuit[effSuit(c,trump)]=bySuit[effSuit(c,trump)]||[]).push(c);});
+  const cands=[];
+  for(const s in bySuit){
+    for(const comp of decompose(bySuit[s],trump)){
+      const cl={type:comp.type,len:comp.len,suit:s,top:comp.top,cards:comp.cards};
+      const boss=isBossPlay(cl,mem,trump);
+      const pts=countPoints(comp.cards);
+      const size=comp.cards.length;
+      let score,reason;
+      if(boss){
+        // 主牌大单张(如大王)不急着打:留作后手控制/护底,晚期或成对才高价值
+        const trumpSinglePenalty=(s==='T'&&comp.type==='single')?28:0;
+        score=55+size*8-(s==='T'?5:0)-trumpSinglePenalty;
+        reason=trumpSinglePenalty?'大主牌留作后手':'本门在外已无更大,先收一墩';
+      }else if(comp.type==='tractor'){
+        score=30+size*4; reason='拖拉机难跟,压一手';
+      }else if(comp.type==='pair'){
+        score=20-comp.top*0.5-pts*4; reason='出对子探路';
+      }else{
+        score=16-comp.top*0.8-pts*6-(s==='T'?6:0); reason='小牌探路';
+      }
+      cands.push({cards:comp.cards,score,reason});
+    }
+  }
+  cands.sort((a,b)=>b.score-a.score);
+  const best=cands[0]||{cards:[hand[0]],reason:'兜底',score:0};
+  return {...best,cands:cands.slice(0,3)};
+}
+
+// 全 AI 无头模拟一整局(测试用;简化亮主为一轮制)
+// smartSeats:使用启发式 AI 的座位,其余用随机 AI
+function simulateRound(seed, smartSeats=[0,1,2,3]){
+  const {first}=cutForFirst(seed);
+  const {hands,kitty}=dealRound(seed,first);
+  let best=null, declSeat=-1;
+  for(let s=0;s<4;s++){
+    const o=declOptions(hands[s],RULES.levelStart)[0];
+    if(o && (!best||o.strength>best.strength)){ best=o; declSeat=s; }
+  }
+  const rand=rng(seed^0x9e3779b9);
+  let trump;
+  if(!best){ trump={suit:null,rank:RULES.levelStart}; declSeat=first; }
+  else{
+    trump={suit:best.suit,rank:RULES.levelStart};
+    for(let s=0;s<4;s++){
+      if(s!==declSeat && jokerPairOf(hands[s]) && rand()<0.3){
+        trump={suit:null,rank:RULES.levelStart}; declSeat=s; break;  // 无庄盘:造反者坐庄
+      }
+    }
+  }
+  hands[declSeat].push(...kitty);
+  const buried=aiDiscard(hands[declSeat],trump);
+  buried.forEach(c=>removeCard(hands[declSeat],c));
+  const declTeam=declSeat%2;
+  const smart=new Set(smartSeats);
+  const history=[];
+  let leader=declSeat, defPoints=0, lastWinner=declSeat, lastLeadSize=1, tricks=0;
+  while(hands.some(h=>h.length)){
+    const plays=[];
+    for(let i=0;i<4;i++){
+      const seat=(leader+i)%4;
+      const view={seat,hand:hands[seat],trump,history:[...history,...plays],
+                  buriedKnown:seat===declSeat?buried:[]};
+      let cards;
+      if(i===0){
+        cards=smart.has(seat)?aiChooseLead(view).cards:aiLead(hands[seat],trump,rand);
+        const chk=checkThrow(hands,seat,cards,trump);
+        if(!chk.ok) cards=chk.forced;
+      }else{
+        const lead=classify(plays[0].cards,trump);
+        cards=smart.has(seat)?aiChooseFollow(view,plays).cards
+                             :genFollow(hands[seat],lead,trump,rand);
+        if(!isLegalFollow(hands[seat],lead,cards,trump))
+          throw new Error('AI 出牌不合法 seed='+seed+' seat='+seat);
+      }
+      cards.forEach(c=>removeCard(hands[seat],c));
+      plays.push({seat,cards});
+    }
+    history.push(...plays);
+    lastLeadSize=plays[0].cards.length;
+    const res=resolveTrick(plays,trump);
+    leader=res.winner; lastWinner=res.winner; tricks++;
+    if(res.winner%2!==declTeam) defPoints+=res.points;
+    if(tricks>100) throw new Error('死循环 seed='+seed);
+  }
+  return {...scoreRound({defPoints,kitty:buried,defWonLastTrick:lastWinner%2!==declTeam,lastLeadSize}),
+          defPoints, tricks, declSeat, noTrump:!trump.suit};
+}
+
+if(typeof module!=='undefined') module.exports={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
+  cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
+  canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,scoreRound,advanceMatch,countPairsIn,maxTractorLen,
+  structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
+  makeMemory,maxUnseenIdx,unseenPairAbove,isBossPlay,buildFollow,currentWinner,minWinFollow,
+  aiChooseFollow,aiChooseLead,coachScoreFollow,coachScoreLead};
+</script>
+
+<script>
+/* ============================================================
+ * 引擎测试(浏览器打开 80fen.html#test;node 亦可运行)
+ * ============================================================ */
+function runTests(E){
+  const out=[]; let pass=0, fail=0;
+  const ok=(name,cond)=>{ cond?pass++:fail++; out.push({name,cond}); };
+
+  let _id=0;
+  const C=(s,r)=>({suit:s,rank:r,id:_id++});
+  const P=(s,r)=>[C(s,r),C(s,r)];
+  const T={suit:'S',rank:2};
+  const NT={suit:null,rank:2};
+
+  const deck=E.makeDeck();
+  ok('牌堆108张', deck.length===108);
+  ok('id 唯一', new Set(deck.map(c=>c.id)).size===108);
+  ok('全部分数=200', E.countPoints(deck)===200);
+  const d=E.dealRound(42);
+  ok('发牌 4×25+底8', d.hands.every(h=>h.length===25)&&d.kitty.length===8);
+  ok('同种子发牌一致', JSON.stringify(E.dealRound(42).kitty)===JSON.stringify(d.kitty));
+  const d1=E.dealRound(42,1);
+  ok('先拿牌者影响发牌(南≠东先拿)', JSON.stringify(d1.hands[0])!==JSON.stringify(d.hands[0]));
+  const cut=E.cutForFirst(7);
+  ok('切牌定先返回有效座位', cut.first>=0&&cut.first<4&&cut.cuts.length===4);
+  ok('切牌确定性', E.cutForFirst(7).first===cut.first);
+
+  ok('红桃2是主(常主)', E.effSuit(C('H',2),T)==='T');
+  ok('黑桃9是主(主花色)', E.effSuit(C('S',9),T)==='T');
+  ok('王是主', E.effSuit(C('X',16),T)==='T');
+  ok('红桃9是副牌', E.effSuit(C('H',9),T)==='H');
+  ok('大王>小王', E.ordIdx(C('X',16),T)>E.ordIdx(C('X',15),T));
+  ok('小王>正2', E.ordIdx(C('X',15),T)>E.ordIdx(C('S',2),T));
+  ok('正2>副2', E.ordIdx(C('S',2),T)>E.ordIdx(C('H',2),T));
+  ok('副2>主A', E.ordIdx(C('H',2),T)>E.ordIdx(C('S',14),T));
+  ok('无主:常主是主', E.effSuit(C('H',2),NT)==='T');
+  ok('无主:黑桃A是副牌', E.effSuit(C('S',14),NT)==='S');
+  ok('无主:小王>常主', E.ordIdx(C('X',15),NT)>E.ordIdx(C('H',2),NT));
+
+  ok('单张', E.classify([C('H',5)],T).type==='single');
+  ok('对子', E.classify(P('H',5),T).type==='pair');
+  ok('混花色→null', E.classify([C('H',5),C('D',5)],T)===null);
+  ok('55-66拖拉机', E.classify([...P('H',5),...P('H',6)],T).type==='tractor');
+  const T7={suit:'S',rank:7};
+  ok('打7时66-88连对', E.classify([...P('H',6),...P('H',8)],T7).type==='tractor');
+  ok('打2时66-88不连', E.classify([...P('H',6),...P('H',8)],T).type==='throw');
+  ok('主AA+副2对=拖拉机', E.classify([...P('S',14),...P('H',2)],T).type==='tractor');
+  ok('副2对+正2对=拖拉机', E.classify([...P('H',2),...P('S',2)],T).type==='tractor');
+  ok('正2对+小王对=拖拉机', E.classify([...P('S',2),...P('X',15)],T).type==='tractor');
+  ok('小王对+大王对=拖拉机', E.classify([...P('X',15),...P('X',16)],T).type==='tractor');
+  ok('异花副常对不连', E.classify([...P('H',2),...P('D',2)],T).type==='throw');
+  ok('主AA+正2对不连(隔副常)', E.classify([...P('S',14),...P('S',2)],T).type==='throw');
+  ok('无主:常主对+小王对=拖拉机', E.classify([...P('H',2),...P('X',15)],NT).type==='tractor');
+  ok('无主:异花常主对不连', E.classify([...P('H',2),...P('D',2)],NT).type==='throw');
+  ok('同花AA+K=甩牌', E.classify([...P('H',14),C('H',13)],T).type==='throw');
+
+  const leadPair=E.classify(P('H',10),T);
+  let hand=[...P('H',9),C('H',3),C('D',4),C('S',5)];
+  ok('门内有对必对', !E.isLegalFollow(hand,leadPair,[hand[2],hand[0]],T));
+  ok('跟对合法', E.isLegalFollow(hand,leadPair,[hand[0],hand[1]],T));
+  hand=[C('H',3),C('H',7),C('D',4)];
+  ok('无对可拆两单', E.isLegalFollow(hand,leadPair,[hand[0],hand[1]],T));
+  hand=[C('H',3),C('D',4),C('D',9)];
+  ok('剩一张本门必须跟', E.isLegalFollow(hand,leadPair,[hand[0],hand[1]],T));
+  ok('藏本门不跟=违规', !E.isLegalFollow(hand,leadPair,[hand[1],hand[2]],T));
+  hand=[C('D',4),C('D',9),C('C',3)];
+  ok('断门任出两张', E.isLegalFollow(hand,leadPair,[hand[0],hand[2]],T));
+  const leadTrac=E.classify([...P('H',10),...P('H',11)],T);
+  hand=[...P('H',5),...P('H',6),...P('H',13),C('H',3),C('D',2)];
+  ok('有拖拉机必须跟拖拉机',
+     !E.isLegalFollow(hand,leadTrac,[...hand.slice(0,2),...hand.slice(4,6)],T));
+  ok('跟55-66合法', E.isLegalFollow(hand,leadTrac,hand.slice(0,4),T));
+  // 领出两连对、手持三连对:必须拆出同长子拖拉机
+  hand=[...P('H',5),...P('H',6),...P('H',7),C('H',3),C('D',2)];
+  ok('三连对拆二连跟合法', E.isLegalFollow(hand,leadTrac,hand.slice(0,4),T));
+  ok('三连对拆散对不合法(55+77非连)',
+     !E.isLegalFollow(hand,leadTrac,[...hand.slice(0,2),...hand.slice(4,6)],T));
+  // 领出三连对、手持两连对:是否必须跟由参数决定
+  const leadT3=E.classify([...P('H',9),...P('H',10),...P('H',11)],T);
+  hand=[...P('H',5),...P('H',6),...P('H',8),...P('H',13),C('D',2)]; // 三对义务,55-66为短拖
+  E.RULES.partialTractorFollow=false;
+  const okOff=E.isLegalFollow(hand,leadT3,[hand[0],hand[1],hand[4],hand[5],hand[6],hand[7]],T); // 55+88+KK
+  ok('参数关:拆散跟三对合法', okOff===true);
+  E.RULES.partialTractorFollow=true;
+  const okOn=E.isLegalFollow(hand,leadT3,[hand[0],hand[1],hand[4],hand[5],hand[6],hand[7]],T);
+  ok('参数开:必须跟出手中短拖', okOn===false);
+  const okOn2=E.isLegalFollow(hand,leadT3,[...hand.slice(0,4),hand[6],hand[7]],T); // 55-66+KK
+  ok('参数开:55-66+KK 合法', okOn2===true);
+  E.RULES.partialTractorFollow=false;
+
+  let res=E.resolveTrick([
+    {seat:0,cards:[C('H',5)]},{seat:1,cards:[C('H',13)]},
+    {seat:2,cards:[C('H',14)]},{seat:3,cards:[C('H',7)]}],T);
+  ok('本门最大者赢', res.winner===2);
+  res=E.resolveTrick([
+    {seat:0,cards:[C('H',14)]},{seat:1,cards:[C('S',3)]},
+    {seat:2,cards:[C('H',6)]},{seat:3,cards:[C('H',7)]}],T);
+  ok('敲脱(毙)胜过A', res.winner===1);
+  res=E.resolveTrick([
+    {seat:0,cards:P('H',10)},{seat:1,cards:[C('S',3),C('S',4)]},
+    {seat:2,cards:P('H',4)},{seat:3,cards:[C('H',6),C('H',7)]}],T);
+  ok('两张散主毙不了对子', res.winner===0);
+  res=E.resolveTrick([
+    {seat:0,cards:[C('H',5)]},{seat:1,cards:[C('S',14)]},
+    {seat:2,cards:[C('H',6)]},{seat:3,cards:[C('D',14)]}],NT);
+  ok('无主:外门A是垫牌不赢', res.winner===2);
+
+  let hands=[
+    [...P('H',12),C('H',11)],
+    [C('H',13),C('D',3)],
+    [C('C',3)],[C('C',4)]];
+  let chk=E.checkThrow(hands,0,hands[0],T);
+  ok('甩牌被顶', chk.ok===false);
+  ok('罚出最小一组(J),不罚分', chk.forced.length===1&&chk.forced[0].rank===11);
+  hands=[
+    [...P('H',14),C('H',13)],
+    [C('H',12),C('D',3)],[C('C',3)],[C('C',4)]];
+  ok('无人能大→甩牌成功', E.checkThrow(hands,0,hands[0],T).ok===true);
+
+  ok('单张常主可亮', E.declarationOf([C('H',2)],2)?.suit==='H');
+  ok('小王对=造反(无主)', E.declarationOf(P('X',15),2)?.strength===3);
+  ok('大王对>小王对', E.declarationOf(P('X',16),2).strength>E.declarationOf(P('X',15),2).strength);
+  ok('大小王混对无效', E.declarationOf([C('X',15),C('X',16)],2)===null);
+  ok('王对可反常主对', E.canOverride({suit:'H',strength:2},{suit:null,strength:3}));
+  // 加固:仅亮主者本人、单→对、必须先于造反
+  const decl1={seat:0,suit:'H',strength:1};
+  const hd=[...P('H',2),C('C',3)];
+  ok('可加固(未造反)', E.canReinforce2(decl1,0,hd,2,false)===true);
+  ok('造反后不可加固', E.canReinforce2(decl1,0,hd,2,true)===false);
+  ok('非亮主者不可加固', E.canReinforce2(decl1,1,hd,2,false)===false);
+  ok('已是对无需加固', E.canReinforce2({seat:0,suit:'H',strength:2},0,hd,2,false)===false);
+
+  const kitty=[C('H',10),C('D',13),C('C',3),C('C',4),C('D',3),C('D',4),C('C',6),C('C',7)];
+  let sc=E.scoreRound({defPoints:75,kitty,defWonLastTrick:false,lastLeadSize:1});
+  ok('75分:庄家方升1级', !sc.defendersWin&&sc.declarerLevelsUp===1);
+  sc=E.scoreRound({defPoints:75,kitty,defWonLastTrick:true,lastLeadSize:1});
+  ok('单张抠底×2:75+40=115上台', sc.defendersWin&&sc.total===115);
+  sc=E.scoreRound({defPoints:35,kitty,defWonLastTrick:true,lastLeadSize:2});
+  ok('对子抠底×4:35+80=115上台', sc.defendersWin&&sc.total===115&&sc.mult===4);
+  sc=E.scoreRound({defPoints:0,kitty,defWonLastTrick:false,lastLeadSize:1});
+  ok('光头:庄家方升3级', sc.declarerLevelsUp===3);
+
+  ok('低分造反阈值为5的倍数且≤30',
+     E.RULES.pointRebelThreshold%5===0&&E.RULES.pointRebelThreshold<=30);
+  // 完全造反资格(阈值:分数≤15 或 主牌≤3)
+  const weakPts=[C('C',3),C('C',4),C('C',6),C('D',3),C('H',5),C('H',10)]; // 15分,主0张
+  ok('15分(含)可造反', E.canFullRebel(weakPts,T).ok===true);
+  const weakTr=[C('S',3),C('S',4),C('X',15),C('H',13),C('H',13),C('D',10),C('D',10)]; // 主3张,分50
+  ok('主牌3张(含)可造反', E.canFullRebel(weakTr,T).ok&&E.canFullRebel(weakTr,T).byTrump);
+  const strong=[C('S',3),C('S',4),C('S',6),C('X',16),C('H',13),C('D',10)]; // 主4张,分20
+  ok('分数、主牌都够则不可造反', E.canFullRebel(strong,T).ok===false);
+
+  // ---- 教练评分标尺 ----
+  {
+    // 对手稳赢:贴分应比跟小得分更低(送分被罚)
+    const plays=[{seat:1,cards:[C('H',14)]},{seat:2,cards:[C('H',6)]},{seat:3,cards:[C('H',3)]}];
+    const view={seat:0,hand:[C('H',10),C('H',4),C('D',3)],trump:T,history:plays,buriedKnown:[]};
+    const sDump=E.coachScoreFollow(view,plays,[view.hand[0]]);
+    const sCheap=E.coachScoreFollow(view,plays,[view.hand[1]]);
+    ok('教练标尺:对手大时送10分比跟4差', sCheap>sDump);
+    // 队友稳赢:贴分比跟小得分高
+    const plays2=[{seat:1,cards:[C('H',5)]},{seat:2,cards:[C('H',14)]},{seat:3,cards:[C('H',3)]}];
+    const view2={seat:0,hand:[C('H',10),C('H',4),C('D',3)],trump:T,history:plays2,buriedKnown:[]};
+    ok('教练标尺:队友大时贴10分比跟4好',
+       E.coachScoreFollow(view2,plays2,[view2.hand[0]])>E.coachScoreFollow(view2,plays2,[view2.hand[1]]));
+    // 领出:AI最优选与教练评分一致(自我一致性)
+    const view3={seat:0,hand:[...P('X',16),C('H',4),C('C',7)],trump:T,history:[],buriedKnown:[]};
+    const best=E.aiChooseLead(view3);
+    ok('教练标尺:领出评分与AI自洽',
+       E.coachScoreLead(view3,best.cards)>=E.coachScoreLead(view3,[view3.hand[2]])-0.01);
+    ok('AI返回候选列表供教练展示', Array.isArray(best.cands)&&best.cands.length>=1);
+  }
+
+  // ---- 整场推进(升级/轮庄/胜负) ----
+  {
+    let a=E.advanceMatch([2,2],1,{defendersWin:false,declarerLevelsUp:2});
+    ok('庄守住:升级且对家连庄', a.levels[1]===4&&a.dealer===3&&!a.matchOver);
+    a=E.advanceMatch([2,2],1,{defendersWin:true,defenderLevelsUp:1});
+    ok('闲家上台:升级且前庄下家坐庄', a.levels[0]===3&&a.dealer===2);
+    a=E.advanceMatch([2,2],1,{defendersWin:true,defenderLevelsUp:0});
+    ok('闲家80~119:上台不升级', a.levels[0]===2&&a.dealer===2);
+    a=E.advanceMatch([13,2],0,{defendersWin:false,declarerLevelsUp:3});
+    ok('打过A:整场结束', a.matchOver&&a.winnerTeam===0);
+    a=E.advanceMatch([14,2],0,{defendersWin:false,declarerLevelsUp:1});
+    ok('A级守住即打过A', a.matchOver&&a.winnerTeam===0);
+  }
+
+  // ---- M3 启发式 AI ----
+  // 记牌:两张HA都见过后,HK就是本门最大
+  {
+    const view={seat:0,hand:[C('H',13)],trump:T,
+      history:[{seat:1,cards:P('H',14)}],buriedKnown:[]};
+    const mem=E.makeMemory(view);
+    ok('记牌:HA出尽后HK封顶', E.isBossPlay(E.classify([view.hand[0]],T),mem,T)===true);
+    const view2={seat:0,hand:[C('H',13)],trump:T,history:[],buriedKnown:[]};
+    ok('记牌:HA未见时HK非最大', E.isBossPlay(E.classify([view2.hand[0]],T),E.makeMemory(view2),T)===false);
+  }
+  // 跟牌:对手暂大且能吃 → 用最省的牌吃(HQ 而非 HA)
+  {
+    const plays=[{seat:1,cards:[C('H',10)]}];
+    const view={seat:2,hand:[C('H',12),C('H',14),C('H',3),C('D',4)],trump:T,history:plays,buriedKnown:[]};
+    const ch=E.aiChooseFollow(view,plays);
+    ok('用最省的牌吃(Q不动A)', ch.cards.length===1&&ch.cards[0].rank===12);
+  }
+  // 跟牌:队友稳赢且自己最后一手 → 贴分(出H10而非H4)
+  {
+    const plays=[{seat:1,cards:[C('H',5)]},{seat:2,cards:[C('H',14)]},{seat:3,cards:[C('H',3)]}];
+    const view={seat:0,hand:[C('H',10),C('H',4),C('D',3)],trump:T,history:plays,buriedKnown:[]};
+    const ch=E.aiChooseFollow(view,plays);
+    ok('队友大,最后一手贴分', ch.cards[0].rank===10);
+  }
+  // 跟牌:对手稳赢 → 跟小不送分(出H4而非H10)
+  {
+    const plays=[{seat:1,cards:[C('H',14)]},{seat:2,cards:[C('H',6)]},{seat:3,cards:[C('H',3)]}];
+    const view={seat:0,hand:[C('H',10),C('H',4),C('D',3)],trump:T,history:plays,buriedKnown:[]};
+    const ch=E.aiChooseFollow(view,plays);
+    ok('对手大,跟小不送分', ch.cards[0].rank===4);
+  }
+  // 领出:手握双大王 → 先收一墩
+  {
+    const view={seat:0,hand:[...P('X',16),C('H',4),C('C',7)],trump:T,history:[],buriedKnown:[]};
+    const ch=E.aiChooseLead(view);
+    ok('领出钢板(大王对)先收', ch.cards.length===2&&ch.cards[0].rank===16);
+  }
+  // 启发式优于随机:同样的局,聪明防守方比随机防守方抓分更多(均值)
+  {
+    let smartSum=0,randSum=0,n=0;
+    for(let s=1;s<=120;s++){
+      const r1=E.simulateRound(s,[0,2]);       // 南北聪明
+      const r0=E.simulateRound(s,[]);          // 全随机
+      if(r1&&r0&&r1.declSeat%2===1&&r0.declSeat%2===1){ smartSum+=r1.defPoints; randSum+=r0.defPoints; n++; }
+    }
+    ok(`启发式防守优于随机(${(smartSum/n).toFixed(0)} vs ${(randSum/n).toFixed(0)} 分,${n}局)`,
+       n>10 && smartSum>randSum);
+  }
+
+  let simOK=true, played=0, nt=0;
+  for(let s=1;s<=40;s++){
+    try{
+      const r=E.simulateRound(s);
+      if(r){ played++; if(r.noTrump)nt++;
+        if(r.total<0||r.tricks<13) simOK=false; }
+    }catch(e){ simOK=false; }
+  }
+  ok('40局全AI模拟无崩溃(含'+nt+'局无主)', simOK&&played>30);
+
+  return {pass,fail,out};
+}
+if(typeof module!=='undefined'){ module.exports.runTests=runTests; }
+</script>
+
+<script>
+/* ============================================================
+ * 界面层 —— 只调用引擎公开函数
+ * ============================================================ */
+(function(){
+if(typeof document==='undefined') return;
+const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,cutForFirst,effSuit,ordIdx,decompose,
+  classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,canOverride,declOptions,jokerPairOf,
+  canReinforce2,scoreRound,countPairsIn,maxTractorLen,structMatches,removeCard,aiLead,genFollow,
+  aiDiscard,simulateRound,bruteFollow};
+if(location.hash==='#test'){
+  document.getElementById('app').style.display='none';
+  const el=document.getElementById('tests'); el.style.display='block';
+  const {pass,fail,out}=runTests(ENGINE);
+  el.innerHTML=`<h1 class="${fail?'fail':'pass'}">${pass} 通过,${fail} 失败</h1>`+
+    out.map(t=>`<div class="${t.cond?'pass':'fail'}">${t.cond?'✓':'✗'} ${t.name}</div>`).join('');
+  return;
+}
+
+// ---- 术语(全国版/沪语版) ----
+const TERMS_CN={bigJoker:'大王',smallJoker:'小王',trump:'主牌',noTrump:'无主',tractor:'拖拉机',
+  throwP:'甩牌',ruff:'毙牌',discard:'垫牌',declare:'亮主',counter:'反主',reinforce:'加固',
+  bury:'扣底',lead:'领出',zheng:'正常主',fu:'副常主',voidSuit:'断门',openVoid:'开局断门',
+  rankA:'A',rankK:'K',rankQ:'Q',rankJ:'J',levelUp:'升级',
+  defenders:'闲家',tiaoji:'跳级',guangtou:'剃光头'};   // 闲家/跳级/剃光头:沪语全国通用
+let useSH=false; try{ useSH=localStorage.getItem('80fen-lang')==='sh'; }catch(e){}
+const T=k=>(useSH&&window.TERMS_SH&&window.TERMS_SH[k])||TERMS_CN[k]||k;
+
+const SUIT_SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
+const SUIT_NAME={S:'黑桃♠',H:'红桃♥',D:'方块♦',C:'梅花♣'};
+const SEAT_NAME=['南(你)','东','北(队友)','西'];
+const HUMAN=0;
+const typeName=t=>({single:'单张',pair:'对子',tractor:T('tractor'),throw:T('throwP')}[t]);
+const rankName=r=>r===14?T('rankA'):r===13?T('rankK'):r===12?T('rankQ'):r===11?T('rankJ'):String(r);
+let G=null, seedBase=Date.now()%100000, activeTab='score', replayMode=false, histBySuit=false;
+let notes=[]; try{ notes=JSON.parse(localStorage.getItem('80fen-notes')||'[]'); }catch(e){}
+
+// ---- 音效(WebAudio 合成,无外部资源,可关) ----
+let sndOn=true; try{ sndOn=localStorage.getItem('80fen-snd')!=='off'; }catch(e){}
+let _actx=null;
+function beep(freq,dur=0.08,type='sine',gain=0.06,delay=0){
+  if(!sndOn) return;
+  try{
+    _actx=_actx||new (window.AudioContext||window.webkitAudioContext)();
+    const o=_actx.createOscillator(), g=_actx.createGain();
+    o.type=type; o.frequency.value=freq;
+    g.gain.setValueAtTime(gain,_actx.currentTime+delay);
+    g.gain.exponentialRampToValueAtTime(0.001,_actx.currentTime+delay+dur);
+    o.connect(g); g.connect(_actx.destination);
+    o.start(_actx.currentTime+delay); o.stop(_actx.currentTime+delay+dur+0.02);
+  }catch(e){}
+}
+const sndPlay=()=>beep(520,0.05,'triangle',0.05);
+const sndWin =()=>{beep(660,0.09,'sine',0.06);beep(880,0.12,'sine',0.06,0.09);};
+const sndLose=()=>beep(220,0.15,'sine',0.05);
+const sndEnd =()=>{[523,659,784].forEach((f,i)=>beep(f,0.22,'sine',0.05,i*0.12));};
+const sndOops=()=>beep(180,0.18,'square',0.04);
+
+// ---- 教练设置(全部可开关可调,默认全开) ----
+let C={on:true, gapSens:'中', strict:false, review:true, quiz:true, memShow:false};
+try{ Object.assign(C,JSON.parse(localStorage.getItem('80fen-coach')||'{}')); }catch(e){}
+function saveC(){ try{ localStorage.setItem('80fen-coach',JSON.stringify(C)); }catch(e){} }
+const GAP_THR={'高':5,'中':12,'低':20,'关':Infinity};
+const desc=cards=>cards.map(miniName).join('+');
+function viewFor(seat){
+  return {seat,hand:G.hands[seat],trump:G.trump,
+          history:[...G.tricks.flatMap(t=>t.plays),...G.trick],
+          buriedKnown:seat===G.declSeat?G.buried:[]};
+}
+
+function cardHTML(c,cls=''){
+  const red=(c.suit==='H'||c.suit==='D'||c.rank===16)?' red':'';
+  if(c.suit==='X'){
+    return `<div class="card${red} ${cls}" data-id="${c.id}"><span class="joker">JOKER</span>`+
+           `<span class="tl">${c.rank===16?'大':'小'}</span></div>`;
+  }
+  const sym=SUIT_SYM[c.suit];
+  const rs=c.rank>10?{11:'J',12:'Q',13:'K',14:'A'}[c.rank]:String(c.rank);
+  return `<div class="card${red} ${cls}" data-id="${c.id}">`+
+    `<span class="tl">${rs}</span><span class="tr">${sym}</span>`+
+    `<span class="bl">${sym}</span><span class="br">${rs}</span></div>`;
+}
+function miniName(c){
+  if(c.suit==='X') return c.rank===16?T('bigJoker'):T('smallJoker');
+  return SUIT_SYM[c.suit]+rankName(c.rank);
+}
+// 副花色按红黑相间排列(依主花色选择顺序)
+const ALT_ORDER={S:['H','C','D'],H:['S','D','C'],C:['D','S','H'],D:['S','H','C'],
+                 null:['S','H','C','D']};
+function sortForDisplay(hand,trump){
+  const alt=ALT_ORDER[trump&&trump.suit?trump.suit:null]||['S','H','C','D'];
+  const suitOrd=s=>s==='T'?0:alt.indexOf(s)+1;
+  return hand.slice().sort((a,b)=>{
+    const sa=effSuit(a,trump),sb=effSuit(b,trump);
+    if(sa!==sb) return suitOrd(sa)-suitOrd(sb);
+    return ordIdx(b,trump)-ordIdx(a,trump);
+  });
+}
+function trumpLabel(t){ return t? (t.suit?`${SUIT_SYM[t.suit]} 打${rankName(t.rank)}`:`${T('noTrump')} 打${rankName(t.rank)}`) : '未定'; }
+function log(t){ G.log.unshift({text:t}); }
+function setMsg(t){ document.getElementById('msg').textContent=t||''; }
+function curTrumpForSort(){ return G.trump|| (G.decl&&G.decl.suit?{suit:G.decl.suit,rank:G.trumpRank}:{suit:null,rank:G.trumpRank}); }
+
+// ================= 整场状态(跨局) =================
+let M={levels:[2,2], dealer:-1, round:0};   // 双方级数、当前庄家(-1=无庄盘)、已完成局数
+
+// ================= 开局:(首盘切牌定先)→ 逐张发牌抢亮 =================
+function newRound(){
+  const seed=seedBase++;
+  const dealerKnown=M.dealer>=0;
+  let first, cutsLog='';
+  if(dealerKnown){
+    first=M.dealer;                      // 庄定盘:庄家先拿牌
+  }else{
+    const c=cutForFirst(seed); first=c.first;
+    cutsLog=`切牌定先:${[0,1,2,3].map(s=>`${SEAT_NAME[s].slice(0,1)}${miniName(c.cuts[s])}`).join(' ')} → ${SEAT_NAME[first]} 先拿牌`;
+  }
+  const deal=dealRound(seed,first);
+  const trumpRank=dealerKnown?M.levels[M.dealer%2]:RULES.levelStart;
+  G={seed,firstTaker:first,trumpRank,dealerKnown,
+     hands:deal.hands,kittyOrig:deal.kitty,buried:[],
+     trump:null,declSeat:dealerKnown?M.dealer:-1,
+     decl:null,rebelHappened:false,
+     visCount:[0,0,0,0],dealt:0,
+     leader:-1,trick:[],trickNo:0,tricks:[],defPoints:0,capturedCards:[],lastWinner:-1,
+     lastLeadSize:1,phase:'dealing',selected:new Set(),log:[],
+     coachNotes:[],hintCards:null,coachAdvice:'',quiz:null};
+  if(cutsLog) log(cutsLog);
+  if(dealerKnown) log(`第${M.round+1}局:${SEAT_NAME[M.dealer]} 坐庄,打${rankName(trumpRank)}(${T('counter')}只改主色,不易庄不拿底)`);
+  render(); setMsg('发牌中…可随时'+T('declare')+'/'+T('counter'));
+  dealTick();
+}
+
+function visHand(s){ return G.hands[s].slice(0,G.visCount[s]); }
+
+function dealTick(){
+  if(G.phase!=='dealing') return;
+  if(G.dealt>=100){ G.phase='finalDecl'; render();
+    setMsg('发牌完毕,最后机会'+T('declare')+'/'+T('counter')+'…');
+    setTimeout(settleTrump,1800); return; }
+  const seat=(G.firstTaker+G.dealt)%4;
+  G.visCount[seat]++; G.dealt++;
+  if(seat!==HUMAN) aiDeclThink(seat);
+  if(G.dealt%4===0||G.dealt>=100) render();
+  setTimeout(dealTick,120);   // 100张 × 120ms ≈ 12秒发完
+}
+
+// AI 抢亮决策(基于已见手牌)
+function aiDeclThink(seat){
+  const vis=visHand(seat);
+  const rand=rng(G.seed*13+G.dealt);
+  // 加固优先
+  if(canReinforce2(G.decl,seat,vis,G.trumpRank,G.rebelHappened)&&rand()<0.9){
+    applyDecl(seat,{suit:G.decl.suit,strength:2},true); return;
+  }
+  const cands=[...declOptions(vis,G.trumpRank)];
+  const jp=jokerPairOf(vis); if(jp) cands.push(jp);
+  const best=cands.filter(o=>canOverride(G.decl,o)).sort((a,b)=>b.strength-a.strength)[0];
+  if(!best) return;
+  const p=best.strength>=3?0.15:best.strength===2?0.5:0.12;   // 单张观望、对子积极、王对谨慎
+  if(rand()<p) applyDecl(seat,best,false);
+}
+
+function applyDecl(seat,opt,isReinforce){
+  G.decl={seat,suit:opt.suit,strength:opt.strength};
+  // 亮出的级数牌/王对立即在桌上可见
+  const vis=visHand(seat);
+  G.declCards={seat, cards: opt.suit
+    ? vis.filter(c=>c.suit===opt.suit&&c.rank===G.trumpRank).slice(0,opt.strength)
+    : vis.filter(c=>c.rank===(opt.strength===4?16:15)).slice(0,2)};
+  if(opt.strength>=3) G.rebelHappened=true;
+  if(isReinforce) log(`${SEAT_NAME[seat]} ${T('reinforce')}:${SUIT_SYM[opt.suit]} 单张→一对`);
+  else if(opt.suit===null) log(`${SEAT_NAME[seat]} ${opt.strength===4?T('bigJoker'):T('smallJoker')}对${T('counter')} → ${T('noTrump')}`);
+  else log(`${SEAT_NAME[seat]} ${T('declare')} ${SUIT_SYM[opt.suit]}${opt.strength===2?'(一对)':''}`);
+  render();
+}
+
+// 发牌结束:定主(庄定盘庄家不变;无庄盘最终亮主者坐庄拿底)
+function settleTrump(){
+  if(G.dealerKnown){
+    G.trump={suit:G.decl?G.decl.suit:null,rank:G.trumpRank};
+    log(G.decl?`定${T('trump')}:${trumpLabel(G.trump)}(庄家仍是 ${SEAT_NAME[G.declSeat]})`
+              :`无人${T('declare')} → ${T('noTrump')},庄家仍是 ${SEAT_NAME[G.declSeat]}`);
+  }else if(G.decl){
+    G.trump={suit:G.decl.suit,rank:G.trumpRank};
+    G.declSeat=G.decl.seat;
+    log(`定${T('trump')}:${trumpLabel(G.trump)},${SEAT_NAME[G.declSeat]} 坐庄`);
+  }else{
+    G.trump={suit:null,rank:G.trumpRank};
+    G.declSeat=G.firstTaker;             // 无人亮主→无主,先拿牌者坐庄(见 RULES.md)
+    log(`无人${T('declare')} → ${T('noTrump')},${SEAT_NAME[G.declSeat]} 坐庄`);
+  }
+  lowRebelPhase();
+}
+
+// 完全造反:手牌分数≤阈值 或 主牌张数≤阈值,可推翻定庄进入无庄抢亮
+function lowRebelPhase(){
+  const my=canFullRebel(G.hands[HUMAN],G.trump);
+  if(my.ok){
+    G.phase='lowrebel'; render();
+    const why=[my.byPts?`仅 ${my.pts} 分(≤${RULES.pointRebelThreshold})`:'',
+               my.byTrump?`${T('trump')}仅 ${my.nT} 张(≤${RULES.trumpRebelThreshold})`:'']
+              .filter(Boolean).join('、');
+    setMsg(`你手牌${why},可完全${T('counter')}重新抢庄`);
+    return;
+  }
+  aiLowRebel();
+}
+function humanLowRebel(yes){
+  if(yes){ log(`你手牌太弱,完全${T('counter')}!重新抢庄`); scramble(HUMAN); }
+  else aiLowRebel();
+}
+function aiLowRebel(){
+  const rand=rng(G.seed*17+5);
+  for(let s=1;s<4;s++){
+    const r=canFullRebel(G.hands[s],G.trump);
+    if(r.ok && s%2!==G.declSeat%2 && rand()<0.7){
+      log(`${SEAT_NAME[s]} ${r.byPts?'手牌分数不足':T('trump')+'太少'},完全${T('counter')}!重新抢庄`);
+      scramble(s); return;
+    }
+  }
+  afterTrumpSet();
+}
+// 无庄抢亮:双方各抢亮自己级数的牌,强者坐庄拿底(可被一对级数牌或一对王反)
+function scramble(rebelSeat){
+  const lvl=s=>M.dealer>=0?M.levels[s%2]:RULES.levelStart;
+  let best=null,bs=-1;
+  for(let i=0;i<4;i++){
+    const s=(G.firstTaker+i)%4;
+    const cands=[...declOptions(G.hands[s],lvl(s))];
+    const jp=jokerPairOf(G.hands[s]); if(jp) cands.push(jp);
+    const o=cands.sort((a,b)=>b.strength-a.strength)[0];
+    if(o&&(!best||o.strength>best.strength)){best=o;bs=s;}
+  }
+  if(best){
+    G.trumpRank=lvl(bs);
+    G.trump={suit:best.suit,rank:G.trumpRank};
+    G.declSeat=bs;
+    log(`抢庄结果:${SEAT_NAME[bs]} ${best.suit?SUIT_SYM[best.suit]:(best.strength===4?T('bigJoker'):T('smallJoker'))+'对'} 坐庄,${trumpLabel(G.trump)}`);
+  }else{
+    G.trumpRank=lvl(rebelSeat);
+    G.trump={suit:null,rank:G.trumpRank};
+    G.declSeat=rebelSeat;
+    log(`无人能亮 → ${T('noTrump')},${SEAT_NAME[rebelSeat]} 坐庄`);
+  }
+  afterTrumpSet();
+}
+
+function afterTrumpSet(){
+  G.leader=G.declSeat;
+  G.hands[G.declSeat].push(...G.kittyOrig);
+  if(G.declSeat===HUMAN){
+    G.phase='kitty'; G.selected.clear();
+    setMsg(`你是庄家:选 ${RULES.kittySize} 张牌${T('bury')}`); render();
+  }else{
+    G.buried=aiDiscard(G.hands[G.declSeat],G.trump);
+    G.buried.forEach(c=>removeCard(G.hands[G.declSeat],c));
+    G.phase='play'; render();
+    setMsg(`${SEAT_NAME[G.declSeat]} 是庄家`);
+    setTimeout(step,900);
+  }
+}
+
+function buryKitty(){
+  if(G.selected.size!==RULES.kittySize){ setMsg(`需要恰好 ${RULES.kittySize} 张,当前 ${G.selected.size} 张`); return; }
+  G.buried=G.hands[HUMAN].filter(c=>G.selected.has(c.id));
+  G.hands[HUMAN]=G.hands[HUMAN].filter(c=>!G.selected.has(c.id));
+  G.selected.clear(); G.phase='play';
+  log(`你已${T('bury')}`); setMsg('你先出牌'); render();
+  step();
+}
+
+// ================= 出牌循环 =================
+function step(){
+  if(G.phase!=='play') return;
+  if(G.trick.length===4){ finishTrick(); return; }
+  const seat=(G.leader+G.trick.length)%4;
+  if(seat===HUMAN){ setMsg(G.trick.length===0?('轮到你'+T('lead')):'轮到你跟牌'); render(); return; }
+  render();
+  setTimeout(()=>{
+    const view=viewFor(seat);
+    let cards, reason='';
+    if(G.trick.length===0){
+      const ch=aiChooseLead(view);
+      cards=ch.cards; reason=ch.reason;
+      const chk=checkThrow(G.hands,seat,cards,G.trump);
+      if(!chk.ok) cards=chk.forced;
+    }else{
+      const lead=classify(G.trick[0].cards,G.trump);
+      const ch=aiChooseFollow(view,G.trick);
+      cards=ch.cards; reason=ch.reason;
+      if(!isLegalFollow(G.hands[seat],lead,cards,G.trump))
+        cards=genFollow(G.hands[seat],lead,G.trump,rng(G.seed+G.trickNo));
+    }
+    G.lastReasons=G.lastReasons||{}; G.lastReasons[seat]=reason;  // 教练模式(M5)复用
+    playCards(seat,cards);
+  },700);
+}
+
+function humanPlay(){
+  const sel=G.hands[HUMAN].filter(c=>G.selected.has(c.id));
+  if(!sel.length){ setMsg('请先选牌'); return; }
+  if(G.trick.length===0){
+    const cl=classify(sel,G.trump);
+    if(!cl){ setMsg(T('lead')+`必须是同一门(${T('trump')}算一门)`); return; }
+    if(cl.type==='throw'){
+      const chk=checkThrow(G.hands,HUMAN,sel,G.trump);
+      if(!chk.ok){
+        log(`${T('throwP')}失败!被迫只出最小的一组(不罚分)`);
+        setMsg(T('throwP')+'失败,只出最小的一组');
+        G.selected.clear(); playCards(HUMAN,chk.forced); return;
+      }
+      log(T('throwP')+'成功');
+    }
+  }else{
+    const lead=classify(G.trick[0].cards,G.trump);
+    if(!isLegalFollow(G.hands[HUMAN],lead,sel,G.trump)){
+      setMsg(`不合法:需出 ${lead.cards.length} 张;有本门必须跟,门内有对必对`);
+      return;
+    }
+  }
+  // ---- 教练:失误反馈(同一评分标尺对比) ----
+  if(C.on && GAP_THR[C.gapSens]<Infinity && G.phase==='play'){
+    const view=viewFor(HUMAN);
+    let best,hs;
+    if(G.trick.length===0){ best=aiChooseLead(view); hs=coachScoreLead(view,sel); }
+    else{ best=aiChooseFollow(view,G.trick); hs=coachScoreFollow(view,G.trick,sel); }
+    const sameCards=best.cards.length===sel.length&&
+      best.cards.every(c=>sel.some(x=>x.id===c.id));
+    const gap=sameCards?0:best.score-hs;
+    if(gap>GAP_THR[C.gapSens]){
+      G.coachNotes.push({no:G.tricks.length+1,my:sel.slice(),best:best.cards.slice(),
+                         gap,reason:best.reason});
+      if(C.strict && gap>GAP_THR[C.gapSens]*1.6 &&
+         !confirm(`教练:更好的是 ${desc(best.cards)} —— ${best.reason}\n仍要出这手吗?`)) return;
+      sndOops();
+      setMsg(`教练:更好的是 ${desc(best.cards)} — ${best.reason}`);
+      log(`教练(第${G.tricks.length+1}墩):你出 ${desc(sel)},建议 ${desc(best.cards)} — ${best.reason}`);
+    }
+  }
+  G.selected.clear(); G.hintCards=null;
+  playCards(HUMAN,sel);
+}
+
+// ---- 教练:问教练(四步框架 + 关键墩提问引导) ----
+function askCoach(){
+  if(!C.on||G.phase!=='play') return;
+  if((G.leader+G.trick.length)%4!==HUMAN||G.trick.length>=4) return;
+  const view=viewFor(HUMAN);
+  const following=G.trick.length>0;
+  const adv=following?aiChooseFollow(view,G.trick):aiChooseLead(view);
+  const mem=makeMemory(view);
+  const t=G.trump;
+  // 提问引导:台面有分或跟主时,先考记牌再揭晓
+  const ptsTable=following?countPoints(G.trick.flatMap(p=>p.cards)):0;
+  const isKey=following&&(ptsTable>=10||classify(G.trick[0].cards,t).suit==='T');
+  const buildAdvice=()=>{
+    const lines=[];
+    if(following){
+      const lead=classify(G.trick[0].cards,t);
+      const sn=lead.suit==='T'?T('trump'):SUIT_NAME[lead.suit];
+      lines.push(`<span class="coachStep">① 义务</span> 跟 ${lead.cards.length} 张;有${sn}必须跟,门内有对必对`);
+      lines.push(`<span class="coachStep">② 候选</span> `+adv.cands.map(c=>`${desc(c.cards)}(${c.reason},${c.score.toFixed(0)}分)`).join(' / '));
+      const ctx=adv.ctx;
+      const mx=maxUnseenIdx(mem,lead.suit,t);
+      lines.push(`<span class="coachStep">③ 确定性</span> ${ctx.partnerWinning?(ctx.curBoss?'队友稳赢——在外已无更大':'队友只是暂大,后手还有对手'):'对手暂大'};${sn}在外最大约位次 ${mx<0?'(已出尽)':mx}`);
+      lines.push(`<span class="coachStep">④ 价值</span> 台面 ${ctx.ptsTable} 分${ctx.isLast?';你是最后一手,结果确定':''}`);
+    }else{
+      lines.push(`<span class="coachStep">① 义务</span> 你${T('lead')},可任选一门`);
+      lines.push(`<span class="coachStep">② 候选</span> `+adv.cands.map(c=>`${desc(c.cards)}(${c.reason},${c.score.toFixed(0)}分)`).join(' / '));
+      lines.push(`<span class="coachStep">③④</span> 优先钢板收墩、避免白送分、大主牌留后手`);
+    }
+    lines.push(`<b style="color:#6ec9ff">建议:${desc(adv.cards)}</b> —— ${adv.reason}`);
+    return lines.map(l=>`<div>${l}</div>`).join('');
+  };
+  if(C.quiz&&isKey){
+    const lead=classify(G.trick[0].cards,t);
+    const myBest=Math.max(-1,...G.hands[HUMAN].filter(c=>effSuit(c,t)===lead.suit).map(c=>ordIdx(c,t)));
+    let n=0;
+    for(const k in mem.unseen){ if(mem.unseen[k]<=0) continue;
+      const c=(k=>{const i=k.indexOf(':');return{suit:k.slice(0,i),rank:+k.slice(i+1)};})(k);
+      if(effSuit(c,t)===lead.suit&&ordIdx(c,t)>myBest) n+=mem.unseen[k]; }
+    G.quiz={answer:Math.min(n,3), advice:buildAdvice(),
+      q:`先考你:这一门里,在外还有几张比你手中最大的更大?`};
+  }else{
+    G.quiz=null;
+    G.coachAdvice=buildAdvice();
+  }
+  G.hintCards=new Set(adv.cards.map(c=>c.id));
+  activeTab='coach';
+  render();
+}
+
+function playCards(seat,cards){
+  cards.forEach(c=>removeCard(G.hands[seat],c));
+  G.trick.push({seat,cards});
+  sndPlay();
+  render();
+  if(G.trick.length===4) setTimeout(finishTrick,1000);
+  else step();
+}
+
+function finishTrick(){
+  const res=resolveTrick(G.trick,G.trump);
+  const declTeam=G.declSeat%2;
+  const gotPts=res.winner%2!==declTeam;
+  if(gotPts){
+    G.defPoints+=res.points;
+    G.capturedCards.push(...G.trick.flatMap(p=>p.cards).filter(c=>cardPoints(c)>0));
+  }
+  G.tricks.push({no:G.tricks.length+1,plays:G.trick.slice(),winner:res.winner,points:res.points,gotPts});
+  log(`第${G.tricks.length}墩:${SEAT_NAME[res.winner]} 赢${res.points?`,${gotPts?T('defenders')+'得':'庄家方保住'} ${res.points} 分`:',无分'}`);
+  G.lastLeadSize=G.trick[0].cards.length;
+  G.leader=res.winner; G.lastWinner=res.winner; G.trick=[]; G.trickNo++;
+  G.hintCards=null; G.quiz=null;   // 教练提示随墩清空(记牌表重新蒙上)
+  (res.winner%2===HUMAN%2?sndWin:sndLose)();
+  const nEl=document.getElementById('n'+res.winner);
+  if(nEl){ nEl.classList.add('won'); setTimeout(()=>nEl.classList.remove('won'),1900); }
+  if(G.hands.every(h=>h.length===0)) endRound();
+  else { render(); setMsg(''); setTimeout(step,400); }
+}
+
+function endRound(){
+  const declTeam=G.declSeat%2;
+  const defWonLast=G.lastWinner%2!==declTeam;
+  const sc=scoreRound({defPoints:G.defPoints,kitty:G.buried,defWonLastTrick:defWonLast,
+                       lastLeadSize:G.lastLeadSize});
+  const humanDecl=declTeam===HUMAN%2;
+  const humanWon=sc.defendersWin!==humanDecl;
+  let html=`<div style="font-size:22px;color:var(--gold)">${humanWon?'你们赢了!':'你们输了'}</div>`;
+  html+=`<div>${T('defenders')}共得 <b>${sc.total}</b> 分`;
+  if(defWonLast&&sc.kittyPts) html+=`(含${useSH?'灭底翻出':'抠底'} ${sc.kittyPts}×${sc.mult})`;
+  html+=`</div>`;
+  if(sc.total===0) html+=`<div style="color:var(--gold)">${T('guangtou')}!</div>`;   // 闲家0分
+  html+=sc.defendersWin
+    ? `<div>${T('defenders')}上台${sc.defenderLevelsUp?`,${T('levelUp')} ${sc.defenderLevelsUp} 级(${T('tiaoji')}!)`:''}</div>`
+    : `<div>庄家方守住,${T('levelUp')} ${sc.declarerLevelsUp} 级${sc.declarerLevelsUp>1?`(${T('tiaoji')}!)`:''}</div>`;
+  if(G.buried.length)
+    html+=`<div style="margin-top:8px;font-size:13px">底牌:${G.buried.map(c=>miniName(c)).join(' ')}</div>`;
+  // 教练:局后复盘关键回合(按分差取前3)
+  if(C.on&&C.review&&G.coachNotes.length){
+    const top=G.coachNotes.slice().sort((a,b)=>b.gap-a.gap).slice(0,3);
+    html+=`<div style="margin-top:10px;text-align:left;font-size:14px;background:rgba(110,201,255,.1);border-radius:8px;padding:8px 12px">`+
+      `<b style="color:#6ec9ff">🎓 关键回合复盘</b>`+
+      top.map(n=>`<div>第${n.no}墩:你出 ${desc(n.my)} → 教练建议 ${desc(n.best)}(${n.reason})</div>`).join('')+
+      `</div>`;
+  }else if(C.on&&C.review){
+    html+=`<div style="margin-top:8px;font-size:14px;color:#6ec9ff">🎓 教练:本局没有明显失误,漂亮!</div>`;
+  }
+  // 整场推进
+  const adv=advanceMatch(M.levels,G.declSeat,sc);
+  M.levels=adv.levels; M.dealer=adv.dealer; M.round++;
+  if(adv.matchOver){
+    const weWon=adv.winnerTeam===0;
+    html+=`<div style="margin-top:10px;font-size:20px;color:var(--gold)">${weWon?'你们打过 A,整场胜利!':'对方打过 A,整场告负'}</div>`;
+    html+=`<div style="margin-top:14px"><button onclick="window.__newMatch()">重新开整场</button></div>`;
+  }else{
+    html+=`<div style="margin-top:6px;font-size:14px">级数 —— 你们:打${rankName(Math.min(M.levels[0],14))} / 对方:打${rankName(Math.min(M.levels[1],14))}</div>`;
+    html+=`<div style="font-size:14px">下一局 ${SEAT_NAME[M.dealer]} 坐庄,打${rankName(M.levels[M.dealer%2])}</div>`;
+    html+=`<div style="margin-top:14px"><button onclick="window.__next()">下一局</button></div>`;
+  }
+  document.getElementById('overlayContent').innerHTML=html;
+  document.getElementById('overlay').style.display='flex';
+  sndEnd();
+}
+window.__next=()=>{ document.getElementById('overlay').style.display='none'; newRound(); };
+window.__newMatch=()=>{ M={levels:[2,2],dealer:-1,round:0};
+  document.getElementById('overlay').style.display='none'; newRound(); };
+
+// ================= 渲染 =================
+function render(){
+  const t=G.trump;
+  const declNow=G.decl?`${SEAT_NAME[G.decl.seat].slice(0,1)}${T('declare')} ${G.decl.suit?SUIT_SYM[G.decl.suit]+(G.decl.strength===2?'对':''):(G.decl.strength===4?T('bigJoker'):T('smallJoker'))+'对'}`:'未定';
+  document.getElementById('status').innerHTML=
+    `<span>${T('trump')}:<b>${t?trumpLabel(t):declNow}</b></span>`+
+    `<span>庄家:<b>${G.declSeat>=0?SEAT_NAME[G.declSeat]:'抢亮中'}</b></span>`+
+    `<span>${T('defenders')}得分:<b>${G.defPoints}</b></span>`+
+    `<span>你的队伍:<b>${G.declSeat<0?'—':(G.declSeat%2===0?'庄家方':T('defenders'))}</b></span>`+
+    `<span>级数 你们:<b>${rankName(Math.min(M.levels[0],14))}</b> 对方:<b>${rankName(Math.min(M.levels[1],14))}</b></span>`+
+    `<span>第${M.round+1}局 · 第 <b>${Math.min(G.tricks.length+1,13)}</b>/13 墩</span>`+
+    `<label style="margin-left:auto;font-size:12px;color:#9fd6b5"><input type="checkbox" id="langSw" ${useSH?'checked':''}> 沪语版</label>`+
+    `<label style="font-size:12px;color:#9fd6b5"><input type="checkbox" id="sndSw" ${sndOn?'checked':''}> 🔊音效</label>`;
+  const sw=document.getElementById('langSw');
+  if(sw) sw.onchange=e=>{ useSH=e.target.checked;
+    try{ localStorage.setItem('80fen-lang',useSH?'sh':'cn'); }catch(_){ } render(); };
+  const ss=document.getElementById('sndSw');
+  if(ss) ss.onchange=e=>{ sndOn=e.target.checked;
+    try{ localStorage.setItem('80fen-snd',sndOn?'on':'off'); }catch(_){ } };
+
+  let banner='';
+  if(G.phase==='dealing'||G.phase==='finalDecl'){
+    banner=`发牌中(${G.dealt}/100)… 当前:${G.decl?`${SEAT_NAME[G.decl.seat]} ${G.decl.suit?SUIT_SYM[G.decl.suit]+(G.decl.strength===2?'(一对)':''):T('noTrump')}`:'无人'+T('declare')}`;
+  }else if(G.phase==='lowrebel') banner=`完全${T('counter')}阶段:手牌分数≤${RULES.pointRebelThreshold} 或${T('trump')}≤${RULES.trumpRebelThreshold}张可推翻定庄`;
+  else if(G.phase==='kitty') banner=`${T('bury')}阶段:庄家从手牌(含底牌)中选 ${RULES.kittySize} 张扣下`;
+  else if(G.phase==='play'){
+    if(G.trick.length>0){
+      const lead=classify(G.trick[0].cards,G.trump);
+      const suitName=lead.suit==='T'?(t.suit?T('trump'):T('noTrump')):SUIT_NAME[lead.suit];
+      banner=`本墩:${SEAT_NAME[G.trick[0].seat]} ${T('lead')} 【${suitName}】 ${typeName(lead.type)}(${lead.cards.length}张),有${suitName}必须跟`;
+    }else banner=`本墩:${SEAT_NAME[G.leader]} ${T('lead')},等待出牌…`;
+  }
+  document.getElementById('banner').textContent=banner;
+
+  for(let s=1;s<4;s++){
+    const n=(G.phase==='dealing'||G.phase==='finalDecl')?G.visCount[s]:G.hands[s].length;
+    document.getElementById('b'+s).textContent='🂠 '+n+' 张';
+    document.getElementById('n'+s).classList.toggle('turn',
+      G.phase==='play'&&G.trick.length<4&&(G.leader+G.trick.length)%4===s);
+  }
+  document.getElementById('n0').classList.toggle('turn',
+    G.phase==='play'&&G.trick.length<4&&(G.leader+G.trick.length)%4===0);
+  const preplay=(G.phase!=='play');   // 开打前:亮主牌摆在亮主者面前
+  for(let s=0;s<4;s++){
+    const p=G.trick.find(x=>x.seat===s);
+    let html=p?p.cards.map(c=>cardHTML(c)).join(''):'';
+    if(preplay&&G.declCards&&G.declCards.seat===s)
+      html=G.declCards.cards.map(c=>cardHTML(c)).join('');
+    document.getElementById('p'+s).innerHTML=html;
+  }
+  const showHand=(G.phase==='dealing'||G.phase==='finalDecl')?visHand(HUMAN):G.hands[HUMAN];
+  const hand=sortForDisplay(showHand,curTrumpForSort());
+  document.getElementById('hand').innerHTML=
+    hand.map(c=>cardHTML(c,G.selected.has(c.id)?'sel':(G.hintCards&&G.hintCards.has(c.id)?'hintc':''))).join('');
+  document.querySelectorAll('#hand .card').forEach(el=>{
+    el.onclick=()=>{
+      if(!(G.phase==='play'||G.phase==='kitty')) return;
+      const id=+el.dataset.id;
+      G.selected.has(id)?G.selected.delete(id):G.selected.add(id);
+      render();
+    };
+  });
+
+  // 抢亮/造反/低分造反条
+  // 注意:内容没变时绝不重建 DOM —— 发牌期高频重绘会把正在点击的按钮销毁(点击被吞 bug)
+  const strip=document.getElementById('declStrip');
+  let stripHTML, bind=null;
+  if(G.phase==='dealing'||G.phase==='finalDecl'){
+    const vis=visHand(HUMAN);
+    const btns=[];
+    if(canReinforce2(G.decl,HUMAN,vis,G.trumpRank,G.rebelHappened))
+      btns.push(`<button data-a="re">${T('reinforce')} ${SUIT_SYM[G.decl.suit]}(→一对)</button>`);
+    declOptions(vis,G.trumpRank).filter(o=>canOverride(G.decl,o)).forEach(o=>
+      btns.push(`<button data-a="d" data-s="${o.suit}" data-st="${o.strength}">${G.decl?T('counter'):T('declare')} ${SUIT_SYM[o.suit]}${o.strength===2?'(一对)':''}</button>`));
+    const jp=jokerPairOf(vis);
+    if(jp&&canOverride(G.decl,jp))
+      btns.push(`<button data-a="d" data-s="" data-st="${jp.strength}">${jp.strength===4?T('bigJoker'):T('smallJoker')}对${T('counter')}(${T('noTrump')})</button>`);
+    stripHTML=btns.length?btns.join(''):`<span>(暂无可${T('declare')}的牌)</span>`;
+    bind=()=>strip.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+      if(b.dataset.a==='re') applyDecl(HUMAN,{suit:G.decl.suit,strength:2},true);
+      else applyDecl(HUMAN,{suit:b.dataset.s||null,strength:+b.dataset.st},false);
+    });
+  }else if(G.phase==='lowrebel'){
+    stripHTML=`<button id="lr1">完全${T('counter')}(重新抢庄)</button><button class="minor" id="lr0">不${T('counter')}</button>`;
+    bind=()=>{
+      document.getElementById('lr1').onclick=()=>humanLowRebel(true);
+      document.getElementById('lr0').onclick=()=>humanLowRebel(false);
+    };
+  }else stripHTML='<span></span>';
+  if(strip.__last!==stripHTML){
+    strip.innerHTML=stripHTML; strip.__last=stripHTML;
+    if(bind) bind();
+  }
+
+  const myTurn=G.phase==='play'&&G.trick.length<4&&(G.leader+G.trick.length)%4===HUMAN;
+  document.getElementById('btnPlay').disabled=!myTurn;
+  document.getElementById('btnClear').disabled=!(G.selected.size>0);
+  // 扣底:选够 8 张才可点
+  const buryReady=G.phase==='kitty'&&G.selected.size===RULES.kittySize;
+  document.getElementById('btnBury').disabled=!buryReady;
+  document.getElementById('btnBury').textContent=
+    G.phase==='kitty'?`${T('bury')}(${G.selected.size}/${RULES.kittySize})`:T('bury');
+  document.getElementById('btnHint').disabled=!(C.on&&myTurn);
+  renderPanel();
+}
+
+// ---- 底部面板 ----
+function renderPanel(){
+  document.querySelectorAll('#tabs button').forEach(b=>
+    b.classList.toggle('on',b.dataset.tab===activeTab));
+  const el=document.getElementById('panel');
+  if(!activeTab){ el.innerHTML='<span style="opacity:.5">点击上方页签展开:抢分记录 / 对局记录 / 出牌历史 / 教练 / 记牌表</span>'; return; }
+  if(activeTab==='coach'){ renderCoachTab(el); return; }
+  if(activeTab==='mem'){ renderMemTab(el); return; }
+  if(activeTab==='log'){
+    let html=`<div class="toggleRow"><label><input type="checkbox" id="ckReplay" ${replayMode?'checked':''}> 复盘模式(显示每墩出牌)</label></div>`;
+    if(replayMode){
+      html+=G.tricks.slice().reverse().map(tk=>
+        `<div class="trickRow"><span class="who">第${tk.no}墩 ${SEAT_NAME[tk.winner]}赢${tk.points?` +${tk.points}分`:''}</span>`+
+        tk.plays.map(p=>`<span style="font-size:11px;color:#9fd6b5">${SEAT_NAME[p.seat].slice(0,1)}:</span>`+
+          p.cards.map(c=>cardHTML(c,'mini')).join('')).join('')+`</div>`).join('')||'(尚无记录)';
+    }else{
+      html+=G.log.map(l=>`<div>· ${l.text}</div>`).join('')||'(尚无记录)';
+    }
+    el.innerHTML=html;
+    document.getElementById('ckReplay').onchange=e=>{replayMode=e.target.checked;renderPanel();};
+  }else if(activeTab==='score'){
+    const pts=G.capturedCards;
+    el.innerHTML=`<div style="margin-bottom:6px">抓分方已抓到 <b style="color:var(--gold)">${G.defPoints}</b> 分,分牌如下:</div>`+
+      (pts.length?`<div class="trickRow">${pts.map(c=>cardHTML(c,'mini')).join('')}</div>`:'(还没有抓到分牌)');
+  }else if(activeTab==='hist'){
+    let html=`<div class="toggleRow"><label><input type="checkbox" id="ckSuit" ${histBySuit?'checked':''}> 按花色分组(默认按时间)</label></div>`;
+    const all=G.tricks.flatMap(tk=>tk.plays.flatMap(p=>p.cards.map(c=>({c,seat:p.seat,no:tk.no}))));
+    if(!all.length) html+='(尚无出牌)';
+    else if(histBySuit){
+      const t=curTrumpForSort();
+      const groups={};
+      all.forEach(x=>{const s=effSuit(x.c,t);(groups[s]=groups[s]||[]).push(x);});
+      const gname=s=>s==='T'?T('trump'):SUIT_NAME[s];
+      html+=Object.keys(groups).sort((a,b)=>(a==='T'?-1:1)-(b==='T'?-1:1)).map(s=>{
+        const sorted=groups[s].sort((a,b)=>ordIdx(b.c,t)-ordIdx(a.c,t));
+        return `<div class="suitGroup"><b style="color:var(--gold)">${gname(s)}(${sorted.length}张)</b><br>${sorted.map(x=>cardHTML(x.c,'mini')).join('')}</div>`;
+      }).join('');
+    }else{
+      html+=G.tricks.map(tk=>
+        `<div class="trickRow"><span class="who">第${tk.no}墩</span>`+
+        tk.plays.map(p=>`<span style="font-size:11px;color:#9fd6b5">${SEAT_NAME[p.seat].slice(0,1)}:</span>`+
+          p.cards.map(c=>cardHTML(c,'mini')).join('')).join('')+`</div>`).join('');
+    }
+    el.innerHTML=html;
+    const ck=document.getElementById('ckSuit');
+    if(ck) ck.onchange=e=>{histBySuit=e.target.checked;renderPanel();};
+  }
+}
+
+// ---- 教练页签 ----
+function renderCoachTab(el){
+  let html=`<div class="toggleRow">
+    <label><input type="checkbox" id="cOn" ${C.on?'checked':''}> 教练总开关</label>
+    <label>失误反馈:<select id="cSens">${['高','中','低','关'].map(s=>`<option ${C.gapSens===s?'selected':''}>${s}</option>`).join('')}</select></label>
+    <label><input type="checkbox" id="cStrict" ${C.strict?'checked':''}> 严格模式(大失误可撤回)</label>
+    <label><input type="checkbox" id="cReview" ${C.review?'checked':''}> 局后复盘</label>
+    <label><input type="checkbox" id="cQuiz" ${C.quiz?'checked':''}> 提问引导</label>
+  </div>`;
+  if(G.quiz){
+    html+=`<div class="coachBox"><b>🎓 ${G.quiz.q}</b><div style="margin-top:6px">`+
+      [0,1,2,3].map(n=>`<button class="minor" data-qz="${n}" style="margin-right:6px;padding:4px 14px">${n===3?'3+':n}</button>`).join('')+
+      `</div></div>`;
+  }else if(G.coachAdvice){
+    html+=`<div class="coachBox">${G.coachAdvice}</div>`;
+  }else{
+    html+=`<div style="opacity:.6">轮到你时点「问教练」;出现大失误会自动提醒;局终自动复盘关键回合。</div>`;
+  }
+  if(G.coachNotes.length){
+    html+=`<div style="margin-top:6px;color:#9fd6b5">本局失误记录:</div>`+
+      G.coachNotes.map(n=>`<div>· 第${n.no}墩:你出 ${desc(n.my)},建议 ${desc(n.best)}(${n.reason},差距 ${n.gap.toFixed(0)})</div>`).join('');
+  }
+  el.innerHTML=html;
+  el.querySelector('#cOn').onchange=e=>{C.on=e.target.checked;saveC();render();};
+  el.querySelector('#cSens').onchange=e=>{C.gapSens=e.target.value;saveC();};
+  el.querySelector('#cStrict').onchange=e=>{C.strict=e.target.checked;saveC();};
+  el.querySelector('#cReview').onchange=e=>{C.review=e.target.checked;saveC();};
+  el.querySelector('#cQuiz').onchange=e=>{C.quiz=e.target.checked;saveC();};
+  el.querySelectorAll('[data-qz]').forEach(b=>b.onclick=()=>{
+    const guess=+b.dataset.qz, right=guess===G.quiz.answer;
+    G.coachAdvice=`<div>${right?'✅ 答对了':'❌ 不对'},实际在外还有 <b>${G.quiz.answer===3?'3张以上':G.quiz.answer+'张'}</b> 更大的。</div>`+G.quiz.advice;
+    G.quiz=null; renderPanel();
+  });
+}
+
+// ---- 记牌表页签(默认蒙住,点开验证;每墩重新蒙上) ----
+function renderMemTab(el){
+  const inPlay=G.phase==='play'||G.phase==='kitty';
+  if(!inPlay){ el.innerHTML='<div style="opacity:.6">开打后这里显示在外大牌统计。</div>'; return; }
+  let html=`<div class="toggleRow"><label><input type="checkbox" id="cMemShow" ${C.memShow?'checked':''}> 常显(不蒙)</label></div>`;
+  const revealed=C.memShow||G.memRevealTrick===G.tricks.length;
+  if(!revealed){
+    html+=`<div class="coachBox">🧠 先自己心算:主牌还剩几张?哪几门的分牌还没出?<br>
+      <button id="memReveal" style="margin-top:6px">我算好了,点开验证</button></div>`;
+    el.innerHTML=html;
+    el.querySelector('#cMemShow').onchange=e=>{C.memShow=e.target.checked;saveC();renderPanel();};
+    el.querySelector('#memReveal').onclick=()=>{G.memRevealTrick=G.tricks.length;renderPanel();};
+    return;
+  }
+  const t=G.trump, mem=makeMemory(viewFor(HUMAN));
+  const suits=['T','S','H','C','D'].filter(s=>s==='T'||(!t.suit||s!==t.suit));
+  html+=suits.map(s=>{
+    let cnt=0, top=null, pts=0;
+    for(const k in mem.unseen){
+      const m=mem.unseen[k]; if(m<=0) continue;
+      const i=k.indexOf(':'); const c={suit:k.slice(0,i),rank:+k.slice(i+1)};
+      if(effSuit(c,t)!==s) continue;
+      cnt+=m; pts+=cardPoints(c)*m;
+      if(!top||ordIdx(c,t)>ordIdx(top,t)) top=c;
+    }
+    const name=s==='T'?T('trump'):SUIT_NAME[s];
+    return `<div>· <b style="color:var(--gold)">${name}</b>:在外 ${cnt} 张,最大 ${top?miniName(top):'—'},含 ${pts} 分</div>`;
+  }).join('');
+  html+=`<div style="opacity:.6;margin-top:4px">(在外 = 除你手牌与已出牌外;底牌${G.declSeat===HUMAN?'你已知':'未知,计入在外'})</div>`;
+  el.innerHTML=html;
+  el.querySelector('#cMemShow').onchange=e=>{C.memShow=e.target.checked;saveC();renderPanel();};
+}
+
+// ---- 笔记 ----
+function renderNotes(){
+  document.getElementById('noteList').innerHTML=
+    notes.slice().reverse().map(n=>`<div class="note">${n.replace(/[<>&]/g,s=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]))}</div>`).join('');
+}
+document.getElementById('noteSend').onclick=sendNote;
+document.getElementById('noteInput').onkeydown=e=>{ if(e.key==='Enter') sendNote(); };
+function sendNote(){
+  const el=document.getElementById('noteInput');
+  const v=el.value.trim();
+  if(!v) return;
+  notes.push(v); el.value='';
+  try{ localStorage.setItem('80fen-notes',JSON.stringify(notes.slice(-100))); }catch(e){}
+  renderNotes();
+}
+
+document.getElementById('btnPlay').onclick=humanPlay;
+document.getElementById('btnClear').onclick=()=>{G.selected.clear();render();};
+document.getElementById('btnBury').onclick=buryKitty;
+document.getElementById('btnHint').onclick=askCoach;
+document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
+  activeTab=activeTab===b.dataset.tab?null:b.dataset.tab;
+  renderPanel();
+});
+
+renderNotes();
+newRound();
+})();
+</script>
+</body>
+</html>
