@@ -1808,7 +1808,15 @@ document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
 });
 
 renderNotes();
-newRound();
+showStartScreen();
+function showStartScreen(){
+  document.getElementById('overlayContent').innerHTML=
+    `<div style="font-size:22px;color:var(--gold)">80分(上海规则)</div>`+
+    `<div style="margin-top:8px;font-size:14px">启发式 AI 队友与对手 · 教练模式</div>`+
+    `<div style="margin-top:16px"><button onclick="window.__start()">开始游戏</button></div>`;
+  document.getElementById('overlay').style.display='flex';
+}
+window.__start=()=>{ document.getElementById('overlay').style.display='none'; newRound(); };
 })();
 </script>
 </body>
