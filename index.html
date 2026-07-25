@@ -175,6 +175,7 @@ const RULES = {
   partialTractorFollow: true,   // 【可调】领出长拖拉机、手中只有更短拖拉机时必须跟出短的(默认开)
   pointRebelThreshold: 15,      // 【可调】手牌分数 ≤ 此值可完全造反(5的倍数,≤30;0=关闭)
   trumpRebelThreshold: 3,       // 【可调】手牌主牌张数 ≤ 此值也可完全造反(-1=关闭)
+  maxRedeal: 3,                 // 同一局最多连续重新发牌次数(防止一直重发)
 };
 
 const SUITS = ['S','H','D','C'];
@@ -394,6 +395,13 @@ function jokerPairOf(hand){
   if(sj>=2) return {suit:null,strength:3};
   return null;
 }
+// 定主后谁坐庄。庄定盘:庄家恒不变 —— 亮主/反主/王对造反都只改主色,不易庄不拿底;
+// 无庄盘(首局、或完全造反后的抢庄盘):最终亮主者坐庄,无人亮主则先拿牌者坐庄。
+function dealerAfterDecl({dealerKnown, dealer, declSeat, firstTaker}){
+  if(dealerKnown) return dealer;
+  return declSeat>=0?declSeat:firstTaker;
+}
+
 // 加固:仅亮主者本人、单张→一对、且必须先于任何造反(王对/低分造反)
 function canReinforce2(decl, seat, hand, trumpRank, rebelHappened){
   if(!decl||decl.seat!==seat||decl.strength!==1||rebelHappened||decl.suit===null) return false;
@@ -918,7 +926,7 @@ function simulateRound(seed, smartSeats=[0,1,2,3]){
 
 if(typeof module!=='undefined') module.exports={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
-  canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,scoreRound,advanceMatch,countPairsIn,maxTractorLen,
+  canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
   makeMemory,maxUnseenIdx,unseenPairAbove,isBossPlay,buildFollow,currentWinner,minWinFollow,
   aiChooseFollow,aiChooseLead,coachScoreFollow,coachScoreLead,makeVoids,followCtx,leadCtx,scoreLeadPlay};
@@ -1095,6 +1103,17 @@ function runTests(E){
     ok('教练标尺:领出评分与AI自洽',
        E.coachScoreLead(view3,best.cards)>=E.coachScoreLead(view3,[view3.hand[2]])-0.01);
     ok('AI返回候选列表供教练展示', Array.isArray(best.cands)&&best.cands.length>=1);
+  }
+
+  // ---- 定主后谁坐庄(王对造反不得在庄定盘换庄) ----
+  {
+    const D=E.dealerAfterDecl;
+    ok('庄定盘:亮主不换庄', D({dealerKnown:true,dealer:1,declSeat:3,firstTaker:1})===1);
+    ok('庄定盘:王对造反只改主色,庄家不变',
+       D({dealerKnown:true,dealer:1,declSeat:2,firstTaker:1})===1);
+    ok('庄定盘:无人亮主也不换庄', D({dealerKnown:true,dealer:2,declSeat:-1,firstTaker:2})===2);
+    ok('无庄盘:最终亮主者坐庄', D({dealerKnown:false,dealer:-1,declSeat:3,firstTaker:0})===3);
+    ok('无庄盘:无人亮主则先拿牌者坐庄', D({dealerKnown:false,dealer:-1,declSeat:-1,firstTaker:2})===2);
   }
 
   // ---- 整场推进(升级/轮庄/胜负) ----
@@ -1289,6 +1308,18 @@ const sndLose=()=>beep(220,0.15,'sine',0.05);
 const sndEnd =()=>{[523,659,784].forEach((f,i)=>beep(f,0.22,'sine',0.05,i*0.12));};
 const sndOops=()=>beep(180,0.18,'square',0.04);
 
+// ---- 对局设置(规则 + 节奏),见设置菜单 ----
+const S_DEFAULT={
+  fullRebel:'off',   // 低分/少主:off=关闭 | redeal=仅重新发牌(不抢庄) | scramble=完全造反(双方抢庄)
+  aiThinkMin:1.0,    // AI 出牌思考秒数(下限)
+  aiThinkMax:3.0,    // AI 出牌思考秒数(上限)
+  trickHold:3.0,     // 一墩出完后牌留桌秒数
+  manualNext:false,  // true = 手动点击进入下一墩
+};
+let S={...S_DEFAULT};
+try{ Object.assign(S,JSON.parse(localStorage.getItem('80fen-set')||'{}')); }catch(e){}
+function saveS(){ try{ localStorage.setItem('80fen-set',JSON.stringify(S)); }catch(e){} }
+
 // ---- 教练设置(全部可开关可调,默认全开) ----
 let C={on:true, gapSens:'中', strict:false, review:true, quiz:true, memShow:false};
 try{ Object.assign(C,JSON.parse(localStorage.getItem('80fen-coach')||'{}')); }catch(e){}
@@ -1326,7 +1357,10 @@ function sortForDisplay(hand,trump){
   return hand.slice().sort((a,b)=>{
     const sa=effSuit(a,trump),sb=effSuit(b,trump);
     if(sa!==sb) return suitOrd(sa)-suitOrd(sb);
-    return ordIdx(b,trump)-ordIdx(a,trump);
+    const oa=ordIdx(a,trump),ob=ordIdx(b,trump);
+    if(oa!==ob) return ob-oa;
+    // 同级的级数将牌(副常主;无主时各花色常主)ordIdx 相同 —— 再按花色归堆,免得散排
+    return suitOrd(a.suit)-suitOrd(b.suit);
   });
 }
 function trumpLabel(t){ return t? (t.suit?`${SUIT_SYM[t.suit]} 打${rankName(t.rank)}`:`${T('noTrump')} 打${rankName(t.rank)}`) : '未定'; }
@@ -1336,11 +1370,16 @@ function curTrumpForSort(){ return G.trump|| (G.decl&&G.decl.suit?{suit:G.decl.s
 
 // ================= 整场状态(跨局) =================
 let M={levels:[2,2], dealer:-1, round:0};   // 双方级数、当前庄家(-1=无庄盘)、已完成局数
+let scrambleNext=false;   // 下一次发牌是否按无庄盘(完全造反后)
+let redealCount=0;        // 本局已重新发牌次数
+// 无庄盘里各家按自己队伍的级数抢亮;庄定盘全桌用庄家级数
+function rankOf(seat){ return G.dealerKnown?G.trumpRank:M.levels[seat%2]; }
 
 // ================= 开局:(首盘切牌定先)→ 逐张发牌抢亮 =================
 function newRound(){
   const seed=seedBase++;
-  const dealerKnown=M.dealer>=0;
+  const dealerKnown=M.dealer>=0 && !scrambleNext;   // 完全造反重发 → 本盘按无庄盘抢庄
+  scrambleNext=false;
   let first, cutsLog='';
   if(dealerKnown){
     first=M.dealer;                      // 庄定盘:庄家先拿牌
@@ -1349,7 +1388,8 @@ function newRound(){
     cutsLog=`切牌定先:${[0,1,2,3].map(s=>`${SEAT_NAME[s].slice(0,1)}${miniName(c.cuts[s])}`).join(' ')} → ${SEAT_NAME[first]} 先拿牌`;
   }
   const deal=dealRound(seed,first);
-  const trumpRank=dealerKnown?M.levels[M.dealer%2]:RULES.levelStart;
+  // 无庄盘各家按自己级数抢亮,这里先按先拿牌者的级数起头,谁亮到就换成谁的(见 rankOf)
+  const trumpRank=dealerKnown?M.levels[M.dealer%2]:M.levels[first%2];
   G={seed,firstTaker:first,trumpRank,dealerKnown,
      hands:deal.hands,kittyOrig:deal.kitty,buried:[],
      trump:null,declSeat:dealerKnown?M.dealer:-1,
@@ -1383,10 +1423,10 @@ function aiDeclThink(seat){
   const vis=visHand(seat);
   const rand=rng(G.seed*13+G.dealt);
   // 加固优先
-  if(canReinforce2(G.decl,seat,vis,G.trumpRank,G.rebelHappened)&&rand()<0.9){
+  if(canReinforce2(G.decl,seat,vis,rankOf(seat),G.rebelHappened)&&rand()<0.9){
     applyDecl(seat,{suit:G.decl.suit,strength:2},true); return;
   }
-  const cands=[...declOptions(vis,G.trumpRank)];
+  const cands=[...declOptions(vis,rankOf(seat))];
   const jp=jokerPairOf(vis); if(jp) cands.push(jp);
   const best=cands.filter(o=>canOverride(G.decl,o)).sort((a,b)=>b.strength-a.strength)[0];
   if(!best) return;
@@ -1402,6 +1442,7 @@ function aiDeclThink(seat){
 }
 
 function applyDecl(seat,opt,isReinforce){
+  if(!G.dealerKnown) G.trumpRank=rankOf(seat);   // 无庄盘:主牌级数跟着亮主者走
   G.decl={seat,suit:opt.suit,strength:opt.strength};
   // 亮出的级数牌/王对立即在桌上可见
   const vis=visHand(seat);
@@ -1417,37 +1458,36 @@ function applyDecl(seat,opt,isReinforce){
 
 // 发牌结束:定主(庄定盘庄家不变;无庄盘最终亮主者坐庄拿底)
 function settleTrump(){
+  G.trump={suit:G.decl?G.decl.suit:null,rank:G.trumpRank};
+  G.declSeat=dealerAfterDecl({dealerKnown:G.dealerKnown, dealer:M.dealer,
+                              declSeat:G.decl?G.decl.seat:-1, firstTaker:G.firstTaker});
   if(G.dealerKnown){
-    G.trump={suit:G.decl?G.decl.suit:null,rank:G.trumpRank};
     log(G.decl?`定${T('trump')}:${trumpLabel(G.trump)}(庄家仍是 ${SEAT_NAME[G.declSeat]})`
               :`无人${T('declare')} → ${T('noTrump')},庄家仍是 ${SEAT_NAME[G.declSeat]}`);
-  }else if(G.decl){
-    G.trump={suit:G.decl.suit,rank:G.trumpRank};
-    G.declSeat=G.decl.seat;
-    log(`定${T('trump')}:${trumpLabel(G.trump)},${SEAT_NAME[G.declSeat]} 坐庄`);
   }else{
-    G.trump={suit:null,rank:G.trumpRank};
-    G.declSeat=G.firstTaker;             // 无人亮主→无主,先拿牌者坐庄(见 RULES.md)
-    log(`无人${T('declare')} → ${T('noTrump')},${SEAT_NAME[G.declSeat]} 坐庄`);
+    log(G.decl?`定${T('trump')}:${trumpLabel(G.trump)},${SEAT_NAME[G.declSeat]} 坐庄`
+              :`无人${T('declare')} → ${T('noTrump')},${SEAT_NAME[G.declSeat]} 坐庄`);
   }
   lowRebelPhase();
 }
 
-// 完全造反:手牌分数≤阈值 或 主牌张数≤阈值,可推翻定庄进入无庄抢亮
+// 低分/少主:按设置决定是关闭、仅重新发牌,还是完全造反(重发 + 双方抢庄)
+const rebelName=()=>S.fullRebel==='redeal'?'重新发牌':`完全${T('counter')}(重新发牌,双方抢庄)`;
 function lowRebelPhase(){
+  if(S.fullRebel==='off'){ afterTrumpSet(); return; }
   const my=canFullRebel(G.hands[HUMAN],G.trump);
   if(my.ok){
     G.phase='lowrebel'; render();
     const why=[my.byPts?`仅 ${my.pts} 分(≤${RULES.pointRebelThreshold})`:'',
                my.byTrump?`${T('trump')}仅 ${my.nT} 张(≤${RULES.trumpRebelThreshold})`:'']
               .filter(Boolean).join('、');
-    setMsg(`你手牌${why},可完全${T('counter')}重新抢庄`);
+    setMsg(`你手牌${why},可${rebelName()}`);
     return;
   }
   aiLowRebel();
 }
 function humanLowRebel(yes){
-  if(yes){ log(`你手牌太弱,完全${T('counter')}!重新抢庄`); scramble(HUMAN); }
+  if(yes){ log(`你手牌太弱,${rebelName()}`); doRebel(); }
   else aiLowRebel();
 }
 function aiLowRebel(){
@@ -1455,35 +1495,23 @@ function aiLowRebel(){
   for(let s=1;s<4;s++){
     const r=canFullRebel(G.hands[s],G.trump);
     if(r.ok && s%2!==G.declSeat%2 && rand()<0.7){
-      log(`${SEAT_NAME[s]} ${r.byPts?'手牌分数不足':T('trump')+'太少'},完全${T('counter')}!重新抢庄`);
-      scramble(s); return;
+      log(`${SEAT_NAME[s]} ${r.byPts?'手牌分数不足':T('trump')+'太少'},${rebelName()}`);
+      doRebel(); return;
     }
   }
   afterTrumpSet();
 }
-// 无庄抢亮:双方各抢亮自己级数的牌,强者坐庄拿底(可被一对级数牌或一对王反)
-function scramble(rebelSeat){
-  const lvl=s=>M.dealer>=0?M.levels[s%2]:RULES.levelStart;
-  let best=null,bs=-1;
-  for(let i=0;i<4;i++){
-    const s=(G.firstTaker+i)%4;
-    const cands=[...declOptions(G.hands[s],lvl(s))];
-    const jp=jokerPairOf(G.hands[s]); if(jp) cands.push(jp);
-    const o=cands.sort((a,b)=>b.strength-a.strength)[0];
-    if(o&&(!best||o.strength>best.strength)){best=o;bs=s;}
+// 两种模式都重新发牌;完全造反模式下新的一盘按无庄盘处理(各家按自己级数抢庄拿底)
+function doRebel(){
+  if(redealCount>=RULES.maxRedeal){       // 连续重发太多次就直接开打,免得卡死
+    log(`已重新发牌 ${redealCount} 次,本局直接开打`);
+    afterTrumpSet(); return;
   }
-  if(best){
-    G.trumpRank=lvl(bs);
-    G.trump={suit:best.suit,rank:G.trumpRank};
-    G.declSeat=bs;
-    log(`抢庄结果:${SEAT_NAME[bs]} ${best.suit?SUIT_SYM[best.suit]:(best.strength===4?T('bigJoker'):T('smallJoker'))+'对'} 坐庄,${trumpLabel(G.trump)}`);
-  }else{
-    G.trumpRank=lvl(rebelSeat);
-    G.trump={suit:null,rank:G.trumpRank};
-    G.declSeat=rebelSeat;
-    log(`无人能亮 → ${T('noTrump')},${SEAT_NAME[rebelSeat]} 坐庄`);
-  }
-  afterTrumpSet();
+  redealCount++;
+  scrambleNext=(S.fullRebel==='scramble');
+  G.phase='redealing'; render();
+  setMsg('重新发牌…');
+  setTimeout(newRound,1200);
 }
 
 function afterTrumpSet(){
@@ -1661,6 +1689,7 @@ function finishTrick(){
 }
 
 function endRound(){
+  redealCount=0;                 // 本局真正打完了,重发计数归零
   const declTeam=G.declSeat%2;
   const defWonLast=G.lastWinner%2!==declTeam;
   const sc=scoreRound({defPoints:G.defPoints,kitty:G.buried,defWonLastTrick:defWonLast,
@@ -1705,7 +1734,7 @@ function endRound(){
   sndEnd();
 }
 window.__next=()=>{ document.getElementById('overlay').style.display='none'; newRound(); };
-window.__newMatch=()=>{ M={levels:[2,2],dealer:-1,round:0};
+window.__newMatch=()=>{ M={levels:[2,2],dealer:-1,round:0}; scrambleNext=false; redealCount=0;
   document.getElementById('overlay').style.display='none'; newRound(); };
 window.__review=()=>{ document.getElementById('overlay').style.display='none';
   render(); setMsg('复盘中:可查看出牌历史、教练复盘等记录,准备好后点下方"下一局"继续'); };
@@ -1733,7 +1762,8 @@ function render(){
   let banner='';
   if(G.phase==='dealing'||G.phase==='finalDecl'){
     banner=`发牌中(${G.dealt}/100)… 当前:${G.decl?`${SEAT_NAME[G.decl.seat]} ${G.decl.suit?SUIT_SYM[G.decl.suit]+(G.decl.strength===2?'(一对)':''):T('noTrump')}`:'无人'+T('declare')}`;
-  }else if(G.phase==='lowrebel') banner=`完全${T('counter')}阶段:手牌分数≤${RULES.pointRebelThreshold} 或${T('trump')}≤${RULES.trumpRebelThreshold}张可推翻定庄`;
+  }else if(G.phase==='redealing') banner='重新发牌中…';
+  else if(G.phase==='lowrebel') banner=`低分/少${T('trump')}阶段:手牌分数≤${RULES.pointRebelThreshold} 或${T('trump')}≤${RULES.trumpRebelThreshold}张可${rebelName()}`;
   else if(G.phase==='kitty') banner=`${T('bury')}阶段:庄家从手牌(含底牌)中选 ${RULES.kittySize} 张扣下`;
   else if(G.phase==='play'){
     if(G.trick.length>0){
@@ -1758,7 +1788,9 @@ function render(){
     let html=p?p.cards.map(c=>cardHTML(c)).join(''):'';
     if(preplay&&G.declCards&&G.declCards.seat===s)
       html=G.declCards.cards.map(c=>cardHTML(c)).join('');
-    document.getElementById('p'+s).innerHTML=html;
+    // 内容没变就别重建 DOM —— 否则 playIn 动画每次 render 都重放(牌一直闪)
+    const slot=document.getElementById('p'+s);
+    if(slot.__last!==html){ slot.innerHTML=html; slot.__last=html; }
   }
   const showHand=(G.phase==='dealing'||G.phase==='finalDecl')?visHand(HUMAN):G.hands[HUMAN];
   const hand=sortForDisplay(showHand,curTrumpForSort());
@@ -1785,9 +1817,9 @@ function render(){
   }else if(G.phase==='dealing'||G.phase==='finalDecl'){
     const vis=visHand(HUMAN);
     const btns=[];
-    if(canReinforce2(G.decl,HUMAN,vis,G.trumpRank,G.rebelHappened))
+    if(canReinforce2(G.decl,HUMAN,vis,rankOf(HUMAN),G.rebelHappened))
       btns.push(`<button data-a="re">${T('reinforce')} ${SUIT_SYM[G.decl.suit]}(→一对)</button>`);
-    declOptions(vis,G.trumpRank).filter(o=>canOverride(G.decl,o)).forEach(o=>
+    declOptions(vis,rankOf(HUMAN)).filter(o=>canOverride(G.decl,o)).forEach(o=>
       btns.push(`<button data-a="d" data-s="${o.suit}" data-st="${o.strength}">${G.decl?T('counter'):T('declare')} ${SUIT_SYM[o.suit]}${o.strength===2?'(一对)':''}</button>`));
     const jp=jokerPairOf(vis);
     if(jp&&canOverride(G.decl,jp))
@@ -1798,7 +1830,7 @@ function render(){
       else applyDecl(HUMAN,{suit:b.dataset.s||null,strength:+b.dataset.st},false);
     });
   }else if(G.phase==='lowrebel'){
-    stripHTML=`<button id="lr1">完全${T('counter')}(重新抢庄)</button><button class="minor" id="lr0">不${T('counter')}</button>`;
+    stripHTML=`<button id="lr1">${rebelName()}</button><button class="minor" id="lr0">不${T('counter')}</button>`;
     bind=()=>{
       document.getElementById('lr1').onclick=()=>humanLowRebel(true);
       document.getElementById('lr0').onclick=()=>humanLowRebel(false);
