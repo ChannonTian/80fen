@@ -6,7 +6,7 @@
 
 ## 文件
 
-`index.html` 游戏本体(引擎+AI+界面,单文件);`terms-shanghai.js` 沪语术语表(可独立改词);`RULES.md` 规则决定书;`AI-DESIGN.md` AI 设计笔记;`CHANGELOG.md` 更新日志。`80fen.html` 与 `index.html` 内容相同(开发用名,每次改动需手动同步)。
+`index.html` 游戏本体(引擎+AI+界面,单文件);`terms-shanghai.js` 沪语术语表(可独立改词);`RULES.md` 规则决定书;`AI-DESIGN.md` AI 设计笔记;`CHANGELOG.md` 更新日志。`80fen-dev.html` 是开发分支副本,用于实验尚未确定要不要合进正式版的新功能;不部署、不随 `index.html` 自动同步,需要时手动对比合并。
 
 ## 本地运行
 
