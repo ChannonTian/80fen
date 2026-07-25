@@ -5,74 +5,93 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>80分(上海规则)</title>
 <style>
-  :root{--felt:#0f5132;--felt2:#0b3d26;--gold:#ffd75e}
+  :root{--felt:#0f5132;--felt2:#0b3d26;--gold:#ffd75e;
+        /* 牌宽是整个界面的标尺:牌面、字号、间距都跟着它缩放 */
+        --cardW:clamp(44px,2.6vw + 1.2vh,64px);
+        --cardH:calc(var(--cardW)*1.44);
+        --miniW:calc(var(--cardW)*0.68);
+        --miniH:calc(var(--miniW)*1.44);
+        --fsBase:clamp(13px,0.55vw + 0.5vh + 6px,18px);
+        --fsSmall:clamp(12px,0.45vw + 0.4vh + 6px,16px)}
   *{box-sizing:border-box}
+  html,body{height:100%}
   body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;margin:0;
        background:radial-gradient(ellipse at center,var(--felt),var(--felt2));
-       color:#fff;min-height:100vh}
-  #app{display:flex;flex-direction:column;min-height:100vh;padding:8px;max-width:1150px;margin:0 auto}
-  #status{display:flex;gap:16px;flex-wrap:wrap;background:rgba(0,0,0,.35);border-radius:8px;
-          padding:8px 14px;font-size:14px;min-height:38px;align-items:center}
+       color:#fff;overflow:hidden}          /* 整页不滚动,滚动只发生在右侧面板内部 */
+  /* 左右布局:左边牌桌,右边历史/笔记/教练。整体锁在一屏高度内 */
+  #app{display:grid;height:100dvh;padding:8px;gap:8px;margin:0 auto;max-width:1700px;
+       grid-template-columns:minmax(0,1fr) clamp(250px,24vw,380px);
+       grid-template-rows:auto minmax(0,1fr)}
+  #status{grid-column:1/-1}
+  #main{grid-column:1;display:flex;flex-direction:column;gap:6px;min-height:0;min-width:0}
+  #side{grid-column:2;display:flex;flex-direction:column;gap:6px;min-height:0;min-width:0}
+  #status{display:flex;gap:14px;flex-wrap:wrap;background:rgba(0,0,0,.35);border-radius:8px;
+          padding:8px 14px;font-size:var(--fsBase);align-items:center}
   #status b{color:var(--gold)}
   #banner{background:rgba(255,215,94,.12);border:1px solid rgba(255,215,94,.4);border-radius:8px;
-          padding:6px 14px;font-size:14px;margin-top:6px;min-height:34px;display:flex;align-items:center}
-  #table{display:grid;grid-template-rows:86px 220px 86px;grid-template-columns:110px 1fr 110px;
-         gap:6px;margin:8px 0}
-  .seat{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:13px}
-  .seat .name{background:rgba(0,0,0,.35);padding:2px 10px;border-radius:10px}
+          padding:6px 14px;font-size:var(--fsBase);min-height:2.2em;display:flex;align-items:center;flex:none}
+  /* 牌桌吃掉左栏剩余高度,中间出牌区可伸缩 */
+  #table{flex:1;min-height:0;display:grid;gap:6px;
+         grid-template-rows:auto minmax(0,1fr) auto;
+         grid-template-columns:minmax(56px,110px) minmax(0,1fr) minmax(56px,110px)}
+  .seat{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
+        font-size:var(--fsSmall)}
+  .seat .name{background:rgba(0,0,0,.35);padding:2px 10px;border-radius:10px;white-space:nowrap}
   .seat .name.turn{background:var(--gold);color:#222;font-weight:bold}
-  .backs{color:#9fd6b5;font-size:12px}
+  .backs{color:#9fd6b5;font-size:var(--fsSmall)}
+  /* 出牌区不跟着牌桌无限拉高,免得四家的牌被扯得太散 */
   #center{grid-area:2/2;display:grid;grid-template-rows:1fr 1fr 1fr;grid-template-columns:1fr 1fr 1fr;
-          align-items:center;justify-items:center}
-  .played{display:flex;gap:2px;min-height:66px;align-items:center}
-  #msg{text-align:center;font-size:15px;color:var(--gold);pointer-events:none}
-  .card{position:relative;display:inline-block;width:50px;height:72px;flex:none;
+          align-items:center;justify-items:center;min-height:0;width:100%;
+          max-height:calc(var(--cardH)*3.4);align-self:center}
+  .played{display:flex;gap:2px;min-height:var(--cardH);align-items:center}
+  #msg{text-align:center;font-size:calc(var(--fsBase)*1.1);color:var(--gold);pointer-events:none}
+  .card{position:relative;display:inline-block;width:var(--cardW);height:var(--cardH);flex:none;
         background:#fff;color:#111;border-radius:5px;border:1px solid #999;
         font-weight:bold;user-select:none;box-shadow:0 1px 3px rgba(0,0,0,.4)}
   .card.red{color:#c0392b}
-  .card .tl{position:absolute;top:2px;left:4px;font-size:16px;line-height:1}
-  .card .br{position:absolute;bottom:2px;right:4px;font-size:16px;line-height:1;transform:rotate(180deg)}
-  .card .tr{position:absolute;top:2px;right:4px;font-size:14px;line-height:1}
-  .card .bl{position:absolute;bottom:2px;left:4px;font-size:14px;line-height:1}
-  .card .joker{position:absolute;left:0;right:0;top:8px;bottom:0;writing-mode:vertical-lr;
-               text-align:left;font-size:9px;letter-spacing:1px;padding-left:16px}
-  .mini{width:34px;height:48px}
-  .mini .tl,.mini .br{font-size:11px}
-  .mini .tr,.mini .bl{font-size:9px}
-  .mini .joker{font-size:7px;padding-left:12px;top:5px}
-  #handRow{display:flex;gap:10px;align-items:stretch}
-  #hand{flex:1;display:flex;flex-wrap:wrap;gap:0;justify-content:center;align-content:center;
-        padding:6px;min-height:96px}
-  #hand .card{margin-left:-14px;cursor:pointer;transition:transform .08s}
+  /* 牌面字号跟着牌宽走 —— 比旧版明显放大,远看也认得出 */
+  .card .tl{position:absolute;top:2px;left:4px;font-size:calc(var(--cardW)*.40);line-height:1}
+  .card .br{position:absolute;bottom:2px;right:4px;font-size:calc(var(--cardW)*.40);line-height:1;transform:rotate(180deg)}
+  .card .tr{position:absolute;top:2px;right:4px;font-size:calc(var(--cardW)*.32);line-height:1}
+  .card .bl{position:absolute;bottom:2px;left:4px;font-size:calc(var(--cardW)*.32);line-height:1}
+  .card .joker{position:absolute;left:0;right:0;top:14%;bottom:0;writing-mode:vertical-lr;
+               text-align:left;font-size:calc(var(--cardW)*.19);letter-spacing:1px;padding-left:32%}
+  .mini{width:var(--miniW);height:var(--miniH)}
+  .mini .tl,.mini .br{font-size:calc(var(--miniW)*.40)}
+  .mini .tr,.mini .bl{font-size:calc(var(--miniW)*.32)}
+  .mini .joker{font-size:calc(var(--miniW)*.19);padding-left:32%;top:10%}
+  #hand{flex:none;display:flex;flex-wrap:wrap;gap:0;justify-content:center;align-content:center;
+        padding:4px;min-height:calc(var(--cardH) + 18px)}
+  #hand .card{margin-left:calc(var(--cardW)*-.28);cursor:pointer;transition:transform .08s}
   #hand .card:first-child{margin-left:0}
   #hand .card.sel{transform:translateY(-14px);outline:2px solid var(--gold)}
   #hand .card.hintc{outline:2px dashed #6ec9ff;box-shadow:0 0 8px #6ec9ff}
   .coachBox{background:rgba(110,201,255,.1);border:1px solid rgba(110,201,255,.4);
             border-radius:8px;padding:8px 10px;margin:6px 0;line-height:1.7}
   .coachStep{color:#6ec9ff;font-weight:bold}
-  #notes{width:250px;height:190px;flex:none;background:rgba(0,0,0,.35);border-radius:8px;padding:6px;
-         display:flex;flex-direction:column;font-size:12px}
-  #noteList{flex:1;overflow-y:auto;height:120px;display:flex;
+  #notes{flex:none;height:clamp(120px,22vh,210px);background:rgba(0,0,0,.35);border-radius:8px;padding:6px;
+         display:flex;flex-direction:column;font-size:var(--fsSmall)}
+  #noteList{flex:1;min-height:0;overflow-y:auto;display:flex;
             flex-direction:column-reverse;gap:4px}
   .note{background:#245c41;border-radius:10px 10px 10px 2px;padding:4px 8px;align-self:flex-start;
         max-width:95%;word-break:break-all}
   #noteInputRow{display:flex;gap:4px;margin-top:4px}
-  #noteInput{flex:1;border:0;border-radius:6px;padding:4px 8px;font-size:12px}
-  #noteSend{padding:4px 10px;font-size:12px}
-  #controls{display:flex;gap:10px;justify-content:center;align-items:center;padding:8px;min-height:52px}
-  #declStrip{display:flex;gap:8px;justify-content:center;align-items:center;min-height:40px;
-             font-size:13px;color:#9fd6b5;flex-wrap:wrap}
-  button{background:var(--gold);color:#222;border:0;border-radius:6px;padding:8px 18px;
-         font-size:15px;font-weight:bold;cursor:pointer}
+  #noteInput{flex:1;min-width:0;border:0;border-radius:6px;padding:4px 8px;font-size:var(--fsSmall)}
+  #noteSend{padding:4px 10px;font-size:var(--fsSmall)}
+  #controls{display:flex;gap:10px;justify-content:center;align-items:center;padding:4px;flex:none;flex-wrap:wrap}
+  #declStrip{display:flex;gap:8px;justify-content:center;align-items:center;min-height:2.4em;flex:none;
+             font-size:var(--fsSmall);color:#9fd6b5;flex-wrap:wrap}
+  button{background:var(--gold);color:#222;border:0;border-radius:6px;padding:7px 16px;
+         font-size:var(--fsBase);font-weight:bold;cursor:pointer}
   button.minor{background:#c8d6cf}
   button:disabled{opacity:.35;cursor:default}
-  #tabs{display:flex;gap:8px;padding:4px 0}
-  #tabs button{font-size:13px;padding:5px 14px;background:#2c6e4f;color:#fff}
+  #tabs{display:flex;gap:6px;flex:none;flex-wrap:wrap}
+  #tabs button{font-size:var(--fsSmall);padding:5px 10px;background:#2c6e4f;color:#fff}
   #tabs button.on{background:var(--gold);color:#222}
-  #panel{background:rgba(0,0,0,.3);border-radius:8px;padding:8px 12px;font-size:13px;
-         height:280px;overflow-y:auto;color:#cfe8d9}
+  #panel{background:rgba(0,0,0,.3);border-radius:8px;padding:8px 12px;font-size:var(--fsSmall);
+         flex:1;min-height:0;overflow-y:auto;color:#cfe8d9}
   .trickRow{display:flex;gap:10px;align-items:center;margin:3px 0;flex-wrap:wrap}
-  .trickRow .who{color:var(--gold);min-width:110px}
+  .trickRow .who{color:var(--gold);min-width:7em}
   .suitGroup{margin:4px 0}
   .toggleRow{display:flex;gap:14px;align-items:center;margin-bottom:6px;color:#9fd6b5}
   #overlay,#setOverlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;
@@ -97,22 +116,21 @@
   .seat .name.won{animation:winPulse .9s ease-in-out 2;background:var(--gold);color:#222}
   #hand .card:hover{transform:translateY(-6px)}
   #hand .card.sel:hover{transform:translateY(-14px)}
-  #versionTag{position:fixed;right:10px;bottom:6px;font-size:11px;color:rgba(255,255,255,.35)}
-  /* ---- 窄屏(手机) ---- */
-  @media (max-width:760px){
-    .card{width:38px;height:56px}
-    .card .tl,.card .br{font-size:13px}
-    .card .tr,.card .bl{font-size:11px}
-    .mini{width:28px;height:40px}
-    #table{grid-template-rows:64px 150px 64px;grid-template-columns:70px 1fr 70px}
-    #center{min-height:150px}
-    .played{min-height:48px}
-    #handRow{flex-direction:column}
-    #notes{width:100%;height:130px}
-    #panel{height:200px}
-    button{padding:7px 12px;font-size:13px}
-    #status{font-size:12px;gap:8px}
-    #hand .card{margin-left:-16px}
+  #versionTag{position:fixed;right:10px;bottom:4px;font-size:11px;color:rgba(255,255,255,.3);
+              pointer-events:none;z-index:1}
+  /* ---- 窄屏(手机/竖屏):放不下左右两栏就上下叠,整体仍锁一屏 ---- */
+  @media (max-width:820px){
+    :root{--cardW:clamp(30px,8.5vw,46px)}
+    #app{grid-template-columns:minmax(0,1fr);
+         grid-template-rows:auto minmax(0,1.35fr) minmax(0,1fr)}
+    #main,#side{grid-column:1}
+    #notes{height:clamp(96px,16vh,150px)}
+    #status{gap:8px}
+  }
+  /* 矮屏(横放手机、分屏):牌再收一点,免得挤出滚动条 */
+  @media (max-height:560px){
+    :root{--cardW:clamp(30px,2.6vw,44px)}
+    #notes{display:none}
   }
 </style>
 </head>
@@ -120,23 +138,40 @@
 
 <div id="app">
   <div id="status"></div>
-  <div id="banner"></div>
-  <div id="table">
-    <div class="seat" style="grid-area:1/2"><span class="name" id="n2">北(队友)</span><span class="backs" id="b2"></span></div>
-    <div class="seat" style="grid-area:2/1"><span class="name" id="n3">西</span><span class="backs" id="b3"></span></div>
-    <div class="seat" style="grid-area:2/3"><span class="name" id="n1">东</span><span class="backs" id="b1"></span></div>
-    <div id="center">
-      <div class="played" id="p2" style="grid-area:1/2"></div>
-      <div class="played" id="p3" style="grid-area:2/1"></div>
-      <div id="msg" style="grid-area:2/2"></div>
-      <div class="played" id="p1" style="grid-area:2/3"></div>
-      <div class="played" id="p0" style="grid-area:3/2"></div>
+  <div id="main">
+    <div id="banner"></div>
+    <div id="table">
+      <div class="seat" style="grid-area:1/2"><span class="name" id="n2">北(队友)</span><span class="backs" id="b2"></span></div>
+      <div class="seat" style="grid-area:2/1"><span class="name" id="n3">西</span><span class="backs" id="b3"></span></div>
+      <div class="seat" style="grid-area:2/3"><span class="name" id="n1">东</span><span class="backs" id="b1"></span></div>
+      <div id="center">
+        <div class="played" id="p2" style="grid-area:1/2"></div>
+        <div class="played" id="p3" style="grid-area:2/1"></div>
+        <div id="msg" style="grid-area:2/2"></div>
+        <div class="played" id="p1" style="grid-area:2/3"></div>
+        <div class="played" id="p0" style="grid-area:3/2"></div>
+      </div>
+      <div class="seat" style="grid-area:3/2;align-self:end"><span class="name" id="n0">南(你)</span></div>
     </div>
-    <div class="seat" style="grid-area:3/2;align-self:end"><span class="name" id="n0">南(你)</span></div>
-  </div>
-  <div id="declStrip"></div>
-  <div id="handRow">
+    <div id="declStrip"></div>
     <div id="hand"></div>
+    <div id="controls">
+      <button id="btnPlay">出牌</button>
+      <button id="btnClear" class="minor">重选</button>
+      <button id="btnBury" class="minor">扣底</button>
+      <button id="btnKitty" class="minor" onclick="window.__showKitty()">看底牌</button>
+      <button id="btnHint" style="background:#6ec9ff">问教练</button>
+    </div>
+  </div>
+  <div id="side">
+    <div id="tabs">
+      <button data-tab="score">抢分记录</button>
+      <button data-tab="log">对局记录</button>
+      <button data-tab="hist">出牌历史</button>
+      <button data-tab="coach">教练</button>
+      <button data-tab="mem">记牌表</button>
+    </div>
+    <div id="panel"></div>
     <div id="notes">
       <div style="color:#9fd6b5;margin-bottom:4px">📝 我的笔记</div>
       <div id="noteList"></div>
@@ -146,21 +181,6 @@
       </div>
     </div>
   </div>
-  <div id="controls">
-    <button id="btnPlay">出牌</button>
-    <button id="btnClear" class="minor">重选</button>
-    <button id="btnBury" class="minor">扣底</button>
-    <button id="btnKitty" class="minor" onclick="window.__showKitty()">看底牌</button>
-    <button id="btnHint" style="background:#6ec9ff">问教练</button>
-  </div>
-  <div id="tabs">
-    <button data-tab="score">抢分记录</button>
-    <button data-tab="log">对局记录</button>
-    <button data-tab="hist">出牌历史</button>
-    <button data-tab="coach">教练</button>
-    <button data-tab="mem">记牌表</button>
-  </div>
-  <div id="panel"></div>
 </div>
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
