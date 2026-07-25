@@ -1,4 +1,4 @@
-# 80分(上海规则)v0.1.0
+# 80分(上海规则)v0.2.0
 
 网页版 80分(升级/拖拉机,上海打法):启发式 AI 队友与对手、发牌抢亮、无主/造反、多局连打升级、教练模式(提示/失误反馈/复盘/记牌训练)、沪语术语切换。
 
@@ -6,11 +6,11 @@
 
 ## 文件
 
-`index.html` 游戏本体(引擎+AI+界面,单文件);`terms-shanghai.js` 沪语术语表(可独立改词);`RULES.md` 规则决定书;`AI-DESIGN.md` AI 设计笔记。`80fen.html` 与 `index.html` 内容相同(开发用名)。
+`index.html` 游戏本体(引擎+AI+界面,单文件);`terms-shanghai.js` 沪语术语表(可独立改词);`RULES.md` 规则决定书;`AI-DESIGN.md` AI 设计笔记;`CHANGELOG.md` 更新日志。`80fen.html` 与 `index.html` 内容相同(开发用名,每次改动需手动同步)。
 
 ## 本地运行
 
-双击 `index.html` 即可(需与 `terms-shanghai.js` 同目录)。打开 `index.html#test` 可查看引擎自测(88 项)。
+双击 `index.html` 即可(需与 `terms-shanghai.js` 同目录)。打开 `index.html#test` 可查看引擎自测(101 项)。
 
 ## 部署到 GitHub Pages
 
