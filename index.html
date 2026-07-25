@@ -75,11 +75,19 @@
   .trickRow .who{color:var(--gold);min-width:110px}
   .suitGroup{margin:4px 0}
   .toggleRow{display:flex;gap:14px;align-items:center;margin-bottom:6px;color:#9fd6b5}
-  #overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;
+  #overlay,#setOverlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;
            align-items:center;justify-content:center;z-index:10}
-  #overlay .panel{background:#173b2a;border:2px solid var(--gold);border-radius:12px;
+  #setOverlay{z-index:11}
+  #overlay .panel,#setOverlay .panel{background:#173b2a;border:2px solid var(--gold);border-radius:12px;
                   padding:26px 34px;text-align:center;font-size:17px;line-height:1.9;
                   max-height:80vh;overflow-y:auto}
+  #setOverlay .panel{text-align:left;min-width:min(420px,90vw)}
+  .setRow{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:15px;flex-wrap:wrap}
+  .setRow>label:first-child{flex:1;min-width:150px;color:#cfe8d9}
+  .setRow select,.setRow input[type=number]{border:0;border-radius:6px;padding:5px 8px;font-size:14px}
+  .setRow input[type=number]{width:72px}
+  .setHint{font-size:12px;color:#9fd6b5;opacity:.8;margin:-4px 0 10px}
+  #btnSet{background:#2c6e4f;color:#fff;font-size:13px;padding:4px 10px}
   #tests{font-family:ui-monospace,Menlo,monospace;padding:20px;display:none}
   .pass{color:#7ee787}.fail{color:#ff7b72;font-weight:bold}
   /* ---- 动画 ---- */
@@ -142,6 +150,7 @@
     <button id="btnPlay">出牌</button>
     <button id="btnClear" class="minor">重选</button>
     <button id="btnBury" class="minor">扣底</button>
+    <button id="btnKitty" class="minor" onclick="window.__showKitty()">看底牌</button>
     <button id="btnHint" style="background:#6ec9ff">问教练</button>
   </div>
   <div id="tabs">
@@ -154,6 +163,7 @@
   <div id="panel"></div>
 </div>
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
+<div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="versionTag">80分 v0.1.0</div>
 
@@ -1319,6 +1329,71 @@ const S_DEFAULT={
 let S={...S_DEFAULT};
 try{ Object.assign(S,JSON.parse(localStorage.getItem('80fen-set')||'{}')); }catch(e){}
 function saveS(){ try{ localStorage.setItem('80fen-set',JSON.stringify(S)); }catch(e){} }
+// 秒 → 毫秒,顺手挡掉手输的空值/负数/非数字
+const secs=(v,fallback)=>1000*Math.max(0,(typeof v==='number'&&isFinite(v))?v:fallback);
+function aiThinkMs(){
+  const lo=Math.max(0,+S.aiThinkMin||0), hi=Math.max(lo,+S.aiThinkMax||0);
+  return 1000*(lo+Math.random()*(hi-lo));
+}
+
+// ---- 设置菜单 ----
+function openSettings(){
+  const el=document.getElementById('setContent');
+  el.innerHTML=
+    `<div style="font-size:20px;color:var(--gold);margin-bottom:12px">⚙ 设置</div>`+
+    `<div style="color:var(--gold);font-size:14px;margin-top:4px">规则</div>`+
+    `<div class="setRow"><label>低分/少${T('trump')}时</label>
+       <select id="stRebel">
+         <option value="off">关闭</option>
+         <option value="redeal">仅重新发牌(不抢庄)</option>
+         <option value="scramble">完全${T('counter')}(重发+双方抢庄)</option>
+       </select></div>`+
+    `<div class="setHint">手牌 ≤${RULES.pointRebelThreshold} 分或${T('trump')} ≤${RULES.trumpRebelThreshold} 张时触发,同局最多重发 ${RULES.maxRedeal} 次</div>`+
+    `<div style="color:var(--gold);font-size:14px;margin-top:10px">节奏</div>`+
+    `<div class="setRow"><label>AI 出牌思考(秒)</label>
+       <input type="number" id="stMin" min="0" max="10" step="0.5"> –
+       <input type="number" id="stMax" min="0" max="10" step="0.5"></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="stManual"> 手动点击进入下一墩</label></div>`+
+    `<div class="setRow"><label>每墩出完留桌(秒)</label>
+       <input type="number" id="stHold" min="0" max="15" step="0.5"></div>`+
+    `<div class="setHint" id="stHoldHint"></div>`+
+    `<div style="margin-top:16px;text-align:center">
+       <button id="stClose">完成</button>
+       <button class="minor" id="stReset">恢复默认</button>
+     </div>`;
+  const $=id=>document.getElementById(id);
+  const fill=()=>{
+    $('stRebel').value=S.fullRebel; $('stMin').value=S.aiThinkMin;
+    $('stMax').value=S.aiThinkMax;  $('stHold').value=S.trickHold;
+    $('stManual').checked=!!S.manualNext;
+    $('stHold').disabled=!!S.manualNext;
+    $('stHoldHint').textContent=S.manualNext?'(手动模式下由你点「下一墩」决定)':'';
+  };
+  fill();
+  const num=(id,key)=>$(id).onchange=e=>{ const v=parseFloat(e.target.value);
+    S[key]=isFinite(v)&&v>=0?v:S_DEFAULT[key]; saveS(); fill(); };
+  $('stRebel').onchange=e=>{ S.fullRebel=e.target.value; saveS(); if(G) render(); };
+  num('stMin','aiThinkMin'); num('stMax','aiThinkMax'); num('stHold','trickHold');
+  $('stManual').onchange=e=>{ S.manualNext=e.target.checked; saveS(); fill(); };
+  $('stReset').onclick=()=>{ S={...S_DEFAULT}; saveS(); fill(); if(G) render(); };
+  $('stClose').onclick=closeSettings;
+  document.getElementById('setOverlay').style.display='flex';
+}
+function closeSettings(){ document.getElementById('setOverlay').style.display='none'; }
+window.__openSet=openSettings;
+window.__closeSet=closeSettings;
+// 复用设置浮层做通用弹窗(看底牌、看初始手牌)
+function showModal(html){
+  document.getElementById('setContent').innerHTML=html+
+    `<div style="margin-top:14px;text-align:center"><button onclick="window.__closeSet()">关闭</button></div>`;
+  document.getElementById('setOverlay').style.display='flex';
+}
+// 庄家随时可回看自己扣的底牌
+window.__showKitty=()=>{
+  if(!G||G.declSeat!==HUMAN||!G.buried.length) return;
+  showModal(`<div style="font-size:18px;color:var(--gold);margin-bottom:8px">你扣的底牌(${G.buried.length} 张,${countPoints(G.buried)} 分)</div>`+
+    `<div class="trickRow">${sortForDisplay(G.buried,curTrumpForSort()).map(c=>cardHTML(c,'mini')).join('')}</div>`);
+};
 
 // ---- 教练设置(全部可开关可调,默认全开) ----
 let C={on:true, gapSens:'中', strict:false, review:true, quiz:true, memShow:false};
@@ -1396,7 +1471,7 @@ function newRound(){
      decl:null,rebelHappened:false,
      visCount:[0,0,0,0],dealt:0,
      leader:-1,trick:[],trickNo:0,tricks:[],defPoints:0,capturedCards:[],lastWinner:-1,
-     lastLeadSize:1,phase:'dealing',selected:new Set(),log:[],
+     lastLeadSize:1,phase:'dealing',selected:new Set(),log:[],awaitNext:false,
      coachNotes:[],hintCards:null,coachAdvice:'',quiz:null};
   if(cutsLog) log(cutsLog);
   if(dealerKnown) log(`第${M.round+1}局:${SEAT_NAME[M.dealer]} 坐庄,打${rankName(trumpRank)}(${T('counter')}只改主色,不易庄不拿底)`);
@@ -1523,7 +1598,7 @@ function afterTrumpSet(){
   }else{
     G.buried=aiDiscard(G.hands[G.declSeat],G.trump);
     G.buried.forEach(c=>removeCard(G.hands[G.declSeat],c));
-    G.phase='play'; render();
+    G.phase='play'; snapshotHands(); render();
     setMsg(`${SEAT_NAME[G.declSeat]} 是庄家`);
     setTimeout(step,900);
   }
@@ -1533,10 +1608,13 @@ function buryKitty(){
   if(G.selected.size!==RULES.kittySize){ setMsg(`需要恰好 ${RULES.kittySize} 张,当前 ${G.selected.size} 张`); return; }
   G.buried=G.hands[HUMAN].filter(c=>G.selected.has(c.id));
   G.hands[HUMAN]=G.hands[HUMAN].filter(c=>!G.selected.has(c.id));
-  G.selected.clear(); G.phase='play';
+  G.selected.clear(); G.phase='play'; snapshotHands();
   log(`你已${T('bury')}`); setMsg('你先出牌'); render();
   step();
 }
+
+// 开打瞬间存一份四家手牌,供局末复盘回看(局中不给看,免得成了透视)
+function snapshotHands(){ G.initialHands=G.hands.map(h=>h.slice()); }
 
 // ================= 出牌循环 =================
 function step(){
@@ -1562,7 +1640,7 @@ function step(){
     }
     G.lastReasons=G.lastReasons||{}; G.lastReasons[seat]=reason;  // 教练模式(M5)复用
     playCards(seat,cards);
-  },700);
+  },aiThinkMs());
 }
 
 function humanPlay(){
@@ -1664,11 +1742,23 @@ function playCards(seat,cards){
   G.trick.push({seat,cards});
   sndPlay();
   render();
-  if(G.trick.length===4) setTimeout(finishTrick,1000);
+  if(G.trick.length===4) holdTrick();
   else step();
 }
 
+// 一墩四家出完:牌留在桌上给人看清楚,到点(或玩家点「下一墩」)再收墩
+function holdTrick(){
+  if(S.manualNext){
+    G.awaitNext=true; render();
+    setMsg('本墩出完 —— 点「下一墩」继续');
+    return;
+  }
+  setTimeout(finishTrick,secs(S.trickHold,S_DEFAULT.trickHold));
+}
+window.__nextTrick=()=>{ if(G&&G.awaitNext){ G.awaitNext=false; finishTrick(); } };
+
 function finishTrick(){
+  G.awaitNext=false;
   const res=resolveTrick(G.trick,G.trump);
   const declTeam=G.declSeat%2;
   const gotPts=res.winner%2!==declTeam;
@@ -1751,7 +1841,8 @@ function render(){
     `<span>级数 你们:<b>${rankName(Math.min(M.levels[0],14))}</b> 对方:<b>${rankName(Math.min(M.levels[1],14))}</b></span>`+
     `<span>第${M.round+1}局 · 第 <b>${Math.min(G.tricks.length+1,13)}</b>/13 墩</span>`+
     `<label style="margin-left:auto;font-size:12px;color:#9fd6b5"><input type="checkbox" id="langSw" ${useSH?'checked':''}> 沪语版</label>`+
-    `<label style="font-size:12px;color:#9fd6b5"><input type="checkbox" id="sndSw" ${sndOn?'checked':''}> 🔊音效</label>`;
+    `<label style="font-size:12px;color:#9fd6b5"><input type="checkbox" id="sndSw" ${sndOn?'checked':''}> 🔊音效</label>`+
+    `<button id="btnSet" onclick="window.__openSet()">⚙ 设置</button>`;
   const sw=document.getElementById('langSw');
   if(sw) sw.onchange=e=>{ useSH=e.target.checked;
     try{ localStorage.setItem('80fen-lang',useSH?'sh':'cn'); }catch(_){ } render(); };
@@ -1814,6 +1905,9 @@ function render(){
       ?`<span style="color:var(--gold)">复盘中</span> <button onclick="window.__newMatch()">重新开整场</button>`
       :`<span style="color:var(--gold)">复盘中</span> <button onclick="window.__next()">下一局</button>`;
     bind=null;
+  }else if(G.awaitNext){
+    stripHTML=`<button onclick="window.__nextTrick()">下一墩 ▶</button>`;
+    bind=null;
   }else if(G.phase==='dealing'||G.phase==='finalDecl'){
     const vis=visHand(HUMAN);
     const btns=[];
@@ -1849,6 +1943,8 @@ function render(){
   document.getElementById('btnBury').disabled=!buryReady;
   document.getElementById('btnBury').textContent=
     G.phase==='kitty'?`${T('bury')}(${G.selected.size}/${RULES.kittySize})`:T('bury');
+  // 看底牌:只有你是庄家、且底牌已扣下才可点
+  document.getElementById('btnKitty').disabled=!(G.declSeat===HUMAN&&G.buried.length>0);
   document.getElementById('btnHint').disabled=!(C.on&&myTurn);
   renderPanel();
 }
@@ -1864,6 +1960,18 @@ function renderPanel(){
   if(activeTab==='log'){
     let html=`<div class="toggleRow"><label><input type="checkbox" id="ckReplay" ${replayMode?'checked':''}> 复盘模式(显示每墩出牌)</label></div>`;
     if(replayMode){
+      // 各家初始手牌:只在本局打完后开放,局中看等于开天眼
+      if(G.initialHands){
+        html+=G.ended
+          ?`<div class="suitGroup"><b style="color:var(--gold)">本局初始手牌</b>`+
+            G.initialHands.map((h,s)=>
+              `<div class="trickRow"><span class="who">${SEAT_NAME[s]}${s===G.declSeat?'(庄)':''}</span>`+
+              sortForDisplay(h,G.trump).map(c=>cardHTML(c,'mini')).join('')+`</div>`).join('')+
+            (G.buried.length?`<div class="trickRow"><span class="who">底牌</span>`+
+              sortForDisplay(G.buried,G.trump).map(c=>cardHTML(c,'mini')).join('')+`</div>`:'')+
+           `</div>`
+          :`<div style="opacity:.6;margin-bottom:4px">(各家初始手牌本局结束后可看)</div>`;
+      }
       html+=G.tricks.slice().reverse().map(tk=>
         `<div class="trickRow"><span class="who">第${tk.no}墩 ${SEAT_NAME[tk.winner]}赢${tk.points?` +${tk.points}分`:''}</span>`+
         tk.plays.map(p=>`<span style="font-size:11px;color:#9fd6b5">${SEAT_NAME[p.seat].slice(0,1)}:</span>`+
@@ -2001,7 +2109,8 @@ function showStartScreen(){
   document.getElementById('overlayContent').innerHTML=
     `<div style="font-size:22px;color:var(--gold)">80分(上海规则)</div>`+
     `<div style="margin-top:8px;font-size:14px">启发式 AI 队友与对手 · 教练模式</div>`+
-    `<div style="margin-top:16px"><button onclick="window.__start()">开始游戏</button></div>`;
+    `<div style="margin-top:16px"><button onclick="window.__start()">开始游戏</button>`+
+    `<button class="minor" style="margin-left:10px" onclick="window.__openSet()">⚙ 设置</button></div>`;
   document.getElementById('overlay').style.display='flex';
 }
 window.__start=()=>{ document.getElementById('overlay').style.display='none'; newRound(); };
