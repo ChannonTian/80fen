@@ -28,8 +28,8 @@
   #status{display:flex;gap:14px;flex-wrap:wrap;background:rgba(0,0,0,.35);border-radius:8px;
           padding:8px 14px;font-size:var(--fsBase);align-items:center}
   #status b{color:var(--gold)}
-  /* 阶段性说明(发牌中/造反/扣底):挤不进第一行就自己换行,不占额外的常驻高度 */
-  .phaseHint{flex-basis:100%;color:#9fd6b5;font-size:var(--fsSmall)}
+  #banner{background:rgba(255,215,94,.12);border:1px solid rgba(255,215,94,.4);border-radius:8px;
+          padding:6px 14px;font-size:var(--fsBase);min-height:2.2em;display:flex;align-items:center;flex:none}
   /* 牌桌吃掉左栏剩余高度,中间出牌区可伸缩 */
   #table{flex:1;min-height:0;display:grid;gap:6px;
          grid-template-rows:auto minmax(0,1fr) auto;
@@ -78,18 +78,18 @@
   .coachBox{background:rgba(110,201,255,.1);border:1px solid rgba(110,201,255,.4);
             border-radius:8px;padding:8px 10px;margin:6px 0;line-height:1.7}
   .coachStep{color:#6ec9ff;font-weight:bold}
-  /* 笔记现在是右栏的一个页签,内容直接铺在 #panel 里,滚动交给 #panel 统一处理 */
-  #noteList{display:flex;flex-direction:column-reverse;gap:4px}
+  #notes{flex:none;height:clamp(120px,22vh,210px);background:rgba(0,0,0,.35);border-radius:8px;padding:6px;
+         display:flex;flex-direction:column;font-size:var(--fsSmall)}
+  #noteList{flex:1;min-height:0;overflow-y:auto;display:flex;
+            flex-direction:column-reverse;gap:4px}
   .note{background:#245c41;border-radius:10px 10px 10px 2px;padding:4px 8px;align-self:flex-start;
         max-width:95%;word-break:break-all}
-  #noteInputRow{display:flex;gap:4px;margin-bottom:8px}
+  #noteInputRow{display:flex;gap:4px;margin-top:4px}
   #noteInput{flex:1;min-width:0;border:0;border-radius:6px;padding:4px 8px;font-size:var(--fsSmall)}
   #noteSend{padding:4px 10px;font-size:var(--fsSmall)}
   #controls{display:flex;gap:10px;justify-content:center;align-items:center;padding:4px;flex:none;flex-wrap:wrap}
-  /* 亮主/反主/下一墩等动态按钮并入操作行,不再单独占一行;display:contents 让其子元素直接参与 #controls 的 flex 布局 */
-  #declStrip{display:contents}
-  #declStrip button{font-size:var(--fsSmall);padding:6px 12px}
-  #declStrip span{color:#9fd6b5;font-size:var(--fsSmall)}
+  #declStrip{display:flex;gap:8px;justify-content:center;align-items:center;min-height:2.4em;flex:none;
+             font-size:var(--fsSmall);color:#9fd6b5;flex-wrap:wrap}
   button{background:var(--gold);color:#222;border:0;border-radius:6px;padding:7px 16px;
          font-size:var(--fsBase);font-weight:bold;cursor:pointer}
   button.minor{background:#c8d6cf}
@@ -133,14 +133,18 @@
     #app{grid-template-columns:minmax(0,1fr);
          grid-template-rows:auto minmax(0,1.35fr) minmax(0,1fr)}
     #main,#side{grid-column:1}
+    #notes{height:clamp(96px,16vh,150px)}
     #status{gap:8px}
   }
   /* ---- 横屏(含手机横握):一律保持左右布局,侧栏收窄给牌桌让位 ---- */
   @media (orientation:landscape) and (max-height:600px){
     :root{--cardW:clamp(32px,2.4vw + 1.6vh,48px)}
     #app{grid-template-columns:minmax(0,1fr) clamp(170px,20vw,290px);gap:6px;padding:6px}
+    #notes{display:none}
     /* 竖向空间紧,状态栏不许折行,超出就横向滑动 */
     #status{gap:10px;padding:4px 10px;flex-wrap:nowrap;overflow-x:auto;white-space:nowrap}
+    #banner{min-height:1.8em;padding:3px 10px}
+    #declStrip{min-height:1.9em}
     #controls{gap:6px;padding:2px}
     #controls button{padding:5px 10px}
     #tabs{gap:4px}
@@ -157,6 +161,7 @@
 <div id="app">
   <div id="status"></div>
   <div id="main">
+    <div id="banner"></div>
     <div id="table">
       <div class="seat" style="grid-area:1/2"><span class="name" id="n2">北(队友)</span><span class="backs" id="b2"></span></div>
       <div class="seat" style="grid-area:2/1"><span class="name" id="n3">西</span><span class="backs" id="b3"></span></div>
@@ -170,9 +175,9 @@
       </div>
       <div class="seat" style="grid-area:3/2;align-self:end"><span class="name" id="n0">南(你)</span></div>
     </div>
+    <div id="declStrip"></div>
     <div id="hand"></div>
     <div id="controls">
-      <span id="declStrip"></span>
       <button id="btnPlay">出牌</button>
       <button id="btnClear" class="minor">重选</button>
       <button id="btnBury" class="minor">扣底</button>
@@ -187,9 +192,16 @@
       <button data-tab="hist">出牌历史</button>
       <button data-tab="coach">教练</button>
       <button data-tab="mem">记牌表</button>
-      <button data-tab="notes">笔记</button>
     </div>
     <div id="panel"></div>
+    <div id="notes">
+      <div style="color:#9fd6b5;margin-bottom:4px">📝 我的笔记</div>
+      <div id="noteList"></div>
+      <div id="noteInputRow">
+        <input id="noteInput" placeholder="记点什么…" maxlength="120">
+        <button id="noteSend">发送</button>
+      </div>
+    </div>
   </div>
 </div>
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
@@ -1387,17 +1399,6 @@ function openSettings(){
     `<div class="setRow"><label>每墩出完留桌(秒)</label>
        <input type="number" id="stHold" min="0" max="15" step="0.5"></div>`+
     `<div class="setHint" id="stHoldHint"></div>`+
-    `<div style="color:var(--gold);font-size:14px;margin-top:10px">显示与音效</div>`+
-    `<div class="setRow"><label><input type="checkbox" id="stLang"> 沪语版(术语切换)</label></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="stSnd"> 🔊 音效</label></div>`+
-    `<div style="color:var(--gold);font-size:14px;margin-top:10px">教练</div>`+
-    `<div class="setRow"><label><input type="checkbox" id="cOn"> 教练总开关</label></div>`+
-    `<div class="setRow"><label>失误反馈灵敏度</label>
-       <select id="cSens">${['高','中','低','关'].map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="cStrict"> 严格模式(大失误可撤回)</label></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="cReview"> 局后复盘</label></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="cQuiz"> 提问引导</label></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="cMemShow"> 记牌表常显(不用每墩点开验证)</label></div>`+
     `<div style="margin-top:16px;text-align:center">
        <button id="stClose">完成</button>
        <button class="minor" id="stReset">恢复默认</button>
@@ -1409,9 +1410,6 @@ function openSettings(){
     $('stManual').checked=!!S.manualNext;
     $('stHold').disabled=!!S.manualNext;
     $('stHoldHint').textContent=S.manualNext?'(手动模式下由你点「下一墩」决定)':'';
-    $('stLang').checked=useSH; $('stSnd').checked=sndOn;
-    $('cOn').checked=C.on; $('cSens').value=C.gapSens; $('cStrict').checked=C.strict;
-    $('cReview').checked=C.review; $('cQuiz').checked=C.quiz; $('cMemShow').checked=C.memShow;
   };
   fill();
   const num=(id,key)=>$(id).onchange=e=>{ const v=parseFloat(e.target.value);
@@ -1419,16 +1417,6 @@ function openSettings(){
   $('stRebel').onchange=e=>{ S.fullRebel=e.target.value; saveS(); if(G) render(); };
   num('stMin','aiThinkMin'); num('stMax','aiThinkMax'); num('stHold','trickHold');
   $('stManual').onchange=e=>{ S.manualNext=e.target.checked; saveS(); fill(); };
-  $('stLang').onchange=e=>{ useSH=e.target.checked;
-    try{ localStorage.setItem('80fen-lang',useSH?'sh':'cn'); }catch(_){ } if(G) render(); };
-  $('stSnd').onchange=e=>{ sndOn=e.target.checked;
-    try{ localStorage.setItem('80fen-snd',sndOn?'on':'off'); }catch(_){ } };
-  $('cOn').onchange=e=>{ C.on=e.target.checked; saveC(); if(G) render(); };
-  $('cSens').onchange=e=>{ C.gapSens=e.target.value; saveC(); };
-  $('cStrict').onchange=e=>{ C.strict=e.target.checked; saveC(); };
-  $('cReview').onchange=e=>{ C.review=e.target.checked; saveC(); };
-  $('cQuiz').onchange=e=>{ C.quiz=e.target.checked; saveC(); };
-  $('cMemShow').onchange=e=>{ C.memShow=e.target.checked; saveC(); if(G) renderPanel(); };
   $('stReset').onclick=()=>{ S={...S_DEFAULT}; saveS(); fill(); if(G) render(); };
   $('stClose').onclick=closeSettings;
   document.getElementById('setOverlay').style.display='flex';
@@ -1525,7 +1513,7 @@ function newRound(){
      visCount:[0,0,0,0],dealt:0,
      leader:-1,trick:[],trickNo:0,tricks:[],defPoints:0,capturedCards:[],lastWinner:-1,
      lastLeadSize:1,phase:'dealing',selected:new Set(),log:[],awaitNext:false,
-     coachNotes:[],coachChat:[],hintCards:null,quiz:null};
+     coachNotes:[],hintCards:null,coachAdvice:'',quiz:null};
   if(cutsLog) log(cutsLog);
   if(dealerKnown) log(`第${M.round+1}局:${SEAT_NAME[M.dealer]} 坐庄,打${rankName(trumpRank)}(${T('counter')}只改主色,不易庄不拿底)`);
   render(); setMsg('发牌中…可随时'+T('declare')+'/'+T('counter'));
@@ -1662,7 +1650,7 @@ function buryKitty(){
   G.buried=G.hands[HUMAN].filter(c=>G.selected.has(c.id));
   G.hands[HUMAN]=G.hands[HUMAN].filter(c=>!G.selected.has(c.id));
   G.selected.clear(); G.phase='play'; snapshotHands();
-  log(`你已${T('bury')}`); render();   // render() 会把"本墩:你 领出,等待出牌…"写进牌桌中心,不用再单独提示
+  log(`你已${T('bury')}`); setMsg('你先出牌'); render();
   step();
 }
 
@@ -1674,7 +1662,7 @@ function step(){
   if(G.phase!=='play') return;
   if(G.trick.length===4){ finishTrick(); return; }
   const seat=(G.leader+G.trick.length)%4;
-  if(seat===HUMAN){ render(); return; }   // 轮到谁由 render() 里的本墩领出信息 + 名字高亮体现,不再单独提示
+  if(seat===HUMAN){ setMsg(G.trick.length===0?('轮到你'+T('lead')):'轮到你跟牌'); render(); return; }
   render();
   setTimeout(()=>{
     const view=viewFor(seat);
@@ -1728,14 +1716,13 @@ function humanPlay(){
       best.cards.every(c=>sel.some(x=>x.id===c.id));
     const gap=sameCards?0:best.score-hs;
     if(gap>GAP_THR[C.gapSens]){
-      const no=G.tricks.length+1;
-      G.coachNotes.push({no,my:sel.slice(),best:best.cards.slice(),gap,reason:best.reason});
+      G.coachNotes.push({no:G.tricks.length+1,my:sel.slice(),best:best.cards.slice(),
+                         gap,reason:best.reason});
       if(C.strict && gap>GAP_THR[C.gapSens]*1.6 &&
          !confirm(`教练:更好的是 ${desc(best.cards)} —— ${best.reason}\n仍要出这手吗?`)) return;
       sndOops();
-      // 不再弹到牌桌中心,记进教练页签的对话历史(见 renderCoachTab)
-      G.coachChat.push({no,html:`⚠️ 你出 ${desc(sel)},更好的是 <b>${desc(best.cards)}</b> — ${best.reason}`});
-      log(`教练(第${no}墩):你出 ${desc(sel)},建议 ${desc(best.cards)} — ${best.reason}`);
+      setMsg(`教练:更好的是 ${desc(best.cards)} — ${best.reason}`);
+      log(`教练(第${G.tricks.length+1}墩):你出 ${desc(sel)},建议 ${desc(best.cards)} — ${best.reason}`);
     }
   }
   G.selected.clear(); G.hintCards=null;
@@ -1773,7 +1760,6 @@ function askCoach(){
     lines.push(`<b style="color:#6ec9ff">建议:${desc(adv.cards)}</b> —— ${adv.reason}`);
     return lines.map(l=>`<div>${l}</div>`).join('');
   };
-  const no=G.tricks.length+1;
   if(C.quiz&&isKey){
     const lead=classify(G.trick[0].cards,t);
     const myBest=Math.max(-1,...G.hands[HUMAN].filter(c=>effSuit(c,t)===lead.suit).map(c=>ordIdx(c,t)));
@@ -1781,12 +1767,11 @@ function askCoach(){
     for(const k in mem.unseen){ if(mem.unseen[k]<=0) continue;
       const c=(k=>{const i=k.indexOf(':');return{suit:k.slice(0,i),rank:+k.slice(i+1)};})(k);
       if(effSuit(c,t)===lead.suit&&ordIdx(c,t)>myBest) n+=mem.unseen[k]; }
-    G.quiz={no,answer:Math.min(n,3), advice:buildAdvice(),
+    G.quiz={answer:Math.min(n,3), advice:buildAdvice(),
       q:`先考你:这一门里,在外还有几张比你手中最大的更大?`};
   }else{
     G.quiz=null;
-    // 直接记进对话历史(教练页签),不留"当前建议"这个单独状态,历史列表本身就显示最新一条
-    G.coachChat.push({no,html:buildAdvice()});
+    G.coachAdvice=buildAdvice();
   }
   G.hintCards=new Set(adv.cards.map(c=>c.id));
   activeTab='coach';
@@ -1888,36 +1873,38 @@ window.__review=()=>{ document.getElementById('overlay').style.display='none';
 // ================= 渲染 =================
 function render(){
   const t=G.trump;
-  // 墩数 = 每家开局实际拿到的牌数(25 张标准局);发牌/定庄阶段还没有快照时按标准局数显示
-  const totalTricks=G.initialHands?G.initialHands[0].length:RULES.handSize;
   const declNow=G.decl?`${SEAT_NAME[G.decl.seat].slice(0,1)}${T('declare')} ${G.decl.suit?SUIT_SYM[G.decl.suit]+(G.decl.strength===2?'对':''):(G.decl.strength===4?T('bigJoker'):T('smallJoker'))+'对'}`:'未定';
-
-  // 出牌状态显示区拆分:阶段性说明(发牌/造反/扣底)去顶部状态栏;
-  // 本墩领出信息(更常用、更值得占牌桌中心)直接写进 #msg,替掉"轮到你跟牌"这类泛泛提示
-  let phaseHint='', centerMsg='';
-  if(G.phase==='dealing'||G.phase==='finalDecl'){
-    phaseHint=`发牌中(${G.dealt}/100)… 当前:${G.decl?`${SEAT_NAME[G.decl.seat]} ${G.decl.suit?SUIT_SYM[G.decl.suit]+(G.decl.strength===2?'(一对)':''):T('noTrump')}`:'无人'+T('declare')}`;
-  }else if(G.phase==='redealing') phaseHint='重新发牌中…';
-  else if(G.phase==='lowrebel') phaseHint=`低分/少${T('trump')}:分数≤${RULES.pointRebelThreshold}或${T('trump')}≤${RULES.trumpRebelThreshold}张可${rebelName()}`;
-  else if(G.phase==='kitty') phaseHint=`${T('bury')}阶段:庄家从手牌(含底牌)中选 ${RULES.kittySize} 张扣下`;
-  else if(G.phase==='play'){
-    if(G.trick.length>0){
-      const lead=classify(G.trick[0].cards,G.trump);
-      const suitName=lead.suit==='T'?(t.suit?T('trump'):T('noTrump')):SUIT_NAME[lead.suit];
-      centerMsg=`本墩:${SEAT_NAME[G.trick[0].seat]} ${T('lead')} 【${suitName}】 ${typeName(lead.type)}(${lead.cards.length}张),有${suitName}必须跟`;
-    }else centerMsg=`本墩:${SEAT_NAME[G.leader]} ${T('lead')},等待出牌…`;
-  }
-  if(centerMsg) document.getElementById('msg').textContent=centerMsg;   // 空则保留上一次 setMsg() 的内容(如错误提示)
-
   document.getElementById('status').innerHTML=
     `<span>${T('trump')}:<b>${t?trumpLabel(t):declNow}</b></span>`+
     `<span>庄家:<b>${G.declSeat>=0?SEAT_NAME[G.declSeat]:'抢亮中'}</b></span>`+
     `<span>${T('defenders')}得分:<b>${G.defPoints}</b></span>`+
     `<span>你的队伍:<b>${G.declSeat<0?'—':(G.declSeat%2===0?'庄家方':T('defenders'))}</b></span>`+
     `<span>级数 你们:<b>${rankName(Math.min(M.levels[0],14))}</b> 对方:<b>${rankName(Math.min(M.levels[1],14))}</b></span>`+
-    `<span>第${M.round+1}局 · 第 <b>${Math.min(G.tricks.length+1,totalTricks)}</b>/${totalTricks} 墩</span>`+
-    `<button id="btnSet" style="margin-left:auto" onclick="window.__openSet()">⚙ 设置</button>`+
-    (phaseHint?`<span class="phaseHint">${phaseHint}</span>`:'');
+    `<span>第${M.round+1}局 · 第 <b>${Math.min(G.tricks.length+1,13)}</b>/13 墩</span>`+
+    `<label style="margin-left:auto;font-size:12px;color:#9fd6b5"><input type="checkbox" id="langSw" ${useSH?'checked':''}> 沪语版</label>`+
+    `<label style="font-size:12px;color:#9fd6b5"><input type="checkbox" id="sndSw" ${sndOn?'checked':''}> 🔊音效</label>`+
+    `<button id="btnSet" onclick="window.__openSet()">⚙ 设置</button>`;
+  const sw=document.getElementById('langSw');
+  if(sw) sw.onchange=e=>{ useSH=e.target.checked;
+    try{ localStorage.setItem('80fen-lang',useSH?'sh':'cn'); }catch(_){ } render(); };
+  const ss=document.getElementById('sndSw');
+  if(ss) ss.onchange=e=>{ sndOn=e.target.checked;
+    try{ localStorage.setItem('80fen-snd',sndOn?'on':'off'); }catch(_){ } };
+
+  let banner='';
+  if(G.phase==='dealing'||G.phase==='finalDecl'){
+    banner=`发牌中(${G.dealt}/100)… 当前:${G.decl?`${SEAT_NAME[G.decl.seat]} ${G.decl.suit?SUIT_SYM[G.decl.suit]+(G.decl.strength===2?'(一对)':''):T('noTrump')}`:'无人'+T('declare')}`;
+  }else if(G.phase==='redealing') banner='重新发牌中…';
+  else if(G.phase==='lowrebel') banner=`低分/少${T('trump')}阶段:手牌分数≤${RULES.pointRebelThreshold} 或${T('trump')}≤${RULES.trumpRebelThreshold}张可${rebelName()}`;
+  else if(G.phase==='kitty') banner=`${T('bury')}阶段:庄家从手牌(含底牌)中选 ${RULES.kittySize} 张扣下`;
+  else if(G.phase==='play'){
+    if(G.trick.length>0){
+      const lead=classify(G.trick[0].cards,G.trump);
+      const suitName=lead.suit==='T'?(t.suit?T('trump'):T('noTrump')):SUIT_NAME[lead.suit];
+      banner=`本墩:${SEAT_NAME[G.trick[0].seat]} ${T('lead')} 【${suitName}】 ${typeName(lead.type)}(${lead.cards.length}张),有${suitName}必须跟`;
+    }else banner=`本墩:${SEAT_NAME[G.leader]} ${T('lead')},等待出牌…`;
+  }
+  document.getElementById('banner').textContent=banner;
 
   for(let s=1;s<4;s++){
     const n=(G.phase==='dealing'||G.phase==='finalDecl')?G.visCount[s]:G.hands[s].length;
@@ -2008,10 +1995,9 @@ function renderPanel(){
   document.querySelectorAll('#tabs button').forEach(b=>
     b.classList.toggle('on',b.dataset.tab===activeTab));
   const el=document.getElementById('panel');
-  if(!activeTab){ el.innerHTML='<span style="opacity:.5">点击上方页签展开:抢分记录 / 对局记录 / 出牌历史 / 教练 / 记牌表 / 笔记</span>'; return; }
+  if(!activeTab){ el.innerHTML='<span style="opacity:.5">点击上方页签展开:抢分记录 / 对局记录 / 出牌历史 / 教练 / 记牌表</span>'; return; }
   if(activeTab==='coach'){ renderCoachTab(el); return; }
   if(activeTab==='mem'){ renderMemTab(el); return; }
-  if(activeTab==='notes'){ renderNotesTab(el); return; }
   if(activeTab==='log'){
     let html=`<div class="toggleRow"><label><input type="checkbox" id="ckReplay" ${replayMode?'checked':''}> 复盘模式(显示每墩出牌)</label></div>`;
     if(replayMode){
@@ -2065,26 +2051,37 @@ function renderPanel(){
   }
 }
 
-// ---- 教练页签:提问中的 quiz 置顶,下面是对话历史(最新在上),标注第几墩 ----
+// ---- 教练页签 ----
 function renderCoachTab(el){
-  let html='';
+  let html=`<div class="toggleRow">
+    <label><input type="checkbox" id="cOn" ${C.on?'checked':''}> 教练总开关</label>
+    <label>失误反馈:<select id="cSens">${['高','中','低','关'].map(s=>`<option ${C.gapSens===s?'selected':''}>${s}</option>`).join('')}</select></label>
+    <label><input type="checkbox" id="cStrict" ${C.strict?'checked':''}> 严格模式(大失误可撤回)</label>
+    <label><input type="checkbox" id="cReview" ${C.review?'checked':''}> 局后复盘</label>
+    <label><input type="checkbox" id="cQuiz" ${C.quiz?'checked':''}> 提问引导</label>
+  </div>`;
   if(G.quiz){
     html+=`<div class="coachBox"><b>🎓 ${G.quiz.q}</b><div style="margin-top:6px">`+
       [0,1,2,3].map(n=>`<button class="minor" data-qz="${n}" style="margin-right:6px;padding:4px 14px">${n===3?'3+':n}</button>`).join('')+
       `</div></div>`;
-  }
-  if(G.coachChat.length){
-    html+=G.coachChat.slice().reverse().map(c=>
-      `<div class="coachBox" style="margin-bottom:6px">`+
-      `<div style="font-size:11px;color:#9fd6b5;margin-bottom:3px">第${c.no}墩</div>${c.html}</div>`).join('');
-  }else if(!G.quiz){
+  }else if(G.coachAdvice){
+    html+=`<div class="coachBox">${G.coachAdvice}</div>`;
+  }else{
     html+=`<div style="opacity:.6">轮到你时点「问教练」;出现大失误会自动提醒;局终自动复盘关键回合。</div>`;
   }
+  if(G.coachNotes.length){
+    html+=`<div style="margin-top:6px;color:#9fd6b5">本局失误记录:</div>`+
+      G.coachNotes.map(n=>`<div>· 第${n.no}墩:你出 ${desc(n.my)},建议 ${desc(n.best)}(${n.reason},差距 ${n.gap.toFixed(0)})</div>`).join('');
+  }
   el.innerHTML=html;
+  el.querySelector('#cOn').onchange=e=>{C.on=e.target.checked;saveC();render();};
+  el.querySelector('#cSens').onchange=e=>{C.gapSens=e.target.value;saveC();};
+  el.querySelector('#cStrict').onchange=e=>{C.strict=e.target.checked;saveC();};
+  el.querySelector('#cReview').onchange=e=>{C.review=e.target.checked;saveC();};
+  el.querySelector('#cQuiz').onchange=e=>{C.quiz=e.target.checked;saveC();};
   el.querySelectorAll('[data-qz]').forEach(b=>b.onclick=()=>{
     const guess=+b.dataset.qz, right=guess===G.quiz.answer;
-    G.coachChat.push({no:G.quiz.no,
-      html:`<div>${right?'✅ 答对了':'❌ 不对'},实际在外还有 <b>${G.quiz.answer===3?'3张以上':G.quiz.answer+'张'}</b> 更大的。</div>`+G.quiz.advice});
+    G.coachAdvice=`<div>${right?'✅ 答对了':'❌ 不对'},实际在外还有 <b>${G.quiz.answer===3?'3张以上':G.quiz.answer+'张'}</b> 更大的。</div>`+G.quiz.advice;
     G.quiz=null; renderPanel();
   });
 }
@@ -2093,12 +2090,13 @@ function renderCoachTab(el){
 function renderMemTab(el){
   const inPlay=G.phase==='play'||G.phase==='kitty';
   if(!inPlay){ el.innerHTML='<div style="opacity:.6">开打后这里显示在外大牌统计。</div>'; return; }
-  let html='';
+  let html=`<div class="toggleRow"><label><input type="checkbox" id="cMemShow" ${C.memShow?'checked':''}> 常显(不蒙)</label></div>`;
   const revealed=C.memShow||G.memRevealTrick===G.tricks.length;
   if(!revealed){
     html+=`<div class="coachBox">🧠 先自己心算:主牌还剩几张?哪几门的分牌还没出?<br>
       <button id="memReveal" style="margin-top:6px">我算好了,点开验证</button></div>`;
     el.innerHTML=html;
+    el.querySelector('#cMemShow').onchange=e=>{C.memShow=e.target.checked;saveC();renderPanel();};
     el.querySelector('#memReveal').onclick=()=>{G.memRevealTrick=G.tricks.length;renderPanel();};
     return;
   }
@@ -2118,23 +2116,23 @@ function renderMemTab(el){
   }).join('');
   html+=`<div style="opacity:.6;margin-top:4px">(在外 = 除你手牌与已出牌外;底牌${G.declSeat===HUMAN?'你已知':'未知,计入在外'})</div>`;
   el.innerHTML=html;
+  el.querySelector('#cMemShow').onchange=e=>{C.memShow=e.target.checked;saveC();renderPanel();};
 }
 
-// ---- 笔记(右栏页签,不再单独占块) ----
-function renderNotesTab(el){
-  el.innerHTML=
-    `<div id="noteInputRow"><input id="noteInput" placeholder="记点什么…" maxlength="120"><button id="noteSend">发送</button></div>`+
-    `<div id="noteList">${notes.slice().reverse().map(n=>`<div class="note">${n.replace(/[<>&]/g,s=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]))}</div>`).join('')}</div>`;
-  el.querySelector('#noteSend').onclick=sendNote;
-  el.querySelector('#noteInput').onkeydown=e=>{ if(e.key==='Enter') sendNote(); };
+// ---- 笔记 ----
+function renderNotes(){
+  document.getElementById('noteList').innerHTML=
+    notes.slice().reverse().map(n=>`<div class="note">${n.replace(/[<>&]/g,s=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]))}</div>`).join('');
 }
+document.getElementById('noteSend').onclick=sendNote;
+document.getElementById('noteInput').onkeydown=e=>{ if(e.key==='Enter') sendNote(); };
 function sendNote(){
   const el=document.getElementById('noteInput');
   const v=el.value.trim();
   if(!v) return;
   notes.push(v); el.value='';
   try{ localStorage.setItem('80fen-notes',JSON.stringify(notes.slice(-100))); }catch(e){}
-  renderPanel();
+  renderNotes();
 }
 
 document.getElementById('btnPlay').onclick=humanPlay;
@@ -2146,6 +2144,7 @@ document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
   renderPanel();
 });
 
+renderNotes();
 showStartScreen();
 function showStartScreen(){
   document.getElementById('overlayContent').innerHTML=
