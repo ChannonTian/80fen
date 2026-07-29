@@ -85,11 +85,21 @@
   #noteInputRow{display:flex;gap:4px;margin-bottom:8px}
   #noteInput{flex:1;min-width:0;border:0;border-radius:6px;padding:4px 8px;font-size:var(--fsSmall)}
   #noteSend{padding:4px 10px;font-size:var(--fsSmall)}
-  #controls{display:flex;gap:10px;justify-content:center;align-items:center;padding:4px;flex:none;flex-wrap:wrap}
-  /* 亮主/反主/下一墩等动态按钮并入操作行,不再单独占一行;display:contents 让其子元素直接参与 #controls 的 flex 布局 */
-  #declStrip{display:contents}
-  #declStrip button{font-size:var(--fsSmall);padding:6px 12px}
-  #declStrip span{color:#9fd6b5;font-size:var(--fsSmall)}
+  /* 底部三区:左右两栏等宽撑开,中间那组才能真正居中(不随左右内容多少而漂移) */
+  #controls{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;
+            padding:4px;flex:none}
+  /* 发牌互动区:右对齐 —— 新按钮往左长,最右那颗位置不动,手指肌肉记忆才稳 */
+  /* 预留两行高度:选项多到换行时操作行不会突然变高把牌桌顶上去(那正是误点的来源)。
+     align-content:flex-end 让换行往上堆,最下面那行(含锚点按钮)始终贴在同一位置。 */
+  #dealZone{display:flex;gap:6px;align-items:center;justify-content:flex-end;
+            flex-wrap:wrap;align-content:flex-end;min-height:4.2em}
+  #mainZone{display:flex;gap:10px;align-items:center;justify-content:center}
+  /* 庄家区:左对齐,只有坐庄时才用得上 */
+  #dealerZone{display:flex;gap:8px;align-items:center;justify-content:flex-start}
+  /* 定宽:按最长文案「亮无将(大)」量(≈5.9em),选项增减时按钮尺寸不变,不会把手指点空 */
+  #dealZone button{font-size:var(--fsSmall);padding:5px 6px;min-width:5.9em;
+                   white-space:nowrap;text-align:center}
+  #dealZone span{color:#9fd6b5;font-size:var(--fsSmall)}
   button{background:var(--gold);color:#222;border:0;border-radius:6px;padding:7px 16px;
          font-size:var(--fsBase);font-weight:bold;cursor:pointer}
   button.minor{background:#c8d6cf}
@@ -171,13 +181,18 @@
       <div class="seat" style="grid-area:3/2;align-self:end"><span class="name" id="n0">南(你)</span></div>
     </div>
     <div id="hand"></div>
+    <!-- 底部三区(虚拟分区,不画线):发牌互动区靠左 / 主操作区居中 / 庄家区靠右 -->
     <div id="controls">
-      <span id="declStrip"></span>
-      <button id="btnPlay">出牌</button>
-      <button id="btnClear" class="minor">重选</button>
-      <button id="btnBury" class="minor">扣底</button>
-      <button id="btnKitty" class="minor" onclick="window.__showKitty()">看底牌</button>
-      <button id="btnHint" style="background:#6ec9ff">问教练</button>
+      <div id="dealZone"></div>
+      <div id="mainZone">
+        <button id="btnPlay">出牌</button>
+        <button id="btnClear" class="minor">重选</button>
+        <button id="btnHint" style="background:#6ec9ff">问教练</button>
+      </div>
+      <div id="dealerZone">
+        <button id="btnBury" class="minor">扣底</button>
+        <button id="btnKitty" class="minor" onclick="window.__showKitty()">看底牌</button>
+      </div>
     </div>
   </div>
   <div id="side">
@@ -1312,6 +1327,7 @@ if(location.hash==='#test'){
 // ---- 术语(全国版/沪语版) ----
 const TERMS_CN={bigJoker:'大王',smallJoker:'小王',trump:'主牌',noTrump:'无主',tractor:'拖拉机',
   throwP:'甩牌',ruff:'毙牌',discard:'垫牌',declare:'亮主',counter:'反主',reinforce:'加固',
+  declareV:'亮',counterV:'反',   // 按钮上用的短动词,免得"亮主无主(大)"这种叠字
   bury:'扣底',lead:'领出',zheng:'正常主',fu:'副常主',voidSuit:'断门',openVoid:'开局断门',
   rankA:'A',rankK:'K',rankQ:'Q',rankJ:'J',levelUp:'升级',
   defenders:'闲家',tiaoji:'跳级',guangtou:'剃光头'};   // 闲家/跳级/剃光头:沪语全国通用
@@ -1365,6 +1381,7 @@ const S_DEFAULT={
   aiThinkMax:3.0,    // AI 出牌思考秒数(上限)
   trickHold:3.0,     // 一墩出完后牌留桌秒数
   manualNext:false,  // true = 手动点击进入下一墩
+  declWait:10.0,     // 发完牌后留给你亮主/反主的时间(秒),可点「不亮」提前结束
 };
 let S={...S_DEFAULT, rules:{...RULE_DEFAULTS}};
 try{
@@ -1404,6 +1421,9 @@ function openSettings(){
     `<div class="setRow"><label><input type="checkbox" id="rStrict"> 领出${T('tractor')}必须跟${T('tractor')}</label></div>`+
     `<div class="setRow"><label><input type="checkbox" id="rPartial"> 　└ 只有更短的${T('tractor')}也必须跟</label></div>`+
     `<div style="color:var(--gold);font-size:14px;margin-top:10px">节奏</div>`+
+    `<div class="setRow"><label>发完牌后${T('declare')}等待(秒)</label>
+       <input type="number" id="stDeclWait" min="0" max="60" step="1"></div>`+
+    `<div class="setHint">等待期间可随时${T('declare')}/${T('counter')};点「不${T('declare')}」立即结束等待</div>`+
     `<div class="setRow"><label>AI 出牌思考(秒)</label>
        <input type="number" id="stMin" min="0" max="10" step="0.5"> –
        <input type="number" id="stMax" min="0" max="10" step="0.5"></div>`+
@@ -1430,6 +1450,7 @@ function openSettings(){
   const fill=()=>{
     $('stRebel').value=S.fullRebel; $('stMin').value=S.aiThinkMin;
     $('stMax').value=S.aiThinkMax;  $('stHold').value=S.trickHold;
+    $('stDeclWait').value=S.declWait;
     $('stManual').checked=!!S.manualNext;
     $('stHold').disabled=!!S.manualNext;
     $('stHoldHint').textContent=S.manualNext?'(手动模式下由你点「下一墩」决定)':'';
@@ -1472,6 +1493,7 @@ function openSettings(){
   ruleBool('rPartial','partialTractorFollow');
   $('stRebel').onchange=e=>{ S.fullRebel=e.target.value; saveS(); fill(); if(G) render(); };
   num('stMin','aiThinkMin'); num('stMax','aiThinkMax'); num('stHold','trickHold');
+  num('stDeclWait','declWait');
   $('stManual').onchange=e=>{ S.manualNext=e.target.checked; saveS(); fill(); };
   $('stLang').onchange=e=>{ useSH=e.target.checked;
     try{ localStorage.setItem('80fendev-lang',useSH?'sh':'cn'); }catch(_){ } if(G) render(); };
@@ -1593,7 +1615,8 @@ function dealTick(){
   if(G.phase!=='dealing') return;
   if(G.dealt>=100){ G.phase='finalDecl'; render();
     setMsg('发牌完毕,最后机会'+T('declare')+'/'+T('counter')+'…');
-    setTimeout(settleTrump,1800); return; }
+    // 存下句柄:玩家点「不亮」时要能取消这个定时器提前结算
+    G.declTimer=setTimeout(settleTrump,secs(S.declWait,S_DEFAULT.declWait)); return; }
   const seat=(G.firstTaker+G.dealt)%4;
   G.visCount[seat]++; G.dealt++;
   if(seat!==HUMAN) aiDeclThink(seat);
@@ -1640,7 +1663,16 @@ function applyDecl(seat,opt,isReinforce){
 }
 
 // 发牌结束:定主(庄定盘庄家不变;无庄盘最终亮主者坐庄拿底)
+// 「不亮」:放弃剩余等待时间,立刻定主
+window.__skipDecl=()=>{
+  if(!G||G.phase!=='finalDecl') return;
+  clearTimeout(G.declTimer); G.declTimer=null;
+  settleTrump();
+};
+
 function settleTrump(){
+  if(G.phase!=='finalDecl'&&G.phase!=='dealing') return;   // 防「不亮」和到点结算重复触发
+  clearTimeout(G.declTimer); G.declTimer=null;
   G.trump={suit:G.decl?G.decl.suit:null,rank:G.trumpRank};
   G.declSeat=dealerAfterDecl({dealerKnown:G.dealerKnown, dealer:M.dealer,
                               declSeat:G.decl?G.decl.seat:-1, firstTaker:G.firstTaker});
@@ -2007,7 +2039,7 @@ function render(){
 
   // 抢亮/造反/低分造反条
   // 注意:内容没变时绝不重建 DOM —— 发牌期高频重绘会把正在点击的按钮销毁(点击被吞 bug)
-  const strip=document.getElementById('declStrip');
+  const strip=document.getElementById('dealZone');
   let stripHTML, bind=null;
   if(G.ended){
     stripHTML=G.ended.matchOver
@@ -2019,16 +2051,26 @@ function render(){
     bind=null;
   }else if(G.phase==='dealing'||G.phase==='finalDecl'){
     const vis=visHand(HUMAN);
+    const V=G.decl?T('counterV'):T('declareV');   // 亮/反(沪语:翻/反)
+    // 按钮顺序必须稳定:引擎给的 declOptions 是按强度排的,单张升级成对子会重排导致按钮跳位。
+    // 这里改成固定花色顺序,再靠右对齐 —— 位置只会往左长,已有按钮不动。
     const btns=[];
     if(canReinforce2(G.decl,HUMAN,vis,rankOf(HUMAN),G.rebelHappened))
-      btns.push(`<button data-a="re">${T('reinforce')} ${SUIT_SYM[G.decl.suit]}(→一对)</button>`);
-    declOptions(vis,rankOf(HUMAN)).filter(o=>canOverride(G.decl,o)).forEach(o=>
-      btns.push(`<button data-a="d" data-s="${o.suit}" data-st="${o.strength}">${G.decl?T('counter'):T('declare')} ${SUIT_SYM[o.suit]}${o.strength===2?'(一对)':''}</button>`));
+      btns.push(`<button data-a="re">${T('reinforce')}${SUIT_SYM[G.decl.suit]}</button>`);
     const jp=jokerPairOf(vis);
+    // 王对(最长的一颗「亮无将(大)」—— 按钮定宽以此为准)排在花色左边,位置最靠前
     if(jp&&canOverride(G.decl,jp))
-      btns.push(`<button data-a="d" data-s="" data-st="${jp.strength}">${jp.strength===4?T('bigJoker'):T('smallJoker')}对${T('counter')}(${T('noTrump')})</button>`);
+      btns.push(`<button data-a="d" data-s="" data-st="${jp.strength}">${V}${T('noTrump')}(${jp.strength===4?'大':'小'})</button>`);
+    declOptions(vis,rankOf(HUMAN)).filter(o=>canOverride(G.decl,o))
+      .sort((a,b)=>SUITS.indexOf(a.suit)-SUITS.indexOf(b.suit))
+      .forEach(o=>
+        btns.push(`<button data-a="d" data-s="${o.suit}" data-st="${o.strength}">${V}${SUIT_SYM[o.suit]}${o.strength===2?'(对)':''}</button>`));
+    // 发完牌进入最后机会时,给一颗「不亮」提前结束等待(它固定在最右,新按钮往左长)
+    if(G.phase==='finalDecl')
+      btns.push(`<button class="minor" onclick="window.__skipDecl()">不${T('declareV')}</button>`);
     stripHTML=btns.length?btns.join(''):`<span>(暂无可${T('declare')}的牌)</span>`;
-    bind=()=>strip.querySelectorAll('button').forEach(b=>b.onclick=()=>{
+    // 只绑亮主类按钮([data-a]);「不亮」用自己的 inline onclick,别被这里覆盖掉
+    bind=()=>strip.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{
       if(b.dataset.a==='re') applyDecl(HUMAN,{suit:G.decl.suit,strength:2},true);
       else applyDecl(HUMAN,{suit:b.dataset.s||null,strength:+b.dataset.st},false);
     });

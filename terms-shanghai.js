@@ -11,6 +11,8 @@ window.TERMS_SH = {
   discard  : '氽废',
   declare  : '翻',          // 亮主;也可作 “摊”
   counter  : '造反',        // 反主
+  declareV : '翻',          // 按钮上的短动词,如 “翻无将(大)”
+  counterV : '反',          // 同上,如 “反无将(大)”
   reinforce: '加固',
   bury     : '灭底',        // 埋底
   lead     : '先出',        // 领出
