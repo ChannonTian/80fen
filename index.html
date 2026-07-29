@@ -52,7 +52,7 @@
   .card.sS{color:#141414}
   .card.sH{color:#c0392b}
   .card.sD{color:#b0185c}
-  .card.sC{color:#1a5c3a}
+  .card.sC{color:#0a3b23}   /* 比牌桌绿深不少,接近墨黑;只作辅助识别,不喧宾夺主 */
   .card.jb{color:#c0392b}   /* 大王 */
   .card.js{color:#141414}   /* 小王 */
   /* 牌面字号跟着牌宽走 —— 比旧版明显放大,远看也认得出 */
@@ -69,8 +69,10 @@
   .mini .joker{font-size:calc(var(--miniW)*.19);padding-left:32%;top:10%}
   #hand{flex:none;display:flex;flex-wrap:wrap;gap:0;justify-content:center;align-content:center;
         padding:4px;min-height:calc(var(--cardH) + 18px)}
-  #hand .card{margin-left:calc(var(--cardW)*-.28);cursor:pointer;transition:transform .08s}
+  #hand .card{margin-left:calc(var(--cardW)*-.38);cursor:pointer;transition:transform .08s}
   #hand .card:first-child{margin-left:0}
+  /* 手牌是叠着的,右半边字符会被下一张压住并互相挤占;只留左半边(1数字+1花色)足够读牌 */
+  #hand .card .tr,#hand .card .br{display:none}
   #hand .card.sel{transform:translateY(-14px);outline:2px solid var(--gold)}
   #hand .card.hintc{outline:2px dashed #6ec9ff;box-shadow:0 0 8px #6ec9ff}
   .coachBox{background:rgba(110,201,255,.1);border:1px solid rgba(110,201,255,.4);
@@ -136,7 +138,7 @@
   }
   /* ---- 横屏(含手机横握):一律保持左右布局,侧栏收窄给牌桌让位 ---- */
   @media (orientation:landscape) and (max-height:600px){
-    :root{--cardW:clamp(26px,2.4vw + 1.6vh,48px)}
+    :root{--cardW:clamp(32px,2.4vw + 1.6vh,48px)}
     #app{grid-template-columns:minmax(0,1fr) clamp(170px,20vw,290px);gap:6px;padding:6px}
     #notes{display:none}
     /* 竖向空间紧,状态栏不许折行,超出就横向滑动 */
@@ -149,7 +151,7 @@
     #tabs button{padding:4px 7px}
     /* 25 张挤一行(重叠多一点),省下的高度还给牌桌 */
     #hand{padding:2px;min-height:calc(var(--cardH) + 8px)}
-    #hand .card{margin-left:calc(var(--cardW)*-.36)}
+    #hand .card{margin-left:calc(var(--cardW)*-.46)}
     #hand .card:first-child{margin-left:0}
   }
 </style>
