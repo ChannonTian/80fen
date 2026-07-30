@@ -45,6 +45,12 @@
           max-height:calc(var(--cardH)*3.4);align-self:center}
   .played{display:flex;gap:2px;min-height:var(--cardH);align-items:center}
   #msg{text-align:center;font-size:calc(var(--fsBase)*1.1);color:var(--gold);pointer-events:none}
+  /* 当前谁大:我方绿、对方橙红,一眼判断该抢还是该垫 */
+  .memRow{margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .memSub{opacity:.85;padding-left:1em}
+  .msgWin{margin-top:4px;font-size:var(--fsBase);font-weight:bold}
+  .msgWin.ours{color:#7ee787}
+  .msgWin.theirs{color:#ff9d6e}
   .card{position:relative;display:inline-block;width:var(--cardW);height:var(--cardH);flex:none;
         background:#fff;color:#111;border-radius:5px;border:1px solid #999;
         font-weight:bold;user-select:none;box-shadow:0 1px 3px rgba(0,0,0,.4)}
@@ -113,8 +119,9 @@
   #tabs button.on{background:var(--gold);color:#222}
   #panel{background:rgba(0,0,0,.3);border-radius:8px;padding:8px 12px;font-size:var(--fsSmall);
          flex:1;min-height:0;overflow-y:auto;color:#cfe8d9}
-  .trickRow{display:flex;gap:10px;align-items:center;margin:3px 0;flex-wrap:wrap}
-  .trickRow .who{color:var(--gold);min-width:7em}
+  .trickRow{display:flex;gap:10px;align-items:center;margin:3px 0 8px;flex-wrap:wrap}
+  /* 墩序数(和赢家/得分)独占一行,下面才是四家的牌 —— 一行混排太挤,看不清哪张属于哪墩 */
+  .trickRow .who{color:var(--gold);flex-basis:100%;margin-bottom:2px}
   .suitGroup{margin:4px 0}
   .toggleRow{display:flex;gap:14px;align-items:center;margin-bottom:6px;color:#9fd6b5}
   #overlay,#setOverlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;
@@ -2023,7 +2030,7 @@ function render(){
 
   // 出牌状态显示区拆分:阶段性说明(发牌/造反/扣底)去顶部状态栏;
   // 本墩领出信息(更常用、更值得占牌桌中心)直接写进 #msg,替掉"轮到你跟牌"这类泛泛提示
-  let phaseHint='', centerMsg='';
+  let phaseHint='', centerMsg='', winnerMsg='', winnerOurs=false;
   if(G.phase==='dealing'||G.phase==='finalDecl'){
     phaseHint=`发牌中(${G.dealt}/100)… 当前:${G.decl?`${SEAT_NAME[G.decl.seat]} ${G.decl.suit?SUIT_SYM[G.decl.suit]+(G.decl.strength===2?'(一对)':''):T('noTrump')}`:'无人'+T('declare')}`;
   }else if(G.phase==='redealing') phaseHint='重新发牌中…';
@@ -2034,9 +2041,19 @@ function render(){
       const lead=classify(G.trick[0].cards,G.trump);
       const suitName=lead.suit==='T'?(t.suit?T('trump'):T('noTrump')):SUIT_NAME[lead.suit];
       centerMsg=`本墩:${SEAT_NAME[G.trick[0].seat]} ${T('lead')} 【${suitName}】 ${typeName(lead.type)}(${lead.cards.length}张),有${suitName}必须跟`;
+      // 谁暂时最大 —— 决定该抢还是该垫,比"轮到你跟牌"有用得多
+      const cw=currentWinner(G.trick,G.trump);
+      const ours=cw.seat%2===HUMAN%2;
+      const pts=countPoints(G.trick.flatMap(p=>p.cards));
+      winnerMsg=`目前 ${cw.seat===HUMAN?'你':SEAT_NAME[cw.seat]} 最大(${ours?'我方':'对方'})`+
+                (pts?` · 台面 ${pts} 分`:'');
+      winnerOurs=ours;
     }else centerMsg=`本墩:${SEAT_NAME[G.leader]} ${T('lead')},等待出牌…`;
   }
-  if(centerMsg) document.getElementById('msg').textContent=centerMsg;   // 空则保留上一次 setMsg() 的内容(如错误提示)
+  if(centerMsg){   // 空则保留上一次 setMsg() 的内容(如错误提示)
+    document.getElementById('msg').innerHTML=centerMsg+
+      (winnerMsg?`<div class="msgWin ${winnerOurs?'ours':'theirs'}">${winnerMsg}</div>`:'');
+  }
 
   document.getElementById('status').innerHTML=
     `<span>${T('trump')}:<b>${t?trumpLabel(t):declNow}</b></span>`+
@@ -2137,7 +2154,11 @@ function render(){
   document.getElementById('btnBury').textContent=
     G.phase==='kitty'?`${T('bury')}(${G.selected.size}/${RULES.kittySize})`:T('bury');
   // 看底牌:只有你是庄家、且底牌已扣下才可点
-  document.getElementById('btnKitty').disabled=!(G.declSeat===HUMAN&&G.buried.length>0);
+  const canSeeKitty=G.declSeat===HUMAN&&G.buried.length>0;
+  document.getElementById('btnKitty').disabled=!canSeeKitty;
+  // 庄家区本局用不上(你不坐庄)就整块收起来,不留灰按钮占地方
+  document.getElementById('btnBury').hidden=(G.phase!=='kitty');
+  document.getElementById('btnKitty').hidden=!canSeeKitty;
   document.getElementById('btnHint').disabled=!(C.on&&myTurn);
   renderPanel();
 }
@@ -2241,21 +2262,42 @@ function renderMemTab(el){
     el.querySelector('#memReveal').onclick=()=>{G.memRevealTrick=G.tricks.length;renderPanel();};
     return;
   }
-  const t=G.trump, mem=makeMemory(viewFor(HUMAN));
+  const t=G.trump, view=viewFor(HUMAN), mem=makeMemory(view);
+  const voids=makeVoids(view.history,t);            // 从历史推断谁已确定断门
   const suits=['T','S','H','C','D'].filter(s=>s==='T'||(!t.suit||s!==t.suit));
   html+=suits.map(s=>{
-    let cnt=0, top=null, pts=0;
+    let cnt=0, top=null;
+    const ptBy={};                                   // 分牌明细:rank → 张数
     for(const k in mem.unseen){
       const m=mem.unseen[k]; if(m<=0) continue;
-      const i=k.indexOf(':'); const c={suit:k.slice(0,i),rank:+k.slice(i+1)};
+      const c=keyToCard(k);
       if(effSuit(c,t)!==s) continue;
-      cnt+=m; pts+=cardPoints(c)*m;
+      cnt+=m;
+      if(cardPoints(c)>0) ptBy[c.rank]=(ptBy[c.rank]||0)+m;
       if(!top||ordIdx(c,t)>ordIdx(top,t)) top=c;
     }
     const name=s==='T'?T('trump'):SUIT_NAME[s];
-    return `<div>· <b style="color:var(--gold)">${name}</b>:在外 ${cnt} 张,最大 ${top?miniName(top):'—'},含 ${pts} 分</div>`;
+    // 你该门最大的一张,以及它是否已经压得住别家(省得自己心算)
+    const mine=G.hands[HUMAN].filter(c=>effSuit(c,t)===s);
+    const myTop=mine.length?mine.reduce((a,b)=>ordIdx(b,t)>ordIdx(a,t)?b:a):null;
+    // 同大小时先出者赢,所以并列最大也算"领出能吃",不能笼统说压不过
+    const cmp=myTop?(top?ordIdx(myTop,t)-ordIdx(top,t):1):0;
+    const ptTxt=Object.keys(ptBy).sort((a,b)=>b-a).map(r=>`${ptBy[r]}张${rankName(+r)}`).join('、');
+    const ptSum=Object.keys(ptBy).reduce((a,r)=>a+cardPoints({rank:+r})*ptBy[r],0);
+    const gone=[1,2,3].filter(x=>voids[x]&&voids[x][s]).map(x=>SEAT_NAME[x].replace(/\(.*\)/,''));
+    return `<div class="memRow">`+
+      `<b style="color:var(--gold)">${name}</b> 别家还剩 <b>${cnt}</b> 张`+
+      (cnt?`,最大 ${miniName(top)}`:'(已出尽)')+
+      `<div class="memSub">你最大:${myTop?miniName(myTop):'无'}`+
+        (myTop?(cmp>0?' <span style="color:#7ee787">— 已是最大,吃得住</span>'
+               :cmp===0?' <span style="color:#7ee787">— 并列最大,领出能吃(同大小先出者赢)</span>'
+                       :` <span style="color:#ff9d6e">— 压不过 ${miniName(top)}</span>`):'')+`</div>`+
+      `<div class="memSub">剩余分牌:${ptSum?`${ptTxt}(共 ${ptSum} 分)`:'无'}</div>`+
+      (gone.length?`<div class="memSub">已断门:${gone.join('、')}</div>`:'')+
+      `</div>`;
   }).join('');
-  html+=`<div style="opacity:.6;margin-top:4px">(在外 = 除你手牌与已出牌外;底牌${G.declSeat===HUMAN?'你已知':'未知,计入在外'})</div>`;
+  html+=`<div style="opacity:.6;margin-top:6px">(「别家还剩」= 三家对手/队友手中 + 底牌,不含你自己的牌;`+
+        `底牌${G.declSeat===HUMAN?'你已知,已扣除':'未知,计在其中'})</div>`;
   el.innerHTML=html;
 }
 
