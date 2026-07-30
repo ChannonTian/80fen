@@ -98,9 +98,11 @@
   #mainZone{display:flex;gap:10px;align-items:flex-end;justify-content:center}
   /* 庄家区:左对齐,只有坐庄时才用得上 */
   #dealerZone{display:flex;gap:8px;align-items:flex-end;justify-content:flex-start}
-  /* 定宽:按最长文案「亮无将(大)」量(≈5.9em),选项增减时按钮尺寸不变,不会把手指点空 */
-  #dealZone button{font-size:var(--fsSmall);padding:5px 6px;min-width:5.9em;
-                   white-space:nowrap;text-align:center}
+  /* 三区所有按钮统一一套尺寸(同字号、同内边距、同最小宽度),排在一行才齐整;
+     宽度按最长文案「亮无将(大)」量(≈5.9em),这样发牌选项增减也不改变按钮大小。
+     主次靠颜色区分(出牌金色 / 次要灰色 / 问教练蓝色),不靠大小。 */
+  #controls button{font-size:var(--fsSmall);padding:6px 8px;min-width:6.6em;
+                   white-space:nowrap;text-align:center;line-height:1.25}
   #dealZone span{color:#9fd6b5;font-size:var(--fsSmall)}
   button{background:var(--gold);color:#222;border:0;border-radius:6px;padding:7px 16px;
          font-size:var(--fsBase);font-weight:bold;cursor:pointer}
@@ -154,7 +156,9 @@
     /* 竖向空间紧,状态栏不许折行,超出就横向滑动 */
     #status{gap:10px;padding:4px 10px;flex-wrap:nowrap;overflow-x:auto;white-space:nowrap}
     #controls{gap:6px;padding:2px}
-    #controls button{padding:5px 10px}
+    /* 横屏收紧但仍保持三区按钮同尺寸(只等比缩,不打破一致性);
+       min-width 必须仍能包住最长文案「亮无将(大)」,否则它会独自变宽 */
+    #controls button{padding:4px 6px;min-width:6.4em}
     #tabs{gap:4px}
     #tabs button{padding:4px 7px}
     /* 25 张挤一行(重叠多一点),省下的高度还给牌桌 */
