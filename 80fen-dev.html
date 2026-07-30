@@ -499,14 +499,25 @@ function scoreRound({defPoints, kitty, defWonLastTrick, lastLeadSize}){
 // ---- 整场推进:升级与庄家轮换 ----
 // 庄家方守住 → 升级、前庄对家连庄;闲家上台 → 闲家升级、前庄下家坐庄。
 // 任一队级数打过 A(>14)整场获胜。
-function advanceMatch(levels, declSeat, sc){
+// 必打关卡:跳级途中撞上就停在关卡上(打3升3级本应到6,5是关卡则停在5)。
+// 落点正好等于关卡不算跳过 —— 那本来就要在该级打一局。
+function clampAtGate(from, to, gates){
+  if(!gates||!gates.length||to<=from) return {level:to, gate:null};
+  const hit=gates.filter(g=>g>from&&g<to).sort((a,b)=>a-b)[0];
+  return hit===undefined?{level:to, gate:null}:{level:hit, gate:hit};
+}
+
+function advanceMatch(levels, declSeat, sc, gates){
   const declTeam=declSeat%2;
   const L=levels.slice();
-  let dealer;
-  if(!sc.defendersWin){ L[declTeam]+=sc.declarerLevelsUp; dealer=(declSeat+2)%4; }
-  else { L[1-declTeam]+=sc.defenderLevelsUp; dealer=(declSeat+1)%4; }
+  let dealer, up, team;
+  if(!sc.defendersWin){ team=declTeam; up=sc.declarerLevelsUp; dealer=(declSeat+2)%4; }
+  else { team=1-declTeam; up=sc.defenderLevelsUp; dealer=(declSeat+1)%4; }
+  const c=clampAtGate(L[team], L[team]+up, gates);
+  L[team]=c.level;
   const matchOver=L[0]>14||L[1]>14;
-  return {levels:L, dealer, matchOver, winnerTeam:matchOver?(L[0]>14?0:1):null};
+  return {levels:L, dealer, matchOver, winnerTeam:matchOver?(L[0]>14?0:1):null,
+          gateStopped:c.gate};   // 非 null = 本次被关卡拦下,界面要提示
 }
 
 /* ---- 随机合法 AI(M3 换启发式) ---- */
@@ -994,7 +1005,7 @@ function simulateRound(seed, smartSeats=[0,1,2,3]){
 
 if(typeof module!=='undefined') module.exports={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
-  canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,countPairsIn,maxTractorLen,
+  canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,clampAtGate,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
   makeMemory,maxUnseenIdx,unseenPairAbove,isBossPlay,buildFollow,currentWinner,minWinFollow,
   aiChooseFollow,aiChooseLead,coachScoreFollow,coachScoreLead,makeVoids,followCtx,leadCtx,scoreLeadPlay};
@@ -1198,6 +1209,25 @@ function runTests(E){
     ok('A级守住即打过A', a.matchOver&&a.winnerTeam===0);
   }
 
+  // ---- 必打关卡(不可跳级) ----
+  {
+    const G4=[2,5,10,13];
+    const C=E.clampAtGate;
+    ok('跳级撞关卡:3升3级停在5', C(3,6,G4).level===5&&C(3,6,G4).gate===5);
+    ok('落点正好是关卡:不算跳过,正常到达', C(3,5,G4).level===5&&C(3,5,G4).gate===null);
+    ok('从关卡出发可正常越过下一段', C(5,8,G4).level===8&&C(5,8,G4).gate===null);
+    ok('一次跨两个关卡:停在最近的那个', C(4,12,G4).level===5);
+    ok('关卡关闭时不拦', C(3,6,null).level===6&&C(3,6,[]).level===6);
+    ok('不升级时不受影响', C(5,5,G4).level===5);
+    // 接到 advanceMatch 上
+    let a=E.advanceMatch([3,2],0,{defendersWin:false,declarerLevelsUp:3},G4);
+    ok('advanceMatch:打3升3级被5拦下并报关卡', a.levels[0]===5&&a.gateStopped===5);
+    a=E.advanceMatch([3,2],0,{defendersWin:false,declarerLevelsUp:3},null);
+    ok('advanceMatch:不开关卡时照常升到6', a.levels[0]===6&&a.gateStopped===null);
+    a=E.advanceMatch([5,2],0,{defendersWin:false,declarerLevelsUp:3},G4);
+    ok('advanceMatch:已在关卡上,升级不再被同一关卡拦', a.levels[0]===8&&a.gateStopped===null);
+  }
+
   // ---- M3 启发式 AI ----
   // 记牌:两张HA都见过后,HK就是本门最大
   {
@@ -1390,13 +1420,16 @@ const RULE_DEFAULTS={
 };
 const S_DEFAULT={
   fullRebel:'off',   // 低分/少主:off=关闭 | redeal=仅重新发牌(不抢庄) | scramble=完全造反(双方抢庄)
+  gatesOn:true,      // 必打关卡:跳级途中撞上就停在关卡上
+  gates:[2,5,10,13], // 关卡级数(13=K)
+
   aiThinkMin:1.0,    // AI 出牌思考秒数(下限)
   aiThinkMax:3.0,    // AI 出牌思考秒数(上限)
   trickHold:3.0,     // 一墩出完后牌留桌秒数
   manualNext:false,  // true = 手动点击进入下一墩
   declWait:10.0,     // 发完牌后留给你亮主/反主的时间(秒),可点「不亮」提前结束
 };
-let S={...S_DEFAULT, rules:{...RULE_DEFAULTS}};
+let S={...S_DEFAULT, gates:[...S_DEFAULT.gates], rules:{...RULE_DEFAULTS}};
 try{
   const saved=JSON.parse(localStorage.getItem('80fendev-set')||'{}');
   Object.assign(S,saved);
@@ -1433,6 +1466,10 @@ function openSettings(){
     `<div class="setHint" id="rRebelHint"></div>`+
     `<div class="setRow"><label><input type="checkbox" id="rStrict"> 领出${T('tractor')}必须跟${T('tractor')}</label></div>`+
     `<div class="setRow"><label><input type="checkbox" id="rPartial"> 　└ 只有更短的${T('tractor')}也必须跟</label></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="rGates"> 必打关卡(不可跳级)</label></div>`+
+    `<div class="setRow"><label>　└ 关卡级数</label>
+       ${[2,5,10,13].map(g=>`<label style="margin-right:8px"><input type="checkbox" class="gateBox" data-g="${g}"> ${rankName(g)}</label>`).join('')}</div>`+
+    `<div class="setHint" id="rGateHint"></div>`+
     `<div style="color:var(--gold);font-size:14px;margin-top:10px">节奏</div>`+
     `<div class="setRow"><label>发完牌后${T('declare')}等待(秒)</label>
        <input type="number" id="stDeclWait" min="0" max="60" step="1"></div>`+
@@ -1476,6 +1513,13 @@ function openSettings(){
     $('rStrict').checked=S.rules.strictTractorFollow;
     $('rPartial').checked=S.rules.partialTractorFollow;
     $('rPartial').disabled=!S.rules.strictTractorFollow;   // 不严格跟拖拉机时,短拖规则没有意义
+    $('rGates').checked=!!S.gatesOn;
+    el.querySelectorAll('.gateBox').forEach(b=>{
+      b.checked=S.gates.includes(+b.dataset.g); b.disabled=!S.gatesOn; });
+    $('rGateHint').textContent=S.gatesOn
+      ? (S.gates.length?`跳级途中撞上关卡就停在关卡上(例:打3升3级本应到6,5是关卡→停在5)`
+                       :'⚠️ 一个关卡都没选,等于没开')
+      : '(关闭时按实际级数直接跳)';
     // 三个造反阈值只在造反规则打开时生效,关掉就灰掉并说明
     const rebelOff=S.fullRebel==='off';
     ['rPts','rTrump','rRedeal'].forEach(id=>$(id).disabled=rebelOff);
@@ -1504,6 +1548,13 @@ function openSettings(){
   ruleNum('rRedeal','maxRedeal',0);
   ruleBool('rStrict','strictTractorFollow');
   ruleBool('rPartial','partialTractorFollow');
+  $('rGates').onchange=e=>{ S.gatesOn=e.target.checked; saveS(); fill(); };
+  el.querySelectorAll('.gateBox').forEach(b=>b.onchange=e=>{
+    const g=+e.target.dataset.g;
+    S.gates=e.target.checked?[...new Set([...S.gates,g])].sort((a,b)=>a-b)
+                            :S.gates.filter(x=>x!==g);
+    saveS(); fill();
+  });
   $('stRebel').onchange=e=>{ S.fullRebel=e.target.value; saveS(); fill(); if(G) render(); };
   num('stMin','aiThinkMin'); num('stMax','aiThinkMax'); num('stHold','trickHold');
   num('stDeclWait','declWait');
@@ -1518,7 +1569,7 @@ function openSettings(){
   $('cReview').onchange=e=>{ C.review=e.target.checked; saveC(); };
   $('cQuiz').onchange=e=>{ C.quiz=e.target.checked; saveC(); };
   $('cMemShow').onchange=e=>{ C.memShow=e.target.checked; saveC(); if(G) renderPanel(); };
-  $('stReset').onclick=()=>{ S={...S_DEFAULT, rules:{...RULE_DEFAULTS}};
+  $('stReset').onclick=()=>{ S={...S_DEFAULT, gates:[...S_DEFAULT.gates], rules:{...RULE_DEFAULTS}};
     saveS(); applyRules(); fill(); if(G) render(); };
   $('stClose').onclick=closeSettings;
   document.getElementById('setOverlay').style.display='flex';
@@ -1999,9 +2050,12 @@ function endRound(){
     html+=`<div style="margin-top:8px;font-size:14px;color:#6ec9ff">🎓 教练:本局没有明显失误,漂亮!</div>`;
   }
   // 整场推进
-  const adv=advanceMatch(M.levels,G.declSeat,sc);
+  const adv=advanceMatch(M.levels,G.declSeat,sc,S.gatesOn?S.gates:null);
   M.levels=adv.levels; M.dealer=adv.dealer; M.round++;
   G.ended={matchOver:adv.matchOver};
+  if(adv.gateStopped!=null)
+    html+=`<div style="margin-top:8px;font-size:15px;color:var(--gold)">`+
+          `⛔ ${rankName(adv.gateStopped)} 必打,不可跳级 —— 本次升级停在 ${rankName(adv.gateStopped)}</div>`;
   if(adv.matchOver){
     const weWon=adv.winnerTeam===0;
     html+=`<div style="margin-top:10px;font-size:20px;color:var(--gold)">${weWon?'你们打过 A,整场胜利!':'对方打过 A,整场告负'}</div>`;
