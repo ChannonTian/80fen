@@ -85,17 +85,19 @@
   #noteInputRow{display:flex;gap:4px;margin-bottom:8px}
   #noteInput{flex:1;min-width:0;border:0;border-radius:6px;padding:4px 8px;font-size:var(--fsSmall)}
   #noteSend{padding:4px 10px;font-size:var(--fsSmall)}
-  /* 底部三区:左右两栏等宽撑开,中间那组才能真正居中(不随左右内容多少而漂移) */
-  #controls{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;
+  /* 底部三区:左右两栏等宽撑开,中间那组才能真正居中(不随左右内容多少而漂移)。
+     三区一律 align-items:end 底部对齐 —— 发牌区为了锚定要按底行排,若其余两区居中
+     就会比它高出一截,看着像发牌按钮"沉下去"了。 */
+  #controls{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:end;
             padding:4px;flex:none}
-  /* 发牌互动区:右对齐 —— 新按钮往左长,最右那颗位置不动,手指肌肉记忆才稳 */
-  /* 预留两行高度:选项多到换行时操作行不会突然变高把牌桌顶上去(那正是误点的来源)。
+  /* 发牌互动区:右对齐 —— 新按钮往左长,最右那颗位置不动,手指肌肉记忆才稳。
+     预留两行高度:选项多到换行时操作行不会突然变高把牌桌顶上去(那正是误点的来源)。
      align-content:flex-end 让换行往上堆,最下面那行(含锚点按钮)始终贴在同一位置。 */
-  #dealZone{display:flex;gap:6px;align-items:center;justify-content:flex-end;
+  #dealZone{display:flex;gap:6px;align-items:flex-end;justify-content:flex-end;
             flex-wrap:wrap;align-content:flex-end;min-height:4.2em}
-  #mainZone{display:flex;gap:10px;align-items:center;justify-content:center}
+  #mainZone{display:flex;gap:10px;align-items:flex-end;justify-content:center}
   /* 庄家区:左对齐,只有坐庄时才用得上 */
-  #dealerZone{display:flex;gap:8px;align-items:center;justify-content:flex-start}
+  #dealerZone{display:flex;gap:8px;align-items:flex-end;justify-content:flex-start}
   /* 定宽:按最长文案「亮无将(大)」量(≈5.9em),选项增减时按钮尺寸不变,不会把手指点空 */
   #dealZone button{font-size:var(--fsSmall);padding:5px 6px;min-width:5.9em;
                    white-space:nowrap;text-align:center}
@@ -1582,6 +1584,9 @@ function rankOf(seat){ return G.dealerKnown?G.trumpRank:M.levels[seat%2]; }
 
 // ================= 开局:(首盘切牌定先)→ 逐张发牌抢亮 =================
 function newRound(){
+  // 上一盘可能还有在途的定时器(AI 思考 / 收墩 / 亮主倒计时),不清掉会打到新一盘的局面上
+  if(G){ clearTimeout(G.aiTimer); clearTimeout(G.holdTimer); clearTimeout(G.declTimer);
+         clearInterval(G.declTick); }
   const seed=seedBase++;
   const dealerKnown=M.dealer>=0 && !scrambleNext;   // 完全造反重发 → 本盘按无庄盘抢庄
   scrambleNext=false;
@@ -1602,6 +1607,7 @@ function newRound(){
      visCount:[0,0,0,0],dealt:0,
      leader:-1,trick:[],trickNo:0,tricks:[],defPoints:0,capturedCards:[],lastWinner:-1,
      lastLeadSize:1,phase:'dealing',selected:new Set(),log:[],awaitNext:false,
+     aiTimer:null,holdTimer:null,declTimer:null,declTick:null,declDeadline:0,
      coachNotes:[],coachChat:[],hintCards:null,quiz:null};
   if(cutsLog) log(cutsLog);
   if(dealerKnown) log(`第${M.round+1}局:${SEAT_NAME[M.dealer]} 坐庄,打${rankName(trumpRank)}(${T('counter')}只改主色,不易庄不拿底)`);
@@ -1611,12 +1617,28 @@ function newRound(){
 
 function visHand(s){ return G.hands[s].slice(0,G.visCount[s]); }
 
+// 发完牌后的亮主窗口:牌桌中心走秒,让人知道还剩多久,而不是干等
+function startDeclCountdown(){
+  const total=secs(S.declWait,S_DEFAULT.declWait);
+  G.declDeadline=Date.now()+total;
+  const paint=()=>{
+    if(!G||G.phase!=='finalDecl') return;
+    const left=Math.max(0,Math.ceil((G.declDeadline-Date.now())/1000));
+    setMsg(`发牌完毕 —— 还有 ${left} 秒${T('declare')}/${T('counter')},点「不${T('declareV')}」可立即开始`);
+  };
+  paint();
+  clearInterval(G.declTick);
+  G.declTick=total>0?setInterval(paint,250):null;
+  clearTimeout(G.declTimer);
+  // 存下句柄:玩家点「不亮」时要能取消这个定时器提前结算
+  G.declTimer=setTimeout(settleTrump,total);
+}
+function stopDeclCountdown(){ clearInterval(G.declTick); G.declTick=null; }
+
 function dealTick(){
   if(G.phase!=='dealing') return;
   if(G.dealt>=100){ G.phase='finalDecl'; render();
-    setMsg('发牌完毕,最后机会'+T('declare')+'/'+T('counter')+'…');
-    // 存下句柄:玩家点「不亮」时要能取消这个定时器提前结算
-    G.declTimer=setTimeout(settleTrump,secs(S.declWait,S_DEFAULT.declWait)); return; }
+    startDeclCountdown(); return; }
   const seat=(G.firstTaker+G.dealt)%4;
   G.visCount[seat]++; G.dealt++;
   if(seat!==HUMAN) aiDeclThink(seat);
@@ -1673,6 +1695,7 @@ window.__skipDecl=()=>{
 function settleTrump(){
   if(G.phase!=='finalDecl'&&G.phase!=='dealing') return;   // 防「不亮」和到点结算重复触发
   clearTimeout(G.declTimer); G.declTimer=null;
+  stopDeclCountdown();
   G.trump={suit:G.decl?G.decl.suit:null,rank:G.trumpRank};
   G.declSeat=dealerAfterDecl({dealerKnown:G.dealerKnown, dealer:M.dealer,
                               declSeat:G.decl?G.decl.seat:-1, firstTaker:G.firstTaker});
@@ -1757,13 +1780,23 @@ function buryKitty(){
 function snapshotHands(){ G.initialHands=G.hands.map(h=>h.slice()); }
 
 // ================= 出牌循环 =================
+// step() 可能被重复调用(典型:收墩后排的 setTimeout(step,400) 还没跑,玩家已抢先出牌
+// 又走了一次 playCards→step)。若不加约束,同一个座位会被排两次 AI 出牌 —— 那一手就重复出,
+// 表现为座位顺序错乱、一墩挤进 5 张、四家手牌张数不等。
+// 两道保险:① 排新的 AI 之前先撤掉上一个待执行的;② 回调真正执行时复核局面没被推进过。
 function step(){
   if(G.phase!=='play') return;
   if(G.trick.length===4){ finishTrick(); return; }
   const seat=(G.leader+G.trick.length)%4;
+  clearTimeout(G.aiTimer); G.aiTimer=null;
   if(seat===HUMAN){ render(); return; }   // 轮到谁由 render() 里的本墩领出信息 + 名字高亮体现,不再单独提示
   render();
-  setTimeout(()=>{
+  const trickNoAtSchedule=G.trickNo, posAtSchedule=G.trick.length;
+  G.aiTimer=setTimeout(()=>{
+    G.aiTimer=null;
+    // 过期校验:排这一手之后局面若已被推进(换墩/别人先出了/已满),这次回调作废
+    if(G.phase!=='play'||G.trickNo!==trickNoAtSchedule||G.trick.length!==posAtSchedule) return;
+    if((G.leader+G.trick.length)%4!==seat) return;
     const view=viewFor(seat);
     let cards, reason='';
     if(G.trick.length===0){
@@ -1784,6 +1817,8 @@ function step(){
 }
 
 function humanPlay(){
+  // 不能只靠按钮 disabled 把关 —— 渲染有时差,漏一手就会插到别人的顺位里
+  if(G.phase!=='play'||G.trick.length>=4||(G.leader+G.trick.length)%4!==HUMAN) return;
   const sel=G.hands[HUMAN].filter(c=>G.selected.has(c.id));
   if(!sel.length){ setMsg('请先选牌'); return; }
   if(G.trick.length===0){
@@ -1896,11 +1931,14 @@ function holdTrick(){
     setMsg('本墩出完 —— 点「下一墩」继续');
     return;
   }
-  setTimeout(finishTrick,secs(S.trickHold,S_DEFAULT.trickHold));
+  clearTimeout(G.holdTimer);
+  G.holdTimer=setTimeout(finishTrick,secs(S.trickHold,S_DEFAULT.trickHold));
 }
 window.__nextTrick=()=>{ if(G&&G.awaitNext){ G.awaitNext=false; finishTrick(); } };
 
 function finishTrick(){
+  if(G.phase!=='play'||G.trick.length!==4) return;   // 防重复收墩/在空墩上再收一次
+  clearTimeout(G.holdTimer); G.holdTimer=null;
   G.awaitNext=false;
   const res=resolveTrick(G.trick,G.trump);
   const declTeam=G.declSeat%2;
