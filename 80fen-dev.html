@@ -31,8 +31,9 @@
   /* 阶段性说明(发牌中/造反/扣底):挤不进第一行就自己换行,不占额外的常驻高度 */
   .phaseHint{flex-basis:100%;color:#9fd6b5;font-size:var(--fsSmall)}
   /* 牌桌吃掉左栏剩余高度,中间出牌区可伸缩 */
+  /* 4 行:北座位 / 西-牌桌-东 / 提示语(独立一行,不挤进牌桌网格) / 南座位 */
   #table{flex:1;min-height:0;display:grid;gap:6px;
-         grid-template-rows:auto minmax(0,1fr) auto;
+         grid-template-rows:auto minmax(0,1fr) auto auto;
          grid-template-columns:minmax(56px,110px) minmax(0,1fr) minmax(56px,110px)}
   .seat{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;
         font-size:var(--fsSmall)}
@@ -44,7 +45,7 @@
           align-items:center;justify-items:center;min-height:0;width:100%;
           max-height:calc(var(--cardH)*3.4);align-self:center}
   .played{display:flex;gap:2px;min-height:var(--cardH);align-items:center}
-  #msg{text-align:center;font-size:calc(var(--fsBase)*1.1);color:var(--gold);pointer-events:none}
+  #msg{grid-area:3/1/4/4;text-align:center;font-size:calc(var(--fsBase)*1.1);color:var(--gold);pointer-events:none}
   /* 当前谁大:我方绿、对方橙红,一眼判断该抢还是该垫 */
   .memRow{margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)}
   .memSub{opacity:.85;padding-left:1em}
@@ -100,7 +101,9 @@
      预留两行高度:选项多到换行时操作行不会突然变高把牌桌顶上去(那正是误点的来源)。
      align-content:flex-end 让换行往上堆,最下面那行(含锚点按钮)始终贴在同一位置。 */
   #dealZone{display:flex;gap:6px;align-items:flex-end;justify-content:flex-end;
-            flex-wrap:wrap;align-content:flex-end;min-height:4.2em}
+            flex-wrap:wrap;align-content:flex-end}
+  /* 两行预留只在发牌/亮主阶段生效 —— 出牌阶段发牌区是空的,常年占着两行会把牌桌压扁 */
+  #controls.dealing #dealZone{min-height:4.2em}
   #mainZone{display:flex;gap:10px;align-items:flex-end;justify-content:center}
   /* 庄家区:左对齐,只有坐庄时才用得上 */
   #dealerZone{display:flex;gap:8px;align-items:flex-end;justify-content:flex-start}
@@ -150,11 +153,20 @@
               pointer-events:none;z-index:1}
   /* ---- 窄屏竖屏(手机竖握):左右两栏塞不下,改上下叠,整体仍锁一屏 ---- */
   @media (max-width:820px) and (orientation:portrait){
-    :root{--cardW:clamp(32px,9vw,50px)}
-    #app{grid-template-columns:minmax(0,1fr);
-         grid-template-rows:auto minmax(0,1.35fr) minmax(0,1fr)}
+    :root{--cardW:clamp(34px,10vw,54px)}
+    #app{grid-template-columns:minmax(0,1fr);gap:6px;padding:6px;
+         grid-template-rows:auto minmax(0,1fr) minmax(0,0.9fr)}
     #main,#side{grid-column:1}
-    #status{gap:8px}
+    #status{gap:6px 10px;padding:6px 10px}
+    /* msg 已经是 #table 自己的一行(不挤在 #center 里),竖屏只需要让它撑满宽度、字小一号 */
+    #msg{width:100%;font-size:var(--fsBase)}
+    #center{max-height:none;align-self:stretch}
+    /* 座位名与张数并排,省一半纵向 */
+    .seat{flex-direction:row;gap:6px}
+    /* 牌桌别霸占整屏,把高度让给手牌和面板 */
+    #table{grid-template-rows:auto minmax(0,1fr) auto auto;max-height:46vh}
+    #hand{min-height:calc(var(--cardH)*2 + 16px)}
+    #tabs button{padding:5px 9px}
   }
   /* ---- 横屏(含手机横握):一律保持左右布局,侧栏收窄给牌桌让位 ---- */
   @media (orientation:landscape) and (max-height:600px){
@@ -187,11 +199,12 @@
       <div id="center">
         <div class="played" id="p2" style="grid-area:1/2"></div>
         <div class="played" id="p3" style="grid-area:2/1"></div>
-        <div id="msg" style="grid-area:2/2"></div>
         <div class="played" id="p1" style="grid-area:2/3"></div>
         <div class="played" id="p0" style="grid-area:3/2"></div>
       </div>
-      <div class="seat" style="grid-area:3/2;align-self:end"><span class="name" id="n0">南(你)</span></div>
+      <!-- msg 独立成 #table 的一行(不再挤在 #center 内部),文字多长都不会撑破卡牌区或和别的元素重叠 -->
+      <div id="msg"></div>
+      <div class="seat" style="grid-area:4/2;align-self:end"><span class="name" id="n0">南(你)</span></div>
     </div>
     <div id="hand"></div>
     <!-- 底部三区(虚拟分区,不画线):发牌互动区靠左 / 主操作区居中 / 庄家区靠右 -->
@@ -2214,6 +2227,9 @@ function render(){
   document.getElementById('btnBury').hidden=(G.phase!=='kitty');
   document.getElementById('btnKitty').hidden=!canSeeKitty;
   document.getElementById('btnHint').disabled=!(C.on&&myTurn);
+  // 只在发牌/亮主阶段给发牌区留两行高度,其余时候把这块高度还给牌桌
+  document.getElementById('controls').classList.toggle('dealing',
+    G.phase==='dealing'||G.phase==='finalDecl');
   renderPanel();
 }
 
