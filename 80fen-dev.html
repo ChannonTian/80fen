@@ -74,9 +74,10 @@
   .mini .tl,.mini .br{font-size:calc(var(--miniW)*.44)}
   .mini .tr,.mini .bl{font-size:calc(var(--miniW)*.42)}
   .mini .joker{font-size:calc(var(--miniW)*.19);padding-left:32%;top:10%}
-  #hand{flex:none;display:flex;flex-wrap:wrap;gap:0;justify-content:center;align-content:center;
-        padding:4px;min-height:calc(var(--cardH) + 18px)}
-  #hand .card{margin-left:calc(var(--cardW)*-.38);cursor:pointer;transition:transform .08s}
+  /* 手牌永远单行:JS 按张数动态收紧 --handGap,絶不因换行去挤占牌桌中心区 */
+  #hand{flex:none;display:flex;flex-wrap:nowrap;gap:0;justify-content:center;align-content:center;
+        padding:4px;min-height:calc(var(--cardH) + 18px);overflow-x:auto;overflow-y:visible}
+  #hand .card{margin-left:var(--handGap,calc(var(--cardW)*-.38));cursor:pointer;transition:transform .08s}
   #hand .card:first-child{margin-left:0}
   /* 手牌是叠着的,右半边字符会被下一张压住并互相挤占;只留左半边(1数字+1花色)足够读牌 */
   #hand .card .tr,#hand .card .br{display:none}
@@ -163,9 +164,7 @@
     #center{max-height:none;align-self:stretch}
     /* 座位名与张数并排,省一半纵向 */
     .seat{flex-direction:row;gap:6px}
-    /* 牌桌别霸占整屏,把高度让给手牌和面板 */
-    #table{grid-template-rows:auto minmax(0,1fr) auto auto;max-height:46vh}
-    #hand{min-height:calc(var(--cardH)*2 + 16px)}
+    #table{grid-template-rows:auto minmax(0,1fr) auto auto}
     #tabs button{padding:5px 9px}
   }
   /* ---- 横屏(含手机横握):一律保持左右布局,侧栏收窄给牌桌让位 ---- */
@@ -182,7 +181,7 @@
     #tabs button{padding:4px 7px}
     /* 25 张挤一行(重叠多一点),省下的高度还给牌桌 */
     #hand{padding:2px;min-height:calc(var(--cardH) + 8px)}
-    #hand .card{margin-left:calc(var(--cardW)*-.46)}
+    #hand .card{margin-left:var(--handGap,calc(var(--cardW)*-.46))}
     #hand .card:first-child{margin-left:0}
   }
 </style>
@@ -2088,6 +2087,25 @@ window.__newMatch=()=>{ M={levels:[2,2],dealer:-1,round:0}; scrambleNext=false; 
 window.__review=()=>{ document.getElementById('overlay').style.display='none';
   render(); setMsg('复盘中:可查看出牌历史、教练复盘等记录,准备好后点下方"下一局"继续'); };
 
+// 手牌单行自适应:张数一多就把牌往一起挤(而不是换行),换行会把高度让给牌桌抢走
+function fitHandRow(){
+  const el=document.getElementById('hand');
+  const n=el.children.length;
+  if(n<2){ el.style.removeProperty('--handGap'); return; }
+  // --cardW 是 clamp(vw+vh) 表达式,getComputedStyle 在自定义属性上只返回原始文本、不会解析成像素,
+  // 只能量实际卡牌元素的渲染宽度
+  const cardW=el.children[0].getBoundingClientRect().width||60;
+  const landscape=matchMedia('(orientation:landscape) and (max-height:600px)').matches;
+  const naturalGap=cardW*(landscape?-0.46:-0.38);
+  const avail=el.clientWidth-4;
+  const neededGap=(avail-n*cardW)/(n-1);   // 总宽 = n*cardW + (n-1)*gap,解出刚好塞进 avail 的 gap
+  const minVisible=Math.max(9,cardW*0.2);
+  const minGap=-(cardW-minVisible);
+  const gap=Math.max(minGap,Math.min(naturalGap,neededGap));
+  el.style.setProperty('--handGap',gap+'px');
+}
+window.addEventListener('resize',()=>{ if(G) fitHandRow(); });
+
 // ================= 渲染 =================
 function render(){
   const t=G.trump;
@@ -2162,6 +2180,7 @@ function render(){
       render();
     };
   });
+  fitHandRow();
 
   // 抢亮/造反/低分造反条
   // 注意:内容没变时绝不重建 DOM —— 发牌期高频重绘会把正在点击的按钮销毁(点击被吞 bug)
