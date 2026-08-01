@@ -1,31 +1,60 @@
-# 80分(上海规则)v0.3.0
+# 80分(上海规则)v0.4.0
 
 网页版 80分(升级/拖拉机,上海打法):启发式 AI 队友与对手、发牌抢亮、无主/造反、多局连打升级、教练模式(提示/失误反馈/复盘/记牌训练)、沪语术语切换。
 
 纯静态、零依赖、无构建:一个 `index.html` + 一个 `terms-shanghai.js`。
 
+在线试玩:<https://channontian.github.io/80fen/>
+
 ## 文件
 
-`index.html` 游戏本体(引擎+AI+界面,单文件);`terms-shanghai.js` 沪语术语表(可独立改词);`RULES.md` 规则决定书;`AI-DESIGN.md` AI 设计笔记;`CHANGELOG.md` 更新日志。`80fen-dev.html` 是开发分支副本,用于实验尚未确定要不要合进正式版的新功能;不部署、不随 `index.html` 自动同步,需要时手动对比合并。
+| 文件 | 说明 |
+|---|---|
+| `index.html` | 游戏本体(引擎 + AI + 界面,单文件) |
+| `terms-shanghai.js` | 沪语术语表,可独立改词 |
+| `RULES.md` | 规则决定书 |
+| `AI-DESIGN.md` | AI 设计笔记:三个阶段的评分公式与对应函数 |
+| `CHANGELOG.md` | 更新日志 |
+| `80fen-dev.html` | 开发副本,用于实验尚未确定是否合入正式版的新功能 |
+
+`80fen-dev.html` 不部署、不随 `index.html` 自动同步,需要时手动对比合并。**当前它停留在 v0.3.0 的界面实验版,已落后正式版一个大版本(不含 AI v3)。**
 
 ## 本地运行
 
-双击 `index.html` 即可(需与 `terms-shanghai.js` 同目录)。打开 `index.html#test` 可查看引擎自测(110 项)。
+双击 `index.html` 即可(需与 `terms-shanghai.js` 同目录)。打开 `index.html#test` 查看引擎自测(150 项)。
 
-## 部署到 GitHub Pages
+## AI
 
-1. 新建仓库(如 `80fen`),把 `index.html`、`terms-shanghai.js` 推上去:
-   ```bash
-   git init && git add index.html terms-shanghai.js RULES.md AI-DESIGN.md README.md
-   git commit -m "80fen v0.1.0"
-   git remote add origin git@github.com:<你的用户名>/80fen.git
-   git push -u origin main
-   ```
-2. 仓库 Settings → Pages → Source 选 `Deploy from a branch`,Branch 选 `main` / `(root)`,保存。
-3. 一两分钟后访问 `https://<你的用户名>.github.io/80fen/`。
+AI 只回答「合法之中选哪个」,规则判定全部交给引擎——所有候选都过 `isLegalFollow`,不合法直接作废回退,因此 AI 不可能出违规牌。不做搜索,而是「候选生成 → 打分 → 择优」,每个候选自带一句中文理由,教练模式直接复用同一套评分。
 
-之后每次 `git push` 自动更新。无主域名、HTTPS、免费,对这个纯前端项目正合适。注意:笔记与设置存在浏览器 localStorage,换设备不同步。
+三个决策阶段各有一套评分公式,一切分值折算成「分」(5/10/K 的那个分),于是期望收益与机会成本可以直接相减:
+
+- **亮主 / 造反**(`aiDeclDecide`)——抢庄红利、手牌契合度、级数、庄家归属、造反动力、必打关卡、暴露代价加权,门槛随已发牌数递减
+- **扣底**(`aiDiscard`)——牌面价值、断门贡献、分牌丢分风险三项贪心逐张选
+- **出牌**(`aiChooseLead` / `aiChooseFollow`)——这一墩的期望净分 + 牌权价值 − 留手的未来价值
+
+局末目标是阶梯型的:0 / 40 / 80 / 120 / 160 / 200 每条线都可能成为当下的现实目标,不是只认 80。
+
+公式推导、每个系数的来历、以及已知短板与实现方案,见 `AI-DESIGN.md`。
+
+## 部署
+
+已配置 GitHub Pages(`main` / `(root)`),`git push` 后一两分钟自动更新。
+
+笔记与设置存在浏览器 localStorage,换设备不同步。
 
 ## 开发备忘
 
-三层结构(引擎纯函数 → AI → 界面)都在 `index.html` 的三个 `<script>` 块里;规则可调参数集中在 `RULES` 对象;测试可用 node 无头运行(提取 script 块 eval 后调 `runTests`)。
+三层结构(引擎纯函数 → AI → 界面)对应 `index.html` 里的三个 `<script>` 块。可调参数分两处:规则在 `RULES`,AI 权重在 `AIP`。
+
+**测试与对照实验都可以 node 无头跑**(提取 script 块 eval 后调 `runTests`)。改 AI 时只跑单元测试不够——评分权重的改动往往不会让任何断言失败,却能让棋力明显退步。建议同时做:
+
+- **交换阵营的配对对照**:同一批牌局跑两遍并交换阵营(消除座位与庄家偏差),引擎统一,只把 `aiDiscard` / `aiChooseLead` / `aiChooseFollow` 按座位分派到新旧两版
+- **单组件消融**:一次只换其中一个函数,看各自值多少分
+
+只跟随机 AI 比是没有意义的——数字会被基线的愚蠢放大得很好看。
+
+两个容易踩的坑:
+
+- **确认参数真的在影响决策。** 扫参时如果几档结果完全一致,那多半不是「这个参数不重要」,而是它压根没生效(v3 开发中撞到三次)。
+- AI 每局约 48ms。界面无感(本来就有 1–3 秒思考延迟),但大规模自对弈时这是成本。
