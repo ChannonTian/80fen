@@ -44,7 +44,12 @@
   #center{grid-area:2/2;display:grid;grid-template-rows:1fr 1fr 1fr;grid-template-columns:1fr 1fr 1fr;
           align-items:center;justify-items:center;min-height:0;width:100%;
           max-height:calc(var(--cardH)*3.4);align-self:center}
-  .played{display:flex;gap:2px;min-height:var(--cardH);align-items:center}
+  /* 出牌区每格只有牌桌中心 1/3 宽,多张牌(对子/拖拉机/甩牌)不重叠会被挤到看不清或溢出;
+     和手牌用同一套视觉语言 —— 后一张压前一张,只留左半边(rank+suit)够认牌 */
+  .played{display:flex;gap:0;min-height:var(--cardH);align-items:center}
+  .played .card{margin-left:calc(var(--cardW)*-.5)}
+  .played .card:first-child{margin-left:0}
+  .played .card .tr,.played .card .br{display:none}
   #msg{grid-area:3/1/4/4;text-align:center;font-size:calc(var(--fsBase)*1.1);color:var(--gold);pointer-events:none}
   /* 当前谁大:我方绿、对方橙红,一眼判断该抢还是该垫 */
   .memRow{margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)}
@@ -75,8 +80,12 @@
   .mini .tr,.mini .bl{font-size:calc(var(--miniW)*.42)}
   .mini .joker{font-size:calc(var(--miniW)*.19);padding-left:32%;top:10%}
   /* 手牌永远单行:JS 按张数动态收紧 --handGap,絶不因换行去挤占牌桌中心区 */
+  /* overflow-x:auto 曾经在这里当"万一算错就能横滑"的保险,但 CSS 有个反直觉规则:
+     只要 x 轴不是 visible,y 轴的 visible 会被浏览器悄悄当成 auto 处理 —— 选中牌
+     translateY(-14px) 抬起的上半部分因此被当成"溢出"裁掉。改回真正的 visible;
+     单行算法本身已经保证贴到最小重叠也能塞下(见 fitHandRow),这层保险没必要冒裁切的险。*/
   #hand{flex:none;display:flex;flex-wrap:nowrap;gap:0;justify-content:center;align-content:center;
-        padding:4px;min-height:calc(var(--cardH) + 18px);overflow-x:auto;overflow-y:visible}
+        padding:4px;min-height:calc(var(--cardH) + 18px);overflow:visible}
   #hand .card{margin-left:var(--handGap,calc(var(--cardW)*-.38));cursor:pointer;transition:transform .08s}
   #hand .card:first-child{margin-left:0}
   /* 手牌是叠着的,右半边字符会被下一张压住并互相挤占;只留左半边(1数字+1花色)足够读牌 */
@@ -134,12 +143,23 @@
   #overlay .panel,#setOverlay .panel{background:#173b2a;border:2px solid var(--gold);border-radius:12px;
                   padding:26px 34px;text-align:center;font-size:17px;line-height:1.9;
                   max-height:80vh;overflow-y:auto}
-  #setOverlay .panel{text-align:left;min-width:min(420px,90vw)}
+  /* min-width 只是下限,不是上限——之前没设 max-width,select 里选项文案一长
+     (比如"沪语版(术语切换)")就会把整个面板撑宽出屏幕。上下限锁同一个值,宽度钉死。 */
+  #setOverlay .panel{text-align:left;width:min(420px,90vw)}
   .setRow{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:15px;flex-wrap:wrap}
   .setRow>label:first-child{flex:1;min-width:150px;color:#cfe8d9}
   .setRow select,.setRow input[type=number]{border:0;border-radius:6px;padding:5px 8px;font-size:14px}
   .setRow input[type=number]{width:72px}
   .setHint{font-size:12px;color:#9fd6b5;opacity:.8;margin:-4px 0 10px}
+  /* 设置菜单顶栏:完成/取消/恢复默认冻结在最上面,滚动内容从它底下过,不用滚到底才能操作 */
+  /* 标题单独一行,按钮另起一行——都塞进一个 flex 行、宽度不够时 flex:1 的标题会被
+     挤到只剩几个像素,中文没有空格断词,逐字换行成一竖条。分两行就没有这个抢位问题。 */
+  .setHeader{position:sticky;top:-26px;margin:-26px -34px 14px;padding:18px 34px 12px;
+             background:#173b2a;z-index:2;border-bottom:1px solid rgba(255,215,94,.3)}
+  .setHeader b{display:block;font-size:20px;color:var(--gold);margin-bottom:10px}
+  .setHeaderBtns{display:flex;gap:10px;flex-wrap:wrap}
+  .setSection{color:var(--gold);font-size:14px;margin-top:14px}
+  .setSection:first-of-type{margin-top:0}
   #btnSet{background:#2c6e4f;color:#fff;font-size:13px;padding:4px 10px}
   #tests{font-family:ui-monospace,Menlo,monospace;padding:20px;display:none}
   .pass{color:#7ee787}.fail{color:#ff7b72;font-weight:bold}
@@ -235,7 +255,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.4.0</div>
+<div id="versionTag">80分 v0.4.1</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -2361,7 +2381,7 @@ const TERMS_CN={bigJoker:'大王',smallJoker:'小王',trump:'主牌',noTrump:'�
   bury:'扣底',lead:'领出',zheng:'正常主',fu:'副常主',voidSuit:'断门',openVoid:'开局断门',
   rankA:'A',rankK:'K',rankQ:'Q',rankJ:'J',levelUp:'升级',
   defenders:'闲家',tiaoji:'跳级',guangtou:'剃光头'};   // 闲家/跳级/剃光头:沪语全国通用
-let useSH=false; try{ useSH=localStorage.getItem('80fen-lang')==='sh'; }catch(e){}
+let useSH=true; try{ const v=localStorage.getItem('80fen-lang'); if(v) useSH=v==='sh'; }catch(e){}
 const T=k=>(useSH&&window.TERMS_SH&&window.TERMS_SH[k])||TERMS_CN[k]||k;
 
 const SUIT_SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
@@ -2433,11 +2453,48 @@ function aiThinkMs(){
 }
 
 // ---- 设置菜单 ----
+// 打开时快照一份,「取消」按快照原样恢复(含已经落盘的 localStorage),
+// 「完成」什么都不用做——每项本来就是改了立即生效+保存。
 function openSettings(){
+  const snapshot={S:JSON.parse(JSON.stringify(S)), C:JSON.parse(JSON.stringify(C)), useSH, sndOn};
   const el=document.getElementById('setContent');
   el.innerHTML=
-    `<div style="font-size:20px;color:var(--gold);margin-bottom:12px">⚙ 设置</div>`+
-    `<div style="color:var(--gold);font-size:14px;margin-top:4px">规则</div>`+
+    `<div class="setHeader"><b>⚙ 设置</b>
+       <div class="setHeaderBtns">
+         <button id="stClose">完成</button>
+         <button class="minor" id="stCancel">取消</button>
+         <button class="minor" id="stReset">恢复默认</button>
+       </div>
+     </div>`+
+    // 顺序按预期改动频率从高到低排:显示/音效、节奏是每次开局都可能顺手调的;
+    // 教练模式跟练习目标走,时有变化;规则是几个人说好怎么打就定下来的房规,最少动。
+    `<div class="setSection">显示与音效</div>`+
+    `<div class="setRow"><label>语言</label>
+       <select id="stLang">
+         <option value="sh">沪语版(术语切换)</option>
+         <option value="cn">普通话(全国版)</option>
+       </select></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="stSnd"> 🔊 音效</label></div>`+
+    `<div class="setSection">节奏</div>`+
+    `<div class="setRow"><label>发完牌后${T('declare')}等待(秒)</label>
+       <input type="number" id="stDeclWait" min="0" max="60" step="1"></div>`+
+    `<div class="setHint">等待期间可随时${T('declare')}/${T('counter')};点「不${T('declare')}」立即结束等待</div>`+
+    `<div class="setRow"><label>AI 出牌思考(秒)</label>
+       <input type="number" id="stMin" min="0" max="10" step="0.5"> –
+       <input type="number" id="stMax" min="0" max="10" step="0.5"></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="stManual"> 手动点击进入下一墩</label></div>`+
+    `<div class="setRow"><label>每墩出完留桌(秒)</label>
+       <input type="number" id="stHold" min="0" max="15" step="0.5"></div>`+
+    `<div class="setHint" id="stHoldHint"></div>`+
+    `<div class="setSection">教练</div>`+
+    `<div class="setRow"><label><input type="checkbox" id="cOn"> 教练总开关</label></div>`+
+    `<div class="setRow"><label>失误反馈灵敏度</label>
+       <select id="cSens">${['高','中','低','关'].map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="cStrict"> 严格模式(大失误可撤回)</label></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="cReview"> 局后复盘</label></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="cQuiz"> 提问引导</label></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="cMemShow"> 记牌表常显(不用每墩点开验证)</label></div>`+
+    `<div class="setSection">规则</div>`+
     `<div class="setRow"><label>低分/少${T('trump')}时</label>
        <select id="stRebel">
          <option value="off">关闭</option>
@@ -2456,33 +2513,7 @@ function openSettings(){
     `<div class="setRow"><label><input type="checkbox" id="rGates"> 必打关卡(不可跳级)</label></div>`+
     `<div class="setRow"><label>　└ 关卡级数</label>
        ${[2,5,10,13].map(g=>`<label style="margin-right:8px"><input type="checkbox" class="gateBox" data-g="${g}"> ${rankName(g)}</label>`).join('')}</div>`+
-    `<div class="setHint" id="rGateHint"></div>`+
-    `<div style="color:var(--gold);font-size:14px;margin-top:10px">节奏</div>`+
-    `<div class="setRow"><label>发完牌后${T('declare')}等待(秒)</label>
-       <input type="number" id="stDeclWait" min="0" max="60" step="1"></div>`+
-    `<div class="setHint">等待期间可随时${T('declare')}/${T('counter')};点「不${T('declare')}」立即结束等待</div>`+
-    `<div class="setRow"><label>AI 出牌思考(秒)</label>
-       <input type="number" id="stMin" min="0" max="10" step="0.5"> –
-       <input type="number" id="stMax" min="0" max="10" step="0.5"></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="stManual"> 手动点击进入下一墩</label></div>`+
-    `<div class="setRow"><label>每墩出完留桌(秒)</label>
-       <input type="number" id="stHold" min="0" max="15" step="0.5"></div>`+
-    `<div class="setHint" id="stHoldHint"></div>`+
-    `<div style="color:var(--gold);font-size:14px;margin-top:10px">显示与音效</div>`+
-    `<div class="setRow"><label><input type="checkbox" id="stLang"> 沪语版(术语切换)</label></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="stSnd"> 🔊 音效</label></div>`+
-    `<div style="color:var(--gold);font-size:14px;margin-top:10px">教练</div>`+
-    `<div class="setRow"><label><input type="checkbox" id="cOn"> 教练总开关</label></div>`+
-    `<div class="setRow"><label>失误反馈灵敏度</label>
-       <select id="cSens">${['高','中','低','关'].map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="cStrict"> 严格模式(大失误可撤回)</label></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="cReview"> 局后复盘</label></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="cQuiz"> 提问引导</label></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="cMemShow"> 记牌表常显(不用每墩点开验证)</label></div>`+
-    `<div style="margin-top:16px;text-align:center">
-       <button id="stClose">完成</button>
-       <button class="minor" id="stReset">恢复默认</button>
-     </div>`;
+    `<div class="setHint" id="rGateHint"></div>`;
   const $=id=>document.getElementById(id);
   const fill=()=>{
     $('stRebel').value=S.fullRebel; $('stMin').value=S.aiThinkMin;
@@ -2491,7 +2522,7 @@ function openSettings(){
     $('stManual').checked=!!S.manualNext;
     $('stHold').disabled=!!S.manualNext;
     $('stHoldHint').textContent=S.manualNext?'(手动模式下由你点「下一墩」决定)':'';
-    $('stLang').checked=useSH; $('stSnd').checked=sndOn;
+    $('stLang').value=useSH?'sh':'cn'; $('stSnd').checked=sndOn;
     $('cOn').checked=C.on; $('cSens').value=C.gapSens; $('cStrict').checked=C.strict;
     $('cReview').checked=C.review; $('cQuiz').checked=C.quiz; $('cMemShow').checked=C.memShow;
     $('rPts').value=S.rules.pointRebelThreshold;
@@ -2546,7 +2577,7 @@ function openSettings(){
   num('stMin','aiThinkMin'); num('stMax','aiThinkMax'); num('stHold','trickHold');
   num('stDeclWait','declWait');
   $('stManual').onchange=e=>{ S.manualNext=e.target.checked; saveS(); fill(); };
-  $('stLang').onchange=e=>{ useSH=e.target.checked;
+  $('stLang').onchange=e=>{ useSH=e.target.value==='sh';
     try{ localStorage.setItem('80fen-lang',useSH?'sh':'cn'); }catch(_){ } if(G) render(); };
   $('stSnd').onchange=e=>{ sndOn=e.target.checked;
     try{ localStorage.setItem('80fen-snd',sndOn?'on':'off'); }catch(_){ } };
@@ -2558,6 +2589,18 @@ function openSettings(){
   $('cMemShow').onchange=e=>{ C.memShow=e.target.checked; saveC(); if(G) renderPanel(); };
   $('stReset').onclick=()=>{ S={...S_DEFAULT, gates:[...S_DEFAULT.gates], rules:{...RULE_DEFAULTS}};
     saveS(); applyRules(); fill(); if(G) render(); };
+  // 取消:每项改动本来就是即改即存,这里把开菜单那一刻的快照整个套回去(含持久化),
+  // 而不是只清内存——不然关掉重开又会看到"取消"前改过的值。
+  $('stCancel').onclick=()=>{
+    S=snapshot.S; C=snapshot.C; useSH=snapshot.useSH; sndOn=snapshot.sndOn;
+    saveS(); saveC(); applyRules();
+    try{
+      localStorage.setItem('80fen-lang',useSH?'sh':'cn');
+      localStorage.setItem('80fen-snd',sndOn?'on':'off');
+    }catch(_){ }
+    if(G) render();
+    closeSettings();
+  };
   $('stClose').onclick=closeSettings;
   document.getElementById('setOverlay').style.display='flex';
 }

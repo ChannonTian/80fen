@@ -1,10 +1,11 @@
-# 80分(上海规则)v0.4.0
+# 80分(上海规则)v0.4.1
 
 网页版 80分(升级/拖拉机,上海打法):启发式 AI 队友与对手、发牌抢亮、无主/造反、多局连打升级、教练模式(提示/失误反馈/复盘/记牌训练)、沪语术语切换。
 
 纯静态、零依赖、无构建:一个 `index.html` + 一个 `terms-shanghai.js`。
 
-在线试玩:<https://channontian.github.io/80fen/>
+[在线试玩Beta稳定版](https://channontian.github.io/80fen/)
+[在线试玩Alpha最新版](https://github.com/ChannonTian/80fen/blob/main/80fen-dev.html)
 
 ## 文件
 
