@@ -4,8 +4,8 @@
 
 纯静态、零依赖、无构建:一个 `index.html` + 一个 `terms-shanghai.js`。
 
-[在线试玩Beta稳定版](https://channontian.github.io/80fen/)
-[在线试玩Alpha最新版](https://github.com/ChannonTian/80fen/blob/main/80fen-dev.html)
+* **[在线试玩稳定版](https://channontian.github.io/80fen/)**
+* [在线试玩 Alpha 试验版](https://github.com/ChannonTian/80fen/blob/main/80fen-dev.html)
 
 ## 文件
 
@@ -18,7 +18,7 @@
 | `CHANGELOG.md` | 更新日志 |
 | `80fen-dev.html` | 开发副本,用于实验尚未确定是否合入正式版的新功能 |
 
-`80fen-dev.html` 不部署、不随 `index.html` 自动同步,需要时手动对比合并。**当前它停留在 v0.3.0 的界面实验版,已落后正式版一个大版本(不含 AI v3)。**
+`80fen-dev.html` 不部署、不随 `index.html` 自动同步,需要时手动对比合并。**当前它停留在 v0.3.0 的界面实验版,已落后正式版两个大版本(不含 AI v3、也不含 v0.4.1 的非 AI 修复)。**
 
 ## 本地运行
 
