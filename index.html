@@ -19,7 +19,12 @@
        background:radial-gradient(ellipse at center,var(--felt),var(--felt2));
        color:#fff;overflow:hidden}          /* 整页不滚动,滚动只发生在右侧面板内部 */
   /* 左右布局:左边牌桌,右边历史/笔记/教练。整体锁在一屏高度内 */
-  #app{display:grid;height:100dvh;padding:8px;gap:8px;margin:0 auto;max-width:1700px;
+  /* dvh 会跟着地址栏收起/展开实时变——手机上发牌这十几秒往往正好撞上地址栏自动收起
+     的那一下,#app 高度跳变,手牌/操作区跟着抖一下再稳定,像是"发牌时盖住了亮牌区,
+     发完才归位"。改用 svh(最小可用高度,地址栏展开时的高度)钉死,不随地址栏收放
+     重排——代价是地址栏收起后底部会空一截,但比布局中途跳变好。svh 不支持的浏览器
+     退回 100vh。 */
+  #app{display:grid;height:100vh;height:100svh;padding:8px;gap:8px;margin:0 auto;max-width:1700px;
        grid-template-columns:minmax(0,1fr) clamp(250px,24vw,380px);
        grid-template-rows:auto minmax(0,1fr)}
   #status{grid-column:1/-1}
@@ -168,8 +173,14 @@
   .played .card{animation:playIn .28s ease-out}
   @keyframes winPulse{0%,100%{box-shadow:none}50%{box-shadow:0 0 14px var(--gold)}}
   .seat .name.won{animation:winPulse .9s ease-in-out 2;background:var(--gold);color:#222}
-  #hand .card:hover{transform:translateY(-6px)}
-  #hand .card.sel:hover{transform:translateY(-14px)}
+  /* :hover 只给真鼠标/触控板——触屏没有"移开"这个事件,点完之后浏览器经常把
+     :hover 悬在被点的(有时是旁边被叠住的)那张牌上不放,松手也不退,看起来就是
+     "取消选择后卡在半抬起"或"旁边一张莫名其妙抬起来"。选中态完全交给 .sel 这个
+     真实状态类,和 :hover 无关,touch 设备直接不装这条规则最干净。 */
+  @media (hover:hover) and (pointer:fine){
+    #hand .card:hover{transform:translateY(-6px)}
+    #hand .card.sel:hover{transform:translateY(-14px)}
+  }
   #versionTag{position:fixed;right:10px;bottom:4px;font-size:11px;color:rgba(255,255,255,.3);
               pointer-events:none;z-index:1}
   /* ---- 窄屏竖屏(手机竖握):左右两栏塞不下,改上下叠,整体仍锁一屏 ---- */
@@ -255,7 +266,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.4.1</div>
+<div id="versionTag">80分 v0.4.2</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -2466,6 +2477,10 @@ function openSettings(){
          <button class="minor" id="stReset">恢复默认</button>
        </div>
      </div>`+
+    // 新开一局:重置整场(级数/庄家全部归零),和上面三个"保存本次改动"的按钮性质不同
+    // (会丢掉当前比分),特意隔开、用警示色,不和日常设置项混在一起顺手点到。
+    `<div class="setRow" style="margin-top:0;justify-content:center">
+       <button id="stNewMatch" style="background:#c0392b;color:#fff">🔄 新开一局(重置整场)</button></div>`+
     // 顺序按预期改动频率从高到低排:显示/音效、节奏是每次开局都可能顺手调的;
     // 教练模式跟练习目标走,时有变化;规则是几个人说好怎么打就定下来的房规,最少动。
     `<div class="setSection">显示与音效</div>`+
@@ -2602,6 +2617,12 @@ function openSettings(){
     closeSettings();
   };
   $('stClose').onclick=closeSettings;
+  // 新开一局:整场级数/庄家全部归零,不是"下一局"那种保留级数的推进,破坏性操作要确认
+  $('stNewMatch').onclick=()=>{
+    if(!confirm('新开一局会重置整场比分和级数(从打2重新开始),当前进度无法找回。确定吗?')) return;
+    closeSettings();
+    window.__newMatch();
+  };
   document.getElementById('setOverlay').style.display='flex';
 }
 function closeSettings(){ document.getElementById('setOverlay').style.display='none'; }
