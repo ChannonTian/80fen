@@ -5,7 +5,7 @@
 纯静态、零依赖、无构建:一个 `index.html` + 一个 `terms-shanghai.js`。
 
 * **[在线试玩稳定版](https://channontian.github.io/80fen/)**
-* [在线试玩 Alpha 试验版](https://github.com/ChannonTian/80fen/blob/main/80fen-dev.html)
+* [在线试玩测试版](https://channontian.github.io/80fen/80fen-test.html)
 
 ## 文件
 
@@ -16,13 +16,19 @@
 | `RULES.md` | 规则决定书 |
 | `AI-DESIGN.md` | AI 设计笔记:三个阶段的评分公式与对应函数 |
 | `CHANGELOG.md` | 更新日志 |
-| `80fen-dev.html` | 开发副本,用于实验尚未确定是否合入正式版的新功能 |
+| `80fen-test.html` | 测试副本,用于实验尚未确定是否合入正式版的新功能 |
+| `AI-v4-PROPOSAL.md` | AI v4 的方案与实验记录 |
+| `80fen-architecture-plan.md` | 架构演进草案 |
 
-`80fen-dev.html` 不部署、不随 `index.html` 自动同步,需要时手动对比合并。**当前它停留在 v0.3.0 的界面实验版,已落后正式版两个大版本(不含 AI v3、也不含 v0.4.1 的非 AI 修复)。**
+`80fen-test.html`(原 `80fen-dev.html`)不随 `index.html` 自动同步,需要时手动对比合并;它和正式版共用 GitHub Pages,但 localStorage 前缀是 `80fentest-`,试玩不会污染正式版的笔记与设置。
+
+**当前它领先正式版:测试版是 v0.5.0(AI v4,含 v4.1 / v4.2 补丁),正式版仍是 v0.4.2。** v0.5.0 只动 AI 与引擎导出面,界面无改动;试玩确认棋力后再合入 `index.html`。
 
 ## 本地运行
 
-双击 `index.html` 即可(需与 `terms-shanghai.js` 同目录)。打开 `index.html#test` 查看引擎自测(150 项)。
+双击 `index.html` 即可(需与 `terms-shanghai.js` 同目录)。打开 `index.html#test` 查看引擎自测(正式版 150 项 / 测试版 168 项)。
+
+> `index.html` 的 `#test` 页当前是坏的:界面块里另抄了一份过时的 `ENGINE` 名单,缺 `makeMemory`、`aiChooseFollow` 等,一进去就抛错。测试版已改成引擎块导出唯一一份 `ENGINE`、浏览器与 node 共用,合入正式版时一并带过去。node 无头跑不受影响。
 
 ## AI
 

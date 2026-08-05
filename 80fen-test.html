@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>80分(上海规则)</title>
+<title>[测试版] 80分(上海规则)</title>
 <style>
   :root{--felt:#0f5132;--felt2:#0b3d26;--gold:#ffd75e;
         /* 牌宽是整个界面的标尺:牌面、字号、间距都跟着它缩放 */
@@ -19,7 +19,12 @@
        background:radial-gradient(ellipse at center,var(--felt),var(--felt2));
        color:#fff;overflow:hidden}          /* 整页不滚动,滚动只发生在右侧面板内部 */
   /* 左右布局:左边牌桌,右边历史/笔记/教练。整体锁在一屏高度内 */
-  #app{display:grid;height:100dvh;padding:8px;gap:8px;margin:0 auto;max-width:1700px;
+  /* dvh 会跟着地址栏收起/展开实时变——手机上发牌这十几秒往往正好撞上地址栏自动收起
+     的那一下,#app 高度跳变,手牌/操作区跟着抖一下再稳定,像是"发牌时盖住了亮牌区,
+     发完才归位"。改用 svh(最小可用高度,地址栏展开时的高度)钉死,不随地址栏收放
+     重排——代价是地址栏收起后底部会空一截,但比布局中途跳变好。svh 不支持的浏览器
+     退回 100vh。 */
+  #app{display:grid;height:100vh;height:100svh;padding:8px;gap:8px;margin:0 auto;max-width:1700px;
        grid-template-columns:minmax(0,1fr) clamp(250px,24vw,380px);
        grid-template-rows:auto minmax(0,1fr)}
   #status{grid-column:1/-1}
@@ -44,7 +49,12 @@
   #center{grid-area:2/2;display:grid;grid-template-rows:1fr 1fr 1fr;grid-template-columns:1fr 1fr 1fr;
           align-items:center;justify-items:center;min-height:0;width:100%;
           max-height:calc(var(--cardH)*3.4);align-self:center}
-  .played{display:flex;gap:2px;min-height:var(--cardH);align-items:center}
+  /* 出牌区每格只有牌桌中心 1/3 宽,多张牌(对子/拖拉机/甩牌)不重叠会被挤到看不清或溢出;
+     和手牌用同一套视觉语言 —— 后一张压前一张,只留左半边(rank+suit)够认牌 */
+  .played{display:flex;gap:0;min-height:var(--cardH);align-items:center}
+  .played .card{margin-left:calc(var(--cardW)*-.5)}
+  .played .card:first-child{margin-left:0}
+  .played .card .tr,.played .card .br{display:none}
   #msg{grid-area:3/1/4/4;text-align:center;font-size:calc(var(--fsBase)*1.1);color:var(--gold);pointer-events:none}
   /* 当前谁大:我方绿、对方橙红,一眼判断该抢还是该垫 */
   .memRow{margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)}
@@ -75,8 +85,12 @@
   .mini .tr,.mini .bl{font-size:calc(var(--miniW)*.42)}
   .mini .joker{font-size:calc(var(--miniW)*.19);padding-left:32%;top:10%}
   /* 手牌永远单行:JS 按张数动态收紧 --handGap,絶不因换行去挤占牌桌中心区 */
+  /* overflow-x:auto 曾经在这里当"万一算错就能横滑"的保险,但 CSS 有个反直觉规则:
+     只要 x 轴不是 visible,y 轴的 visible 会被浏览器悄悄当成 auto 处理 —— 选中牌
+     translateY(-14px) 抬起的上半部分因此被当成"溢出"裁掉。改回真正的 visible;
+     单行算法本身已经保证贴到最小重叠也能塞下(见 fitHandRow),这层保险没必要冒裁切的险。*/
   #hand{flex:none;display:flex;flex-wrap:nowrap;gap:0;justify-content:center;align-content:center;
-        padding:4px;min-height:calc(var(--cardH) + 18px);overflow-x:auto;overflow-y:visible}
+        padding:4px;min-height:calc(var(--cardH) + 18px);overflow:visible}
   #hand .card{margin-left:var(--handGap,calc(var(--cardW)*-.38));cursor:pointer;transition:transform .08s}
   #hand .card:first-child{margin-left:0}
   /* 手牌是叠着的,右半边字符会被下一张压住并互相挤占;只留左半边(1数字+1花色)足够读牌 */
@@ -134,12 +148,23 @@
   #overlay .panel,#setOverlay .panel{background:#173b2a;border:2px solid var(--gold);border-radius:12px;
                   padding:26px 34px;text-align:center;font-size:17px;line-height:1.9;
                   max-height:80vh;overflow-y:auto}
-  #setOverlay .panel{text-align:left;min-width:min(420px,90vw)}
+  /* min-width 只是下限,不是上限——之前没设 max-width,select 里选项文案一长
+     (比如"沪语版(术语切换)")就会把整个面板撑宽出屏幕。上下限锁同一个值,宽度钉死。 */
+  #setOverlay .panel{text-align:left;width:min(420px,90vw)}
   .setRow{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:15px;flex-wrap:wrap}
   .setRow>label:first-child{flex:1;min-width:150px;color:#cfe8d9}
   .setRow select,.setRow input[type=number]{border:0;border-radius:6px;padding:5px 8px;font-size:14px}
   .setRow input[type=number]{width:72px}
   .setHint{font-size:12px;color:#9fd6b5;opacity:.8;margin:-4px 0 10px}
+  /* 设置菜单顶栏:完成/取消/恢复默认冻结在最上面,滚动内容从它底下过,不用滚到底才能操作 */
+  /* 标题单独一行,按钮另起一行——都塞进一个 flex 行、宽度不够时 flex:1 的标题会被
+     挤到只剩几个像素,中文没有空格断词,逐字换行成一竖条。分两行就没有这个抢位问题。 */
+  .setHeader{position:sticky;top:-26px;margin:-26px -34px 14px;padding:18px 34px 12px;
+             background:#173b2a;z-index:2;border-bottom:1px solid rgba(255,215,94,.3)}
+  .setHeader b{display:block;font-size:20px;color:var(--gold);margin-bottom:10px}
+  .setHeaderBtns{display:flex;gap:10px;flex-wrap:wrap}
+  .setSection{color:var(--gold);font-size:14px;margin-top:14px}
+  .setSection:first-of-type{margin-top:0}
   #btnSet{background:#2c6e4f;color:#fff;font-size:13px;padding:4px 10px}
   #tests{font-family:ui-monospace,Menlo,monospace;padding:20px;display:none}
   .pass{color:#7ee787}.fail{color:#ff7b72;font-weight:bold}
@@ -148,8 +173,14 @@
   .played .card{animation:playIn .28s ease-out}
   @keyframes winPulse{0%,100%{box-shadow:none}50%{box-shadow:0 0 14px var(--gold)}}
   .seat .name.won{animation:winPulse .9s ease-in-out 2;background:var(--gold);color:#222}
-  #hand .card:hover{transform:translateY(-6px)}
-  #hand .card.sel:hover{transform:translateY(-14px)}
+  /* :hover 只给真鼠标/触控板——触屏没有"移开"这个事件,点完之后浏览器经常把
+     :hover 悬在被点的(有时是旁边被叠住的)那张牌上不放,松手也不退,看起来就是
+     "取消选择后卡在半抬起"或"旁边一张莫名其妙抬起来"。选中态完全交给 .sel 这个
+     真实状态类,和 :hover 无关,touch 设备直接不装这条规则最干净。 */
+  @media (hover:hover) and (pointer:fine){
+    #hand .card:hover{transform:translateY(-6px)}
+    #hand .card.sel:hover{transform:translateY(-14px)}
+  }
   #versionTag{position:fixed;right:10px;bottom:4px;font-size:11px;color:rgba(255,255,255,.3);
               pointer-events:none;z-index:1}
   /* ---- 窄屏竖屏(手机竖握):左右两栏塞不下,改上下叠,整体仍锁一屏 ---- */
@@ -235,7 +266,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.4.0</div>
+<div id="versionTag">80分 v0.5.0(测试版)</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -459,7 +490,17 @@ function declarationOf(cards, trumpRank){
   }
   return null;
 }
-function canOverride(cur, next){ return !cur || next.strength>cur.strength; }
+// 反主:强度必须更高。**同一个人不能反自己** —— 他想加强只有「加固」这一条路
+// (同花色单张→一对,见 canReinforce2);改花色、或用王对把自己的主反成无将,
+// 都不是加固而是自己打乱自己。旧版这里只比 strength、不看座位,而 aiDeclDecide
+// 拿它当唯一的合法性闸门,于是 AI 真的会反自己(实测:自己亮♠单张后,
+// 改亮♥对 / 小王对 / 大王对三种都返回 true),对应的惩罚却只有 −9 分,压不住无将的抢摊红利。
+function canOverride(cur, next, seat){
+  if(!cur) return true;
+  if(next.strength<=cur.strength) return false;
+  if(seat!==undefined && cur.seat===seat) return false;
+  return true;
+}
 // 有对并非必亮对 —— 亮单与亮对是两个不同的选择,都要交给打分:
 //   亮单:不暴露这一对,更容易被别家一对常主反掉,但保留了「加固」这条后路;
 //   亮对:除大小王对外无人能反,但把一对牌明明白白摊给对手看。
@@ -613,27 +654,75 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   voidChainCredit: 0.55,      // 靠稳赢牌保住牌权再断门的折价(笔记里的「视为50%」)
   buryTrumpBlock: 400,        // 主牌埋底的硬性阻力
   kittyMult: 2,               // 抠底倍数的估计值(按最后一墩单张算)
-  jokerPairHold: 18,          // 王对留到收官的护底价值
+  kittyPointBias: 0.8,        // 闲家倒推底分时的折扣(庄家倾向不埋分)
+  jokerPairHold: 7,           // 王对的**成对溢价**(单张的压制价值已在 trumpHold 里,别算两遍)
+  jokerPairDecl: 5,           // 庄家方护底的额外溢价
+  trumpHoldBase: 2.5,         // 一张主牌的留手底价
+  trumpHoldTop: 14,           // 「在外已无更大」时额外的留手价值(相对刻度,见 trumpHold)
   gateDamp: 0.6,              // 对手面临必打关卡时,丢分损失的封顶折减
-  bossBase: 56,               // 钢板领出的基础分
+  bossBase: 40,               // 钢板领出的基础分(v4:原 56 里有一截其实是「拿住牌权」,
+                              //   已改由 leadTempo 按手上剩余待兑现单元算出来,基础分相应下调)
   bossSize: 8,                // 每多一张的加成(对子/拖拉机更难被压)
   leadTrumpPenalty: 26,       // 未到收官时领出主牌钢板的折扣
+  drawTrumpUnit: 6,           // 吊主:我方每比对手多一张主牌值多少分
+  drawTrumpCap: 30,           // 吊主项的上下限
+  leadWeakTrump: 14,          // 领出压不住场的主牌(非钢板)的固定折扣
+  leadTrumpEVScale: 0.45,     // 领出主牌时,这一墩能收到的分按副牌口径打的折(主牌人人攥着不放)
+  feedRuff: 1.0,              // 送毙(主打队友断门)的权重;设 0 即整条关闭,便于消融
+  feedRuffMinP: 0.35,         // 队友断门概率低于这个值就不当成送毙机会
   pwGain: 0.5,                // 比分敏感度对「现在兑现 vs 留着压制」的调节幅度
   grabBonus: 85,              // 无庄盘抢庄红利(有主)
   grabBonusNT: 58,            // 无庄盘抢庄红利(无将,主牌只有12张压不住场)
   declSingleOption: 8,        // 有对却只亮单张:不暴露 + 保留加固权的价值(信心越足越不值钱)
   declOverrideCost: 45,       // 亮的单张被别家一对常主反掉的代价
+  rebelThresholdAdd: 12,      // 造反(相对首亮)的额外门槛:打乱一个已成立的主色有摩擦成本
+  ntReluctance: 0.5,          // 亮无将的基础不情愿(暴露一对王 + 无将局毙牌手段极少)
+  ntDefenderEdge: 0.25,       // 无将对闲家有利、对庄家方不利(拆掉长将牌碾压机)
   ruffSatTrump: 12,           // 毙牌能力饱和点(有主局,人均9张的约1.35倍)
   ruffSatNT: 5,               // 毙牌能力饱和点(无将局,人均3张)
-  endHorizon: 4,              // 剩几张牌起算「最后一墩争夺」
+  endHorizon: 4,              // 剩几张牌起算「最后一墩争夺」(底分越大越提前,见 endHorizonOf)
+  endHorizonMax: 9,           // 提前量的上限
+  endHorizonPerPt: 1/6,       // 每 1 分底分,把「最后一墩争夺」提前多少张牌
   endKittyWeight: 0.55,       // 底分折算进留牌价值的比例
-  tempoWeight: 0.35,          // 牌权价值在打分里的权重
-  tempoCap: 24,               // 牌权价值上限(避免手牌一好就无脑抢墩)
+  ruffStruct1: 0.85,          // 对手断门时,毙掉我一张副牌单张的把握
+  ruffStruct2: 0.45,          // 毙掉一个副牌对子(要一对主)的把握
+  ruffStruct3: 0.25,          // 毙掉三张以上的一手副牌(要同结构的主)的把握
+  sideReserveDamp: 0.6,       // 副牌护底的折扣:它还要求倒数第二墩就握着牌权
+  endPhaseKPerPt: 0.045,      // 收官留手折扣随底分的抬升(底分 0 → 0.15,底分 20 → ≈1.05)
+  endPhaseKCap: 1.1,          // 抬升上限
+  tempoWeight: 0.35,          // 牌权价值在跟牌打分里的权重
+  leadTempoWeight: 1.0,       // 牌权价值在领出打分里的权重。比跟牌侧(0.35)高得多,
+                              //   因为领出就是「要不要保住牌权」这个决策本身;
+                              //   0.35 时实测只改变 2.1% 的领出决策 —— 形同虚设。
+  tempoCap: 40,               // 牌权价值上限(贴现和自己会收敛,这个只当兜底)
+  tempoDecay: 0.80,           // 待兑现单元按价值降序的贴现率:下一墩权重最高,往后递减
   oppTempo: 6,                // 牌权落到对手手里的估计代价
   fragileBonus: 0.18,         // 每多一张,组合被拆的风险溢价(飞机大炮该早兑现)
   dumpPartner: 0.85,          // 队友把本门分贴过来的比例
   dumpOpp: 0.85,              // 后手对手能掏出多少本门分
   handShare: 4,               // 「某家握有这门未见牌的几分之一」的兜底值(领出时用;跟牌用实际手牌数动态算)
+  pNoPartnerLeft: 0.02,       // 队友已出过牌、对手暂大时,这墩还能翻盘的概率
+  /* 「对手暂大、队友还没出牌时,本队还能把这墩夺回来」的概率。
+   * 这两个数是**整个跟牌评分里唯一一处已知失准、却仍然取当前值**的地方,原因见下。
+   *
+   * 校准实测(200 局,模型给的 p vs. 实际赢下的频率):
+   *   对手暂大    模型 0.255   实际 0.183   高估 0.072
+   *   队友暂大    模型 0.692   实际 0.782   低估 0.089
+   *   over/ruff  模型 0.727   实际 0.696   基本准
+   * 也就是说 0.32 作为**概率**是偏高的:我不去争的时候,本队实际只有 18% 能把这墩夺回来。
+   *
+   * 但把它往任何一边动都掉分:0.32→+8.7、0.22→+7.0、0.14→+7.6 分每局;
+   * 换成按记牌算(pPartnerTakes,均值 0.41)更差:0.35 采信 →+5.7、0.6 采信 →+6.3。
+   *
+   * 结论:**它已经不是一个概率,是一个被调过的权重。** scorePlay 里的 gain / loss
+   * (laterPoints、my、futureValue 的分牌负债项)都是围着这个 0.32 标定出来的,
+   * 单独把这一个输入改准,等于打破了其余各项吸收掉的偏差。
+   * 要真正修好,得把跟牌侧的 EV 整体重标定,而不是换掉一个输入 —— 那是下一轮的事。
+   */
+  pPartnerPrior: 0.32,
+  pPartnerCalc: 0,            // 记牌证据相对先验的采信比例;0 = 完全用先验(实测最优)
+  blockWin: 1,                // 1=生成「盖住末家分牌」的吃法候选;0=只用最省的吃法(消融用)
+  partnerHoldAfter: 0.72,     // 队友压回来之后,身后还有对手时守得住的比例
 };
 
 // 全局牌力序:主牌恒高于任何副牌。
@@ -832,32 +921,35 @@ function pPairOverride(vis, trumpRank){
   return clamp(1-Math.pow(1-0.104,f),0,0.8);
 }
 
-function scoreDeclOption(D, opt){
+/* 手牌契合度那一段单独拆出来(v4)。
+ * 它回答的是纯粹的「以这个花色(或无将)为主时,我这手牌有多强」——
+ * 不含抢庄红利、暴露代价、谁已亮主这些与主色无关的项。
+ * 拆出来是为了给造反做**基线**:造反的正确判据不是「新主够不够好」,
+ * 而是「比现在这个主好多少」。v3 从头到尾没有算过现状,于是会出现
+ * 「手握长♠、却因为摸到小王对去反无将」这种没有逻辑的行为。
+ */
+function declHandQuality(D, opt){
   const v=D.vis.length, why=[];
   const iAmDefender=D.dealerKnown&&D.dealer>=0&&D.dealer%2!==D.seat%2;
-  let s=0;
-  // 1. 无庄开局:亮主=坐庄=拿底8张(外加自己定主色),抢摊抢反是默认策略。
-  //    无将的红利略低一档 —— 无庄盘坐庄的价值有一半来自长将牌压场,
-  //    而无将局主牌总共才 12 张,谁也压不了场。但红利仍在,不该被排除。
-  if(!D.dealerKnown){ s+=opt.suit?AIP.grabBonus:AIP.grabBonusNT; why.push('无庄抢摊'); }
-  // 2. 手牌契合度
   let fit;
   if(opt.suit){
     const L=projectLen(trumpCountUnder(D.vis,opt,D.trumpRank),v,36);
     fit=clamp((L-9)/5,-1,1);                        // 有主局主牌总数36张,人均9
     if(fit>0.25) why.push(`预计${L.toFixed(0)}张主`);
   }else{
-    // 无将:主牌只有12张(4王+8级牌),人均约2.8;不会无脑亮。
-    // 那个基础不情愿分是因为「亮无将=暴露一对王、且无将局毙牌手段极少」;
-    // 但无庄盘要抢的是庄位不是压制力,这份顾虑要大打折扣。
-    const L=projectLen(trumpCountUnder(D.vis,opt,D.trumpRank),v,12);
-    const reluctance=0.5*(D.dealerKnown?1:0.3);
-    fit=0.6*clamp((L-2.8)/2.2,-1,1)+0.6*sideQuality(D.vis,opt,D.trumpRank)-reluctance;
+    // 无将:主牌总共只有 12 张(4王+8级牌)。这时候「期望长度」不是好尺子 ——
+    // 关键是这 12 张里**最大的那几张**在不在我手上:握大王对 + 两张级牌(4/12)
+    // 和握四张级牌无王(4/12)在张数上完全等价,实战里天差地别。
+    // 所以无将的 fit 用**牌力占比**:大王 1.0、小王 0.75、级牌 0.4,除以全场总和归一。
+    const reluctance=AIP.ntReluctance*(D.dealerKnown?1:0.3);
+    fit=0.6*ntTrumpShare(D.vis,D.trumpRank)*2-0.6
+       +0.6*sideQuality(D.vis,opt,D.trumpRank)-reluctance
+       +(iAmDefender?AIP.ntDefenderEdge:-AIP.ntDefenderEdge*0.6);
     fit=clamp(fit,-1,1);
-    if(fit>0) why.push('无将但副牌面够硬');
+    if(fit>0) why.push('无将且大牌集中在我手上');
   }
-  s+=60*fit;
-  // 3. 级数为 5/10/K:那 8 张级牌本身就是 40 或 80 分。
+  let s=60*fit;
+  // 级数为 5/10/K:那 8 张级牌本身就是 40 或 80 分。
   //    关键在稀释度 —— 有主局它们被摊薄在 36 张主牌里,谁主花色长谁通吃;
   //    无将局主牌总共 12 张,其中 8 张是分,即「主牌里三分之二是分」,
   //    且常主压死一切副牌,每张≈一墩稳赢外加 5~10 分。
@@ -868,6 +960,27 @@ function scoreDeclOption(D, opt){
     if(!opt.suit&&iAmDefender) lv+=0.35;
     s+=25*lv; why.push(opt.suit?'级数带分':'无将局主牌里大半是分');
   }
+  return {q:s, fit, why};
+}
+
+// 无将局那 12 张主牌里,我手上占了多少「牌力」(而不是多少张)
+function ntTrumpShare(vis, trumpRank){
+  const w=c=>c.rank===16?1.0:c.rank===15?0.75:c.rank===trumpRank?0.4:0;
+  const total=2*1.0+2*0.75+8*0.4;                 // 全场:2大王 + 2小王 + 8张级牌
+  return clamp(vis.reduce((a,c)=>a+w(c),0)/total,0,1);
+}
+
+function scoreDeclOption(D, opt){
+  const v=D.vis.length;
+  const iAmDefender=D.dealerKnown&&D.dealer>=0&&D.dealer%2!==D.seat%2;
+  const hq=declHandQuality(D,opt);
+  const fit=hq.fit, why=hq.why.slice();
+  let s=hq.q;
+  // 1. 无庄开局:亮主=坐庄=拿底8张(外加自己定主色),抢摊抢反是默认策略。
+  //    无将的红利略低一档 —— 无庄盘坐庄的价值有一半来自长将牌压场,
+  //    而无将局主牌总共才 12 张,谁也压不了场。但红利仍在,不该被排除。
+  if(!D.dealerKnown){ s+=opt.suit?AIP.grabBonus:AIP.grabBonusNT; why.push('无庄抢摊'); }
+  // 2~3. 手牌契合度 + 级数,已在 declHandQuality 里算好(拆出去是为了给造反做基线)
   // 4. 庄家归属
   if(D.dealerKnown){
     if(D.dealer===D.seat) s+=20*0.5;
@@ -913,10 +1026,24 @@ function declThreshold(D){
 function aiDeclDecide(D){
   const cands=[...declOptions(D.vis,D.trumpRank)];
   const jp=jokerPairOf(D.vis); if(jp) cands.push(jp);
-  const legal=cands.filter(o=>canOverride(D.curDecl,o));
+  const legal=cands.filter(o=>canOverride(D.curDecl,o,D.seat));
   if(!legal.length) return null;
-  const scored=legal.map(o=>({opt:o,...scoreDeclOption(D,o)})).sort((a,b)=>b.score-a.score);
-  const th=declThreshold(D);
+  /* 造反用**增量**判据(v4)。
+   * v3 是绝对门槛 `V(opt) ≥ θ`,而 V(opt) 只回答「以 opt 为主时我这手牌好不好」。
+   * 造反要回答的是另一个问题:「换成这个主,比现在这个主好多少」。
+   * v3 从头到尾没有算过现状,于是会出现「手握长♠、却因为摸到小王对去反无将」。
+   * 基线只取与主色有关的那一段(declHandQuality),抢庄红利 / 暴露代价 / 谁已亮主
+   * 这些本来就是造反的边际成本收益,留在增量侧。
+   */
+  const base=D.curDecl
+    ? declHandQuality(D,{suit:D.curDecl.suit,strength:D.curDecl.strength}).q : 0;
+  const scored=legal.map(o=>{
+    const r=scoreDeclOption(D,o);
+    return {opt:o, score:r.score-base, reason:r.reason,
+            baseline:base, absolute:r.score};
+  }).sort((a,b)=>b.score-a.score);
+  // 造反的门槛比首亮高一档:打乱一个已经成立的主色,本身有摩擦成本
+  const th=declThreshold(D)+(D.curDecl?AIP.rebelThresholdAdd:0);
   const top=scored[0];
   return {...top, threshold:th, pass:top.score>=th, cands:scored.slice(0,3)};
 }
@@ -1197,6 +1324,35 @@ function ruffThrow(hand, lead, trump){
   return isLegalFollow(hand,lead,pick,trump)?pick:null;
 }
 
+/* 「盖住末家分牌」的吃法(v4.1)。
+ *
+ * `minWinFollow` 给的是**最省的吃法** —— 压过当前最大就收手。对第三家(领出者的对家)
+ * 来说这常常不够:压过当前最大 ≠ 压过末家可能掏出的那张分牌。
+ * 实战里第三家的职责之一,就是**无论如何别让末家用一张 10 / K 直接把这墩连分带走**:
+ * 外面还有 K,就得打 A 以上;外面只剩 10,打 J 以上就够。
+ *
+ * v3/v4.0 从来不生成这个候选 —— 于是「压过了、但压得不够高」是一个 AI 根本没法表达的选择。
+ * 实测 200 局:第三家有 209 次机会该盖没盖,其中 119 次没盖,12 次被末家用分牌拿走,
+ * 送出去 160 分。数字看着不大,但那是 AI 打 AI —— 双方都不掏那张 K,错误互相抵消了;
+ * 对面换成会打的人,这个漏洞的代价要高得多。
+ */
+function blockWinFollow(hand, lead, trump, curBest, mem){
+  if(lead.type!=='single'||curBest.suit!==lead.suit) return null;
+  const inSuit=hand.filter(c=>effSuit(c,trump)===lead.suit);
+  if(!inSuit.length) return null;
+  let topPt=-1;                                   // 在外这门最大的那张分牌
+  for(const k in mem.unseen){
+    const n=mem.unseen[k]; if(n<=0) continue;
+    const c=keyToCard(k);
+    if(effSuit(c,trump)!==lead.suit||!cardPoints(c)) continue;
+    topPt=Math.max(topPt,ordIdx(c,trump));
+  }
+  if(topPt<=curBest.top) return null;             // 在外没有能翻盘的分牌,最省的吃法就够了
+  const c=cheapSort(inSuit.filter(x=>ordIdx(x,trump)>topPt),trump)[0];
+  if(!c) return null;                             // 盖不住
+  return buildFollow(hand,lead,trump,'cheap',[c]);
+}
+
 // 最省的吃法(本门压过,或断门时用主敲脱);吃不动返回 null
 function minWinFollow(hand, lead, trump, curBest){
   if(lead.type==='throw'){
@@ -1286,42 +1442,95 @@ function unseenPointsIn(mem, suitEff, trump){
  */
 function kittyPointsEst(X){
   if(X.buriedKnown&&X.buriedKnown.length) return countPoints(X.buriedKnown);
+  // v4:闲家的倒推不该是「未见分均匀摊到 8 张底」—— 那等于假设庄家随机埋底。
+  // 庄家的埋牌行为本身就是信息:他**绝不埋主**(faceValue 里 buryTrumpBlock=400),
+  // 所以底牌只可能来自副牌,在外的主牌要从分母里剔掉,否则系统性低估底分;
+  // 他又**倾向不埋分**(PointΔ 多数为负),所以分的密度还要往下打一折。
   let unseenPts=0, unseenCnt=0;
   for(const k in X.mem.unseen){
     const n=X.mem.unseen[k]; if(n<=0) continue;
-    unseenCnt+=n; unseenPts+=cardPoints(keyToCard(k))*n;
+    const c=keyToCard(k);
+    if(effSuit(c,X.trump)==='T') continue;
+    unseenCnt+=n; unseenPts+=cardPoints(c)*n;
   }
   if(unseenCnt<=0) return 0;
-  return unseenPts*Math.min(1,RULES.kittySize/unseenCnt);
+  return unseenPts*Math.min(1,RULES.kittySize/unseenCnt)*AIP.kittyPointBias;
+}
+
+/* ---- 底分驱动的收官口径(v4)----
+ * v3 把收官写成常数 PHASE_K.end = 0.15,偏偏在底牌翻倍最该被在意的时候,
+ * 把留手价值几乎抹平了;补丁那条 flat 项的触发条件又是「end 阶段 且 剩 ≤4 张 且 这手是钢板」
+ * 三条同时成立 —— 等到那时候,该留的控制牌早就打光了。
+ * 实测(200 局自对弈):庄家 39% 的局丢掉最后一墩,平均埋底 11.6 分,
+ * 每局白送闲家 9.3 分(已含 ×2)—— 比 v3.1 相对 v3.0 的全部收益还大。
+ * 所以「收官从第几张牌算起」和「收官该留多少手」都应该由**底分**决定,而不是常数。
+ */
+function kittyPts(X){ return X._kp!==undefined?X._kp:(X._kp=kittyPointsEst(X)); }
+// 底分越大,「最后一墩争夺」越该提前开始规划
+function endHorizonOf(X){
+  return clamp(AIP.endHorizon+kittyPts(X)*AIP.endHorizonPerPt,AIP.endHorizon,AIP.endHorizonMax);
+}
+// 收官的留手折扣:底分 0 → 0.15(该兑现就兑现);底分 20 → ≈1.05(比中盘更该留控制牌)
+function phaseK(X){
+  if(X.phase!=='end') return PHASE_K[X.phase];
+  return clamp(PHASE_K.end+kittyPts(X)*AIP.endPhaseKPerPt,PHASE_K.end,AIP.endPhaseKCap);
+}
+
+/* 一张主牌的留手价值(v4)。
+ * v3 写的是 `2.5 + ordIdx × 0.5`(级牌固定 7、单王固定 8/6)—— 按**牌面序号**线性give。
+ * 问题是 ordIdx 是绝对刻度:一对主 A(ordIdx≈24)算出来 14.5、王对 18,
+ * 「全场第三大的主」和「全场第十大的主」在这条线性式子里差得很近。
+ * 于是 AI 会为了护住王对,先把主 A、主 K 撒光,再在没牌权时被迫打王对 ——
+ * 「过早打大王对、把自己消耗完」有一半根源在这里。
+ * 正确的刻度是**相对刻度**:在外还有几张压得住它。全场最大的那张,不管它 ordIdx 多少,
+ * 留手价值都该顶格;在外还有一半主牌压得住它,价值就该腰斩。
+ */
+function trumpHold(c, X){
+  const {mem,trump}=X;
+  if(!mem||!mem.unseen) return AIP.trumpHoldBase;
+  const idx=ordIdx(c,trump);
+  let higher=0,total=0;
+  for(const k in mem.unseen){
+    const n=mem.unseen[k]; if(n<=0) continue;
+    const u=keyToCard(k);
+    if(effSuit(u,trump)!=='T') continue;
+    total+=n;
+    if(ordIdx(u,trump)>idx) higher+=n;
+  }
+  return AIP.trumpHoldBase+AIP.trumpHoldTop*(1-(total>0?higher/total:0));
 }
 
 // 机会成本:这手牌留着以后打的期望价值(折算成分)
 function futureValue(cards, X){
-  const trump=X.trump, ph=PHASE_K[X.phase];
+  const trump=X.trump, ph=phaseK(X);
   let v=0, flat=0;        // flat 部分不随 phase 折算
   // 收官:留住最大的一手 = 守住(或抢下)翻倍的底分。
-  // 这一项恰恰只在 end 阶段成立,所以不能再乘 PHASE_K.end 那个衰减系数。
-  if(X.phase==='end'&&X.hand&&X.hand.length<=AIP.endHorizon){
-    const kp=kittyPointsEst(X);
-    const cl=kp>0?classify(cards,trump):null;
-    if(cl&&isBossPlay(cl,X.mem,trump)){
-      // 越接近最后一墩,这张「全场最大」越等价于底牌那笔翻倍的分
-      const near=1-(X.hand.length-1)/Math.max(1,AIP.endHorizon);
+  // 这一项恰恰只在收官视野内成立,所以不能再乘 phaseK 那个衰减系数。
+  const hz=endHorizonOf(X);
+  if(X.hand&&X.hand.length<=hz){
+    const kp=kittyPts(X);
+    // 「保底手」只需要一手 —— 手上三个钢板单元,留一个守最后一墩就够,
+    // 另外两个该在收官前兑现掉。v3 把这份护底价值发给**每一个**钢板单元,
+    // 于是它们互相锁死,谁也不肯先出,最后被对手用小牌一张张耗光。
+    const ru=kp>0?reserveUnit(X):null;
+    if(ru&&cards.some(c=>ru.ids.has(c.id))){
+      // 越接近最后一墩,这一手「全场最大」越等价于底牌那笔翻倍的分
+      const near=1-(X.hand.length-1)/Math.max(1,hz);
       flat+=kp*AIP.kittyMult*near*AIP.endKittyWeight;
     }
   }
   const jokers=cards.filter(c=>c.suit==='X');
   const bj=jokers.filter(c=>c.rank===16).length, sj=jokers.filter(c=>c.rank===15).length;
-  // 王对:全场最大的压制力,留到收官能护住翻倍的底
-  if(bj>=2) v+=AIP.jokerPairHold+(X.isDecl?12:0);
-  else if(bj) v+=8;
-  if(sj>=2) v+=AIP.jokerPairHold*0.7+(X.isDecl?8:0);
-  else if(sj) v+=6;
+  // 王对:全场最大的压制力,留到收官能护住翻倍的底。
+  // v4 注意:每张王的「在外已无更大」价值已经由下面的 trumpHold 记过一遍了,
+  // 这里**只记成对的额外溢价**(对子能压对子、能整体吃拖拉机),否则同一份价值算两遍 ——
+  // 实测那样会让王对的 Future 膨胀到 60+,收官该兑现的时候也兑现不出来。
+  if(bj>=2) v+=AIP.jokerPairHold+(X.isDecl?AIP.jokerPairDecl:0);
+  if(sj>=2) v+=(AIP.jokerPairHold+(X.isDecl?AIP.jokerPairDecl:0))*0.7;
   for(const c of cards){
-    if(c.suit==='X') continue;
     if(effSuit(c,trump)==='T'){
       // 主牌稀缺:毙牌权本身值钱,拿低主去毙一墩空气是亏的
-      v+=c.rank===trump.rank?7:2.5+ordIdx(c,trump)*0.5;
+      v+=trumpHold(c,X);
     }else{
       const rem=unseenPointsIn(X.mem,effSuit(c,trump),trump);
       if(c.rank===14) v+=6+0.26*rem;                    // 副A:以后还能捞这门的分
@@ -1394,12 +1603,43 @@ function pSurvive(X, cl, seats){
   return clamp(p,0.02,0.99);
 }
 
+/* 对手暂大、队友还没出牌时,队友把它压回来的概率(v4.1)。
+ *
+ * v3/v4.0 这里是两个魔法常数 0.32 / 0.02 —— 而这恰恰是「下家该不该直接贴分」的决策点:
+ * 若我(第二家)推断出末家的队友握着这门的绝对大牌,正确打法是**直接把分贴上去**,
+ * 让中间两家去比大小、由队友末手收走。一个拍死的 0.32 表达不了这件事,
+ * 于是 AI 永远在「跟小保守」和「盲目贴分」之间摇摆。
+ *
+ * 改成和 pSurvive 同一套记牌口径:队友在这门大约有几张、其中几张压得住当前最大,
+ * 加上他可能断门来毙;再乘上他之后还有没有对手要过。
+ */
+function pPartnerTakes(X){
+  if(!X.partnerRemaining) return AIP.pNoPartnerLeft;   // 队友已出过牌,只能指望对手内讧
+  const {mem,trump}=X;
+  const leadSuit=X.lead?X.lead.suit:X.cur.cl.suit;
+  const {higher,total}=unseenBeats(mem,X.cur.cl,trump);
+  const denom=X.shareDenom||AIP.handShare;
+  const k=total>0?Math.max(1,total/denom):0;
+  const pHas=total>0?1-Math.pow(1-higher/total,k):0;     // 队友手上压得住的密度
+  const pVoid=leadSuit==='T'?0
+    :(X.partnerSeat!==undefined&&X.pVoidOf?X.pVoidOf(X.partnerSeat,leadSuit):0.12);
+  const trAvail=unseenBeats(mem,{suit:'T',top:-1,type:'single'},trump).total;
+  const pRuff=(X.ptsTable>0?0.80:0.35)*(trAvail>0?0.85:0);
+  const take=(1-pVoid)*pHas+pVoid*pRuff;
+  // 队友之后还有对手要过 → 他压回来了也未必守得住
+  const after=X.oppAfterPartner?AIP.partnerHoldAfter:1;
+  // 往 v3 那个常数 0.32 收缩。`take` 算的是「队友手上有没有压得住的牌」,
+  // 不等于「他一定会把它打出来并守住」—— 实测直接用 take 会让 AI 过度把责任推给队友、
+  // 该争的墩也不争了(每局 −3.6 分)。所以只把它当**证据**用:证据越偏离先验,才越往那边挪。
+  return clamp(AIP.pPartnerPrior+AIP.pPartnerCalc*(take*after-AIP.pPartnerPrior),0.02,0.95);
+}
+
 // 我出这手之后,本队最终赢下这墩的概率
 function pTeamWin(X, cards, beatsCur){
   const cl=classify(cards,X.trump);
   if(!beatsCur){
     // 对手暂大:只能指望后手的队友把它压回来
-    if(!X.partnerWinning) return X.partnerRemaining?0.32:0.02;
+    if(!X.partnerWinning) return pPartnerTakes(X);
     return X.certainty;                                    // 队友暂大:活到墩末的概率
   }
   if(X.isLast) return 1;
@@ -1476,18 +1716,23 @@ function followCtx(view, plays){
   const remaining=[];                       // 我之后还没出牌的座位
   for(let i=plays.length+1;i<4;i++) remaining.push((leader+i)%4);
   const remainingOpp=remaining.filter(s=>s%2!==view.seat%2);
-  const partnerRemaining=remaining.some(s=>s%2===view.seat%2);
+  const partnerSeat=(view.seat+2)%4;
+  const partnerRemaining=remaining.includes(partnerSeat);
+  // 队友之后还有没有对手要出牌(决定他压回来了守不守得住)
+  const oppAfterPartner=partnerRemaining&&
+    remaining.slice(remaining.indexOf(partnerSeat)+1).some(s=>s%2!==view.seat%2);
   // 后手对手在本门缺门 → 即使钢板也可能被敲脱("毙上家放下家")
   const oppRuffRisk=lead.suit!=='T'&&remainingOpp.some(s=>voids[s][lead.suit]);
   const curBoss=isBossPlay(cur.cl,mem,trump)&&!oppRuffRisk;
   const isDecl=view.declSeat!==undefined&&view.declSeat>=0&&view.declSeat%2===view.seat%2;
   const reads=makeReads(view.history||[],trump);
   const pVoidOf=makeVoidProb(reads,mem,trump,view.hand.length);
+  const oppVoidP=s=>Math.max(...[0,1,2,3].filter(p=>p%2!==view.seat%2).map(p=>pVoidOf(p,s)),0);
   let unseenTotal=0;
   for(const uk in mem.unseen) unseenTotal+=Math.max(0,mem.unseen[uk]);
   const shareDenom=clamp(unseenTotal/Math.max(1,view.hand.length),2,8);
   const X={shareDenom,trump,lead,cur,partnerWinning,isLast,ptsTable,mem,voids,hand:view.hand,
-           remainingOpp,partnerRemaining,oppRuffRisk,curBoss,isDecl,reads,pVoidOf,
+           remainingOpp,partnerRemaining,partnerSeat,oppAfterPartner,oppRuffRisk,curBoss,isDecl,reads,pVoidOf,oppVoidP,
            buriedKnown:view.buriedKnown,phase:phaseOf(view.hand.length)};
   // 队友「暂大」不是「稳大」:确定性由记牌算出,不再是拍脑袋的常数
   X.certainty=isLast?1:pSurvive(X,cur.cl,remainingOpp);
@@ -1515,20 +1760,67 @@ function bossUnits(X){
       let val=Math.min(10,rem*0.33)*Math.min(1,size*0.6)+size*1.2;
       // 组合越大越怕被拆:对子/拖拉机等不起,单张无所谓
       if(comp.type!=='single') val*=1+AIP.fragileBonus*(size-1);
-      out.push({ids:new Set(comp.cards.map(c=>c.id)), val});
+      out.push({ids:new Set(comp.cards.map(c=>c.id)), val, suit:s, top:comp.top, size});
     }
   }
   return X._bu=out;
 }
+/* 保底手(v4)。
+ * 底牌由赢下最后一墩的一方以 分值×最后墩张数×2 拿走 —— 实测庄家 39% 的局丢掉最后一墩,
+ * 每局白送闲家 9.3 分。守住它只需要**一手**牌,不是每一手大牌都要留。
+ * 所以护底价值只发给「最可能撑到最后一墩」的那一个单元:
+ * 主牌钢板 > 副牌钢板(副牌随时可能被毙),同类里取最大的一手。
+ */
+/* 一个钢板单元能撑到最后一墩的概率(v4.2)。
+ *
+ * 「钢板」只说明本门在外已无更大,不说明它保得住 —— 保底靠的是**别人毙不掉**:
+ *
+ *   副牌单张   最不可能独大到最后:任何一个对手在这门断门,一张主就毙掉了
+ *   副牌对子   好一档:毙它需要**一对**主牌,张数结构得对得上
+ *   副牌多张   更难毙(要凑出同结构的一手主),但它有另一个前提 ——
+ *              必须在倒数第二墩就握着牌权,否则领不出来,优势等于零
+ *   主牌大小王 / 主色级数牌 / 主牌对子   才是常规的护底选择
+ *
+ * v4.0 那版排序键是 `(主?1e6:0) + top*100 + size`,在副牌里 top 压过 size,
+ * 等于**优先挑副牌单张去护底** —— 恰好挑中了最不可能守住的那一类。
+ */
+function reserveHold(u, X){
+  const {mem,trump}=X;
+  if(u.suit==='T'){
+    // 主牌:只可能被更大的主牌压掉
+    const {higher,total}=unseenBeats(mem,{suit:'T',top:u.top,type:u.size>1?'pair':'single'},trump);
+    return 0.95*(total>0?1-higher/total:1);
+  }
+  // 副牌:毙牌要张数结构对得上,组合越大越难凑
+  const q=u.size>=3?AIP.ruffStruct3:u.size===2?AIP.ruffStruct2:AIP.ruffStruct1;
+  const pv=X.oppVoidP?X.oppVoidP(u.suit):0.3;
+  const trAvail=unseenBeats(mem,{suit:'T',top:-1,type:'single'},trump).total;
+  if(trAvail<=0) return 0.9;                       // 主牌出尽,副牌钢板才真的是钢板
+  // 两个对手各有一次机会毙掉它;再打一个折,表示「副牌护底还得先拿到倒数第二墩的牌权」
+  return Math.pow(1-pv*q,2)*AIP.sideReserveDamp;
+}
+function reserveUnit(X){
+  if(X._ru!==undefined) return X._ru;
+  const us=bossUnits(X);
+  if(!us.length) return X._ru=null;
+  return X._ru=us.slice().sort((a,b)=>reserveHold(b,X)-reserveHold(a,X))[0];
+}
+
 // 只算**打完这一手之后**还剩的待兑现单元 —— 否则和 futureValue 里
 // 「这张 A 留着还能捞多少分」重复计价,同一份价值被算两遍。
+/* 牌权值多少 = 拿到牌权之后,还能兑现哪些牌(v4.2 改成**贴现和**)。
+ *
+ * 旧版是把所有待兑现单元的价值直接相加再截顶。但牌权只保证**下一墩**由我领出:
+ * 最好的那一手能立刻兑现,第二好的要等我再拿一次牌权,以此类推,越往后越不确定。
+ * 所以按价值降序排,乘一条几何贴现 —— 「下一轮权重最高,往后递减」。
+ * 这条曲线自己会收敛,不再需要 tempoCap 那个硬截顶把好手一律压平。
+ */
 function tempoValue(X, exclude){
   const drop=exclude||[];
-  let v=0;
-  for(const u of bossUnits(X)){
-    if(drop.some(c=>u.ids.has(c.id))) continue;   // 这一手把它打掉了,不再算
-    v+=u.val;
-  }
+  const vals=bossUnits(X).filter(u=>!drop.some(c=>u.ids.has(c.id)))
+                         .map(u=>u.val).sort((a,b)=>b-a);
+  let v=0, w=1;
+  for(const val of vals){ v+=val*w; w*=AIP.tempoDecay; }
   return Math.min(v,AIP.tempoCap);
 }
 
@@ -1573,6 +1865,19 @@ function aiChooseFollow(view, plays){
         X.isLast?(isRuff?'最后一手,毙掉收分':'最后一手,稳吃这墩')
                 :(X.oppRuffRisk?'尝试吃,但后手或被毙':(isRuff?'断门毙牌抢分':'能吃住,争这墩')));
     }
+    /* 1b. 吃得**够高** —— 压过在外最大的那张分牌,而不只是压过当前最大。
+     * 「最省的吃法」在中间两家常常不够:压过当前最大 ≠ 压过末家可能掏出的那张分牌。
+     * 外有 K 就得打 A 以上,外只剩 10 打 J 以上就够。
+     *
+     * **不按座位设硬规则。** 一度写成「只发给队友已出过牌的那一家」,理由是
+     * 「第二家烧 A 是越位」—— 这个理由站不住:第二家先出 A / 级数主也可以是**拿牌权**,
+     * 最好的结果是四家贴分或三家被迫送分,退一步至少换来往后几墩的领出权。
+     * 该由打分去权衡的事情,不该用位置规则砍掉候选。所以只要不是末手就都生成,
+     * 剩下的交给 scorePlay:多花一张大牌 vs. 少送一墩分 vs. 拿到牌权。
+     */
+    if(AIP.blockWin&&!X.isLast&&X.remainingOpp.length)
+      push(blockWinFollow(view.hand,lead,trump,X.cur.cl,X.mem),'over',true,
+           '吃到在外最大分牌之上,封死末家用分牌拿墩');
   }
   // 2. 贴分 —— 队友大就送分,但确定性不够时收敛
   const dump=buildFollow(view.hand,lead,trump,'dump',null);
@@ -1642,10 +1947,82 @@ function leadPointsEV(L, cl, cards){
   // 这门在外的分,大约 1/3 在队友手里;队友不缺门才送得出来
   const fromPartner=rem*0.33*(1-pPartnerVoid)*Math.min(1,size*0.8);
   const fromOpp=rem*0.33*0.35*Math.min(1,size*0.8);   // 对手只在被迫时漏
-  return fromPartner+fromOpp;
+  // 主牌是所有人都攥着不放的一门:领出主牌时,队友不会把主 K 贴上来(他要留着毙牌),
+  // 对手也只会跟最小的主。副牌那套「1/3 在队友手里、他会送过来」的估计在主牌上明显偏高,
+  // 不打这个折的话,「领出一张大怪」会因为主门在外分多而拿到虚高的收益。
+  return (fromPartner+fromOpp)*(cl.suit==='T'?AIP.leadTrumpEVScale:1);
+}
+
+/* 领出的牌权项(v4)。
+ * v3 里 tempoValue / bossUnits 只在 scorePlay(跟牌)里用,scoreLeadPlay 完全没有这一项 ——
+ * 可领出恰恰是牌权最该计价的地方:领出赢下 = 保住牌权继续兑现手上的钢板单元,
+ * 领出输掉 = 把牌权交给对手,他去兑现他的,我还可能被逼贴分。
+ * 这就是「不考虑牌权」那条观察的直接来源。
+ * 和跟牌侧同一个口径:只算**打完这一手之后还剩**的单元,避免和 futureValue 重复计价。
+ */
+function leadTempo(L, cards, pWin){
+  return (pWin*tempoValue(L,cards)-(1-pWin)*AIP.oppTempo)*AIP.leadTempoWeight;
+}
+// 领出这一手能拿下这墩的粗估概率(只用于给 Tempo 加权,不参与收益计算)
+const LEAD_PWIN={throwBoss:0.95, boss:0.95, tractor:0.60, pair:0.45, single:0.25};
+
+/* 吊主(v4)。
+ * v3 里「领出主牌」和「领出副牌小牌」走同一条兜底分支,主牌只比副牌低一个常数 6,
+ * 而低主的 futureValue 才 2.5~5 —— 实测 1529 次将牌领出里 562 次(37%)是低将牌,
+ * 理由字符串全是「小牌探路」。一次这样的领出 = 白烧一张主 + 主动交出牌权,收益为零。
+ * 这就是「用将牌消耗对手没有实际收益、不考虑牌权」那条观察的直接来源。
+ *
+ * 吊主的真正判据只有一条:**我的主牌能不能耗过两个对手手上的主牌**。
+ *   对手预估剩余主牌 = 在外主牌总数 × (两个对手的手牌数 / 未见牌总数)
+ *   edge = 我的主牌数 − 对手预估
+ * edge > 0 才该吊,edge < 0 时领出主牌应当是负分。
+ * 这同时替换掉 v3 里写死的 `score:46 主力雄厚,吊主清场` —— 那个常数无条件压过所有
+ * 其他候选,而且根本不看对手还剩几张主。
+ */
+function drawTrumpValue(L){
+  if(L._dt!==undefined) return L._dt;
+  const {mem,trump}=L;
+  let unseenTotal=0, unseenTrump=0;
+  for(const k in mem.unseen){
+    const n=mem.unseen[k]; if(n<=0) continue;
+    unseenTotal+=n;
+    if(effSuit(keyToCard(k),trump)==='T') unseenTrump+=n;
+  }
+  if(unseenTotal<=0) return L._dt=0;
+  const hl=(L.hand||[]).length;
+  const oppTrump=unseenTrump*Math.min(1,2*hl/unseenTotal);
+  return L._dt=clamp(AIP.drawTrumpUnit*(L.nTrump-oppTrump),-AIP.drawTrumpCap,AIP.drawTrumpCap);
+}
+
+/* 送毙(v4)—— 主打队友的断门。
+ * v3 里全部的队内配合只有兜底分支的一句 `+8 队友缺这门,给他机会`,
+ * 在一堆 20~60 分的候选里等于没有,而且它只是给已有候选加分,不是一类独立策略。
+ * 现在按期望收益算:
+ *   队友确实缺这门(pPartnerVoid)× 对手不缺这门(否则是送给对手毙)
+ *   × ( 这一墩能收到的分 + 牌权回到我方的价值 )
+ * 两个概率都来自 makeVoidProb / maxHoldIn 的软推断,不是新造的假设。
+ * 带开关 AIP.feedRuff,便于单组件消融(设计文档 §6 的教训:先确认参数真的在起作用)。
+ */
+function feedRuffValue(L, cl, cards){
+  if(!AIP.feedRuff||cl.suit==='T'||countPoints(cards)>0) return 0;
+  const pv=L.partnerVoidP?L.partnerVoidP(cl.suit):0;
+  if(pv<AIP.feedRuffMinP) return 0;
+  // 队友手上还得有主牌可毙 —— 在外一张主都没有时这条不成立
+  const trAvail=unseenBeats(L.mem,{suit:'T',top:-1,type:'single'},L.trump).total;
+  if(trAvail<=0) return 0;
+  const oppNotVoid=1-(L.oppVoidP?L.oppVoidP(cl.suit):0);
+  const rem=unseenPointsIn(L.mem,cl.suit,L.trump);
+  const gain=Math.min(12,rem*0.33)+AIP.oppTempo;    // 这墩的分 + 牌权留在我方
+  return AIP.feedRuff*pv*oppNotVoid*gain;
 }
 
 function scoreLeadPlay(L, cl, cards){
+  const r=scoreLeadCore(L,cl,cards);
+  if(r.pWin===undefined) return r;
+  return {score:r.score+leadTempo(L,cards,r.pWin), reason:r.reason};
+}
+
+function scoreLeadCore(L, cl, cards){
   const {trump,mem}=L;
   if(!cl) return {score:-20,reason:'不成牌型'};
   const comps=cl.type==='throw'?cl.comps:[cl];
@@ -1656,7 +2033,8 @@ function scoreLeadPlay(L, cl, cards){
   const fut=futureValue(cards,L);              // 机会成本:这手留着以后值多少
   if(cl.type==='throw'){
     if(allBoss&&!ruffable)
-      return {score:68+size*3+leadPointsEV(L,cl,cards)*1.4*(L.pw||1)-fut*0.35,reason:'整门都是最大,甩牌施压'};
+      return {score:68+size*3+leadPointsEV(L,cl,cards)*1.4*(L.pw||1)-fut*0.35,
+              reason:'整门都是最大,甩牌施压',pWin:LEAD_PWIN.throwBoss};
     return {score:5-pts*4,reason:'甩牌有风险'};
   }
   if(allBoss){
@@ -1671,20 +2049,37 @@ function scoreLeadPlay(L, cl, cards){
       // 这里只留一个统一的基础折扣,避免把「清主」这种好棋也一并否掉。
       s-=L.phase==='end'?4:AIP.leadTrumpPenalty;
       reason=L.phase==='end'?'收官清主':'大主牌留作后手,压制到收官';
-      if(L.isDecl&&L.nTrump>=8&&cards.every(c=>c.suit!=='X')){
-        s+=16; reason='主力雄厚,吊主清场(大怪留后手)';
-      }
+      // 吊主的奖励只给非王的主牌:用王去吊,吊出来的主牌数量一样,却把全场最后的控制权
+      // 提前花掉了(「大怪留后手」)。负半边照扣 —— 主牌不占优时,连王带主都不该主动动。
+      const dt=drawTrumpValue(L);
+      s+=cards.every(c=>c.suit!=='X')?dt:Math.min(0,dt);
+      if(dt>8&&cards.every(c=>c.suit!=='X')) reason='主牌多于对手,吊主清场(大怪留后手)';
+      else if(dt<-8) reason='主牌不占优,先不动主';
     }
     if(ruffP>0.25){ s-=(35+(pts?10:0))*ruffP; reason='虽是钢板,但对手可能缺门来毙'; }
-    return {score:s,reason};
+    return {score:s,reason,pWin:cl.suit==='T'?0.97:LEAD_PWIN.boss*(1-ruffP)};
   }
-  if(cl.type==='tractor') return {score:30+size*4-(ruffable?10:0)-fut,reason:'拖拉机难跟,压一手'};
+  // 非钢板的主牌领出压不住场,对手用最小的主跟掉 —— 吊不出他的大主,只烧掉自己的。
+  // 所以这里**只取 drawTrumpValue 的负半边**:没有主牌优势要罚,有优势也不奖励
+  // (奖励留给钢板那一支,只有压得住的主牌才真的能把对手的主逼出来)。
+  // 实测:对所有主牌领出一律加正的 edge 奖励反而掉分(unit 0→+2.0、4→0.0、8→−2.8),
+  // 因为那是一个跨候选的常数偏移,把低主领出也一起抬了上去,正是要修的毛病。
+  const dtc=cl.suit==='T'?Math.min(0,drawTrumpValue(L))-AIP.leadWeakTrump:0;
+  if(cl.type==='tractor')
+    return {score:30+size*4-(ruffable?10:0)-fut+dtc,reason:'拖拉机难跟,压一手',pWin:LEAD_PWIN.tractor};
   if(cl.type==='pair')
-    return {score:20-cl.top*0.5-pts*4-(ruffable?8:0)-fut,
-            reason:pts?'分对慎出,无保护先探路':'出对子探路'};
-  let s=16-cl.top*0.8-pts*6-(cl.suit==='T'?6:0)-(ruffable&&pts?8:0)-fut, reason='小牌探路';
-  if(L.partnerVoid(cl.suit)&&!pts){ s+=8; reason='队友缺这门,给他机会'; }
-  return {score:s,reason};
+    return {score:20-cl.top*0.5-pts*4-(ruffable?8:0)-fut+dtc,
+            reason:pts?'分对慎出,无保护先探路':'出对子探路',
+            pWin:LEAD_PWIN.pair};
+  let s=16-cl.top*0.8-pts*6-(ruffable&&pts?8:0)-fut, reason='小牌探路';
+  if(cl.suit==='T'){
+    s+=Math.min(0,drawTrumpValue(L))-AIP.leadWeakTrump;
+    reason='小主领出压不住场,吊不出对手的大主';
+  }else{
+    const fr=feedRuffValue(L,cl,cards);
+    if(fr>0){ s+=fr; reason='主打队友的断门,让他毙下这墩'; }
+  }
+  return {score:s,reason,pWin:LEAD_PWIN.single};
 }
 
 // 领出决策
@@ -1710,14 +2105,9 @@ function aiChooseLead(view){
       }
     }
   }
-  // 吊主清场:庄家方且主力雄厚(≥8张),用非王主牌吊,大怪留后手
-  if(L.isDecl&&L.nTrump>=8){
-    const nonJoker=(bySuit['T']||[]).filter(c=>c.suit!=='X');
-    const comps=decompose(nonJoker,trump);
-    const unit=comps.filter(c=>c.type==='pair').sort((a,b)=>b.top-a.top)[0]
-            ||comps.filter(c=>c.type==='single').sort((a,b)=>b.top-a.top)[0];
-    if(unit) cands.push({cards:unit.cards,score:46,reason:'主力雄厚,吊主清场'});
-  }
+  // v3 这里还硬塞过一颗 `score:46 主力雄厚,吊主清场` 的候选。常数 46 无条件压过其他所有
+  // 候选,且不看对手还剩几张主 —— 现在吊主的收益由 drawTrumpValue 在正常评分里算出来,
+  // 所有主牌组件都能参与竞争,不需要这颗特例。
   cands.sort((a,b)=>b.score-a.score);
   const best=cands[0]||{cards:[view.hand[0]],reason:'兜底',score:0};
   return {...best,cands:cands.slice(0,3)};
@@ -1788,7 +2178,8 @@ function simulateRound(seed, smartSeats=[0,1,2,3]){
           defPoints, tricks, declSeat, noTrump:!trump.suit};
 }
 
-if(typeof module!=='undefined') module.exports={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
+/* 引擎公开面 —— 浏览器 #test 与 node 无头测试共用同一份,避免两边漂移 */
+const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
   canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,clampAtGate,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
@@ -1796,7 +2187,9 @@ if(typeof module!=='undefined') module.exports={RULES,makeDeck,cardPoints,countP
   aiChooseFollow,aiChooseLead,coachScoreFollow,coachScoreLead,makeVoids,followCtx,leadCtx,scoreLeadPlay,
   AIP,globalIdx,easeEnds,bossChain,pWinLastTrick,faceValue,voidProb,
   scoreDeclOption,declThreshold,aiDeclDecide,projectLen,trumpCountUnder,sideQuality,pPairOverride,
-  phaseOf,futureValue,pTeamWin,laterPoints,scorePlay,unseenPointsIn,leadPointsEV,pSurvive,unseenBeats,roundScore,pointWeight,ruffThrow,SCORE_LADDER,makeReads,maxHoldIn,makeVoidProb,cheapKey,dumpKey,kittyPointsEst,tempoValue};
+  phaseOf,futureValue,pTeamWin,laterPoints,scorePlay,unseenPointsIn,leadPointsEV,pSurvive,unseenBeats,roundScore,pointWeight,ruffThrow,SCORE_LADDER,makeReads,maxHoldIn,makeVoidProb,cheapKey,dumpKey,kittyPointsEst,tempoValue,
+  bossUnits,feedRuffValue,reserveHold,reserveUnit};
+if(typeof module!=='undefined') module.exports=ENGINE;
 </script>
 
 <script>
@@ -1923,6 +2316,20 @@ function runTests(E){
   ok('大王对>小王对', E.declarationOf(P('X',16),2).strength>E.declarationOf(P('X',15),2).strength);
   ok('大小王混对无效', E.declarationOf([C('X',15),C('X',16)],2)===null);
   ok('王对可反常主对', E.canOverride({suit:'H',strength:2},{suit:null,strength:3}));
+  // 不能反自己:同一人想加强只有「加固」一条路(同花色单→对)
+  const mine={seat:0,suit:'S',strength:1};
+  ok('不能反自己:改花色亮对', E.canOverride(mine,{suit:'H',strength:2},0)===false);
+  ok('不能反自己:小王对反无将', E.canOverride(mine,{suit:null,strength:3},0)===false);
+  ok('不能反自己:大王对反无将', E.canOverride(mine,{suit:null,strength:4},0)===false);
+  ok('别家仍可反', E.canOverride(mine,{suit:null,strength:4},1)===true);
+  // 我已亮♠单张,手上又摸到大王对 + ♥级牌对 —— 两者都只能是「反自己」,候选应被清空
+  ok('AI 不产出反自己的候选',
+     E.aiDeclDecide({vis:[...P('X',16),...P('H',2),C('S',2),C('S',14)],seat:0,trumpRank:2,
+                     curDecl:mine,dealerKnown:true,dealer:0,gates:[],levels:[2,2]})===null);
+  // 同一手牌换成别家来看,大王对反无将是合法候选
+  ok('别家看同一手牌仍有候选',
+     E.aiDeclDecide({vis:[...P('X',16),...P('H',2),C('S',2),C('S',14)],seat:1,trumpRank:2,
+                     curDecl:mine,dealerKnown:true,dealer:0,gates:[],levels:[2,2]})!==null);
   // 加固:仅亮主者本人、单→对、必须先于造反
   const decl1={seat:0,suit:'H',strength:1};
   const hd=[...P('H',2),C('C',3)];
@@ -2053,6 +2460,70 @@ function runTests(E){
     const ch=E.aiChooseLead(view);
     ok('领出钢板(大王对)先收', ch.cards.length===2&&ch.cards[0].rank===16);
   }
+  // ---- v4 场景测试 ----
+  // 护底该留哪一手:主牌 > 副牌对子 > 副牌单张(副牌单张最容易被毙,最不可能独大到最后)
+  {
+    const view={seat:0,declSeat:0,trump:T,history:[],buriedKnown:[C('H',10),C('D',13)],
+                hand:[...P('X',16),...P('H',14),C('C',14),C('D',3),C('D',4)]};
+    const L=E.leadCtx(view);
+    const units=E.bossUnits(L);
+    const hold=s=>{const u=units.find(x=>x.suit===s); return u?E.reserveHold(u,L):-1;};
+    ok('护底:主牌胜过副牌对子', hold('T')>hold('H'));
+    ok('护底:副牌对子胜过副牌单张', hold('H')>hold('C'));
+    ok('护底真的选中主牌', E.reserveUnit(L).suit==='T');
+  }
+  // 第三家的托底职责:压过当前最大不够,要压过**在外最大的分牌**,否则末家一张 K 连分带走
+  {
+    // 座1(我的队友)领 H5,座2(对手)跟 H9 暂大,我是座3,末家座0 是对手。
+    // 在外还有 HK —— 跟 HJ 只压过 H9,座0 一张 HK 就把 15 分拿走;正解是 HA。
+    // 手牌给足,让局面停在中盘 —— 收官阶段留 A 守最后一墩是另一条逻辑,别混在一起考
+    const plays=[{seat:1,cards:[C('H',5)]},{seat:2,cards:[C('H',9)]}];
+    const view={seat:3,trump:T,history:plays,buriedKnown:[],
+                hand:[C('H',11),C('H',14),C('H',3),C('D',4),C('D',6),C('D',7),
+                      C('C',4),C('C',6),C('C',7),C('C',9),C('S',7),C('S',8)]};
+    const ch=E.aiChooseFollow(view,plays);
+    ok('第三家盖住在外最大的分牌(打A不打J)', ch.cards.length===1&&ch.cards[0].rank===14);
+    E.AIP.blockWin=0;
+    const off=E.aiChooseFollow(view,plays);
+    E.AIP.blockWin=1;
+    ok('关掉 blockWin 就退回最省的吃法', off.cards[0].rank===11);
+  }
+  // 反过来:我是第二家、队友坐末手 —— 托底的是队友,我不该烧掉 A
+  {
+    const plays=[{seat:1,cards:[C('H',10)]}];
+    const view={seat:2,hand:[C('H',12),C('H',14),C('H',3),C('D',4)],trump:T,
+                history:plays,buriedKnown:[]};
+    ok('队友坐末手时不越位烧 A', E.aiChooseFollow(view,plays).cards[0].rank!==14);
+  }
+  // 造反用增量判据:手握长♠、对手已亮♥时,该反♠(改主色),而不是拿王对反成无将
+  {
+    const longS=[...P('S',2),C('S',14),C('S',13),C('S',12),C('S',11),C('S',10),C('S',9),
+                 C('S',8),C('S',7),...P('X',16),C('H',3),C('C',4),C('D',5)];
+    const d=E.aiDeclDecide({vis:longS,seat:0,trumpRank:2,curDecl:{seat:1,suit:'H',strength:1},
+                            dealerKnown:true,dealer:1,gates:[],levels:[2,2]});
+    ok('手握长主时不拿王对反无将', !!d&&d.opt.suit==='S');
+    // 同一手牌,把长门抽掉之后无将才该冒头
+    const shortS=[C('S',2),...P('X',16),C('H',3),C('H',4),C('C',4),C('C',5),C('D',5),C('D',6)];
+    const d2=E.aiDeclDecide({vis:shortS,seat:0,trumpRank:2,curDecl:{seat:1,suit:'H',strength:1},
+                             dealerKnown:true,dealer:1,gates:[],levels:[2,2]});
+    ok('长门被抽掉后无将才冒头', !!d2&&d2.opt.suit===null);
+  }
+  // 送毙:队友已知缺♦、对手不缺 → 领出♦小牌
+  {
+    // 队友(座2)在♦上没跟牌 = 硬缺门;对手(座1、3)都跟了♦
+    const hist=[{seat:0,cards:[C('D',14)]},{seat:1,cards:[C('D',6)]},
+                {seat:2,cards:[C('C',7)]},{seat:3,cards:[C('D',8)]}];
+    const view={seat:0,declSeat:1,trump:T,history:hist,buriedKnown:[],
+                hand:[C('D',3),C('D',4),C('H',6),C('H',7),C('C',9),C('C',8)]};
+    const L=E.leadCtx(view);
+    const fr=E.feedRuffValue(L,E.classify([C('D',3)],T),[C('D',3)]);
+    ok('队友缺门时送毙价值为正', fr>0);
+    E.AIP.feedRuff=0;
+    const off=E.scoreLeadPlay(E.leadCtx(view),E.classify([C('D',3)],T),[C('D',3)]).score;
+    E.AIP.feedRuff=1;
+    const on=E.scoreLeadPlay(E.leadCtx(view),E.classify([C('D',3)],T),[C('D',3)]).score;
+    ok('送毙开关真的在起作用', on>off);
+  }
   // ---- M7 策略升级 ----
   // 缺门推断
   {
@@ -2091,13 +2562,22 @@ function runTests(E){
     const ch=E.aiChooseLead(view);
     ok('领出:整门钢板甩牌', ch.cards.length===3&&ch.reason.includes('甩'));
   }
-  // 领出:庄家方主力雄厚吊主,且不用大怪
+  // 领出:主力雄厚时吊主,且不用大怪(v4:不再靠硬塞的常数候选,而是 drawTrumpValue 在正常评分里胜出)
   {
     const trumps=[...P('S',5),...P('S',6),C('S',9),C('S',11),C('S',13),C('X',16)];
     const view={seat:0,declSeat:0,hand:[...trumps,C('H',3),C('C',4)],trump:T,history:[],buriedKnown:[]};
     const ch=E.aiChooseLead(view);
-    const drain=ch.cands.find(c=>c.reason.includes('吊主'));
-    ok('庄家主多有吊主候选且不带大怪', !!drain&&!drain.cards.some(c=>c.rank===16));
+    ok('主力雄厚时领出主牌且不带大怪',
+       ch.cards.every(c=>E.effSuit(c,T)==='T')&&!ch.cards.some(c=>c.rank===16));
+  }
+  // 吊主是有条件的:主牌不占优时,低主领出必须是负分
+  {
+    const L=E.leadCtx({seat:0,declSeat:1,hand:[C('S',3),C('S',4),C('H',14),C('H',13),C('C',9),
+                                               C('C',8),C('D',7),C('D',6),C('D',5),C('D',4)],
+                       trump:T,history:[],buriedKnown:[]});
+    const weak=E.scoreLeadPlay(L,E.classify([C('S',3)],T),[C('S',3)]).score;
+    const side=E.scoreLeadPlay(L,E.classify([C('D',4)],T),[C('D',4)]).score;
+    ok('主牌不占优时低主领出劣于副牌小牌', weak<side);
   }
   // 贴分确定性:后手对手缺门 → 贴分降权
   {
@@ -2117,9 +2597,15 @@ function runTests(E){
       const big=[...P('X',16),C('S',3),C('S',9),C('H',14),C('H',7),C('D',6),C('C',8),...pad(12)];
       const open=E.aiChooseLead({seat:0,declSeat:0,hand:big,trump:T,history:[],buriedKnown:[]});
       ok('开局不直出王对', !open.cards.some(c=>c.rank===16));
-      const end=E.aiChooseLead({seat:0,declSeat:0,hand:[...P('X',16),C('H',4),C('D',3)],
-                                trump:T,history:[],buriedKnown:[]});
-      ok('收官王对该兑现', end.cards.length===2&&end.cards.every(c=>c.rank===16));
+      // v4:收官该不该兑现王对,由**底分**决定,不再是一个固定的 PHASE_K.end 折扣。
+      // 底里没分 → 留着没意义,该兑现;底里一堆分 → 王对就是守最后一墩那笔翻倍分的本钱。
+      const endHand=[...P('X',16),C('H',4),C('D',3)];
+      const poorKitty=[C('C',3),C('C',4),C('D',6),C('D',7),C('S',3),C('S',4),C('H',6),C('H',8)];
+      const richKitty=[C('H',10),C('D',13),C('S',10),C('C',13),C('H',5),C('D',5),C('C',3),C('S',4)];
+      const end=E.aiChooseLead({seat:0,declSeat:0,hand:endHand,trump:T,history:[],buriedKnown:poorKitty});
+      ok('底无分:收官王对该兑现', end.cards.length===2&&end.cards.every(c=>c.rank===16));
+      const end2=E.aiChooseLead({seat:0,declSeat:0,hand:endHand,trump:T,history:[],buriedKnown:richKitty});
+      ok('底有分:王对留着守最后一墩', !end2.cards.some(c=>c.rank===16));
     }
     // 2. 缺门时:队友已稳赢的空气墩绝不出主(既非毙也非垫);台面有分则该毙
     {
@@ -2341,10 +2827,6 @@ if(typeof module!=='undefined'){ module.exports.runTests=runTests; }
  * ============================================================ */
 (function(){
 if(typeof document==='undefined') return;
-const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,cutForFirst,effSuit,ordIdx,decompose,
-  classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,canOverride,declOptions,jokerPairOf,
-  canReinforce2,scoreRound,countPairsIn,maxTractorLen,structMatches,removeCard,aiLead,genFollow,
-  aiDiscard,simulateRound,bruteFollow};
 if(location.hash==='#test'){
   document.getElementById('app').style.display='none';
   const el=document.getElementById('tests'); el.style.display='block';
@@ -2361,7 +2843,7 @@ const TERMS_CN={bigJoker:'大王',smallJoker:'小王',trump:'主牌',noTrump:'�
   bury:'扣底',lead:'领出',zheng:'正常主',fu:'副常主',voidSuit:'断门',openVoid:'开局断门',
   rankA:'A',rankK:'K',rankQ:'Q',rankJ:'J',levelUp:'升级',
   defenders:'闲家',tiaoji:'跳级',guangtou:'剃光头'};   // 闲家/跳级/剃光头:沪语全国通用
-let useSH=false; try{ useSH=localStorage.getItem('80fen-lang')==='sh'; }catch(e){}
+let useSH=true; try{ const v=localStorage.getItem('80fentest-lang'); if(v) useSH=v==='sh'; }catch(e){}
 const T=k=>(useSH&&window.TERMS_SH&&window.TERMS_SH[k])||TERMS_CN[k]||k;
 
 const SUIT_SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
@@ -2371,10 +2853,10 @@ const HUMAN=0;
 const typeName=t=>({single:'单张',pair:'对子',tractor:T('tractor'),throw:T('throwP')}[t]);
 const rankName=r=>r===14?T('rankA'):r===13?T('rankK'):r===12?T('rankQ'):r===11?T('rankJ'):String(r);
 let G=null, seedBase=Date.now()%100000, activeTab='score', replayMode=false, histBySuit=false;
-let notes=[]; try{ notes=JSON.parse(localStorage.getItem('80fen-notes')||'[]'); }catch(e){}
+let notes=[]; try{ notes=JSON.parse(localStorage.getItem('80fentest-notes')||'[]'); }catch(e){}
 
 // ---- 音效(WebAudio 合成,无外部资源,可关) ----
-let sndOn=true; try{ sndOn=localStorage.getItem('80fen-snd')!=='off'; }catch(e){}
+let sndOn=true; try{ sndOn=localStorage.getItem('80fentest-snd')!=='off'; }catch(e){}
 let _actx=null;
 function beep(freq,dur=0.08,type='sine',gain=0.06,delay=0){
   if(!sndOn) return;
@@ -2418,13 +2900,13 @@ const S_DEFAULT={
 };
 let S={...S_DEFAULT, gates:[...S_DEFAULT.gates], rules:{...RULE_DEFAULTS}};
 try{
-  const saved=JSON.parse(localStorage.getItem('80fen-set')||'{}');
+  const saved=JSON.parse(localStorage.getItem('80fentest-set')||'{}');
   Object.assign(S,saved);
   S.rules={...RULE_DEFAULTS,...(saved.rules||{})};   // 老存档没有 rules 字段时回落到出厂值
 }catch(e){}
 function applyRules(){ Object.assign(RULES,S.rules); }
 applyRules();
-function saveS(){ try{ localStorage.setItem('80fen-set',JSON.stringify(S)); }catch(e){} }
+function saveS(){ try{ localStorage.setItem('80fentest-set',JSON.stringify(S)); }catch(e){} }
 // 秒 → 毫秒,顺手挡掉手输的空值/负数/非数字
 const secs=(v,fallback)=>1000*Math.max(0,(typeof v==='number'&&isFinite(v))?v:fallback);
 function aiThinkMs(){
@@ -2433,11 +2915,52 @@ function aiThinkMs(){
 }
 
 // ---- 设置菜单 ----
+// 打开时快照一份,「取消」按快照原样恢复(含已经落盘的 localStorage),
+// 「完成」什么都不用做——每项本来就是改了立即生效+保存。
 function openSettings(){
+  const snapshot={S:JSON.parse(JSON.stringify(S)), C:JSON.parse(JSON.stringify(C)), useSH, sndOn};
   const el=document.getElementById('setContent');
   el.innerHTML=
-    `<div style="font-size:20px;color:var(--gold);margin-bottom:12px">⚙ 设置</div>`+
-    `<div style="color:var(--gold);font-size:14px;margin-top:4px">规则</div>`+
+    `<div class="setHeader"><b>⚙ 设置</b>
+       <div class="setHeaderBtns">
+         <button id="stClose">完成</button>
+         <button class="minor" id="stCancel">取消</button>
+         <button class="minor" id="stReset">恢复默认</button>
+       </div>
+     </div>`+
+    // 新开一局:重置整场(级数/庄家全部归零),和上面三个"保存本次改动"的按钮性质不同
+    // (会丢掉当前比分),特意隔开、用警示色,不和日常设置项混在一起顺手点到。
+    `<div class="setRow" style="margin-top:0;justify-content:center">
+       <button id="stNewMatch" style="background:#c0392b;color:#fff">🔄 新开一局(重置整场)</button></div>`+
+    // 顺序按预期改动频率从高到低排:显示/音效、节奏是每次开局都可能顺手调的;
+    // 教练模式跟练习目标走,时有变化;规则是几个人说好怎么打就定下来的房规,最少动。
+    `<div class="setSection">显示与音效</div>`+
+    `<div class="setRow"><label>语言</label>
+       <select id="stLang">
+         <option value="sh">沪语版(术语切换)</option>
+         <option value="cn">普通话(全国版)</option>
+       </select></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="stSnd"> 🔊 音效</label></div>`+
+    `<div class="setSection">节奏</div>`+
+    `<div class="setRow"><label>发完牌后${T('declare')}等待(秒)</label>
+       <input type="number" id="stDeclWait" min="0" max="60" step="1"></div>`+
+    `<div class="setHint">等待期间可随时${T('declare')}/${T('counter')};点「不${T('declare')}」立即结束等待</div>`+
+    `<div class="setRow"><label>AI 出牌思考(秒)</label>
+       <input type="number" id="stMin" min="0" max="10" step="0.5"> –
+       <input type="number" id="stMax" min="0" max="10" step="0.5"></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="stManual"> 手动点击进入下一墩</label></div>`+
+    `<div class="setRow"><label>每墩出完留桌(秒)</label>
+       <input type="number" id="stHold" min="0" max="15" step="0.5"></div>`+
+    `<div class="setHint" id="stHoldHint"></div>`+
+    `<div class="setSection">教练</div>`+
+    `<div class="setRow"><label><input type="checkbox" id="cOn"> 教练总开关</label></div>`+
+    `<div class="setRow"><label>失误反馈灵敏度</label>
+       <select id="cSens">${['高','中','低','关'].map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="cStrict"> 严格模式(大失误可撤回)</label></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="cReview"> 局后复盘</label></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="cQuiz"> 提问引导</label></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="cMemShow"> 记牌表常显(不用每墩点开验证)</label></div>`+
+    `<div class="setSection">规则</div>`+
     `<div class="setRow"><label>低分/少${T('trump')}时</label>
        <select id="stRebel">
          <option value="off">关闭</option>
@@ -2456,33 +2979,7 @@ function openSettings(){
     `<div class="setRow"><label><input type="checkbox" id="rGates"> 必打关卡(不可跳级)</label></div>`+
     `<div class="setRow"><label>　└ 关卡级数</label>
        ${[2,5,10,13].map(g=>`<label style="margin-right:8px"><input type="checkbox" class="gateBox" data-g="${g}"> ${rankName(g)}</label>`).join('')}</div>`+
-    `<div class="setHint" id="rGateHint"></div>`+
-    `<div style="color:var(--gold);font-size:14px;margin-top:10px">节奏</div>`+
-    `<div class="setRow"><label>发完牌后${T('declare')}等待(秒)</label>
-       <input type="number" id="stDeclWait" min="0" max="60" step="1"></div>`+
-    `<div class="setHint">等待期间可随时${T('declare')}/${T('counter')};点「不${T('declare')}」立即结束等待</div>`+
-    `<div class="setRow"><label>AI 出牌思考(秒)</label>
-       <input type="number" id="stMin" min="0" max="10" step="0.5"> –
-       <input type="number" id="stMax" min="0" max="10" step="0.5"></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="stManual"> 手动点击进入下一墩</label></div>`+
-    `<div class="setRow"><label>每墩出完留桌(秒)</label>
-       <input type="number" id="stHold" min="0" max="15" step="0.5"></div>`+
-    `<div class="setHint" id="stHoldHint"></div>`+
-    `<div style="color:var(--gold);font-size:14px;margin-top:10px">显示与音效</div>`+
-    `<div class="setRow"><label><input type="checkbox" id="stLang"> 沪语版(术语切换)</label></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="stSnd"> 🔊 音效</label></div>`+
-    `<div style="color:var(--gold);font-size:14px;margin-top:10px">教练</div>`+
-    `<div class="setRow"><label><input type="checkbox" id="cOn"> 教练总开关</label></div>`+
-    `<div class="setRow"><label>失误反馈灵敏度</label>
-       <select id="cSens">${['高','中','低','关'].map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="cStrict"> 严格模式(大失误可撤回)</label></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="cReview"> 局后复盘</label></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="cQuiz"> 提问引导</label></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="cMemShow"> 记牌表常显(不用每墩点开验证)</label></div>`+
-    `<div style="margin-top:16px;text-align:center">
-       <button id="stClose">完成</button>
-       <button class="minor" id="stReset">恢复默认</button>
-     </div>`;
+    `<div class="setHint" id="rGateHint"></div>`;
   const $=id=>document.getElementById(id);
   const fill=()=>{
     $('stRebel').value=S.fullRebel; $('stMin').value=S.aiThinkMin;
@@ -2491,7 +2988,7 @@ function openSettings(){
     $('stManual').checked=!!S.manualNext;
     $('stHold').disabled=!!S.manualNext;
     $('stHoldHint').textContent=S.manualNext?'(手动模式下由你点「下一墩」决定)':'';
-    $('stLang').checked=useSH; $('stSnd').checked=sndOn;
+    $('stLang').value=useSH?'sh':'cn'; $('stSnd').checked=sndOn;
     $('cOn').checked=C.on; $('cSens').value=C.gapSens; $('cStrict').checked=C.strict;
     $('cReview').checked=C.review; $('cQuiz').checked=C.quiz; $('cMemShow').checked=C.memShow;
     $('rPts').value=S.rules.pointRebelThreshold;
@@ -2546,10 +3043,10 @@ function openSettings(){
   num('stMin','aiThinkMin'); num('stMax','aiThinkMax'); num('stHold','trickHold');
   num('stDeclWait','declWait');
   $('stManual').onchange=e=>{ S.manualNext=e.target.checked; saveS(); fill(); };
-  $('stLang').onchange=e=>{ useSH=e.target.checked;
-    try{ localStorage.setItem('80fen-lang',useSH?'sh':'cn'); }catch(_){ } if(G) render(); };
+  $('stLang').onchange=e=>{ useSH=e.target.value==='sh';
+    try{ localStorage.setItem('80fentest-lang',useSH?'sh':'cn'); }catch(_){ } if(G) render(); };
   $('stSnd').onchange=e=>{ sndOn=e.target.checked;
-    try{ localStorage.setItem('80fen-snd',sndOn?'on':'off'); }catch(_){ } };
+    try{ localStorage.setItem('80fentest-snd',sndOn?'on':'off'); }catch(_){ } };
   $('cOn').onchange=e=>{ C.on=e.target.checked; saveC(); if(G) render(); };
   $('cSens').onchange=e=>{ C.gapSens=e.target.value; saveC(); };
   $('cStrict').onchange=e=>{ C.strict=e.target.checked; saveC(); };
@@ -2558,7 +3055,25 @@ function openSettings(){
   $('cMemShow').onchange=e=>{ C.memShow=e.target.checked; saveC(); if(G) renderPanel(); };
   $('stReset').onclick=()=>{ S={...S_DEFAULT, gates:[...S_DEFAULT.gates], rules:{...RULE_DEFAULTS}};
     saveS(); applyRules(); fill(); if(G) render(); };
+  // 取消:每项改动本来就是即改即存,这里把开菜单那一刻的快照整个套回去(含持久化),
+  // 而不是只清内存——不然关掉重开又会看到"取消"前改过的值。
+  $('stCancel').onclick=()=>{
+    S=snapshot.S; C=snapshot.C; useSH=snapshot.useSH; sndOn=snapshot.sndOn;
+    saveS(); saveC(); applyRules();
+    try{
+      localStorage.setItem('80fentest-lang',useSH?'sh':'cn');
+      localStorage.setItem('80fentest-snd',sndOn?'on':'off');
+    }catch(_){ }
+    if(G) render();
+    closeSettings();
+  };
   $('stClose').onclick=closeSettings;
+  // 新开一局:整场级数/庄家全部归零,不是"下一局"那种保留级数的推进,破坏性操作要确认
+  $('stNewMatch').onclick=()=>{
+    if(!confirm('新开一局会重置整场比分和级数(从打2重新开始),当前进度无法找回。确定吗?')) return;
+    closeSettings();
+    window.__newMatch();
+  };
   document.getElementById('setOverlay').style.display='flex';
 }
 function closeSettings(){ document.getElementById('setOverlay').style.display='none'; }
@@ -2579,8 +3094,8 @@ window.__showKitty=()=>{
 
 // ---- 教练设置(全部可开关可调,默认全开) ----
 let C={on:true, gapSens:'中', strict:false, review:true, quiz:true, memShow:false};
-try{ Object.assign(C,JSON.parse(localStorage.getItem('80fen-coach')||'{}')); }catch(e){}
-function saveC(){ try{ localStorage.setItem('80fen-coach',JSON.stringify(C)); }catch(e){} }
+try{ Object.assign(C,JSON.parse(localStorage.getItem('80fentest-coach')||'{}')); }catch(e){}
+function saveC(){ try{ localStorage.setItem('80fentest-coach',JSON.stringify(C)); }catch(e){} }
 // 教练的「失误」门槛,单位是折算后的期望分。
 // 领出与跟牌的评分基准不同(领出含「拿住牌权」的战略值,量纲约为跟牌的 4 倍),
 // 所以领出的差值先除以 LEAD_GAP_SCALE 再比,否则教练会对领出唠叨、对跟牌失明。
@@ -3187,9 +3702,9 @@ function render(){
       btns.push(`<button data-a="re">${T('reinforce')}${SUIT_SYM[G.decl.suit]}</button>`);
     const jp=jokerPairOf(vis);
     // 王对(最长的一颗「亮无将(大)」—— 按钮定宽以此为准)排在花色左边,位置最靠前
-    if(jp&&canOverride(G.decl,jp))
+    if(jp&&canOverride(G.decl,jp,HUMAN))
       btns.push(`<button data-a="d" data-s="" data-st="${jp.strength}">${V}${T('noTrump')}(${jp.strength===4?'大':'小'})</button>`);
-    declOptions(vis,rankOf(HUMAN)).filter(o=>canOverride(G.decl,o))
+    declOptions(vis,rankOf(HUMAN)).filter(o=>canOverride(G.decl,o,HUMAN))
       .sort((a,b)=>SUITS.indexOf(a.suit)-SUITS.indexOf(b.suit))
       .forEach(o=>
         btns.push(`<button data-a="d" data-s="${o.suit}" data-st="${o.strength}">${V}${SUIT_SYM[o.suit]}${o.strength===2?'(对)':''}</button>`));
@@ -3386,7 +3901,7 @@ function sendNote(){
   const v=el.value.trim();
   if(!v) return;
   notes.push(v); el.value='';
-  try{ localStorage.setItem('80fen-notes',JSON.stringify(notes.slice(-100))); }catch(e){}
+  try{ localStorage.setItem('80fentest-notes',JSON.stringify(notes.slice(-100))); }catch(e){}
   renderPanel();
 }
 
