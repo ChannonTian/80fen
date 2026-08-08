@@ -176,27 +176,50 @@
   /* :hover 只给真鼠标/触控板——触屏没有"移开"这个事件,点完之后浏览器经常把
      :hover 悬在被点的(有时是旁边被叠住的)那张牌上不放,松手也不退,看起来就是
      "取消选择后卡在半抬起"或"旁边一张莫名其妙抬起来"。选中态完全交给 .sel 这个
-     真实状态类,和 :hover 无关,touch 设备直接不装这条规则最干净。 */
-  @media (hover:hover) and (pointer:fine){
-    #hand .card:hover{transform:translateY(-6px)}
-    #hand .card.sel:hover{transform:translateY(-14px)}
-  }
+     真实状态类,和 :hover 无关。
+     只用 @media (hover:hover) 挡不住:平板 + 妙控板、带触屏的笔记本、以及若干安卓
+     浏览器都把自己报成 hover:fine,手指点上去照样留下悬停态。改成由**实际输入设备**
+     决定 —— html.hasHover 这个类跟着最近一次 pointerdown 的 pointerType 走,
+     手指一碰就摘掉,鼠标一动就装回来(见脚本末尾 trackPointerType)。 */
+  html.hasHover #hand .card:hover{transform:translateY(-6px)}
+  html.hasHover #hand .card.sel:hover{transform:translateY(-14px)}
   #versionTag{position:fixed;right:10px;bottom:4px;font-size:11px;color:rgba(255,255,255,.3);
               pointer-events:none;z-index:1}
   /* ---- 窄屏竖屏(手机竖握):左右两栏塞不下,改上下叠,整体仍锁一屏 ---- */
   @media (max-width:820px) and (orientation:portrait){
     :root{--cardW:clamp(34px,10vw,54px)}
+    /* 侧栏原来是 0.9fr —— 和牌桌几乎平分屏幕。竖屏机身矮的时候(600~700px)这一刀
+       切得太狠:#table 只剩不到 100px,中间出牌区被压到 20px,而 .played 里的牌有
+       min-height:var(--cardH)(70px 上下),于是牌直接溢出到提示行和手牌上 ——
+       这就是"发牌时手牌盖住亮牌区、发完才归位"的真身(发完牌 dealZone 那两行预留
+       一释放,空间回来就自己好了,所以看着像动画没归位)。
+       侧栏内容本来就自带滚动,少给它一点不损失信息;牌桌被压扁却是直接看不清。 */
     #app{grid-template-columns:minmax(0,1fr);gap:6px;padding:6px;
-         grid-template-rows:auto minmax(0,1fr) minmax(0,0.9fr)}
+         grid-template-rows:auto minmax(min-content,1fr) minmax(0,0.6fr)}
     #main,#side{grid-column:1}
+    /* 竖屏把 min-height:0 收回来:牌桌要能把"我至少需要这么高"往上传,
+       上面那条 minmax(min-content,1fr) 才有东西可用,否则行照样被压塌、内容照样溢出 */
+    #main,#table{min-height:auto}
     #status{gap:6px 10px;padding:6px 10px}
     /* msg 已经是 #table 自己的一行(不挤在 #center 里),竖屏只需要让它撑满宽度、字小一号 */
     #msg{width:100%;font-size:var(--fsBase)}
+    /* 出牌区的下限:它是 3 行网格(北 / 西-东 / 南),四家的牌摊开就是要三张牌的高度。
+       给不够并不会"挤一挤",而是行被牌顶开、整块溢出到提示行和手牌上(牌是定高的,
+       缩不了)。宁可少给侧栏 —— 侧栏自带滚动,牌桌糊了是直接看不清。 */
     #center{max-height:none;align-self:stretch}
+    #table{grid-template-rows:auto minmax(calc(var(--cardH)*3 + 10px),1fr) auto auto}
+    /* 发牌期给操作区预留两行高度是为了桌面端按钮换行时不跳位;竖屏这两行 ≈60px,
+       恰好是把牌桌压塌的最后一根稻草。竖屏按钮本来就换行,少预留半行即可。 */
+    #controls.dealing #dealZone{min-height:2.4em}
     /* 座位名与张数并排,省一半纵向 */
     .seat{flex-direction:row;gap:6px}
     #table{grid-template-rows:auto minmax(0,1fr) auto auto}
     #tabs button{padding:5px 9px}
+  }
+  /* 竖屏且机身矮(iPhone SE 一类,或桌面浏览器窄窗口):出牌区要三张牌高是硬需求,
+     省不出来就只能把牌本身做小 —— 牌小一号总比记录面板被挤没了强。 */
+  @media (max-width:820px) and (orientation:portrait) and (max-height:700px){
+    :root{--cardW:clamp(30px,8vw,44px)}
   }
   /* ---- 横屏(含手机横握):一律保持左右布局,侧栏收窄给牌桌让位 ---- */
   @media (orientation:landscape) and (max-height:600px){
@@ -266,7 +289,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.5.0(测试版)</div>
+<div id="versionTag">80分 v0.5.1(测试版)</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -683,7 +706,14 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   endHorizon: 4,              // 剩几张牌起算「最后一墩争夺」(底分越大越提前,见 endHorizonOf)
   endHorizonMax: 9,           // 提前量的上限
   endHorizonPerPt: 1/6,       // 每 1 分底分,把「最后一墩争夺」提前多少张牌
-  endKittyWeight: 0.55,       // 底分折算进留牌价值的比例
+  /* 底分折算进留牌价值的比例。
+   * v4 给的 0.55 太轻:底 12 分、还剩 3 张时,护底手的加值只有 12×2×0.5×0.55 ≈ 6.6 分,
+   * 压不过"现在就把这张钢板兑现"的当墩收益 —— 于是庄家 40% 的局把保底手提前打光,
+   * 最后一墩连人带底一起送掉(这正是需求列表里「底里超过10分却提前没了保底手段」)。
+   * 扫参 1.0→7.0 是一条先升后平的曲线,4~7 之间是平台,取中间的 5.0。
+   * 实测(样本外 300 副配对):+2.17 分/局(SE 0.60, t=3.6),
+   * 庄家丢掉最后一墩 39.7% → 18.3%。 */
+  endKittyWeight: 5.0,
   ruffStruct1: 0.85,          // 对手断门时,毙掉我一张副牌单张的把握
   ruffStruct2: 0.45,          // 毙掉一个副牌对子(要一对主)的把握
   ruffStruct3: 0.25,          // 毙掉三张以上的一手副牌(要同结构的主)的把握
@@ -722,6 +752,18 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   pPartnerPrior: 0.32,
   pPartnerCalc: 0,            // 记牌证据相对先验的采信比例;0 = 完全用先验(实测最优)
   blockWin: 1,                // 1=生成「盖住末家分牌」的吃法候选;0=只用最省的吃法(消融用)
+  /* 「接过队友」的开放范围:0=关 | 1=将牌墩与断门毙分 | 2=全开 | 3/4=单支消融(见 takeOverScoped)。
+   * **默认 0 —— 这是一条实测为负的改动,代码留着是因为它对应的局面确实存在。**
+   * 动机是需求列表那两条:队友调王没人接、队友副花 K 暂大而我断门不毙,末家一张 A/10 全收走。
+   * 候选生成本身没问题(旧版整组吃/毙候选被 `if(!partnerWinning)` 挡在门外,一张都不生成),
+   * 但配对对照里各档都掉分:全开 −1.0、限将牌墩 −0.5、限断门毙分 −0.3、
+   * 再收紧确定性门槛到 0.5 才回到 −0.05。原因大概率是 certainty 本身系统性低估队友
+   * (校准表:模型 0.692 / 实际 0.782,见 AI-DESIGN §5.1),于是这条闸门开得太频。
+   * 要真正吃下这块收益,得先把 certainty 重标定,而不是在它上面再加一层。 */
+  takeOverScope: 0,
+  takeOverMaxCertainty: 0.85, // 队友暂大且确定性低于此值时,才生成「接过来」的候选(v4.3)
+  overPartner: 3,             // 压自家队友的固定罚分(信息与配合成本)
+  takeOverMinPts: 5,          // 断门毙分那一支的桌面分下限
   partnerHoldAfter: 0.72,     // 队友压回来之后,身后还有对手时守得住的比例
 };
 
@@ -1844,16 +1886,39 @@ function scoreWinPlay(X,cards){ return scorePlay(X,cards,
 function scoreDumpPlay(X,cards){ return scorePlay(X,cards,'dump',false); }
 function scoreCheapPlay(X,cards){ return scorePlay(X,cards,'cheap',false); }
 
+/* 「接过队友」这条候选开在哪些局面(v4.3)。
+ * 全开(scope=2)实测掉分:多数时候队友本来就守得住,白烧一张大牌。
+ * 真正吃亏的是两类有明确因果的局面,只在这两类里开:
+ *   1) 将牌墩 —— 队友调王(领出小主找支援),标的本来就是牌权,
+ *      没人接的话末家对手一张 10/K 连分带牌权全拿走;
+ *   2) 桌上有分 + 我在领出门断门 —— 队友那张副花 K 只是"暂大",
+ *      末家掏出 A 就整份送出去,这时我手上的主牌是该花的。
+ */
+function takeOverScoped(X, view){
+  if(!AIP.takeOverScope) return false;
+  if(AIP.takeOverScope===2) return true;
+  const voidRuff=X.ptsTable>=AIP.takeOverMinPts
+                 && !view.hand.some(c=>effSuit(c,X.trump)===X.lead.suit);
+  if(AIP.takeOverScope===3) return voidRuff;       // 只留断门毙分(消融用)
+  if(AIP.takeOverScope===4) return X.lead.suit==='T';  // 只留将牌墩(消融用)
+  return X.lead.suit==='T' || voidRuff;
+}
+
 // 跟牌决策
 function aiChooseFollow(view, plays){
   const X=followCtx(view,plays);
   const {trump,lead}=X;
   const cands=[];
-  const push=(cards,cat,beats,reason)=>{
+  /* 同一手牌可能被两条不同的理由生成(比如「接过队友」和「跟分」常常就是同一张)。
+   * 旧版遇到重复直接丢掉后来的那个 —— 于是先入的那条(可能带着罚分)会顶替掉
+   * 本该以另一套口径打分的同一手牌,凭空改变了它的分数。改成留分高的那一条。 */
+  const push=(cards,cat,beats,reason,penalty)=>{
     if(!cards) return;
-    if(cands.some(c=>c.cards.length===cards.length
-        &&c.cards.every((x,i)=>x.id===cards[i].id))) return;
-    cands.push({cards,cat,score:scorePlay(X,cards,cat,beats),reason});
+    const score=scorePlay(X,cards,cat,beats)-(penalty||0);
+    const dup=cands.find(c=>c.cards.length===cards.length
+        &&c.cards.every((x,i)=>x.id===cards[i].id));
+    if(dup){ if(score>dup.score){ dup.score=score; dup.cat=cat; dup.reason=reason; } return; }
+    cands.push({cards,cat,score,reason});
   };
   // 1. 跟大/毙牌 —— 最省的吃法
   if(!X.partnerWinning){
@@ -1878,6 +1943,36 @@ function aiChooseFollow(view, plays){
     if(AIP.blockWin&&!X.isLast&&X.remainingOpp.length)
       push(blockWinFollow(view.hand,lead,trump,X.cur.cl,X.mem),'over',true,
            '吃到在外最大分牌之上,封死末家用分牌拿墩');
+  }
+  /* 1c. 队友只是**暂大**时,也要能接过来(v4.3)。
+   *
+   * 旧版这一整组「吃/毙」候选包在 `if(!partnerWinning)` 里 —— 队友暂大就一张都不生成,
+   * AI 只能在 贴分 / 跟小 / 垫牌 里挑。于是两类实战常见的亏损根本算不出来:
+   *
+   *   · 队友领出小主(调王),我手上有大主却只会跟小 —— 牌权没人接,
+   *     末家对手一张 10/K 就把这墩连分带牌权拿走。
+   *   · 队友出副花 K 暂大,我这门断门、手上有主,却因为"队友大着"不毙,
+   *     末家对手掏出 A,桌上的分整份送出去。
+   *
+   * 不是"队友大就一定要压"——那会白白烧大牌。只是把候选**生成出来**,
+   * 让 scorePlay 用同一把尺子去比:接过来的存活率是 pSurvive(我这张),
+   * 让队友扛的存活率是 X.certainty(记牌算出来的),分、牌权、机会成本都已经在式子里。
+   * 唯一的额外项是 overPartner —— 压自家队友本身有信息与配合上的代价,给一个固定罚分。
+   * certainty 已经很高(队友基本稳赢)时不生成,省掉这份计算。
+   */
+  else if(!X.isLast&&X.remainingOpp.length&&X.certainty<AIP.takeOverMaxCertainty
+          &&takeOverScoped(X,view)){
+    const win=minWinFollow(view.hand,lead,trump,X.cur.cl);
+    if(win){
+      const cl=classify(win,trump);
+      const isRuff=cl&&cl.suit==='T'&&lead.suit!=='T';
+      push(win,isRuff?'ruff':'over',true,
+        isRuff?'队友只是暂大,后手对手能压 —— 断门毙下来':'队友只是暂大,后手对手能压 —— 接过牌权',
+        AIP.overPartner);
+    }
+    if(AIP.blockWin)
+      push(blockWinFollow(view.hand,lead,trump,X.cur.cl,X.mem),'over',true,
+           '压到在外最大分牌之上,别让末家用分牌把队友这墩掀掉',AIP.overPartner);
   }
   // 2. 贴分 —— 队友大就送分,但确定性不够时收敛
   const dump=buildFollow(view.hand,lead,trump,'dump',null);
@@ -2454,11 +2549,16 @@ function runTests(E){
     const ch=E.aiChooseFollow(view,plays);
     ok('对手大,跟小不送分', ch.cards[0].rank===4);
   }
-  // 领出:手握双大王 → 先收一墩
+  /* 收官只剩 4 张、底牌未知(闲家视角按未见分倒推 → 估得很肥)时,王对该攥着守最后一墩。
+   *
+   * 这条断言在 v4.3 之前是反的(「钢板先收」)。改口径不是为了迁就实现:
+   * 这手牌是 王王 + H4 + C7,王对领出去要占掉两墩,剩下 H4/C7 两张都是输牌,
+   * 最后一墩必丢 —— 底里那笔翻倍的分跟着一起送出去。攥着王对才是对的打法。
+   * 「底里没分就该兑现」的另一半,由下面 v4 场景里的 poorKitty / richKitty 两条覆盖。 */
   {
     const view={seat:0,hand:[...P('X',16),C('H',4),C('C',7)],trump:T,history:[],buriedKnown:[]};
     const ch=E.aiChooseLead(view);
-    ok('领出钢板(大王对)先收', ch.cards.length===2&&ch.cards[0].rank===16);
+    ok('收官底肥:王对留着守最后一墩', !ch.cards.some(c=>c.rank===16));
   }
   // ---- v4 场景测试 ----
   // 护底该留哪一手:主牌 > 副牌对子 > 副牌单张(副牌单张最容易被毙,最不可能独大到最后)
@@ -3913,6 +4013,17 @@ document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
   activeTab=activeTab===b.dataset.tab?null:b.dataset.tab;
   renderPanel();
 });
+
+/* 悬停态跟着真实输入设备走,而不是跟着设备"声称"支持什么(见样式里 html.hasHover)。
+   pointerdown 用捕获阶段,保证在任何点击处理之前就把类切好。 */
+function trackPointerType(){
+  const el=document.documentElement;
+  const set=on=>el.classList.toggle('hasHover',on);
+  set(matchMedia('(hover:hover) and (pointer:fine)').matches);   // 起手按浏览器说的算
+  addEventListener('pointerdown',e=>set(e.pointerType==='mouse'),{capture:true,passive:true});
+  addEventListener('pointermove',e=>{ if(e.pointerType==='mouse') set(true); },{capture:true,passive:true});
+}
+trackPointerType();
 
 showStartScreen();
 function showStartScreen(){
