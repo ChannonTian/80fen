@@ -176,27 +176,50 @@
   /* :hover 只给真鼠标/触控板——触屏没有"移开"这个事件,点完之后浏览器经常把
      :hover 悬在被点的(有时是旁边被叠住的)那张牌上不放,松手也不退,看起来就是
      "取消选择后卡在半抬起"或"旁边一张莫名其妙抬起来"。选中态完全交给 .sel 这个
-     真实状态类,和 :hover 无关,touch 设备直接不装这条规则最干净。 */
-  @media (hover:hover) and (pointer:fine){
-    #hand .card:hover{transform:translateY(-6px)}
-    #hand .card.sel:hover{transform:translateY(-14px)}
-  }
+     真实状态类,和 :hover 无关。
+     只用 @media (hover:hover) 挡不住:平板 + 妙控板、带触屏的笔记本、以及若干安卓
+     浏览器都把自己报成 hover:fine,手指点上去照样留下悬停态。改成由**实际输入设备**
+     决定 —— html.hasHover 这个类跟着最近一次 pointerdown 的 pointerType 走,
+     手指一碰就摘掉,鼠标一动就装回来(见脚本末尾 trackPointerType)。 */
+  html.hasHover #hand .card:hover{transform:translateY(-6px)}
+  html.hasHover #hand .card.sel:hover{transform:translateY(-14px)}
   #versionTag{position:fixed;right:10px;bottom:4px;font-size:11px;color:rgba(255,255,255,.3);
               pointer-events:none;z-index:1}
   /* ---- 窄屏竖屏(手机竖握):左右两栏塞不下,改上下叠,整体仍锁一屏 ---- */
   @media (max-width:820px) and (orientation:portrait){
     :root{--cardW:clamp(34px,10vw,54px)}
+    /* 侧栏原来是 0.9fr —— 和牌桌几乎平分屏幕。竖屏机身矮的时候(600~700px)这一刀
+       切得太狠:#table 只剩不到 100px,中间出牌区被压到 20px,而 .played 里的牌有
+       min-height:var(--cardH)(70px 上下),于是牌直接溢出到提示行和手牌上 ——
+       这就是"发牌时手牌盖住亮牌区、发完才归位"的真身(发完牌 dealZone 那两行预留
+       一释放,空间回来就自己好了,所以看着像动画没归位)。
+       侧栏内容本来就自带滚动,少给它一点不损失信息;牌桌被压扁却是直接看不清。 */
     #app{grid-template-columns:minmax(0,1fr);gap:6px;padding:6px;
-         grid-template-rows:auto minmax(0,1fr) minmax(0,0.9fr)}
+         grid-template-rows:auto minmax(min-content,1fr) minmax(0,0.6fr)}
     #main,#side{grid-column:1}
+    /* 竖屏把 min-height:0 收回来:牌桌要能把"我至少需要这么高"往上传,
+       上面那条 minmax(min-content,1fr) 才有东西可用,否则行照样被压塌、内容照样溢出 */
+    #main,#table{min-height:auto}
     #status{gap:6px 10px;padding:6px 10px}
     /* msg 已经是 #table 自己的一行(不挤在 #center 里),竖屏只需要让它撑满宽度、字小一号 */
     #msg{width:100%;font-size:var(--fsBase)}
+    /* 出牌区的下限:它是 3 行网格(北 / 西-东 / 南),四家的牌摊开就是要三张牌的高度。
+       给不够并不会"挤一挤",而是行被牌顶开、整块溢出到提示行和手牌上(牌是定高的,
+       缩不了)。宁可少给侧栏 —— 侧栏自带滚动,牌桌糊了是直接看不清。 */
     #center{max-height:none;align-self:stretch}
+    #table{grid-template-rows:auto minmax(calc(var(--cardH)*3 + 10px),1fr) auto auto}
+    /* 发牌期给操作区预留两行高度是为了桌面端按钮换行时不跳位;竖屏这两行 ≈60px,
+       恰好是把牌桌压塌的最后一根稻草。竖屏按钮本来就换行,少预留半行即可。 */
+    #controls.dealing #dealZone{min-height:2.4em}
     /* 座位名与张数并排,省一半纵向 */
     .seat{flex-direction:row;gap:6px}
     #table{grid-template-rows:auto minmax(0,1fr) auto auto}
     #tabs button{padding:5px 9px}
+  }
+  /* 竖屏且机身矮(iPhone SE 一类,或桌面浏览器窄窗口):出牌区要三张牌高是硬需求,
+     省不出来就只能把牌本身做小 —— 牌小一号总比记录面板被挤没了强。 */
+  @media (max-width:820px) and (orientation:portrait) and (max-height:700px){
+    :root{--cardW:clamp(30px,8vw,44px)}
   }
   /* ---- 横屏(含手机横握):一律保持左右布局,侧栏收窄给牌桌让位 ---- */
   @media (orientation:landscape) and (max-height:600px){
@@ -266,7 +289,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.5.0</div>
+<div id="versionTag">80分 v0.5.2</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -556,25 +579,45 @@ function scoreRound({defPoints, kitty, defWonLastTrick, lastLeadSize}){
 // ---- 整场推进:升级与庄家轮换 ----
 // 庄家方守住 → 升级、前庄对家连庄;闲家上台 → 闲家升级、前庄下家坐庄。
 // 任一队级数打过 A(>14)整场获胜。
-// 必打关卡:跳级途中撞上就停在关卡上(打3升3级本应到6,5是关卡则停在5)。
-// 落点正好等于关卡不算跳过 —— 那本来就要在该级打一局。
+// 必打关卡有两层,旧版只做了第一层:
+//   1) **不可跳级**:升级途中跨过关卡就停在关卡上(打3升3级本应到6,5是关卡则停在5)。
+//   2) **必须打过**:过这一关的条件是本队在该级**坐过庄**。
+// 第二层原来是缺的,而且缺得不显眼:旧注释写「落点正好等于关卡不算跳过 ——
+// 那本来就要在该级打一局」,这句话对庄家成立、对闲家不成立 ——
+// 一局打的是**庄家方**的级数,所以一支队停在 2 上当闲家、上台升一级,
+// 是从没打过这一关就过去了(实战报障:闲家本级 2,抢到 150 分直接打 3)。
 function clampAtGate(from, to, gates){
   if(!gates||!gates.length||to<=from) return {level:to, gate:null};
   const hit=gates.filter(g=>g>from&&g<to).sort((a,b)=>a-b)[0];
   return hit===undefined?{level:to, gate:null}:{level:hit, gate:hit};
 }
 
-function advanceMatch(levels, declSeat, sc, gates){
+/* played[team] = 该队已经**坐庄打过**的最高级数(没有则 -1)。
+ * 传 null / 不传 = 只做第一层(不可跳级),用于旧调用方与消融。
+ * 返回值里带上更新后的 played,调用方存回去即可 —— 引擎自己不留状态。 */
+function advanceMatch(levels, declSeat, sc, gates, played){
   const declTeam=declSeat%2;
   const L=levels.slice();
+  // 本局是庄家方按**自己的**级数在打,这一局本身就是他们「打过」这一级的证据
+  const pl=played?played.slice():null;
+  if(pl) pl[declTeam]=Math.max(pl[declTeam],L[declTeam]);
   let dealer, up, team;
   if(!sc.defendersWin){ team=declTeam; up=sc.declarerLevelsUp; dealer=(declSeat+2)%4; }
   else { team=1-declTeam; up=sc.defenderLevelsUp; dealer=(declSeat+1)%4; }
   const c=clampAtGate(L[team], L[team]+up, gates);
-  L[team]=c.level;
+  let level=c.level, gateStopped=c.gate, gateHeld=null;
+  // 停在关卡上、却没在这一级坐过庄 → 原地不动。
+  // 不会卡死:升级的这一方下一局必坐庄(守住是对家连庄、上台是自己坐庄),
+  // 也就是下一局一定会补上这一关。
+  if(gates&&gates.length&&pl&&up>0&&gates.includes(L[team])&&pl[team]<L[team]){
+    level=L[team]; gateStopped=null; gateHeld=L[team];
+  }
+  L[team]=level;
   const matchOver=L[0]>14||L[1]>14;
   return {levels:L, dealer, matchOver, winnerTeam:matchOver?(L[0]>14?0:1):null,
-          gateStopped:c.gate};   // 非 null = 本次被关卡拦下,界面要提示
+          gateStopped,        // 非 null = 跳级被关卡拦下,停在关卡上
+          gateHeld,           // 非 null = 卡在这一关上,因为本队还没坐庄打过它
+          played:pl};
 }
 
 /* ---- 随机合法 AI(M3 换启发式) ---- */
@@ -683,7 +726,14 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   endHorizon: 4,              // 剩几张牌起算「最后一墩争夺」(底分越大越提前,见 endHorizonOf)
   endHorizonMax: 9,           // 提前量的上限
   endHorizonPerPt: 1/6,       // 每 1 分底分,把「最后一墩争夺」提前多少张牌
-  endKittyWeight: 0.55,       // 底分折算进留牌价值的比例
+  /* 底分折算进留牌价值的比例。
+   * v4 给的 0.55 太轻:底 12 分、还剩 3 张时,护底手的加值只有 12×2×0.5×0.55 ≈ 6.6 分,
+   * 压不过"现在就把这张钢板兑现"的当墩收益 —— 于是庄家 40% 的局把保底手提前打光,
+   * 最后一墩连人带底一起送掉(这正是需求列表里「底里超过10分却提前没了保底手段」)。
+   * 扫参 1.0→7.0 是一条先升后平的曲线,4~7 之间是平台,取中间的 5.0。
+   * 实测(样本外 300 副配对):+2.17 分/局(SE 0.60, t=3.6),
+   * 庄家丢掉最后一墩 39.7% → 18.3%。 */
+  endKittyWeight: 5.0,
   ruffStruct1: 0.85,          // 对手断门时,毙掉我一张副牌单张的把握
   ruffStruct2: 0.45,          // 毙掉一个副牌对子(要一对主)的把握
   ruffStruct3: 0.25,          // 毙掉三张以上的一手副牌(要同结构的主)的把握
@@ -722,6 +772,18 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   pPartnerPrior: 0.32,
   pPartnerCalc: 0,            // 记牌证据相对先验的采信比例;0 = 完全用先验(实测最优)
   blockWin: 1,                // 1=生成「盖住末家分牌」的吃法候选;0=只用最省的吃法(消融用)
+  /* 「接过队友」的开放范围:0=关 | 1=将牌墩与断门毙分 | 2=全开 | 3/4=单支消融(见 takeOverScoped)。
+   * **默认 0 —— 这是一条实测为负的改动,代码留着是因为它对应的局面确实存在。**
+   * 动机是需求列表那两条:队友调王没人接、队友副花 K 暂大而我断门不毙,末家一张 A/10 全收走。
+   * 候选生成本身没问题(旧版整组吃/毙候选被 `if(!partnerWinning)` 挡在门外,一张都不生成),
+   * 但配对对照里各档都掉分:全开 −1.0、限将牌墩 −0.5、限断门毙分 −0.3、
+   * 再收紧确定性门槛到 0.5 才回到 −0.05。原因大概率是 certainty 本身系统性低估队友
+   * (校准表:模型 0.692 / 实际 0.782,见 AI-DESIGN §5.1),于是这条闸门开得太频。
+   * 要真正吃下这块收益,得先把 certainty 重标定,而不是在它上面再加一层。 */
+  takeOverScope: 0,
+  takeOverMaxCertainty: 0.85, // 队友暂大且确定性低于此值时,才生成「接过来」的候选(v4.3)
+  overPartner: 3,             // 压自家队友的固定罚分(信息与配合成本)
+  takeOverMinPts: 5,          // 断门毙分那一支的桌面分下限
   partnerHoldAfter: 0.72,     // 队友压回来之后,身后还有对手时守得住的比例
 };
 
@@ -1844,16 +1906,39 @@ function scoreWinPlay(X,cards){ return scorePlay(X,cards,
 function scoreDumpPlay(X,cards){ return scorePlay(X,cards,'dump',false); }
 function scoreCheapPlay(X,cards){ return scorePlay(X,cards,'cheap',false); }
 
+/* 「接过队友」这条候选开在哪些局面(v4.3)。
+ * 全开(scope=2)实测掉分:多数时候队友本来就守得住,白烧一张大牌。
+ * 真正吃亏的是两类有明确因果的局面,只在这两类里开:
+ *   1) 将牌墩 —— 队友调王(领出小主找支援),标的本来就是牌权,
+ *      没人接的话末家对手一张 10/K 连分带牌权全拿走;
+ *   2) 桌上有分 + 我在领出门断门 —— 队友那张副花 K 只是"暂大",
+ *      末家掏出 A 就整份送出去,这时我手上的主牌是该花的。
+ */
+function takeOverScoped(X, view){
+  if(!AIP.takeOverScope) return false;
+  if(AIP.takeOverScope===2) return true;
+  const voidRuff=X.ptsTable>=AIP.takeOverMinPts
+                 && !view.hand.some(c=>effSuit(c,X.trump)===X.lead.suit);
+  if(AIP.takeOverScope===3) return voidRuff;       // 只留断门毙分(消融用)
+  if(AIP.takeOverScope===4) return X.lead.suit==='T';  // 只留将牌墩(消融用)
+  return X.lead.suit==='T' || voidRuff;
+}
+
 // 跟牌决策
 function aiChooseFollow(view, plays){
   const X=followCtx(view,plays);
   const {trump,lead}=X;
   const cands=[];
-  const push=(cards,cat,beats,reason)=>{
+  /* 同一手牌可能被两条不同的理由生成(比如「接过队友」和「跟分」常常就是同一张)。
+   * 旧版遇到重复直接丢掉后来的那个 —— 于是先入的那条(可能带着罚分)会顶替掉
+   * 本该以另一套口径打分的同一手牌,凭空改变了它的分数。改成留分高的那一条。 */
+  const push=(cards,cat,beats,reason,penalty)=>{
     if(!cards) return;
-    if(cands.some(c=>c.cards.length===cards.length
-        &&c.cards.every((x,i)=>x.id===cards[i].id))) return;
-    cands.push({cards,cat,score:scorePlay(X,cards,cat,beats),reason});
+    const score=scorePlay(X,cards,cat,beats)-(penalty||0);
+    const dup=cands.find(c=>c.cards.length===cards.length
+        &&c.cards.every((x,i)=>x.id===cards[i].id));
+    if(dup){ if(score>dup.score){ dup.score=score; dup.cat=cat; dup.reason=reason; } return; }
+    cands.push({cards,cat,score,reason});
   };
   // 1. 跟大/毙牌 —— 最省的吃法
   if(!X.partnerWinning){
@@ -1878,6 +1963,36 @@ function aiChooseFollow(view, plays){
     if(AIP.blockWin&&!X.isLast&&X.remainingOpp.length)
       push(blockWinFollow(view.hand,lead,trump,X.cur.cl,X.mem),'over',true,
            '吃到在外最大分牌之上,封死末家用分牌拿墩');
+  }
+  /* 1c. 队友只是**暂大**时,也要能接过来(v4.3)。
+   *
+   * 旧版这一整组「吃/毙」候选包在 `if(!partnerWinning)` 里 —— 队友暂大就一张都不生成,
+   * AI 只能在 贴分 / 跟小 / 垫牌 里挑。于是两类实战常见的亏损根本算不出来:
+   *
+   *   · 队友领出小主(调王),我手上有大主却只会跟小 —— 牌权没人接,
+   *     末家对手一张 10/K 就把这墩连分带牌权拿走。
+   *   · 队友出副花 K 暂大,我这门断门、手上有主,却因为"队友大着"不毙,
+   *     末家对手掏出 A,桌上的分整份送出去。
+   *
+   * 不是"队友大就一定要压"——那会白白烧大牌。只是把候选**生成出来**,
+   * 让 scorePlay 用同一把尺子去比:接过来的存活率是 pSurvive(我这张),
+   * 让队友扛的存活率是 X.certainty(记牌算出来的),分、牌权、机会成本都已经在式子里。
+   * 唯一的额外项是 overPartner —— 压自家队友本身有信息与配合上的代价,给一个固定罚分。
+   * certainty 已经很高(队友基本稳赢)时不生成,省掉这份计算。
+   */
+  else if(!X.isLast&&X.remainingOpp.length&&X.certainty<AIP.takeOverMaxCertainty
+          &&takeOverScoped(X,view)){
+    const win=minWinFollow(view.hand,lead,trump,X.cur.cl);
+    if(win){
+      const cl=classify(win,trump);
+      const isRuff=cl&&cl.suit==='T'&&lead.suit!=='T';
+      push(win,isRuff?'ruff':'over',true,
+        isRuff?'队友只是暂大,后手对手能压 —— 断门毙下来':'队友只是暂大,后手对手能压 —— 接过牌权',
+        AIP.overPartner);
+    }
+    if(AIP.blockWin)
+      push(blockWinFollow(view.hand,lead,trump,X.cur.cl,X.mem),'over',true,
+           '压到在外最大分牌之上,别让末家用分牌把队友这墩掀掉',AIP.overPartner);
   }
   // 2. 贴分 —— 队友大就送分,但确定性不够时收敛
   const dump=buildFollow(view.hand,lead,trump,'dump',null);
@@ -2421,6 +2536,32 @@ function runTests(E){
     ok('advanceMatch:不开关卡时照常升到6', a.levels[0]===6&&a.gateStopped===null);
     a=E.advanceMatch([5,2],0,{defendersWin:false,declarerLevelsUp:3},G4);
     ok('advanceMatch:已在关卡上,升级不再被同一关卡拦', a.levels[0]===8&&a.gateStopped===null);
+
+    // 第二层:过关要本队坐庄打过这一级(报障:闲家本级2、抢到150分直接打3)
+    const win150=E.scoreRound({defPoints:150,kitty:[],defWonLastTrick:false,lastLeadSize:1});
+    ok('150分的结算是上台升1级', win150.defendersWin&&win150.defenderLevelsUp===1);
+    // 队1坐庄打2,队0(闲家)本级也是2 —— 队0从没坐庄打过2
+    a=E.advanceMatch([2,2],1,win150,G4,[-1,-1]);
+    ok('必打:闲家停在关卡上,上台只换庄不升级', a.levels[0]===2&&a.gateHeld===2);
+    ok('必打:被卡住时下一局由这一方坐庄', a.dealer%2===0);
+    // 同一局面,队0此前已坐庄打过2 → 照常升级
+    a=E.advanceMatch([2,2],1,win150,G4,[2,-1]);
+    ok('必打:已坐庄打过就放行', a.levels[0]===3&&a.gateHeld===null);
+    // 不是关卡的级数不受这条约束
+    a=E.advanceMatch([3,2],1,win150,G4,[-1,-1]);
+    ok('必打:非关卡级数照常升', a.levels[0]===4&&a.gateHeld===null);
+    // 庄家方守住的那一局,本身就是「打过」的证据,不该卡自己
+    a=E.advanceMatch([2,2],0,{defendersWin:false,declarerLevelsUp:2},G4,[-1,-1]);
+    ok('必打:庄家守住不卡自己(这一局就是在打这一级)', a.levels[0]===4&&a.gateHeld===null);
+    ok('必打:坐庄这一局记进 played', a.played[0]===2);
+    // 不传 played = 只做第一层,老行为不变
+    a=E.advanceMatch([2,2],1,win150,G4);
+    ok('必打:不传 played 时退回只挡跳级', a.levels[0]===3&&a.gateHeld===null);
+    // 不会卡死:被卡住 → 下一局自己坐庄打这一关 → 再上台就能过
+    let lv=[2,2], pl=[-1,-1], st=E.advanceMatch(lv,1,win150,G4,pl);
+    lv=st.levels; pl=st.played;                       // 队0 卡在 2,拿到庄
+    st=E.advanceMatch(lv,0,{defendersWin:false,declarerLevelsUp:1},G4,pl);
+    ok('必打:补打一局后即可过关', st.levels[0]===3&&st.gateHeld===null);
   }
 
   // ---- M3 启发式 AI ----
@@ -2454,11 +2595,16 @@ function runTests(E){
     const ch=E.aiChooseFollow(view,plays);
     ok('对手大,跟小不送分', ch.cards[0].rank===4);
   }
-  // 领出:手握双大王 → 先收一墩
+  /* 收官只剩 4 张、底牌未知(闲家视角按未见分倒推 → 估得很肥)时,王对该攥着守最后一墩。
+   *
+   * 这条断言在 v4.3 之前是反的(「钢板先收」)。改口径不是为了迁就实现:
+   * 这手牌是 王王 + H4 + C7,王对领出去要占掉两墩,剩下 H4/C7 两张都是输牌,
+   * 最后一墩必丢 —— 底里那笔翻倍的分跟着一起送出去。攥着王对才是对的打法。
+   * 「底里没分就该兑现」的另一半,由下面 v4 场景里的 poorKitty / richKitty 两条覆盖。 */
   {
     const view={seat:0,hand:[...P('X',16),C('H',4),C('C',7)],trump:T,history:[],buriedKnown:[]};
     const ch=E.aiChooseLead(view);
-    ok('领出钢板(大王对)先收', ch.cards.length===2&&ch.cards[0].rank===16);
+    ok('收官底肥:王对留着守最后一墩', !ch.cards.some(c=>c.rank===16));
   }
   // ---- v4 场景测试 ----
   // 护底该留哪一手:主牌 > 副牌对子 > 副牌单张(副牌单张最容易被毙,最不可能独大到最后)
@@ -2976,7 +3122,7 @@ function openSettings(){
     `<div class="setHint" id="rRebelHint"></div>`+
     `<div class="setRow"><label><input type="checkbox" id="rStrict"> 领出${T('tractor')}必须跟${T('tractor')}</label></div>`+
     `<div class="setRow"><label><input type="checkbox" id="rPartial"> 　└ 只有更短的${T('tractor')}也必须跟</label></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="rGates"> 必打关卡(不可跳级)</label></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="rGates"> 必打关卡(不可跳级,须坐庄打过)</label></div>`+
     `<div class="setRow"><label>　└ 关卡级数</label>
        ${[2,5,10,13].map(g=>`<label style="margin-right:8px"><input type="checkbox" class="gateBox" data-g="${g}"> ${rankName(g)}</label>`).join('')}</div>`+
     `<div class="setHint" id="rGateHint"></div>`;
@@ -3001,7 +3147,8 @@ function openSettings(){
     el.querySelectorAll('.gateBox').forEach(b=>{
       b.checked=S.gates.includes(+b.dataset.g); b.disabled=!S.gatesOn; });
     $('rGateHint').textContent=S.gatesOn
-      ? (S.gates.length?`跳级途中撞上关卡就停在关卡上(例:打3升3级本应到6,5是关卡→停在5)`
+      ? (S.gates.length?`两条:① 跳级途中撞上关卡就停在关卡上(打3升3级本应到6,5是关卡→停在5);`
+                        +`② 过关要本队坐庄打过这一级 —— 停在关卡上当闲家上台,只换庄不升级`
                        :'⚠️ 一个关卡都没选,等于没开')
       : '(关闭时按实际级数直接跳)';
     // 三个造反阈值只在造反规则打开时生效,关掉就灰掉并说明
@@ -3144,7 +3291,8 @@ function setMsg(t){ document.getElementById('msg').textContent=t||''; }
 function curTrumpForSort(){ return G.trump|| (G.decl&&G.decl.suit?{suit:G.decl.suit,rank:G.trumpRank}:{suit:null,rank:G.trumpRank}); }
 
 // ================= 整场状态(跨局) =================
-let M={levels:[2,2], dealer:-1, round:0};   // 双方级数、当前庄家(-1=无庄盘)、已完成局数
+// played:每队已坐庄打过的最高级数,必打关卡的「打过」判据(见 advanceMatch)
+let M={levels:[2,2], dealer:-1, round:0, played:[-1,-1]};
 let scrambleNext=false;   // 下一次发牌是否按无庄盘(完全造反后)
 let redealCount=0;        // 本局已重新发牌次数
 // 无庄盘里各家按自己队伍的级数抢亮;庄定盘全桌用庄家级数
@@ -3537,6 +3685,14 @@ function endRound(){
   const defWonLast=G.lastWinner%2!==declTeam;
   const sc=scoreRound({defPoints:G.defPoints,kitty:G.buried,defWonLastTrick:defWonLast,
                        lastLeadSize:G.lastLeadSize});
+  // 整场推进要先算 —— 弹窗里的「升 N 级」必须是**实际生效**的那个数,
+  // 否则会出现「上台升1级」和下一行「必打关卡,本次不升级」自相矛盾。
+  // played 一直记着(即使关卡开关是关的),中途打开设置才不会丢掉前面的战绩;
+  // 关着的时候 gates 传 null,判定本身自然不生效
+  const before=M.levels.slice();
+  const adv=advanceMatch(M.levels,G.declSeat,sc,S.gatesOn?S.gates:null,M.played);
+  const upTeam=sc.defendersWin?1-declTeam:declTeam;
+  const realUp=adv.levels[upTeam]-before[upTeam];      // 关卡拦下后可能小于 sc 里的名义级数
   const humanDecl=declTeam===HUMAN%2;
   const humanWon=sc.defendersWin!==humanDecl;
   let html=`<div style="font-size:22px;color:var(--gold)">${humanWon?'你们赢了!':'你们输了'}</div>`;
@@ -3545,8 +3701,8 @@ function endRound(){
   html+=`</div>`;
   if(sc.total===0) html+=`<div style="color:var(--gold)">${T('guangtou')}!</div>`;   // 闲家0分
   html+=sc.defendersWin
-    ? `<div>${T('defenders')}上台${sc.defenderLevelsUp?`,${T('levelUp')} ${sc.defenderLevelsUp} 级(${T('tiaoji')}!)`:''}</div>`
-    : `<div>庄家方守住,${T('levelUp')} ${sc.declarerLevelsUp} 级${sc.declarerLevelsUp>1?`(${T('tiaoji')}!)`:''}</div>`;
+    ? `<div>${T('defenders')}上台${realUp?`,${T('levelUp')} ${realUp} 级${realUp>1?`(${T('tiaoji')}!)`:''}`:''}</div>`
+    : `<div>庄家方守住${realUp?`,${T('levelUp')} ${realUp} 级${realUp>1?`(${T('tiaoji')}!)`:''}`:''}</div>`;
   if(G.buried.length)
     html+=`<div style="margin-top:8px;font-size:13px">底牌:${G.buried.map(c=>miniName(c)).join(' ')}</div>`;
   // 教练:局后复盘关键回合(按分差取前3)
@@ -3559,13 +3715,19 @@ function endRound(){
   }else if(C.on&&C.review){
     html+=`<div style="margin-top:8px;font-size:14px;color:#6ec9ff">🎓 教练:本局没有明显失误,漂亮!</div>`;
   }
-  // 整场推进
-  const adv=advanceMatch(M.levels,G.declSeat,sc,S.gatesOn?S.gates:null);
+  // 整场推进(adv 在上面已经算好)
   M.levels=adv.levels; M.dealer=adv.dealer; M.round++;
+  if(adv.played) M.played=adv.played;
   G.ended={matchOver:adv.matchOver};
   if(adv.gateStopped!=null)
     html+=`<div style="margin-top:8px;font-size:15px;color:var(--gold)">`+
           `⛔ ${rankName(adv.gateStopped)} 必打,不可跳级 —— 本次升级停在 ${rankName(adv.gateStopped)}</div>`;
+  if(adv.gateHeld!=null){
+    const who=adv.dealer%2===HUMAN%2?'你们':'对方';
+    html+=`<div style="margin-top:8px;font-size:15px;color:var(--gold)">`+
+          `⛔ ${rankName(adv.gateHeld)} 必打 —— ${who}还没坐庄打过 ${rankName(adv.gateHeld)},`+
+          `本次不升级,下一局由${who}坐庄打 ${rankName(adv.gateHeld)}</div>`;
+  }
   if(adv.matchOver){
     const weWon=adv.winnerTeam===0;
     html+=`<div style="margin-top:10px;font-size:20px;color:var(--gold)">${weWon?'你们打过 A,整场胜利!':'对方打过 A,整场告负'}</div>`;
@@ -3580,7 +3742,7 @@ function endRound(){
   sndEnd();
 }
 window.__next=()=>{ document.getElementById('overlay').style.display='none'; newRound(); };
-window.__newMatch=()=>{ M={levels:[2,2],dealer:-1,round:0}; scrambleNext=false; redealCount=0;
+window.__newMatch=()=>{ M={levels:[2,2],dealer:-1,round:0,played:[-1,-1]}; scrambleNext=false; redealCount=0;
   document.getElementById('overlay').style.display='none'; newRound(); };
 window.__review=()=>{ document.getElementById('overlay').style.display='none';
   render(); setMsg('复盘中:可查看出牌历史、教练复盘等记录,准备好后点下方"下一局"继续'); };
@@ -3913,6 +4075,17 @@ document.querySelectorAll('#tabs button').forEach(b=>b.onclick=()=>{
   activeTab=activeTab===b.dataset.tab?null:b.dataset.tab;
   renderPanel();
 });
+
+/* 悬停态跟着真实输入设备走,而不是跟着设备"声称"支持什么(见样式里 html.hasHover)。
+   pointerdown 用捕获阶段,保证在任何点击处理之前就把类切好。 */
+function trackPointerType(){
+  const el=document.documentElement;
+  const set=on=>el.classList.toggle('hasHover',on);
+  set(matchMedia('(hover:hover) and (pointer:fine)').matches);   // 起手按浏览器说的算
+  addEventListener('pointerdown',e=>set(e.pointerType==='mouse'),{capture:true,passive:true});
+  addEventListener('pointermove',e=>{ if(e.pointerType==='mouse') set(true); },{capture:true,passive:true});
+}
+trackPointerType();
 
 showStartScreen();
 function showStartScreen(){
