@@ -289,7 +289,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.5.6(测试版)</div>
+<div id="versionTag">80分 v0.5.7(测试版)</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -697,6 +697,9 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   voidChainCredit: 0.55,      // 靠稳赢牌保住牌权再断门的折价(笔记里的「视为50%」)
   buryTrumpBlock: 400,        // 主牌埋底的硬性阻力
   buryAceBlock: 200,          // 副花色 A 埋底的硬性阻力(见 faceValue;旧版是 +30,会被断门收益压过)
+  /* 对子/拖拉机被压的概率单独按组合算(见 pBeaterIn)。pairUrn=0 退回旧的单张公式。 */
+  pairUrn: 1,
+  tractorTighten: 0.6,        // 拖拉机还要求连着,在 p^need 之上再收一道
   /* 「在外还有更大的对子」的概率低于这个值,就把自己的对子当钢板(见 pPairAbove)。
    * 0 = 退回旧版那个「只要还有两张没见就算对手有对」的布尔判据。
    *
@@ -1737,7 +1740,7 @@ function futureValue(cards, X){
 
 // 在外(别家手里)这门还剩多少张、其中多少张压得住 cl
 function unseenBeats(mem, cl, trump){
-  let higher=0, total=0;
+  let higher=0, total=0, pairRanks=0;
   for(const k in mem.unseen){
     const n=mem.unseen[k]; if(n<=0) continue;
     const c=keyToCard(k);
@@ -1745,8 +1748,35 @@ function unseenBeats(mem, cl, trump){
     total+=n;
     // 对子/拖拉机要压住得成对,单张只要更大就行
     if(ordIdx(c,trump)>cl.top && (cl.type==='single'||n>=2)) higher+=n;
+    if(ordIdx(c,trump)>cl.top && n>=2) pairRanks++;
   }
-  return {higher,total};
+  return {higher,total,pairRanks};
+}
+
+/* 「他手上有没有压得住这一手的牌」—— 单张和对子是两个完全不同的组合问题(v4.8)。
+ *
+ * 单张:从这门在外的 total 张里他摸走 k 张,只要有一张更大就行 → 1−(1−higher/total)^k
+ * 对子:得**同一个点数的两张都在他一个人手上**。在外还剩两张的点数有 m 个,
+ *       指定一个点数两张都落到他手上的概率是 k(k−1)/(total(total−1)) ——
+ *       同一个坛子,但比单张低一个数量级。
+ *
+ * 旧版把这两件事按同一个公式算(higher 里把对子的两张都记成能压),
+ * 等于按 100% 估「这两张在同一家手里」。举例:这门在外 6 张、其中两个点数各剩两张、
+ * 对手约摸 1.5 张 —— 旧版算出 0.81,实际是 0.05。系统性高估「我的对子会被压」,
+ * AI 因此既不敢出对子、也不敢把对子算成钢板。这就是 v0.5.5 里
+ * pPairAbove 只当布尔阈值用、没接进打分的那一半。
+ * 拖拉机还得连着,更难,按 need 再收一道。
+ */
+function pBeaterIn(cl, b, k){
+  const {higher,total,pairRanks}=b;
+  if(total<=0||k<=0) return 0;
+  if(!AIP.pairUrn||!cl||cl.type==='single') return 1-Math.pow(1-higher/total,k);
+  const need=cl.type==='tractor'?(cl.len||2):1;
+  if(!pairRanks||pairRanks<need||total<2||k<2) return 0;
+  const q=k*(k-1)/(total*(total-1));
+  let p=1-Math.pow(1-q,pairRanks);
+  if(need>1) p=Math.pow(p,need)*AIP.tractorTighten;
+  return clamp(p,0,1);
 }
 
 // 一手牌摆上台面后,还能活到墩末(不被指定的几个对手压掉)的概率。
@@ -1757,7 +1787,8 @@ function pSurvive(X, cl, seats){
   const {mem,trump}=X;
   const leadSuit=X.lead?X.lead.suit:cl.suit;
   const iRuffed=cl.suit==='T'&&leadSuit!=='T';        // 我这手是毙牌
-  const {higher,total}=unseenBeats(mem,cl,trump);     // 在外能压住我这手的牌
+  const beats=unseenBeats(mem,cl,trump);             // 在外能压住我这手的牌
+  const {higher,total}=beats;
   const lsTotal=leadSuit==='T'?0:unseenBeats(mem,{suit:leadSuit,top:-1,type:'single'},trump).total;
   const trAvail=unseenBeats(mem,{suit:'T',top:-1,type:'single'},trump).total;
   // 他手上这门大约几张 = 这门在外的张数 × 他占未见牌的比例。
@@ -1765,7 +1796,7 @@ function pSurvive(X, cl, seats){
   // 收官未见 3×5+8=23 张、他占 5/23≈1/4.6。用实际手牌数算,别拍一个 3。
   const denom=X.shareDenom||AIP.handShare;
   const k=total>0?Math.max(1,total/denom):0;
-  const pHas=total>0?1-Math.pow(1-higher/total,k):0;
+  const pHas=pBeaterIn(cl,beats,k);
   let p=1;
   for(const s of seats){
     const knownVoid=leadSuit!=='T'&&X.voids[s]&&X.voids[s][leadSuit];
@@ -1804,10 +1835,11 @@ function pPartnerTakes(X){
   if(!X.partnerRemaining) return AIP.pNoPartnerLeft;   // 队友已出过牌,只能指望对手内讧
   const {mem,trump}=X;
   const leadSuit=X.lead?X.lead.suit:X.cur.cl.suit;
-  const {higher,total}=unseenBeats(mem,X.cur.cl,trump);
+  const beats=unseenBeats(mem,X.cur.cl,trump);
+  const {total}=beats;
   const denom=X.shareDenom||AIP.handShare;
   const k=total>0?Math.max(1,total/denom):0;
-  const pHas=total>0?1-Math.pow(1-higher/total,k):0;     // 队友手上压得住的密度
+  const pHas=pBeaterIn(X.cur.cl,beats,k);                // 队友手上压得住的密度
   const pVoid=leadSuit==='T'?0
     :(X.partnerSeat!==undefined&&X.pVoidOf?X.pVoidOf(X.partnerSeat,leadSuit):0.12);
   const trAvail=unseenBeats(mem,{suit:'T',top:-1,type:'single'},trump).total;
@@ -2527,7 +2559,7 @@ const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
   canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,clampAtGate,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
-  makeMemory,maxUnseenIdx,unseenPairAbove,pPairAbove,keyToCard,isBossPlay,buildFollow,currentWinner,minWinFollow,
+  makeMemory,maxUnseenIdx,unseenPairAbove,pPairAbove,pBeaterIn,keyToCard,isBossPlay,buildFollow,currentWinner,minWinFollow,
   aiChooseFollow,aiChooseLead,coachScoreFollow,coachScoreLead,makeVoids,followCtx,leadCtx,scoreLeadPlay,
   AIP,globalIdx,easeEnds,bossChain,pWinLastTrick,faceValue,voidProb,
   scoreDeclOption,declThreshold,aiDeclDecide,projectLen,trumpCountUnder,sideQuality,pPairOverride,
@@ -2864,6 +2896,26 @@ function runTests(E){
     const view={seat:0,hand:[...P('X',16),C('H',4),C('C',7)],trump:T,history:[],buriedKnown:[]};
     const ch=E.aiChooseLead(view);
     ok('收官底肥:王对留着守最后一墩', !ch.cards.some(c=>c.rank===16));
+  }
+  /* ---- v4.8:对子被压的概率按组合算 ---- */
+  {
+    const b={higher:8,total:12,pairRanks:4};
+    const pPair=E.pBeaterIn({type:'pair'},b,4);
+    const pSingle=E.pBeaterIn({type:'single'},b,4);
+    ok('单张仍走旧公式', Math.abs(pSingle-(1-Math.pow(1-8/12,4)))<1e-9);
+    ok('对子被压的概率远低于单张', pPair<pSingle*0.5);
+    ok('拖拉机比对子更难被压',
+       E.pBeaterIn({type:'tractor',len:2},b,4)<pPair);
+    // 这门在外没有成对的点数 → 对子压根压不住
+    ok('在外无对子时,我的对子不可能被同门压掉',
+       E.pBeaterIn({type:'pair'},{higher:6,total:9,pairRanks:0},3)===0);
+    // 他这门只摸到一张 → 凑不出对
+    ok('他这门只有一张时压不了对子',
+       E.pBeaterIn({type:'pair'},{higher:4,total:8,pairRanks:2},1)===0);
+    ok('pairUrn=0 时退回旧的单张公式',
+       (()=>{const o=E.AIP.pairUrn;E.AIP.pairUrn=0;
+             const z=E.pBeaterIn({type:'pair'},b,4);E.AIP.pairUrn=o;
+             return Math.abs(z-pSingle)<1e-9;})());
   }
   /* ---- v4.7:持有区间下界 / 队友 A 的读牌 / 调主 ---- */
   // 手牌数恒等约束:某家在别门的上界之和不足以填满手牌时,剩下的必然在这一门
