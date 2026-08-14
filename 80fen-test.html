@@ -289,7 +289,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.5.4(测试版)</div>
+<div id="versionTag">80分 v0.5.5(测试版)</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -697,6 +697,16 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   voidChainCredit: 0.55,      // 靠稳赢牌保住牌权再断门的折价(笔记里的「视为50%」)
   buryTrumpBlock: 400,        // 主牌埋底的硬性阻力
   buryAceBlock: 200,          // 副花色 A 埋底的硬性阻力(见 faceValue;旧版是 +30,会被断门收益压过)
+  /* 「在外还有更大的对子」的概率低于这个值,就把自己的对子当钢板(见 pPairAbove)。
+   * 0 = 退回旧版那个「只要还有两张没见就算对手有对」的布尔判据。
+   *
+   * **扫参的坡顶在 0.25~0.35(样本外 0.30 → +1.48 分/局, t=2.0),这里故意不取。**
+   * isBossPlay 的语义是「钢板」,护底 / 甩牌 / 领出三处都拿它当**确定性**用;
+   * 0.30 会把「对手有对的概率 26%」、也就是只有 74% 胜率的对子标成钢板 ——
+   * 那是 endKittyWeight 那次的同款错误:让一个数值去买它语义上不该买的东西。
+   * 0.15 的口径是「≥85% 才叫钢板」,实测 +0.17(SE 0.46),无害。
+   * 那 1.5 分的正确取法是把 pPairAbove 当**连续概率**接进打分,而不是放宽布尔阈值。 */
+  pairBossMaxP: 0.15,
   kittyMult: 2,               // 抠底倍数的估计值(按最后一墩单张算)
   kittyPointBias: 0.8,        // 闲家倒推底分时的折扣(庄家倾向不埋分)
   jokerPairHold: 7,           // 王对的**成对溢价**(单张的压制价值已在 trumpHold 里,别算两遍)
@@ -1274,10 +1284,38 @@ function unseenPairAbove(mem, suitEff, idx, trump){
   }
   return false;
 }
+/* 「在外还有更大的对子」不是一个布尔问题(v4.6)。
+ * 同点数的两张牌可能分在两家手里,那就凑不成对 —— 而旧版的 unseenPairAbove
+ * 只要看到「这个点数还有两张没见」就判定对手有对,等于按 100% 估一件小概率的事,
+ * 于是 AI 系统性低估自己的对子,该领的对子不敢领。
+ *
+ * 两张同点数落在**同一家**的概率(三家各 h 张、未见共 U 张):
+ *     p = 3 · h(h−1) / (U(U−1))
+ * 开局 h=25、U=83 → 0.26;收官 h=5、U=23 → 0.12。
+ * 所谓「理论最大对子」正是这件事:它跟单张最大牌是两套账,而且随着这门越打越薄,
+ * 剩下的同点两张越不可能还在一家手上。
+ *
+ * h 由 U 反推(未见 = 三家手牌 + 8 张底),庄家知道底牌时会略微低估 h,方向是保守的。 */
+function pPairAbove(mem, suitEff, idx, trump){
+  let U=0;
+  for(const k in mem.unseen) U+=Math.max(0,mem.unseen[k]);
+  const h=Math.max(1,(U-RULES.kittySize)/3);
+  const pTogether=U>1?clamp(3*h*(h-1)/(U*(U-1)),0,1):0;
+  let pNone=1;
+  for(const k in mem.unseen){
+    if(mem.unseen[k]<2) continue;
+    const c=keyToCard(k);
+    if(effSuit(c,trump)!==suitEff||ordIdx(c,trump)<=idx) continue;
+    pNone*=1-pTogether;                 // 每个更高点数各自独立地「凑成对」
+  }
+  return 1-pNone;
+}
 // 该牌型是否已是本门在外最大(“钢板”)
 function isBossPlay(cl, mem, trump){
   if(cl.type==='single') return cl.top>=maxUnseenIdx(mem,cl.suit,trump);
-  return !unseenPairAbove(mem,cl.suit,cl.top,trump);
+  if(!unseenPairAbove(mem,cl.suit,cl.top,trump)) return true;   // 严格意义上已无更大的对
+  // 严格意义上还有,但可能根本凑不成对 —— 概率低于阈值就当钢板
+  return pPairAbove(mem,cl.suit,cl.top,trump)<AIP.pairBossMaxP;
 }
 
 // 跟小:挑最小且无分的。两处修正 ——
@@ -2372,7 +2410,7 @@ const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
   canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,clampAtGate,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
-  makeMemory,maxUnseenIdx,unseenPairAbove,isBossPlay,buildFollow,currentWinner,minWinFollow,
+  makeMemory,maxUnseenIdx,unseenPairAbove,pPairAbove,keyToCard,isBossPlay,buildFollow,currentWinner,minWinFollow,
   aiChooseFollow,aiChooseLead,coachScoreFollow,coachScoreLead,makeVoids,followCtx,leadCtx,scoreLeadPlay,
   AIP,globalIdx,easeEnds,bossChain,pWinLastTrick,faceValue,voidProb,
   scoreDeclOption,declThreshold,aiDeclDecide,projectLen,trumpCountUnder,sideQuality,pPairOverride,
@@ -2647,6 +2685,35 @@ function runTests(E){
     ok('记牌:HA出尽后HK封顶', E.isBossPlay(E.classify([view.hand[0]],T),mem,T)===true);
     const view2={seat:0,hand:[C('H',13)],trump:T,history:[],buriedKnown:[]};
     ok('记牌:HA未见时HK非最大', E.isBossPlay(E.classify([view2.hand[0]],T),E.makeMemory(view2),T)===false);
+    /* 理论最大对子(v4.6):同点数的两张可能分在两家,凑不成对。
+     * 开局未见牌多、每家手牌也多,「凑成对」的概率还有 0.26,不该当钢板;
+     * 打到只剩几张时同一个局面就该当钢板了。 */
+    {
+      const filler=n=>{const f=[];for(let i=0;i<n;i++)f.push(C('C',3+(i%9)));return f;};
+      const opener={seat:0,hand:[...P('H',13),...filler(23)],trump:T,history:[],buriedKnown:[]};
+      const mOpen=E.makeMemory(opener);
+      ok('对子:开局 HA 两张全未见 → HK 对不算钢板',
+         E.isBossPlay(E.classify([C('H',13),C('H',13)],T),mOpen,T)===false);
+      ok('对子:此时「在外有更大对」的概率显著大于阈值',
+         E.pPairAbove(mOpen,'H',E.ordIdx(C('H',13),T),T)>0.2);
+      // 只剩 3 张手牌:未见牌少,两张 HA 落在同一家的概率掉下来
+      const late={seat:0,hand:[...P('H',13),C('C',3)],trump:T,history:[],buriedKnown:[]};
+      // 把绝大多数牌都记成已见,只留 HA 两张 + 少量
+      const mLate=E.makeMemory(late);
+      for(const k in mLate.unseen){
+        const c=E.keyToCard(k);
+        if(!(c.suit==='H'&&c.rank===14)) mLate.unseen[k]=0;
+      }
+      ok('对子:收官只剩两张 HA 未见 → 概率降到阈值下,HK 对当钢板',
+         E.isBossPlay(E.classify([C('H',13),C('H',13)],T),mLate,T)===true);
+      ok('对子:严格意义上仍有更大的对(判据确实走的是概率这条路)',
+         E.unseenPairAbove(mLate,'H',E.ordIdx(C('H',13),T),T)===true);
+      // 阈值置 0 = 退回旧的布尔判据
+      const save=E.AIP.pairBossMaxP; E.AIP.pairBossMaxP=0;
+      ok('对子:阈值置 0 时退回旧判据',
+         E.isBossPlay(E.classify([C('H',13),C('H',13)],T),mLate,T)===false);
+      E.AIP.pairBossMaxP=save;
+    }
   }
   // 跟牌:对手暂大且能吃 → 用最省的牌吃(HQ 而非 HA)
   {
