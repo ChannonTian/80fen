@@ -1,0 +1,38 @@
+# GitHub Pages 部署。
+# 从 legacy(「deploy from branch」)切过来的原因:2026-08-09 那次构建卡在 building
+# 状态四天不动,把后面的提交一起堵住,而 legacy 流程既不报错也没有可看的日志 ——
+# 站点停在旧版本,推送侧一切正常,只能靠对比线上版本号才发现。
+# 走 Actions 的话每次部署都有一条可见的 run,失败就是失败,不会静悄悄地卡住。
+#
+# 本仓库是纯静态、零依赖、无构建:整个仓库根目录直接当站点发上去(和 legacy 行为一致)。
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:        # 卡住时可以手动重跑一次
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只跑一个部署;新的推送不打断正在进行的那次,排队等它完成
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .              # 仓库根目录即站点
+      - id: deployment
+        uses: actions/deploy-pages@v4
