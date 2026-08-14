@@ -289,7 +289,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.5.5(测试版)</div>
+<div id="versionTag">80分 v0.5.6(测试版)</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -721,6 +721,16 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   drawTrumpUnit: 6,           // 吊主:我方每比对手多一张主牌值多少分
   drawTrumpCap: 30,           // 吊主项的上下限
   leadWeakTrump: 14,          // 领出压不住场的主牌(非钢板)的固定折扣
+  /* 调王/调主(v4.7,见 tiaoWangValue)。tiaoWang=0 即整条关闭,便于消融。 */
+  tiaoWang: 1,
+  tiaoDrawUnit: 7,            // 每逼出对手一张主牌值多少分(按下界算,最多记 2 张)
+  tiaoNoEdge: 0.3,            // 我方主牌不占优时,「逼消耗」只剩这个折扣(可能是替对手清场)
+  tiaoHandoff: 1.0,           // 牌权过渡给队友这一项的权重
+  tiaoNoPartnerT: 0.4,        // 队友主门下界为 0(不确定他还有主)时的折扣
+  /* 副色小牌探路的罚分(v4.7)。豁免:队友多半握 A / 队友已断门(送毙) / 这门分已打光。 */
+  probePenalty: 12,
+  probePairScale: 0.5,        // 对子探路的罚分折扣(对子难被跟死,危险小一档)
+  probeSafeBonus: 6,          // 推断出队友握 A 时,这门的小牌/分牌是贴分,该出
   leadTrumpEVScale: 0.45,     // 领出主牌时,这一墩能收到的分按副牌口径打的折(主牌人人攥着不放)
   feedRuff: 1.0,              // 送毙(主打队友断门)的权重;设 0 即整条关闭,便于消融
   feedRuffMinP: 0.35,         // 队友断门概率低于这个值就不当成送毙机会
@@ -1245,6 +1255,36 @@ function makeVoidProb(reads, mem, trump, handLeft){
     if(cache[ck]!==undefined) return cache[ck];
     const m=maxHoldIn(reads,mem,seat,suitEff,trump);
     return cache[ck]=(m===0?1:clamp(Math.pow(1-share,m),0,0.97));
+  };
+}
+
+/* 持有区间:上界 + **下界**(v4.7)。
+ *
+ * 设计文档 §7 把「对手建模只到缺门级」列为第二大短板,原话是
+ * 「维护每家×每门的持有区间而非单个概率:下界由『必须跟牌却没跟』给出,
+ *  上界由演绎给出」。上界一直有(maxHoldIn),下界一直没做 ——
+ * 而调王的收益判断恰恰只要下界:**对手手上还有没有主牌可跟**。
+ *
+ * 下界几乎是白捡的,因为升级里有一条很强的约束:
+ * **每家手牌数在任何时刻都相同**(每墩每家出一样多张)。于是
+ *     下界(座, 门) ≥ 手牌数 − Σ_{其他门} 上界(座, 其他门)
+ * 三门都被演绎压到很低时,剩下的牌只能在第四门里 —— 这是硬演绎,不是概率。
+ *
+ * handSize 传本家手牌数即可(领出时四家相同;跟牌时已出过牌的那几家少一张,
+ * 少算一张的方向是保守的,不会高估下界)。
+ */
+function makeHoldRange(reads, mem, trump, handSize){
+  const suits=['T','S','H','D','C'].filter(s=>s==='T'||s!==trump.suit);
+  const cache={};
+  return (seat, suitEff)=>{
+    const ck=seat+':'+suitEff;
+    if(cache[ck]) return cache[ck];
+    const hi=s=>(reads.hard[seat]&&reads.hard[seat][s])?0
+                :Math.min(handSize,maxHoldIn(reads,mem,seat,s,trump));
+    let others=0;
+    for(const s of suits) if(s!==suitEff) others+=hi(s);
+    const lo=Math.max(0,handSize-others);
+    return cache[ck]={lo,hi:hi(suitEff)};
   };
 }
 
@@ -2148,6 +2188,8 @@ function leadCtx(view){
   const myTeam=view.seat%2;
   const reads=makeReads(view.history||[],trump);
   const pVoidOf=makeVoidProb(reads,mem,trump,view.hand.length);
+  const holdRange=makeHoldRange(reads,mem,trump,view.hand.length);
+  const partnerAce=partnerAceRead(view.history||[],trump,view.seat);
   // 从布尔改成概率:「对手可能缺这门」现在是个数,降权也就按比例来
   const oppVoidP=s=>Math.max(...[0,1,2,3].filter(p=>p%2!==myTeam).map(p=>pVoidOf(p,s)),0);
   const oppVoid=s=>oppVoidP(s)>0.5;
@@ -2157,6 +2199,7 @@ function leadCtx(view){
   const isDecl=view.declSeat!==undefined&&view.declSeat>=0&&view.declSeat%2===myTeam;
   const rs=roundScore(view);
   return {trump,mem,voids,oppVoid,partnerVoid,oppVoidP,partnerVoidP,reads,pVoidOf,
+          seat:view.seat,holdRange,partnerAce,
           nTrump,isDecl,hand:view.hand,buriedKnown:view.buriedKnown,
           phase:phaseOf(view.hand.length),leading:true,
           def:rs.def,live:rs.live,pw:pointWeight(rs.def,rs.live),
@@ -2178,6 +2221,61 @@ function leadPointsEV(L, cl, cards){
   // 对手也只会跟最小的主。副牌那套「1/3 在队友手里、他会送过来」的估计在主牌上明显偏高,
   // 不打这个折的话,「领出一张大怪」会因为主门在外分多而拿到虚高的收益。
   return (fromPartner+fromOpp)*(cl.suit==='T'?AIP.leadTrumpEVScale:1);
+}
+
+/* 「队友多半握着这门的 A」(v4.7)。
+ * 依据:队友**领出 K**、而这门的 A 当时还没露面,他还赢下了这一墩 ——
+ * 一个理智的人不会把 K 顶到一张在外的 A 上去,除非那张 A 就在他自己手里。
+ * 推断成立之后,我再出这门的小牌甚至分牌就不是「探路」而是**贴分**:
+ * 牌权本来就会回到队友手上。
+ */
+function partnerAceRead(history, trump, seat){
+  const out={}, partner=(seat+2)%4;
+  for(let i=0;i+3<history.length;i+=4){
+    const trick=history.slice(i,i+4);
+    const lead=classify(trick[0].cards,trump);
+    if(!lead||lead.suit==='T'||lead.type!=='single') continue;
+    if(trick[0].seat!==partner||trick[0].cards[0].rank!==13) continue;
+    // 这一墩之前,这门的 A 露过面吗?露过就没什么可推的了
+    const seenA=history.slice(0,i).some(p=>p.cards.some(c=>
+      effSuit(c,trump)===lead.suit&&c.rank===14));
+    if(seenA) continue;
+    if(resolveTrick(trick,trump).winner===partner) out[lead.suit]=true;
+  }
+  return out;
+}
+
+/* 调王 / 调主(v4.7)—— 设计文档 §7 欠了两版的那条。
+ *
+ * 它一直做不了,是因为判据要的是「对手手上**还有没有**主牌」,而模型只有上界没有下界。
+ * makeHoldRange 补上下界之后就能算了:
+ *
+ *   逼消耗 —— 对手在主门的**下界**之和 > 0,说明他们**必须**跟主。
+ *             每逼出一张,我方的主牌优势就兑现一分;没有优势时逼出来是替对手清场,
+ *             所以乘上 drawTrumpValue 的符号。
+ *   过牌权 —— 队友还有主(下界>0)、且在外压得住这张的大主更可能在他那边时,
+ *             这一墩多半由队友收走,牌权就此过渡到他手上,他的副色好牌可以出手。
+ *
+ * 代价那一侧不用另算:低主的 futureValue、leadWeakTrump 折扣、以及
+ * LEAD_PWIN.single 的牌权项都已经在打分里,这里只补收益。
+ * 带开关 AIP.tiaoWang,便于单组件消融。
+ */
+function tiaoWangValue(L, cl, cards){
+  if(!AIP.tiaoWang||cl.suit!=='T'||cl.type!=='single') return 0;
+  if(cards.some(c=>c.suit==='X')) return 0;          // 不拿大小王去调,那是自废武功
+  if(!L.holdRange||L.seat===undefined) return 0;
+  const opps=[0,1,2,3].filter(p=>p%2!==L.seat%2);
+  const oppLo=opps.reduce((a,p)=>a+L.holdRange(p,'T').lo,0);
+  const oppHi=opps.reduce((a,p)=>a+L.holdRange(p,'T').hi,0);
+  if(oppHi<=0) return 0;                              // 对手主已断:调过去只是白送牌权
+  const edge=drawTrumpValue(L);
+  const drawOut=Math.min(oppLo,2)*AIP.tiaoDrawUnit*(edge>0?1:AIP.tiaoNoEdge);
+  // 牌权过渡:在外压得住这张的主,有多大比例可能在队友那边
+  const pt=L.holdRange((L.seat+2)%4,'T');
+  const {higher}=unseenBeats(L.mem,{suit:'T',top:cl.top,type:'single'},L.trump);
+  const share=pt.hi+oppHi>0?pt.hi/(pt.hi+oppHi):0;
+  const handoff=higher>0?(pt.lo>0?1:AIP.tiaoNoPartnerT)*share*AIP.oppTempo*AIP.tiaoHandoff:0;
+  return AIP.tiaoWang*(drawOut+handoff);
 }
 
 /* 领出的牌权项(v4)。
@@ -2294,17 +2392,36 @@ function scoreLeadCore(L, cl, cards){
   const dtc=cl.suit==='T'?Math.min(0,drawTrumpValue(L))-AIP.leadWeakTrump:0;
   if(cl.type==='tractor')
     return {score:30+size*4-(ruffable?10:0)-fut+dtc,reason:'拖拉机难跟,压一手',pWin:LEAD_PWIN.tractor};
-  if(cl.type==='pair')
-    return {score:20-cl.top*0.5-pts*4-(ruffable?8:0)-fut+dtc,
+  if(cl.type==='pair'){
+    // 对子的「探路」比单张危险小(对子难被跟死),但同样受豁免条件约束
+    const safePair=cl.suit!=='T'&&((L.partnerAce&&L.partnerAce[cl.suit])
+                   ||unseenPointsIn(L.mem,cl.suit,L.trump)===0);
+    return {score:20-cl.top*0.5-pts*4-(ruffable?8:0)-fut+dtc
+                  -(cl.suit!=='T'&&!safePair?AIP.probePenalty*AIP.probePairScale:0),
             reason:pts?'分对慎出,无保护先探路':'出对子探路',
             pWin:LEAD_PWIN.pair};
+  }
   let s=16-cl.top*0.8-pts*6-(ruffable&&pts?8:0)-fut, reason='小牌探路';
   if(cl.suit==='T'){
-    s+=Math.min(0,drawTrumpValue(L))-AIP.leadWeakTrump;
-    reason='小主领出压不住场,吊不出对手的大主';
+    // 低主领出有两种完全不同的情形,旧版混为一谈、一律重罚:
+    //   · 对手主已断 / 我方主不占优 → 确实是白烧一张主再把牌权送出去
+    //   · 对手还必须跟主、我方主占优 → 这是**调王**,用极小的消耗逼对手出大牌、
+    //     或者把牌权过渡给队友。判据见 tiaoWangValue(要下界,所以以前做不了)。
+    const tw=tiaoWangValue(L,cl,cards);
+    s+=Math.min(0,drawTrumpValue(L))-AIP.leadWeakTrump+tw;
+    reason=tw>AIP.leadWeakTrump*0.5?'调主:小主换牌权,逼对手出大牌'
+          :'小主领出压不住场,吊不出对手的大主';
   }else{
+    /* 副色小牌「探路」通常是坏棋:把牌权无消耗地交出去,还可能连分一起送。
+     * 只有几种情形下它不是探路,而是有明确目的的一手 —— 其余一律降到兜底,
+     * 让调主之类的候选先出线。 */
     const fr=feedRuffValue(L,cl,cards);
+    const partnerHasAce=L.partnerAce&&L.partnerAce[cl.suit];
+    const noPts=unseenPointsIn(L.mem,cl.suit,L.trump)===0;
     if(fr>0){ s+=fr; reason='主打队友的断门,让他毙下这墩'; }
+    else if(partnerHasAce){ s+=AIP.probeSafeBonus; reason='队友多半握着这门的 A —— 这是贴分,不是探路'; }
+    else if(noPts){ reason='这门的分已经打光,交牌权代价小'; }
+    else { s-=AIP.probePenalty; reason='副色小牌探路(下策:白交牌权)'; }
   }
   return {score:s,reason,pWin:LEAD_PWIN.single};
 }
@@ -2415,7 +2532,8 @@ const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
   AIP,globalIdx,easeEnds,bossChain,pWinLastTrick,faceValue,voidProb,
   scoreDeclOption,declThreshold,aiDeclDecide,projectLen,trumpCountUnder,sideQuality,pPairOverride,
   phaseOf,futureValue,pTeamWin,laterPoints,scorePlay,unseenPointsIn,leadPointsEV,pSurvive,unseenBeats,roundScore,pointWeight,ruffThrow,SCORE_LADDER,makeReads,maxHoldIn,makeVoidProb,cheapKey,dumpKey,kittyPointsEst,tempoValue,
-  bossUnits,feedRuffValue,reserveHold,reserveUnit};
+  bossUnits,feedRuffValue,reserveHold,reserveUnit,
+  makeHoldRange,partnerAceRead,tiaoWangValue};
 if(typeof module!=='undefined') module.exports=ENGINE;
 </script>
 
@@ -2746,6 +2864,53 @@ function runTests(E){
     const view={seat:0,hand:[...P('X',16),C('H',4),C('C',7)],trump:T,history:[],buriedKnown:[]};
     const ch=E.aiChooseLead(view);
     ok('收官底肥:王对留着守最后一墩', !ch.cards.some(c=>c.rank===16));
+  }
+  /* ---- v4.7:持有区间下界 / 队友 A 的读牌 / 调主 ---- */
+  // 手牌数恒等约束:某家在别门的上界之和不足以填满手牌时,剩下的必然在这一门
+  {
+    const mem=E.makeMemory({hand:[],trump:T,history:[],buriedKnown:[]});
+    const reads=E.makeReads([],T);
+    // 制造硬断门:1 号在方块/梅花/红桃上都断了,那 8 张手牌只能全是主
+    reads.hard[1]={D:true,C:true,H:true};
+    const hr=E.makeHoldRange(reads,mem,T,8);
+    ok('下界:三门都断,8 张必然全在主门', hr(1,'T').lo===8);
+    ok('下界:已知断门的那一门上界为 0', hr(1,'D').hi===0);
+  }
+  // 队友外面还有 A 却敢用 K 领出并赢下 → 几乎可以断定 A 在他手里
+  {
+    const hist=[{seat:2,cards:[C('H',13)]},{seat:3,cards:[C('H',5)]},
+                {seat:0,cards:[C('H',4)]},{seat:1,cards:[C('H',9)]}];
+    const r=E.partnerAceRead(hist,T,0);
+    ok('队友 K 领出赢墩 → 推断他握着这门的 A', r.H===true);
+    ok('这个推断不外溢到别的花色', !r.D);
+  }
+  // 同样的 K,如果被人毙掉/压掉,就推不出任何东西
+  {
+    const hist=[{seat:2,cards:[C('H',13)]},{seat:3,cards:[C('H',5)]},
+                {seat:0,cards:[C('H',4)]},{seat:1,cards:[C('S',3)]}];
+    ok('K 被毙掉则不成立', !E.partnerAceRead(hist,T,0).H);
+  }
+  // 调主:对手手上还有主 → 小主领出不该再吃满额罚分
+  {
+    const view={seat:0,trump:T,history:[],buriedKnown:[],
+                hand:[C('S',14),C('S',13),C('S',9),C('S',8),C('S',7),C('H',3),C('D',4)]};
+    const L=E.leadCtx(view);
+    const v=E.tiaoWangValue(L,E.classify([C('S',7)],T),[C('S',7)]);
+    ok('主多于对手时,小主领出被认成调主(收益为正)', v>0);
+    ok('调主关掉后收益归零',
+       (()=>{const o=E.AIP.tiaoWang;E.AIP.tiaoWang=0;
+             const z=E.tiaoWangValue(L,E.classify([C('S',7)],T),[C('S',7)]);
+             E.AIP.tiaoWang=o; return z===0;})());
+  }
+  // 探路豁免:推断出队友握 A 时,这门的小牌是贴分不是探路,不该吃罚分
+  {
+    const hist=[{seat:2,cards:[C('H',13)]},{seat:3,cards:[C('H',5)]},
+                {seat:0,cards:[C('H',4)]},{seat:1,cards:[C('H',9)]}];
+    const mk=h=>({seat:0,trump:T,history:h,buriedKnown:[],
+                  hand:[C('H',3),C('D',6),C('D',7),C('C',9)]});
+    ok('推断出的 A 已经接进领出上下文', E.leadCtx(mk(hist)).partnerAce.H===true);
+    // 这门不会再被当成「白交牌权」的探路(具体落到贴分还是送毙,取决于别的项)
+    ok('队友握 A 的那门不再吃探路罚分', !/下策/.test(E.aiChooseLead(mk(hist)).reason));
   }
   // ---- v4 场景测试 ----
   // 护底该留哪一手:主牌 > 副牌对子 > 副牌单张(副牌单张最容易被毙,最不可能独大到最后)
