@@ -289,7 +289,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.5.2(测试版)</div>
+<div id="versionTag">80分 v0.5.3(测试版)</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -726,14 +726,15 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   endHorizon: 4,              // 剩几张牌起算「最后一墩争夺」(底分越大越提前,见 endHorizonOf)
   endHorizonMax: 9,           // 提前量的上限
   endHorizonPerPt: 1/6,       // 每 1 分底分,把「最后一墩争夺」提前多少张牌
-  /* 底分折算进留牌价值的比例。
-   * v4 给的 0.55 太轻:底 12 分、还剩 3 张时,护底手的加值只有 12×2×0.5×0.55 ≈ 6.6 分,
-   * 压不过"现在就把这张钢板兑现"的当墩收益 —— 于是庄家 40% 的局把保底手提前打光,
-   * 最后一墩连人带底一起送掉(这正是需求列表里「底里超过10分却提前没了保底手段」)。
-   * 扫参 1.0→7.0 是一条先升后平的曲线,4~7 之间是平台,取中间的 5.0。
-   * 实测(样本外 300 副配对):+2.17 分/局(SE 0.60, t=3.6),
-   * 庄家丢掉最后一墩 39.7% → 18.3%。 */
+  /* 护底价值占「底牌那笔翻倍分」的比例。
+   * 量纲上它应该 ≤1(守最后一墩这个期权不可能比它保护的那笔分更值钱),
+   * 但 v4.4 试过把它压回 0.95 并封顶在 stake 上:**每局 −2.1 分,
+   * 庄家丢掉最后一墩 22% → 44%**,上一版的收益全赔回去。
+   * 也就是说这个「量纲错误的」大数值,买到的正是收官阶段那条硬约束。
+   * 结论:数值留着,但**别指望它同时管中盘** —— 调王那类问题另开一条路解决
+   * (takeOverScope 只在非收官阶段生效)。 */
   endKittyWeight: 5.0,
+  reserveMarginal: 1,         // 1=护底代价按边际算(还有第二手钢板就不该全额计价)×reserveHold;0=旧的全额
   ruffStruct1: 0.85,          // 对手断门时,毙掉我一张副牌单张的把握
   ruffStruct2: 0.45,          // 毙掉一个副牌对子(要一对主)的把握
   ruffStruct3: 0.25,          // 毙掉三张以上的一手副牌(要同结构的主)的把握
@@ -780,9 +781,16 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * 再收紧确定性门槛到 0.5 才回到 −0.05。原因大概率是 certainty 本身系统性低估队友
    * (校准表:模型 0.692 / 实际 0.782,见 AI-DESIGN §5.1),于是这条闸门开得太频。
    * 要真正吃下这块收益,得先把 certainty 重标定,而不是在它上面再加一层。 */
-  takeOverScope: 0,
+  takeOverScope: 4,
   takeOverMaxCertainty: 0.85, // 队友暂大且确定性低于此值时,才生成「接过来」的候选(v4.3)
-  overPartner: 3,             // 压自家队友的固定罚分(信息与配合成本)
+  /* 压自家队友的固定分差。**v4.4 起是负数,也就是一份加成。**
+   * 理由不是「打分算出来该接」—— 打分器认为中盘这类局面接过来差 1.6 分,是个近乎平局。
+   * 理由是**自对弈量不了这件事**:两边都是同一个 AI,它从不像人那样带着意图去调王,
+   * 所以「队友调了王、我该不该接」这个配合问题在自对弈里根本不会被出题。
+   * 实测这一档是**纯中性**(+0.04 分/局, SE 0.11, 200 副配对),既然不要钱,
+   * 就按「给人当队友」的口径来定:−4 能把「三家能接却没接」从 34 例压到 15 例,
+   * 再往下(−8)只到 13,收益饱和。 */
+  overPartner: -4,
   takeOverMinPts: 5,          // 断门毙分那一支的桌面分下限
   partnerHoldAfter: 0.72,     // 队友压回来之后,身后还有对手时守得住的比例
 };
@@ -1576,9 +1584,36 @@ function futureValue(cards, X){
     // 于是它们互相锁死,谁也不肯先出,最后被对手用小牌一张张耗光。
     const ru=kp>0?reserveUnit(X):null;
     if(ru&&cards.some(c=>ru.ids.has(c.id))){
-      // 越接近最后一墩,这一手「全场最大」越等价于底牌那笔翻倍的分
+      /* 代价是**边际**的,不是全额的。
+       * 手上如果还有第二手钢板,打掉大王还剩小王,护底能力并没有归零 ——
+       * 旧版按「失去全部护底能力」计价,于是两手钢板互相把对方钉死,
+       * 谁都不肯先出,连拦一个带分的将牌墩都不肯。
+       * 再乘上 reserveHold:这手到底能不能撑到最后一墩本来就是个概率,
+       * 它算出来了(reserveUnit 就是按它排序的),却一直没乘进价值里 ——
+       * 副牌单张护底和大王护底拿的是同一份加值,显然不对。 */
+      /* 越接近最后一墩,这一手「全场最大」越等价于底牌那笔翻倍的分。
+       *
+       * v4.4 修的是**曲线**,不是权重。原来 near 是线性的
+       * `1-(len-1)/hz`,在收官视野的入口几乎等于 0,只有到最后一两墩才接近 1 ——
+       * 也就是「该开始留手的时候一分不给,留不留已成定局的时候才给满」。
+       * v0.5.1 我把权重从 0.55 抬到 5.0 去补这条曲线,补出了一个量纲错误:
+       * 底估 16 分时 flat = 16×2×0.85×5 ≈ 136,而整个打分器的典型量级是个位数 ——
+       * 它不再是权重,是一条硬约束,收官阶段这张牌的任何用途都被一票否决,
+       * 包括拦住末家把一个将牌墩连分带牌权拿走(将牌门有 50 分,人均 12.5)。
+       *
+       * 现在两条都摆正:
+       *   · 曲线用 gamma<1 的幂,视野一进入就给到大半,而不是到最后才给;
+       *   · 天花板锁在**它保护的那笔分**上 —— 守最后一墩这个期权,
+       *     再值钱也不可能超过底牌那笔翻倍的分本身。 */
       const near=1-(X.hand.length-1)/Math.max(1,hz);
-      flat+=kp*AIP.kittyMult*near*AIP.endKittyWeight;
+      let v=kp*AIP.kittyMult*near*AIP.endKittyWeight;
+      if(AIP.reserveMarginal){
+        const gone=new Set(cards.map(c=>c.id));
+        const fallback=bossUnits(X).filter(u=>![...u.ids].some(id=>gone.has(id)))
+                      .map(u=>reserveHold(u,X)).sort((a,b)=>b-a)[0]||0;
+        v*=Math.max(0,reserveHold(ru,X)-fallback);
+      }
+      flat+=v;
     }
   }
   const jokers=cards.filter(c=>c.suit==='X');
@@ -1916,6 +1951,11 @@ function scoreCheapPlay(X,cards){ return scorePlay(X,cards,'cheap',false); }
  */
 function takeOverScoped(X, view){
   if(!AIP.takeOverScope) return false;
+  /* 收官阶段一律不开。那一档的「不接」是护底锁造成的(实测:接过来比不接
+   * 低 46 分,其中 51.5 分来自护底项),而护底锁本身每局值 +2 分,不该为这条让路。
+   * 调王本来就是中盘战术 —— 领一张小主找队友支援、或把牌权让出去,
+   * 收官阶段大家都在兑现,没有「调」这回事。 */
+  if(X.phase==='end') return false;
   if(AIP.takeOverScope===2) return true;
   const voidRuff=X.ptsTable>=AIP.takeOverMinPts
                  && !view.hand.some(c=>effSuit(c,X.trump)===X.lead.suit);
