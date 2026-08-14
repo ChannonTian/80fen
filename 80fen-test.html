@@ -289,7 +289,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.5.3(测试版)</div>
+<div id="versionTag">80分 v0.5.4(测试版)</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -696,6 +696,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   voidValue: 68,              // 完全断门的战略价值(折算成分;扫参在 62~100 区间是平的,取低端)
   voidChainCredit: 0.55,      // 靠稳赢牌保住牌权再断门的折价(笔记里的「视为50%」)
   buryTrumpBlock: 400,        // 主牌埋底的硬性阻力
+  buryAceBlock: 200,          // 副花色 A 埋底的硬性阻力(见 faceValue;旧版是 +30,会被断门收益压过)
   kittyMult: 2,               // 抠底倍数的估计值(按最后一墩单张算)
   kittyPointBias: 0.8,        // 闲家倒推底分时的折扣(庄家倾向不埋分)
   jokerPairHold: 7,           // 王对的**成对溢价**(单张的压制价值已在 trumpHold 里,别算两遍)
@@ -791,6 +792,11 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * 就按「给人当队友」的口径来定:−4 能把「三家能接却没接」从 34 例压到 15 例,
    * 再往下(−8)只到 13,收益饱和。 */
   overPartner: -4,
+  /* 「队友暂大但我断门且台面有分」这一条是**规则**,不是权重:给一份足够大的加成,
+   * 让它在正常局面下直接胜出,只有极端情况(比如手上只剩护底那一张主)才可能被压过。
+   * 判据是 curBoss —— 队友那张确实是本门最大、且没有已知的后手断门,才可以不毙。 */
+  ruffPartnerBonus: -25,
+  ruffPartnerMinPts: 5,       // 台面分下限:一分没有的空气墩不值得动主
   takeOverMinPts: 5,          // 断门毙分那一支的桌面分下限
   partnerHoldAfter: 0.72,     // 队友压回来之后,身后还有对手时守得住的比例
 };
@@ -863,7 +869,13 @@ function faceValue(c, groups, trump){
   const same=g.filter(x=>pairKey(x)===pairKey(c)).length;
   let v=ordIdx(c,trump)*2.2;
   if(same>=2) v+=18;                                  // 别拆对
-  if(c.rank===14) v+=30;                              // A 控门
+  /* 副花色 A:硬性阻力,不是「+30 分再和断门收益比大小」。
+   * 实战反馈 + 实测:旧版在手握副 A 的局里有 19.3% 把它埋了。
+   * 判据很简单 —— A 赢不下一墩,只可能是有人在这门断门并毙掉它;
+   * 开局各家 25 张、一门 12~13 张,天然断门的概率很低,
+   * 也就是说这张 A 赢一墩几乎是确定的,而底里埋一张牌换来的是「可能」造出一个断门。
+   * 拿一个确定的墩去换一个可能的断门,不划算 —— 没有人扣 A。 */
+  if(c.rank===14) v+=AIP.buryAceBlock;
   else if(c.rank===13){
     v+=14;
     if(g.some(x=>x.rank===14)) v+=10;                 // 手握 A 时 K 是撒牌的第二张
@@ -2020,6 +2032,28 @@ function aiChooseFollow(view, plays){
    * 唯一的额外项是 overPartner —— 压自家队友本身有信息与配合上的代价,给一个固定罚分。
    * certainty 已经很高(队友基本稳赢)时不生成,省掉这份计算。
    */
+  /* 1c-0. 队友暂大、我在领出门断门、台面有分 —— **默认就该毙**(v4.5)。
+   *
+   * 这不是一个打分问题,是一条规则。放着不毙唯一说得通的理由,是同时确定两件事:
+   *   ① 队友那张就是本门在外最大(再没人压得住),并且
+   *   ② 后手对手没人在这门断门(不会被毙掉)。
+   * 这两条正好是 followCtx 里已经算好的 `curBoss`
+   * (= isBossPlay(队友那张) && !oppRuffRisk)。**但凡这个合取不成立,就毙。**
+   * 而且实战里还要防着下家断门用主色分牌来毙 —— 那是更该早毙的理由,不是不毙的理由。
+   *
+   * 实测(250 局):这类局面 398 次、台面共 4380 分,旧版只毙了 49.5%、覆盖 47.1% 的分。
+   * 一半的分就这么摆在桌上不动。 */
+  else if(!X.curBoss&&X.ptsTable>=AIP.ruffPartnerMinPts
+          &&lead.suit!=='T'
+          &&!view.hand.some(c=>effSuit(c,trump)===lead.suit)
+          &&view.hand.some(c=>effSuit(c,trump)==='T')){
+    const win=minWinFollow(view.hand,lead,trump,X.cur.cl);
+    if(win) push(win,'ruff',true,
+      '这门我断门、台面有分,而队友那张并非稳赢 —— 毙下来',AIP.ruffPartnerBonus);
+    if(AIP.blockWin)
+      push(blockWinFollow(view.hand,lead,trump,X.cur.cl,X.mem),'ruff',true,
+        '毙到在外最大分牌之上,防末家用更大的主抢回去',AIP.ruffPartnerBonus);
+  }
   else if(!X.isLast&&X.remainingOpp.length&&X.certainty<AIP.takeOverMaxCertainty
           &&takeOverScoped(X,view)){
     const win=minWinFollow(view.hand,lead,trump,X.cur.cl);
