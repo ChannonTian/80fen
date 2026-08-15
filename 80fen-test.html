@@ -213,7 +213,11 @@
     #controls.dealing #dealZone{min-height:2.4em}
     /* 座位名与张数并排,省一半纵向 */
     .seat{flex-direction:row;gap:6px}
-    #table{grid-template-rows:auto minmax(0,1fr) auto auto}
+    /* v0.7.1:这里原来还有一条 `#table{grid-template-rows:auto minmax(0,1fr) auto auto}`,
+       在同一个 media query 里、写在上面那条之后 —— 后写的赢,出牌区的最小高度
+       (cardH*3)被它整个抹掉了。于是发牌期出牌区被压到 0,牌溢出压在亮牌区和手牌上,
+       发完牌 dealZone 释放两行高度后才自己归位 —— 报障说的「发牌时手牌遮挡亮牌/打牌区,
+       发完后才回位」就是这一条。上一轮修的是对的,只是这条残留把它盖回去了。 */
     #tabs button{padding:5px 9px}
   }
   /* 竖屏且机身矮(iPhone SE 一类,或桌面浏览器窄窗口):出牌区要三张牌高是硬需求,
@@ -289,7 +293,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.0(测试版)</div>
+<div id="versionTag">80分 v0.7.1(测试版)</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -581,7 +585,7 @@ function scoreRound({defPoints, kitty, defWonLastTrick, lastLeadSize}){
 // 任一队级数打过 A(>14)整场获胜。
 // 必打关卡有两层,旧版只做了第一层:
 //   1) **不可跳级**:升级途中跨过关卡就停在关卡上(打3升3级本应到6,5是关卡则停在5)。
-//   2) **必须打过**:过这一关的条件是本队在该级**坐过庄**。
+//   2) **必须打过**:过这一关的条件是本队在该级**坐庄守住**过(v0.7.1 前只要求坐过庄)。
 // 第二层原来是缺的,而且缺得不显眼:旧注释写「落点正好等于关卡不算跳过 ——
 // 那本来就要在该级打一局」,这句话对庄家成立、对闲家不成立 ——
 // 一局打的是**庄家方**的级数,所以一支队停在 2 上当闲家、上台升一级,
@@ -592,23 +596,26 @@ function clampAtGate(from, to, gates){
   return hit===undefined?{level:to, gate:null}:{level:hit, gate:hit};
 }
 
-/* played[team] = 该队已经**坐庄打过**的最高级数(没有则 -1)。
+/* played[team] = 该队已经**坐庄守住**过的最高级数(没有则 -1)。
  * 传 null / 不传 = 只做第一层(不可跳级),用于旧调用方与消融。
- * 返回值里带上更新后的 played,调用方存回去即可 —— 引擎自己不留状态。 */
+ * 返回值里带上更新后的 played,调用方存回去即可 —— 引擎自己不留状态。
+ *
+ * v0.7.1:口径从「坐过庄」收紧为「坐庄且守住」。
+ * 旧版把「这一局在打这一级」本身当成打过的证据 —— 但坐庄输了是**没打过这一关**,
+ * 只是被人从这一级上打下去了。实战报障:关卡 10 上坐庄丢庄,下一次上台却直接过了 10。
+ * 收紧之后不会卡死:停在关卡上的一方下一局必坐庄(守住是对家连庄、上台是自己坐庄),
+ * 只是可能要在同一级上反复坐几局,直到真正守住。 */
 function advanceMatch(levels, declSeat, sc, gates, played){
   const declTeam=declSeat%2;
   const L=levels.slice();
-  // 本局是庄家方按**自己的**级数在打,这一局本身就是他们「打过」这一级的证据
   const pl=played?played.slice():null;
-  if(pl) pl[declTeam]=Math.max(pl[declTeam],L[declTeam]);
+  if(pl&&!sc.defendersWin) pl[declTeam]=Math.max(pl[declTeam],L[declTeam]);
   let dealer, up, team;
   if(!sc.defendersWin){ team=declTeam; up=sc.declarerLevelsUp; dealer=(declSeat+2)%4; }
   else { team=1-declTeam; up=sc.defenderLevelsUp; dealer=(declSeat+1)%4; }
   const c=clampAtGate(L[team], L[team]+up, gates);
   let level=c.level, gateStopped=c.gate, gateHeld=null;
-  // 停在关卡上、却没在这一级坐过庄 → 原地不动。
-  // 不会卡死:升级的这一方下一局必坐庄(守住是对家连庄、上台是自己坐庄),
-  // 也就是下一局一定会补上这一关。
+  // 停在关卡上、却没在这一级坐庄守住过 → 原地不动。
   if(gates&&gates.length&&pl&&up>0&&gates.includes(L[team])&&pl[team]<L[team]){
     level=L[team]; gateStopped=null; gateHeld=L[team];
   }
@@ -616,7 +623,7 @@ function advanceMatch(levels, declSeat, sc, gates, played){
   const matchOver=L[0]>14||L[1]>14;
   return {levels:L, dealer, matchOver, winnerTeam:matchOver?(L[0]>14?0:1):null,
           gateStopped,        // 非 null = 跳级被关卡拦下,停在关卡上
-          gateHeld,           // 非 null = 卡在这一关上,因为本队还没坐庄打过它
+          gateHeld,           // 非 null = 卡在这一关上,因为本队还没坐庄守住过这一级
           played:pl};
 }
 
@@ -697,6 +704,26 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   voidChainCredit: 0.55,      // 靠稳赢牌保住牌权再断门的折价(笔记里的「视为50%」)
   buryTrumpBlock: 400,        // 主牌埋底的硬性阻力
   buryAceBlock: 200,          // 副花色 A 埋底的硬性阻力(见 faceValue;旧版是 +30,会被断门收益压过)
+  /* 跟牌侧「他这门有几张」的两条收紧(见 pSurvive 的 kOf)。各自 0 = 退回人均份额。 */
+  holdKRange: 1,             // 持有区间(硬上下界)夹一道
+  voidCondK: 1,              // 已知断门 → 条件概率抬高他在别门(尤其主门)的密度
+  voidCondMax: 2.2,          // 抬高倍数的上限(断三门时 pool 会很小,别让它发散)
+  /* 「毙得够高」的候选(见 ruffGuardFollow)。**实测否掉,默认 0**,代码与开关留着。
+   *   不设闸:可避免的被盖毙 123 → 92 次(150 局),但配对 −0.51 ±0.29,
+   *           庄家丢掉最后一墩 26.3% → 33.7% —— 大主提前花掉,收官没保底手段。
+   *   设闸(仅中盘 + 台面 ≥10 分):447 次门槛只选中 7 次,等于不发生。
+   * 也就是说它挣到的那一点全在收官段,而收官段正是它亏钱的地方。
+   * 这是「打分器只算一墩」那个上游缺口的第四次现身(见 AI-DESIGN §8):
+   * 大主的留手价值是按「守最后一墩」标定的,躲一次盖毙换不回来。
+   * 等中盘也有跨墩推演之后再回来试,判据见 §8。 */
+  ruffGuard: 0,
+  /* 规则级加成(push 的第 5 参是**罚分**,所以负数才是加成)。取 −25,和它的同门规则
+   * ruffOppBonus / ruffPartnerBonus 同量级。为什么需要加成:0 的时候候选生成了 437 次
+   * 只被选中 6 次 —— 大主被 futureValue 的留手价值压着不肯出,而那笔留手价值是按
+   * 「守最后一墩」标定的,和「这一墩会不会被原样端走」不是一回事。这是 §8 记过的
+   * 同一个上游缺口(打分器只算一墩)。实测 150 局:可避免的被盖毙 123 → 92 次。 */
+  ruffGuardBonus: -25,
+  ruffGuardMinPts: 10,       // 台面分下限:躲盖毙要花一张大主,分太少不值
   /* 对子/拖拉机被压的概率单独按组合算(见 pBeaterIn)。pairUrn=0 退回旧的单张公式。 */
   pairUrn: 1,
   tractorTighten: 0.6,        // 拖拉机还要求连着,在 p^need 之上再收一道
@@ -1720,6 +1747,46 @@ function blockWinFollow(hand, lead, trump, curBest, mem, certain){
   return buildFollow(hand,lead,trump,'cheap',[c],certain);
 }
 
+/* 毙得**够高** —— blockWinFollow 的毙牌版(v0.7.1)。
+ *
+ * blockWinFollow 只管同门(`curBest.suit!==lead.suit` 直接返回 null),毙牌那一侧一直没有
+ * 对应的候选:断门毙牌只生成 `minWinFollow`,也就是**刚好压过当前最大的那张主**。
+ * 于是「已知下一家也断门」时,AI 拿一张小主毙上去,被他一张大主原样端走 ——
+ * 需求列表那条「已知下一家断门,仍用小主毙牌,被压过」不是打分标定的问题,
+ * 是这个选项**压根不在候选集里**,概率再准也选不出来。
+ *
+ * 实测(正式版 150 局):断门毙牌 1324 次,其中 123 次被事先已知断门的对手盖毙,
+ * 而我手上本来就有更大的主 —— 白送 1055 分。
+ *
+ * 判据:后面还有已知在这门断门的对手 → 他能毙 → 我得毙到**他手上那张最大的主**之上。
+ *
+ * 「在外最大的主」是错的门槛:那等于要求我握着大王,几乎永远生成不出候选(实测 0 次)。
+ * 要的是次序统计量:在外 m 张主、他大约摸到 k 张,他手上最大的那张的期望位次约是
+ * 从大到小数第 `m/(k+1)` 张。毙过这一张,被盖毙的概率就掉到 1/(k+1) 量级。
+ * 毙不到就返回 null(那时该考虑的是别毙,交给打分)。 */
+function ruffGuardFollow(hand, lead, trump, curBest, mem, certain, share){
+  if(lead.suit==='T'||lead.type!=='single') return null;
+  const tr=hand.filter(c=>effSuit(c,trump)==='T');
+  if(!tr.length) return null;
+  if(hand.some(c=>effSuit(c,trump)===lead.suit)) return null;   // 没断门,轮不到毙
+  const out=[];                                   // 在外的主,按牌序从大到小
+  for(const k in mem.unseen){
+    const n=mem.unseen[k]; if(n<=0) continue;
+    const c=keyToCard(k);
+    if(effSuit(c,trump)!=='T') continue;
+    for(let i=0;i<n;i++) out.push(ordIdx(c,trump));
+  }
+  if(!out.length) return null;
+  out.sort((a,b)=>b-a);
+  const k=Math.max(1,share||1);
+  const idx=Math.min(out.length-1,Math.max(0,Math.floor(out.length/(k+1))-1));
+  const topT=out[idx];                            // 他手上最大那张主的期望
+  if(topT<=curBest.top) return null;              // 最省的毙法本来就压过了
+  const c=cheapSort(tr.filter(x=>ordIdx(x,trump)>topT),trump,certain)[0];
+  if(!c) return null;
+  return buildFollow(hand,lead,trump,'cheap',[c],certain);
+}
+
 // 最省的吃法(本门压过,或断门时用主敲脱);吃不动返回 null
 /* v0.5.8 ⑨:certain = 「这一手打出去必定拿下这墩」(目前只在末家成立)。
  * 稳拿的时候,「最省的吃法」不该是最小的那张,而是**手上最实惠的那张** ——
@@ -2060,8 +2127,39 @@ function pSurvive(X, cl, seats){
   const denom=X.shareDenom||AIP.handShare;
   const k=total>0?Math.max(1,total/denom):0;
   const pHas=pBeaterIn(cl,beats,k);
+  /* 某一家在 cl 这一门上到底摸到几张 —— 人均份额 k 只是先验,有两条信息可以收紧它。
+   *
+   * ① **条件概率**(v0.7.1,主力):他已知断门的那几门,他的牌不可能在那里。
+   *    手牌是从「未见牌里去掉那几门」的池子里摸的,所以他在剩下每一门的密度按
+   *    `未见总数 / (未见总数 − 已知断门那几门的未见数)` 成比例抬高。
+   *    报障「已知下一家断门,仍用小主毙牌,被压过」的根因就在这:断门那家的手牌被挤进
+   *    剩下的门(主门是其中之一),他手上有大主的概率比人均高得多,旧版按人均算。
+   *    ——「他会不会毙」旧版算对了(pVoidLead),「他毙得多狠」一直按人均。
+   * ② **持有区间**(makeHoldRange):硬上下界,再夹一道。中盘信息量小,收官才有力。
+   *
+   * voidCondK / holdKRange 各自可关,便于消融。 */
+  const unseenInSuit=s=>unseenBeats(mem,{suit:s,top:-1,type:'single'},trump).total;
+  let unseenAll=null;
+  const kOf=s=>{
+    if(total<=0) return k;
+    let ks=k;
+    const hard=AIP.voidCondK&&X.reads&&X.reads.hard&&X.reads.hard[s];
+    if(hard){
+      if(unseenAll===null){ unseenAll=0; for(const uk in mem.unseen) unseenAll+=Math.max(0,mem.unseen[uk]); }
+      let gone=0;
+      for(const sv in hard) if(hard[sv]&&sv!==cl.suit) gone+=unseenInSuit(sv);
+      const pool=unseenAll-gone;
+      if(pool>0&&gone>0) ks=Math.min(total,k*Math.min(unseenAll/pool,AIP.voidCondMax));
+    }
+    if(AIP.holdKRange&&X.holdRange){
+      const {lo,hi}=X.holdRange(s,cl.suit);
+      ks=clamp(ks,Math.min(lo,total),Math.min(hi,total));
+    }
+    return ks;
+  };
   let p=1;
   for(const s of seats){
+    const pHasS=(AIP.voidCondK||AIP.holdKRange)?pBeaterIn(cl,beats,kOf(s)):pHas;
     const knownVoid=leadSuit!=='T'&&X.voids[s]&&X.voids[s][leadSuit];
     // 他在「领出的那一门」断门的概率 —— 毙牌与被毙都以这个为前提。
     // 优先用从出牌方式反推出来的概率(makeReads),没有推断时退回按门厚薄的粗估。
@@ -2072,11 +2170,11 @@ function pSurvive(X, cl, seats){
     if(iRuffed){
       // 我已经毙了。他要盖过我,得先在领出门也断门,再拿出更大的主牌 ——
       // 旧版漏了「他也得断门」这个前提,把毙牌的存活率算得极低,于是 AI 几乎从不毙。
-      pBeat=pVoidLead*pHas*(X.ptsTable>0?0.90:0.50);   // 空气墩未必值得他花主牌
+      pBeat=pVoidLead*pHasS*(X.ptsTable>0?0.90:0.50);   // 空气墩未必值得他花主牌
     }else if(knownVoid){
       pBeat=(X.ptsTable>0?0.80:0.35)*(trAvail>0?0.85:0);   // 已知缺门 → 只可能被毙
     }else{
-      pBeat=(1-pVoidLead)*pHas
+      pBeat=(1-pVoidLead)*pHasS
            +pVoidLead*(X.ptsTable>0?0.80:0.35)*(trAvail>0?0.85:0);
     }
     p*=1-clamp(pBeat,0,0.97);
@@ -2240,9 +2338,14 @@ function followCtx(view, plays){
   let unseenTotal=0;
   for(const uk in mem.unseen) unseenTotal+=Math.max(0,mem.unseen[uk]);
   const shareDenom=clamp(unseenTotal/Math.max(1,view.hand.length),2,8);
+  // v0.7.1:持有区间(makeHoldRange)以前只接在领出侧。跟牌侧一直只有一个「人均份额」,
+  // 于是「已知下家在这门断门」这件事只用来抬**他会不会毙**,没用来抬**他毙得多狠** ——
+  // 断门的人手牌得从别的门补,主门下界随之抬高,拿低主去毙他就是送。
+  // 报障「已知下一家断门,仍用小主毙牌,被压过」的根因。
+  const holdRange=makeHoldRange(reads,mem,trump,view.hand.length);
   const X={shareDenom,trump,lead,cur,partnerWinning,isLast,ptsTable,mem,voids,hand:view.hand,
            remainingOpp,partnerRemaining,partnerSeat,oppAfterPartner,oppRuffRisk,curBoss,isDecl,reads,pVoidOf,oppVoidP,
-           buriedKnown:view.buriedKnown,phase:phaseOf(view.hand.length)};
+           holdRange,buriedKnown:view.buriedKnown,phase:phaseOf(view.hand.length)};
   // 队友「暂大」不是「稳大」:确定性由记牌算出,不再是拍脑袋的常数
   X.certainty=isLast?1:pSurvive(X,cur.cl,remainingOpp);
   const rs=roundScore(view); X.def=rs.def; X.live=rs.live;
@@ -2424,6 +2527,21 @@ function aiChooseFollow(view, plays){
                 :(voidRuffOpp?'这门我断门、台面有分而对手暂大 —— 毙下来'
                  :(X.oppRuffRisk?'尝试吃,但后手或被毙':(isRuff?'断门毙牌抢分':'能吃住,争这墩'))),
         voidRuffOpp?AIP.ruffOppBonus:0);
+      /* 1a′. 毙得够高:后面还有已知在这门断门的对手 → 小主毙上去会被原样端走。
+       * 见 ruffGuardFollow。只在真有已知断门的后手对手时才生成,不然是白花大主。 */
+      /* 闸门(v0.7.1):第一版不设闸,实测配对 −0.51、庄家丢掉最后一墩 26.3%→33.7% ——
+       * 大主提前花掉,收官没保底手段了。这是 §8 那条张力的第四次现身。
+       * 所以只在**收官之前**、且**台面确实有分**时才考虑毙高一档:
+       * 收官阶段那张大主的价值就是守最后一墩本身,拿它去躲一次盖毙是亏的。 */
+      if(AIP.ruffGuard&&isRuff&&X.phase!=='end'&&X.ptsTable>=AIP.ruffGuardMinPts
+         &&X.remainingOpp.some(s=>X.voids[s]&&X.voids[s][lead.suit])){
+        // 他大约摸到几张主 —— 与 pSurvive 的 kOf 同一口径(含断门的条件概率)
+        const trOut=unseenBeats(X.mem,{suit:'T',top:-1,type:'single'},trump).total;
+        const share=trOut/(X.shareDenom||AIP.handShare);
+        const hi=ruffGuardFollow(view.hand,lead,trump,X.cur.cl,X.mem,certain,share);
+        if(hi) push(hi,'ruff',true,
+          '下家已知在这门断门 —— 毙到在外最大的主之上,别让他原样端走',AIP.ruffGuardBonus);
+      }
     }
     /* 1b. 吃得**够高** —— 压过在外最大的那张分牌,而不只是压过当前最大。
      * 「最省的吃法」在中间两家常常不够:压过当前最大 ≠ 压过末家可能掏出的那张分牌。
@@ -3454,7 +3572,7 @@ const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
   canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,clampAtGate,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
-  makeMemory,maxUnseenIdx,unseenPairAbove,pPairAbove,pBeaterIn,keyToCard,isBossPlay,buildFollow,currentWinner,minWinFollow,
+  makeMemory,maxUnseenIdx,unseenPairAbove,pPairAbove,pBeaterIn,keyToCard,isBossPlay,buildFollow,currentWinner,minWinFollow,ruffGuardFollow,
   aiChooseFollow,aiChooseLead,coachScoreFollow,coachScoreLead,makeVoids,followCtx,leadCtx,scoreLeadPlay,
   AIP,globalIdx,easeEnds,bossChain,pWinLastTrick,faceValue,voidProb,
   scoreDeclOption,declThreshold,aiDeclDecide,projectLen,trumpCountUnder,sideQuality,pPairOverride,
@@ -3704,14 +3822,22 @@ function runTests(E){
     ok('必打:被卡住时下一局由这一方坐庄', a.dealer%2===0);
     // 同一局面,队0此前已坐庄打过2 → 照常升级
     a=E.advanceMatch([2,2],1,win150,G4,[2,-1]);
-    ok('必打:已坐庄打过就放行', a.levels[0]===3&&a.gateHeld===null);
+    ok('必打:已坐庄守住过就放行', a.levels[0]===3&&a.gateHeld===null);
     // 不是关卡的级数不受这条约束
     a=E.advanceMatch([3,2],1,win150,G4,[-1,-1]);
     ok('必打:非关卡级数照常升', a.levels[0]===4&&a.gateHeld===null);
     // 庄家方守住的那一局,本身就是「打过」的证据,不该卡自己
     a=E.advanceMatch([2,2],0,{defendersWin:false,declarerLevelsUp:2},G4,[-1,-1]);
     ok('必打:庄家守住不卡自己(这一局就是在打这一级)', a.levels[0]===4&&a.gateHeld===null);
-    ok('必打:坐庄这一局记进 played', a.played[0]===2);
+    ok('必打:坐庄守住这一局记进 played', a.played[0]===2);
+    // v0.7.1:坐庄输了不算打过这一关 —— 报障就出在这(关卡10上丢庄,再上台却过了10)
+    a=E.advanceMatch([10,10],0,win150,G4,[-1,-1]);
+    ok('必打:坐庄丢庄不记进 played', a.played[0]===-1);
+    // 队0 在关卡10坐庄丢庄 → 队1 上台也停在10(它自己也没打过10)
+    ok('必打:对手同样卡在这一关', a.levels[1]===10&&a.gateHeld===10);
+    // 关键报障复现:队0 卡在10,后来上台 —— 若按旧口径(坐过庄就算)会直接过 11
+    ok('必打:丢过庄的那一方,上台仍要补打这一关',
+       E.advanceMatch([10,10],1,win150,G4,[-1,-1]).levels[0]===10);
     // 不传 played = 只做第一层,老行为不变
     a=E.advanceMatch([2,2],1,win150,G4);
     ok('必打:不传 played 时退回只挡跳级', a.levels[0]===3&&a.gateHeld===null);
@@ -3793,6 +3919,27 @@ function runTests(E){
     const ch=E.aiChooseLead(view);
     ok('收官底肥:王对留着守最后一墩', !ch.cards.some(c=>c.rank===16));
   }
+  /* ---- v0.7.1:毙得够高的候选(默认关,但代码要正确) ---- */
+  {
+    const T4={suit:'S',rank:2};
+    const lead=E.classify([C('H',9)],T4);
+    const hand=[C('S',5),C('S',13),C('D',3),C('D',4)];        // H 断门,主 S5 / S13
+    const mem=E.makeMemory({hand,trump:T4,history:[],buriedKnown:[]});
+    // share=1:他大约只摸到一张主 → 他手上最大那张主的期望不高,主K 盖得住
+    const hi=E.ruffGuardFollow(hand,lead,T4,lead,mem,false,1);
+    ok('毙高一档:选出的是盖得住他期望最大主的那张', !!hi&&hi[0].rank===13);
+    // share=3:开局在外主牌多,他手上那张最大的主的期望高过我的主K → 不生成
+    ok('他主牌多时,主K 也盖不住 → 不生成(该考虑的是别毙)',
+       E.ruffGuardFollow(hand,lead,T4,lead,mem,false,3)===null);
+    const weak=[C('S',3),C('D',3),C('D',4)];
+    ok('手上只有小主时不生成候选',
+       E.ruffGuardFollow(weak,lead,T4,lead,
+         E.makeMemory({hand:weak,trump:T4,history:[],buriedKnown:[]}),false,1)===null);
+    ok('本门还有牌时轮不到毙',
+       E.ruffGuardFollow(hand.concat([C('H',3)]),lead,T4,lead,mem,false,1)===null);
+    ok('默认关闭(实测否掉,见 AIP.ruffGuard 的注释)', E.AIP.ruffGuard===0);
+  }
+
   /* ---- v4.8:对子被压的概率按组合算 ---- */
   {
     const b={higher:8,total:12,pairRanks:4};
@@ -4376,7 +4523,7 @@ function openSettings(){
     `<div class="setHint" id="rRebelHint"></div>`+
     `<div class="setRow"><label><input type="checkbox" id="rStrict"> 领出${T('tractor')}必须跟${T('tractor')}</label></div>`+
     `<div class="setRow"><label><input type="checkbox" id="rPartial"> 　└ 只有更短的${T('tractor')}也必须跟</label></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="rGates"> 必打关卡(不可跳级,须坐庄打过)</label></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="rGates"> 必打关卡(不可跳级,须坐庄守住)</label></div>`+
     `<div class="setRow"><label>　└ 关卡级数</label>
        ${[2,5,10,13].map(g=>`<label style="margin-right:8px"><input type="checkbox" class="gateBox" data-g="${g}"> ${rankName(g)}</label>`).join('')}</div>`+
     `<div class="setHint" id="rGateHint"></div>`;
@@ -4402,7 +4549,7 @@ function openSettings(){
       b.checked=S.gates.includes(+b.dataset.g); b.disabled=!S.gatesOn; });
     $('rGateHint').textContent=S.gatesOn
       ? (S.gates.length?`两条:① 跳级途中撞上关卡就停在关卡上(打3升3级本应到6,5是关卡→停在5);`
-                        +`② 过关要本队坐庄打过这一级 —— 停在关卡上当闲家上台,只换庄不升级`
+                        +`② 过关要本队在这一级**坐庄守住**过 —— 停在关卡上当闲家上台,只换庄不升级;坐庄丢庄也不算过关`
                        :'⚠️ 一个关卡都没选,等于没开')
       : '(关闭时按实际级数直接跳)';
     // 三个造反阈值只在造反规则打开时生效,关掉就灰掉并说明
@@ -4545,7 +4692,7 @@ function setMsg(t){ document.getElementById('msg').textContent=t||''; }
 function curTrumpForSort(){ return G.trump|| (G.decl&&G.decl.suit?{suit:G.decl.suit,rank:G.trumpRank}:{suit:null,rank:G.trumpRank}); }
 
 // ================= 整场状态(跨局) =================
-// played:每队已坐庄打过的最高级数,必打关卡的「打过」判据(见 advanceMatch)
+// played:每队已坐庄守住过的最高级数,必打关卡的「打过」判据(见 advanceMatch)
 let M={levels:[2,2], dealer:-1, round:0, played:[-1,-1]};
 let scrambleNext=false;   // 下一次发牌是否按无庄盘(完全造反后)
 let redealCount=0;        // 本局已重新发牌次数
@@ -4798,6 +4945,12 @@ function humanPlay(){
     const cl=classify(sel,G.trump);
     if(!cl){ setMsg(T('lead')+`必须是同一门(${T('trump')}算一门)`); return; }
     if(cl.type==='throw'){
+      // 「这明明是拖拉机,为什么算甩牌」—— 报障过一次(6677),但引擎侧全牌型扫描没能复现。
+      // 把判成甩牌的**拆解结果**打进出牌记录,下次再遇到就能直接看出是哪一组没接上。
+      const TN={single:'单张',pair:'对子',tractor:'拖拉机'};
+      log(`判定为${T('throwP')}:拆成 ${cl.comps.length} 组 —— `+
+          cl.comps.map(x=>`${TN[x.type]||x.type}(${x.cards.map(c=>miniName(c)).join('')})`).join(' + ')+
+          `。拖拉机要求两组在**当前牌序**里紧邻(级牌已从牌序里抽走,主门里正副级牌与大小王另算一档)`);
       const chk=checkThrow(G.hands,HUMAN,sel,G.trump);
       if(!chk.ok){
         log(`${T('throwP')}失败!被迫只出最小的一组(不罚分)`);
@@ -4979,7 +5132,7 @@ function endRound(){
   if(adv.gateHeld!=null){
     const who=adv.dealer%2===HUMAN%2?'你们':'对方';
     html+=`<div style="margin-top:8px;font-size:15px;color:var(--gold)">`+
-          `⛔ ${rankName(adv.gateHeld)} 必打 —— ${who}还没坐庄打过 ${rankName(adv.gateHeld)},`+
+          `⛔ ${rankName(adv.gateHeld)} 必打 —— ${who}还没坐庄守住过 ${rankName(adv.gateHeld)},`+
           `本次不升级,下一局由${who}坐庄打 ${rankName(adv.gateHeld)}</div>`;
   }
   if(adv.matchOver){
