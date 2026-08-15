@@ -14,14 +14,17 @@
 | `index.html` | 游戏本体(引擎 + AI + 界面,单文件) |
 | `terms-shanghai.js` | 沪语术语表,可独立改词 |
 | `RULES.md` | 规则决定书 |
-| `AI-DESIGN.md` | AI 设计笔记:三个阶段的评分公式与对应函数 |
+| `DESIGN.md` | 设计文档:AI 设计笔记(三个阶段的评分公式与对应函数)+ 最初的架构规划 + AI v4 提升方案(后两者已实施,作为附录存档) |
 | `CHANGELOG.md` | 更新日志 |
-| `80fen-test.html` | 测试副本,用于实验尚未确定是否合入正式版的新功能 |
-| `AI-v4-PROPOSAL.md` | AI v4 的方案与实验记录 |
-| `ai-scenarios.js` | 回归场景库:每条实战反馈一条断言,`node ai-scenarios.js <html>` |
-| `80fen-architecture-plan.md` | 架构演进草案 |
+| `80fen-test.html` | 测试版,推 GitHub 后与正式版共用 Pages;实验中、尚未确定是否合入正式版的新功能先在这落地 |
+| `80fen-dev.html` | 开发版,本地专用(已 `.gitignore`,不进仓库);最前沿的实验在这改,验收后手动同步进 `80fen-test.html` |
+| `test/ai-scenarios.js` | 回归场景库:每条实战反馈一条断言,`node test/ai-scenarios.js <html>` |
+| `test/ai-h2h.js` | 同桌配对对照脚本:`node test/ai-h2h.js <新版html> <旧版html>` |
 
-`80fen-test.html`(原 `80fen-dev.html`)不随 `index.html` 自动同步,需要时手动对比合并;它和正式版共用 GitHub Pages,但 localStorage 前缀是 `80fentest-`,试玩不会污染正式版的笔记与设置。
+三层流水线:本地 `80fen-dev.html`(开发版)→ GitHub `80fen-test.html`(测试版,验收后推)
+→ GitHub `index.html`(正式版)。每次晋级就是把当前文件内容整份复制过去、改文件名,
+`title` / `versionTag` / localStorage 前缀(`80fendev-` / `80fentest-` / `80fen-`)三处
+测试标记跟着改。三个文件都共用 GitHub Pages,localStorage 前缀分开,试玩不会互相污染笔记与设置。
 
 v0.5.0(AI v4)已在 2026-08-08 合入正式版。v0.5.1 / v0.5.2 已在 2026-08-10 一并合入正式版。
 v0.5.3~v0.5.7 已在 2026-08-15 一并合入正式版。**此后测试版又领先:测试版 v0.7.0,正式版 v0.5.7。**
@@ -44,7 +47,7 @@ AI 只回答「合法之中选哪个」,规则判定全部交给引擎——所�
 
 局末目标是阶梯型的:0 / 40 / 80 / 120 / 160 / 200 每条线都可能成为当下的现实目标,不是只认 80。
 
-公式推导、每个系数的来历、以及已知短板与实现方案,见 `AI-DESIGN.md`。
+公式推导、每个系数的来历、以及已知短板与实现方案,见 `DESIGN.md`。
 
 ## 部署
 
@@ -67,11 +70,11 @@ AI 只回答「合法之中选哪个」,规则判定全部交给引擎——所�
 它从不像人那样带着意图去调王,所以「队友调了王、我该不该接」这类**配合问题**
 根本不会被出题;「毙牌用大王而不用主A」这类**被支配的选择**则会淹没在噪声里
 (实测只值 0.5 分/局,远小于单条 SE),可它是实战里一眼可见的错。
-所以每条实战反馈都要钉一条断言进 `ai-scenarios.js`:
+所以每条实战反馈都要钉一条断言进 `test/ai-scenarios.js`:
 
 ```
-node ai-scenarios.js 80fen-test.html   # 测试版 v0.7.0:15/15
-node ai-scenarios.js index.html        # 正式版 v0.5.7:5/15
+node test/ai-scenarios.js 80fen-test.html   # 测试版 v0.7.0:15/15
+node test/ai-scenarios.js index.html        # 正式版 v0.5.7:5/15
 ```
 
 规矩是**先加场景,再动代码** —— 新补丁踩掉旧修复时会立刻红。
