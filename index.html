@@ -289,7 +289,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.5.2</div>
+<div id="versionTag">80分 v0.5.7</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -696,6 +696,20 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   voidValue: 68,              // 完全断门的战略价值(折算成分;扫参在 62~100 区间是平的,取低端)
   voidChainCredit: 0.55,      // 靠稳赢牌保住牌权再断门的折价(笔记里的「视为50%」)
   buryTrumpBlock: 400,        // 主牌埋底的硬性阻力
+  buryAceBlock: 200,          // 副花色 A 埋底的硬性阻力(见 faceValue;旧版是 +30,会被断门收益压过)
+  /* 对子/拖拉机被压的概率单独按组合算(见 pBeaterIn)。pairUrn=0 退回旧的单张公式。 */
+  pairUrn: 1,
+  tractorTighten: 0.6,        // 拖拉机还要求连着,在 p^need 之上再收一道
+  /* 「在外还有更大的对子」的概率低于这个值,就把自己的对子当钢板(见 pPairAbove)。
+   * 0 = 退回旧版那个「只要还有两张没见就算对手有对」的布尔判据。
+   *
+   * **扫参的坡顶在 0.25~0.35(样本外 0.30 → +1.48 分/局, t=2.0),这里故意不取。**
+   * isBossPlay 的语义是「钢板」,护底 / 甩牌 / 领出三处都拿它当**确定性**用;
+   * 0.30 会把「对手有对的概率 26%」、也就是只有 74% 胜率的对子标成钢板 ——
+   * 那是 endKittyWeight 那次的同款错误:让一个数值去买它语义上不该买的东西。
+   * 0.15 的口径是「≥85% 才叫钢板」,实测 +0.17(SE 0.46),无害。
+   * 那 1.5 分的正确取法是把 pPairAbove 当**连续概率**接进打分,而不是放宽布尔阈值。 */
+  pairBossMaxP: 0.15,
   kittyMult: 2,               // 抠底倍数的估计值(按最后一墩单张算)
   kittyPointBias: 0.8,        // 闲家倒推底分时的折扣(庄家倾向不埋分)
   jokerPairHold: 7,           // 王对的**成对溢价**(单张的压制价值已在 trumpHold 里,别算两遍)
@@ -710,6 +724,16 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   drawTrumpUnit: 6,           // 吊主:我方每比对手多一张主牌值多少分
   drawTrumpCap: 30,           // 吊主项的上下限
   leadWeakTrump: 14,          // 领出压不住场的主牌(非钢板)的固定折扣
+  /* 调王/调主(v4.7,见 tiaoWangValue)。tiaoWang=0 即整条关闭,便于消融。 */
+  tiaoWang: 1,
+  tiaoDrawUnit: 7,            // 每逼出对手一张主牌值多少分(按下界算,最多记 2 张)
+  tiaoNoEdge: 0.3,            // 我方主牌不占优时,「逼消耗」只剩这个折扣(可能是替对手清场)
+  tiaoHandoff: 1.0,           // 牌权过渡给队友这一项的权重
+  tiaoNoPartnerT: 0.4,        // 队友主门下界为 0(不确定他还有主)时的折扣
+  /* 副色小牌探路的罚分(v4.7)。豁免:队友多半握 A / 队友已断门(送毙) / 这门分已打光。 */
+  probePenalty: 12,
+  probePairScale: 0.5,        // 对子探路的罚分折扣(对子难被跟死,危险小一档)
+  probeSafeBonus: 6,          // 推断出队友握 A 时,这门的小牌/分牌是贴分,该出
   leadTrumpEVScale: 0.45,     // 领出主牌时,这一墩能收到的分按副牌口径打的折(主牌人人攥着不放)
   feedRuff: 1.0,              // 送毙(主打队友断门)的权重;设 0 即整条关闭,便于消融
   feedRuffMinP: 0.35,         // 队友断门概率低于这个值就不当成送毙机会
@@ -726,14 +750,15 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   endHorizon: 4,              // 剩几张牌起算「最后一墩争夺」(底分越大越提前,见 endHorizonOf)
   endHorizonMax: 9,           // 提前量的上限
   endHorizonPerPt: 1/6,       // 每 1 分底分,把「最后一墩争夺」提前多少张牌
-  /* 底分折算进留牌价值的比例。
-   * v4 给的 0.55 太轻:底 12 分、还剩 3 张时,护底手的加值只有 12×2×0.5×0.55 ≈ 6.6 分,
-   * 压不过"现在就把这张钢板兑现"的当墩收益 —— 于是庄家 40% 的局把保底手提前打光,
-   * 最后一墩连人带底一起送掉(这正是需求列表里「底里超过10分却提前没了保底手段」)。
-   * 扫参 1.0→7.0 是一条先升后平的曲线,4~7 之间是平台,取中间的 5.0。
-   * 实测(样本外 300 副配对):+2.17 分/局(SE 0.60, t=3.6),
-   * 庄家丢掉最后一墩 39.7% → 18.3%。 */
+  /* 护底价值占「底牌那笔翻倍分」的比例。
+   * 量纲上它应该 ≤1(守最后一墩这个期权不可能比它保护的那笔分更值钱),
+   * 但 v4.4 试过把它压回 0.95 并封顶在 stake 上:**每局 −2.1 分,
+   * 庄家丢掉最后一墩 22% → 44%**,上一版的收益全赔回去。
+   * 也就是说这个「量纲错误的」大数值,买到的正是收官阶段那条硬约束。
+   * 结论:数值留着,但**别指望它同时管中盘** —— 调王那类问题另开一条路解决
+   * (takeOverScope 只在非收官阶段生效)。 */
   endKittyWeight: 5.0,
+  reserveMarginal: 1,         // 1=护底代价按边际算(还有第二手钢板就不该全额计价)×reserveHold;0=旧的全额
   ruffStruct1: 0.85,          // 对手断门时,毙掉我一张副牌单张的把握
   ruffStruct2: 0.45,          // 毙掉一个副牌对子(要一对主)的把握
   ruffStruct3: 0.25,          // 毙掉三张以上的一手副牌(要同结构的主)的把握
@@ -780,9 +805,21 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * 再收紧确定性门槛到 0.5 才回到 −0.05。原因大概率是 certainty 本身系统性低估队友
    * (校准表:模型 0.692 / 实际 0.782,见 AI-DESIGN §5.1),于是这条闸门开得太频。
    * 要真正吃下这块收益,得先把 certainty 重标定,而不是在它上面再加一层。 */
-  takeOverScope: 0,
+  takeOverScope: 4,
   takeOverMaxCertainty: 0.85, // 队友暂大且确定性低于此值时,才生成「接过来」的候选(v4.3)
-  overPartner: 3,             // 压自家队友的固定罚分(信息与配合成本)
+  /* 压自家队友的固定分差。**v4.4 起是负数,也就是一份加成。**
+   * 理由不是「打分算出来该接」—— 打分器认为中盘这类局面接过来差 1.6 分,是个近乎平局。
+   * 理由是**自对弈量不了这件事**:两边都是同一个 AI,它从不像人那样带着意图去调王,
+   * 所以「队友调了王、我该不该接」这个配合问题在自对弈里根本不会被出题。
+   * 实测这一档是**纯中性**(+0.04 分/局, SE 0.11, 200 副配对),既然不要钱,
+   * 就按「给人当队友」的口径来定:−4 能把「三家能接却没接」从 34 例压到 15 例,
+   * 再往下(−8)只到 13,收益饱和。 */
+  overPartner: -4,
+  /* 「队友暂大但我断门且台面有分」这一条是**规则**,不是权重:给一份足够大的加成,
+   * 让它在正常局面下直接胜出,只有极端情况(比如手上只剩护底那一张主)才可能被压过。
+   * 判据是 curBoss —— 队友那张确实是本门最大、且没有已知的后手断门,才可以不毙。 */
+  ruffPartnerBonus: -25,
+  ruffPartnerMinPts: 5,       // 台面分下限:一分没有的空气墩不值得动主
   takeOverMinPts: 5,          // 断门毙分那一支的桌面分下限
   partnerHoldAfter: 0.72,     // 队友压回来之后,身后还有对手时守得住的比例
 };
@@ -855,7 +892,13 @@ function faceValue(c, groups, trump){
   const same=g.filter(x=>pairKey(x)===pairKey(c)).length;
   let v=ordIdx(c,trump)*2.2;
   if(same>=2) v+=18;                                  // 别拆对
-  if(c.rank===14) v+=30;                              // A 控门
+  /* 副花色 A:硬性阻力,不是「+30 分再和断门收益比大小」。
+   * 实战反馈 + 实测:旧版在手握副 A 的局里有 19.3% 把它埋了。
+   * 判据很简单 —— A 赢不下一墩,只可能是有人在这门断门并毙掉它;
+   * 开局各家 25 张、一门 12~13 张,天然断门的概率很低,
+   * 也就是说这张 A 赢一墩几乎是确定的,而底里埋一张牌换来的是「可能」造出一个断门。
+   * 拿一个确定的墩去换一个可能的断门,不划算 —— 没有人扣 A。 */
+  if(c.rank===14) v+=AIP.buryAceBlock;
   else if(c.rank===13){
     v+=14;
     if(g.some(x=>x.rank===14)) v+=10;                 // 手握 A 时 K 是撒牌的第二张
@@ -1218,6 +1261,36 @@ function makeVoidProb(reads, mem, trump, handLeft){
   };
 }
 
+/* 持有区间:上界 + **下界**(v4.7)。
+ *
+ * 设计文档 §7 把「对手建模只到缺门级」列为第二大短板,原话是
+ * 「维护每家×每门的持有区间而非单个概率:下界由『必须跟牌却没跟』给出,
+ *  上界由演绎给出」。上界一直有(maxHoldIn),下界一直没做 ——
+ * 而调王的收益判断恰恰只要下界:**对手手上还有没有主牌可跟**。
+ *
+ * 下界几乎是白捡的,因为升级里有一条很强的约束:
+ * **每家手牌数在任何时刻都相同**(每墩每家出一样多张)。于是
+ *     下界(座, 门) ≥ 手牌数 − Σ_{其他门} 上界(座, 其他门)
+ * 三门都被演绎压到很低时,剩下的牌只能在第四门里 —— 这是硬演绎,不是概率。
+ *
+ * handSize 传本家手牌数即可(领出时四家相同;跟牌时已出过牌的那几家少一张,
+ * 少算一张的方向是保守的,不会高估下界)。
+ */
+function makeHoldRange(reads, mem, trump, handSize){
+  const suits=['T','S','H','D','C'].filter(s=>s==='T'||s!==trump.suit);
+  const cache={};
+  return (seat, suitEff)=>{
+    const ck=seat+':'+suitEff;
+    if(cache[ck]) return cache[ck];
+    const hi=s=>(reads.hard[seat]&&reads.hard[seat][s])?0
+                :Math.min(handSize,maxHoldIn(reads,mem,seat,s,trump));
+    let others=0;
+    for(const s of suits) if(s!==suitEff) others+=hi(s);
+    const lo=Math.max(0,handSize-others);
+    return cache[ck]={lo,hi:hi(suitEff)};
+  };
+}
+
 /* ============================================================
  * M3 启发式 AI:记牌 + 规则评估。
  * 返回 {cards, reason, score} —— reason 供教练模式复用。
@@ -1254,10 +1327,38 @@ function unseenPairAbove(mem, suitEff, idx, trump){
   }
   return false;
 }
+/* 「在外还有更大的对子」不是一个布尔问题(v4.6)。
+ * 同点数的两张牌可能分在两家手里,那就凑不成对 —— 而旧版的 unseenPairAbove
+ * 只要看到「这个点数还有两张没见」就判定对手有对,等于按 100% 估一件小概率的事,
+ * 于是 AI 系统性低估自己的对子,该领的对子不敢领。
+ *
+ * 两张同点数落在**同一家**的概率(三家各 h 张、未见共 U 张):
+ *     p = 3 · h(h−1) / (U(U−1))
+ * 开局 h=25、U=83 → 0.26;收官 h=5、U=23 → 0.12。
+ * 所谓「理论最大对子」正是这件事:它跟单张最大牌是两套账,而且随着这门越打越薄,
+ * 剩下的同点两张越不可能还在一家手上。
+ *
+ * h 由 U 反推(未见 = 三家手牌 + 8 张底),庄家知道底牌时会略微低估 h,方向是保守的。 */
+function pPairAbove(mem, suitEff, idx, trump){
+  let U=0;
+  for(const k in mem.unseen) U+=Math.max(0,mem.unseen[k]);
+  const h=Math.max(1,(U-RULES.kittySize)/3);
+  const pTogether=U>1?clamp(3*h*(h-1)/(U*(U-1)),0,1):0;
+  let pNone=1;
+  for(const k in mem.unseen){
+    if(mem.unseen[k]<2) continue;
+    const c=keyToCard(k);
+    if(effSuit(c,trump)!==suitEff||ordIdx(c,trump)<=idx) continue;
+    pNone*=1-pTogether;                 // 每个更高点数各自独立地「凑成对」
+  }
+  return 1-pNone;
+}
 // 该牌型是否已是本门在外最大(“钢板”)
 function isBossPlay(cl, mem, trump){
   if(cl.type==='single') return cl.top>=maxUnseenIdx(mem,cl.suit,trump);
-  return !unseenPairAbove(mem,cl.suit,cl.top,trump);
+  if(!unseenPairAbove(mem,cl.suit,cl.top,trump)) return true;   // 严格意义上已无更大的对
+  // 严格意义上还有,但可能根本凑不成对 —— 概率低于阈值就当钢板
+  return pPairAbove(mem,cl.suit,cl.top,trump)<AIP.pairBossMaxP;
 }
 
 // 跟小:挑最小且无分的。两处修正 ——
@@ -1576,9 +1677,36 @@ function futureValue(cards, X){
     // 于是它们互相锁死,谁也不肯先出,最后被对手用小牌一张张耗光。
     const ru=kp>0?reserveUnit(X):null;
     if(ru&&cards.some(c=>ru.ids.has(c.id))){
-      // 越接近最后一墩,这一手「全场最大」越等价于底牌那笔翻倍的分
+      /* 代价是**边际**的,不是全额的。
+       * 手上如果还有第二手钢板,打掉大王还剩小王,护底能力并没有归零 ——
+       * 旧版按「失去全部护底能力」计价,于是两手钢板互相把对方钉死,
+       * 谁都不肯先出,连拦一个带分的将牌墩都不肯。
+       * 再乘上 reserveHold:这手到底能不能撑到最后一墩本来就是个概率,
+       * 它算出来了(reserveUnit 就是按它排序的),却一直没乘进价值里 ——
+       * 副牌单张护底和大王护底拿的是同一份加值,显然不对。 */
+      /* 越接近最后一墩,这一手「全场最大」越等价于底牌那笔翻倍的分。
+       *
+       * v4.4 修的是**曲线**,不是权重。原来 near 是线性的
+       * `1-(len-1)/hz`,在收官视野的入口几乎等于 0,只有到最后一两墩才接近 1 ——
+       * 也就是「该开始留手的时候一分不给,留不留已成定局的时候才给满」。
+       * v0.5.1 我把权重从 0.55 抬到 5.0 去补这条曲线,补出了一个量纲错误:
+       * 底估 16 分时 flat = 16×2×0.85×5 ≈ 136,而整个打分器的典型量级是个位数 ——
+       * 它不再是权重,是一条硬约束,收官阶段这张牌的任何用途都被一票否决,
+       * 包括拦住末家把一个将牌墩连分带牌权拿走(将牌门有 50 分,人均 12.5)。
+       *
+       * 现在两条都摆正:
+       *   · 曲线用 gamma<1 的幂,视野一进入就给到大半,而不是到最后才给;
+       *   · 天花板锁在**它保护的那笔分**上 —— 守最后一墩这个期权,
+       *     再值钱也不可能超过底牌那笔翻倍的分本身。 */
       const near=1-(X.hand.length-1)/Math.max(1,hz);
-      flat+=kp*AIP.kittyMult*near*AIP.endKittyWeight;
+      let v=kp*AIP.kittyMult*near*AIP.endKittyWeight;
+      if(AIP.reserveMarginal){
+        const gone=new Set(cards.map(c=>c.id));
+        const fallback=bossUnits(X).filter(u=>![...u.ids].some(id=>gone.has(id)))
+                      .map(u=>reserveHold(u,X)).sort((a,b)=>b-a)[0]||0;
+        v*=Math.max(0,reserveHold(ru,X)-fallback);
+      }
+      flat+=v;
     }
   }
   const jokers=cards.filter(c=>c.suit==='X');
@@ -1612,7 +1740,7 @@ function futureValue(cards, X){
 
 // 在外(别家手里)这门还剩多少张、其中多少张压得住 cl
 function unseenBeats(mem, cl, trump){
-  let higher=0, total=0;
+  let higher=0, total=0, pairRanks=0;
   for(const k in mem.unseen){
     const n=mem.unseen[k]; if(n<=0) continue;
     const c=keyToCard(k);
@@ -1620,8 +1748,35 @@ function unseenBeats(mem, cl, trump){
     total+=n;
     // 对子/拖拉机要压住得成对,单张只要更大就行
     if(ordIdx(c,trump)>cl.top && (cl.type==='single'||n>=2)) higher+=n;
+    if(ordIdx(c,trump)>cl.top && n>=2) pairRanks++;
   }
-  return {higher,total};
+  return {higher,total,pairRanks};
+}
+
+/* 「他手上有没有压得住这一手的牌」—— 单张和对子是两个完全不同的组合问题(v4.8)。
+ *
+ * 单张:从这门在外的 total 张里他摸走 k 张,只要有一张更大就行 → 1−(1−higher/total)^k
+ * 对子:得**同一个点数的两张都在他一个人手上**。在外还剩两张的点数有 m 个,
+ *       指定一个点数两张都落到他手上的概率是 k(k−1)/(total(total−1)) ——
+ *       同一个坛子,但比单张低一个数量级。
+ *
+ * 旧版把这两件事按同一个公式算(higher 里把对子的两张都记成能压),
+ * 等于按 100% 估「这两张在同一家手里」。举例:这门在外 6 张、其中两个点数各剩两张、
+ * 对手约摸 1.5 张 —— 旧版算出 0.81,实际是 0.05。系统性高估「我的对子会被压」,
+ * AI 因此既不敢出对子、也不敢把对子算成钢板。这就是 v0.5.5 里
+ * pPairAbove 只当布尔阈值用、没接进打分的那一半。
+ * 拖拉机还得连着,更难,按 need 再收一道。
+ */
+function pBeaterIn(cl, b, k){
+  const {higher,total,pairRanks}=b;
+  if(total<=0||k<=0) return 0;
+  if(!AIP.pairUrn||!cl||cl.type==='single') return 1-Math.pow(1-higher/total,k);
+  const need=cl.type==='tractor'?(cl.len||2):1;
+  if(!pairRanks||pairRanks<need||total<2||k<2) return 0;
+  const q=k*(k-1)/(total*(total-1));
+  let p=1-Math.pow(1-q,pairRanks);
+  if(need>1) p=Math.pow(p,need)*AIP.tractorTighten;
+  return clamp(p,0,1);
 }
 
 // 一手牌摆上台面后,还能活到墩末(不被指定的几个对手压掉)的概率。
@@ -1632,7 +1787,8 @@ function pSurvive(X, cl, seats){
   const {mem,trump}=X;
   const leadSuit=X.lead?X.lead.suit:cl.suit;
   const iRuffed=cl.suit==='T'&&leadSuit!=='T';        // 我这手是毙牌
-  const {higher,total}=unseenBeats(mem,cl,trump);     // 在外能压住我这手的牌
+  const beats=unseenBeats(mem,cl,trump);             // 在外能压住我这手的牌
+  const {higher,total}=beats;
   const lsTotal=leadSuit==='T'?0:unseenBeats(mem,{suit:leadSuit,top:-1,type:'single'},trump).total;
   const trAvail=unseenBeats(mem,{suit:'T',top:-1,type:'single'},trump).total;
   // 他手上这门大约几张 = 这门在外的张数 × 他占未见牌的比例。
@@ -1640,7 +1796,7 @@ function pSurvive(X, cl, seats){
   // 收官未见 3×5+8=23 张、他占 5/23≈1/4.6。用实际手牌数算,别拍一个 3。
   const denom=X.shareDenom||AIP.handShare;
   const k=total>0?Math.max(1,total/denom):0;
-  const pHas=total>0?1-Math.pow(1-higher/total,k):0;
+  const pHas=pBeaterIn(cl,beats,k);
   let p=1;
   for(const s of seats){
     const knownVoid=leadSuit!=='T'&&X.voids[s]&&X.voids[s][leadSuit];
@@ -1679,10 +1835,11 @@ function pPartnerTakes(X){
   if(!X.partnerRemaining) return AIP.pNoPartnerLeft;   // 队友已出过牌,只能指望对手内讧
   const {mem,trump}=X;
   const leadSuit=X.lead?X.lead.suit:X.cur.cl.suit;
-  const {higher,total}=unseenBeats(mem,X.cur.cl,trump);
+  const beats=unseenBeats(mem,X.cur.cl,trump);
+  const {total}=beats;
   const denom=X.shareDenom||AIP.handShare;
   const k=total>0?Math.max(1,total/denom):0;
-  const pHas=total>0?1-Math.pow(1-higher/total,k):0;     // 队友手上压得住的密度
+  const pHas=pBeaterIn(X.cur.cl,beats,k);                // 队友手上压得住的密度
   const pVoid=leadSuit==='T'?0
     :(X.partnerSeat!==undefined&&X.pVoidOf?X.pVoidOf(X.partnerSeat,leadSuit):0.12);
   const trAvail=unseenBeats(mem,{suit:'T',top:-1,type:'single'},trump).total;
@@ -1916,6 +2073,11 @@ function scoreCheapPlay(X,cards){ return scorePlay(X,cards,'cheap',false); }
  */
 function takeOverScoped(X, view){
   if(!AIP.takeOverScope) return false;
+  /* 收官阶段一律不开。那一档的「不接」是护底锁造成的(实测:接过来比不接
+   * 低 46 分,其中 51.5 分来自护底项),而护底锁本身每局值 +2 分,不该为这条让路。
+   * 调王本来就是中盘战术 —— 领一张小主找队友支援、或把牌权让出去,
+   * 收官阶段大家都在兑现,没有「调」这回事。 */
+  if(X.phase==='end') return false;
   if(AIP.takeOverScope===2) return true;
   const voidRuff=X.ptsTable>=AIP.takeOverMinPts
                  && !view.hand.some(c=>effSuit(c,X.trump)===X.lead.suit);
@@ -1980,6 +2142,28 @@ function aiChooseFollow(view, plays){
    * 唯一的额外项是 overPartner —— 压自家队友本身有信息与配合上的代价,给一个固定罚分。
    * certainty 已经很高(队友基本稳赢)时不生成,省掉这份计算。
    */
+  /* 1c-0. 队友暂大、我在领出门断门、台面有分 —— **默认就该毙**(v4.5)。
+   *
+   * 这不是一个打分问题,是一条规则。放着不毙唯一说得通的理由,是同时确定两件事:
+   *   ① 队友那张就是本门在外最大(再没人压得住),并且
+   *   ② 后手对手没人在这门断门(不会被毙掉)。
+   * 这两条正好是 followCtx 里已经算好的 `curBoss`
+   * (= isBossPlay(队友那张) && !oppRuffRisk)。**但凡这个合取不成立,就毙。**
+   * 而且实战里还要防着下家断门用主色分牌来毙 —— 那是更该早毙的理由,不是不毙的理由。
+   *
+   * 实测(250 局):这类局面 398 次、台面共 4380 分,旧版只毙了 49.5%、覆盖 47.1% 的分。
+   * 一半的分就这么摆在桌上不动。 */
+  else if(!X.curBoss&&X.ptsTable>=AIP.ruffPartnerMinPts
+          &&lead.suit!=='T'
+          &&!view.hand.some(c=>effSuit(c,trump)===lead.suit)
+          &&view.hand.some(c=>effSuit(c,trump)==='T')){
+    const win=minWinFollow(view.hand,lead,trump,X.cur.cl);
+    if(win) push(win,'ruff',true,
+      '这门我断门、台面有分,而队友那张并非稳赢 —— 毙下来',AIP.ruffPartnerBonus);
+    if(AIP.blockWin)
+      push(blockWinFollow(view.hand,lead,trump,X.cur.cl,X.mem),'ruff',true,
+        '毙到在外最大分牌之上,防末家用更大的主抢回去',AIP.ruffPartnerBonus);
+  }
   else if(!X.isLast&&X.remainingOpp.length&&X.certainty<AIP.takeOverMaxCertainty
           &&takeOverScoped(X,view)){
     const win=minWinFollow(view.hand,lead,trump,X.cur.cl);
@@ -2036,6 +2220,8 @@ function leadCtx(view){
   const myTeam=view.seat%2;
   const reads=makeReads(view.history||[],trump);
   const pVoidOf=makeVoidProb(reads,mem,trump,view.hand.length);
+  const holdRange=makeHoldRange(reads,mem,trump,view.hand.length);
+  const partnerAce=partnerAceRead(view.history||[],trump,view.seat);
   // 从布尔改成概率:「对手可能缺这门」现在是个数,降权也就按比例来
   const oppVoidP=s=>Math.max(...[0,1,2,3].filter(p=>p%2!==myTeam).map(p=>pVoidOf(p,s)),0);
   const oppVoid=s=>oppVoidP(s)>0.5;
@@ -2045,6 +2231,7 @@ function leadCtx(view){
   const isDecl=view.declSeat!==undefined&&view.declSeat>=0&&view.declSeat%2===myTeam;
   const rs=roundScore(view);
   return {trump,mem,voids,oppVoid,partnerVoid,oppVoidP,partnerVoidP,reads,pVoidOf,
+          seat:view.seat,holdRange,partnerAce,
           nTrump,isDecl,hand:view.hand,buriedKnown:view.buriedKnown,
           phase:phaseOf(view.hand.length),leading:true,
           def:rs.def,live:rs.live,pw:pointWeight(rs.def,rs.live),
@@ -2066,6 +2253,61 @@ function leadPointsEV(L, cl, cards){
   // 对手也只会跟最小的主。副牌那套「1/3 在队友手里、他会送过来」的估计在主牌上明显偏高,
   // 不打这个折的话,「领出一张大怪」会因为主门在外分多而拿到虚高的收益。
   return (fromPartner+fromOpp)*(cl.suit==='T'?AIP.leadTrumpEVScale:1);
+}
+
+/* 「队友多半握着这门的 A」(v4.7)。
+ * 依据:队友**领出 K**、而这门的 A 当时还没露面,他还赢下了这一墩 ——
+ * 一个理智的人不会把 K 顶到一张在外的 A 上去,除非那张 A 就在他自己手里。
+ * 推断成立之后,我再出这门的小牌甚至分牌就不是「探路」而是**贴分**:
+ * 牌权本来就会回到队友手上。
+ */
+function partnerAceRead(history, trump, seat){
+  const out={}, partner=(seat+2)%4;
+  for(let i=0;i+3<history.length;i+=4){
+    const trick=history.slice(i,i+4);
+    const lead=classify(trick[0].cards,trump);
+    if(!lead||lead.suit==='T'||lead.type!=='single') continue;
+    if(trick[0].seat!==partner||trick[0].cards[0].rank!==13) continue;
+    // 这一墩之前,这门的 A 露过面吗?露过就没什么可推的了
+    const seenA=history.slice(0,i).some(p=>p.cards.some(c=>
+      effSuit(c,trump)===lead.suit&&c.rank===14));
+    if(seenA) continue;
+    if(resolveTrick(trick,trump).winner===partner) out[lead.suit]=true;
+  }
+  return out;
+}
+
+/* 调王 / 调主(v4.7)—— 设计文档 §7 欠了两版的那条。
+ *
+ * 它一直做不了,是因为判据要的是「对手手上**还有没有**主牌」,而模型只有上界没有下界。
+ * makeHoldRange 补上下界之后就能算了:
+ *
+ *   逼消耗 —— 对手在主门的**下界**之和 > 0,说明他们**必须**跟主。
+ *             每逼出一张,我方的主牌优势就兑现一分;没有优势时逼出来是替对手清场,
+ *             所以乘上 drawTrumpValue 的符号。
+ *   过牌权 —— 队友还有主(下界>0)、且在外压得住这张的大主更可能在他那边时,
+ *             这一墩多半由队友收走,牌权就此过渡到他手上,他的副色好牌可以出手。
+ *
+ * 代价那一侧不用另算:低主的 futureValue、leadWeakTrump 折扣、以及
+ * LEAD_PWIN.single 的牌权项都已经在打分里,这里只补收益。
+ * 带开关 AIP.tiaoWang,便于单组件消融。
+ */
+function tiaoWangValue(L, cl, cards){
+  if(!AIP.tiaoWang||cl.suit!=='T'||cl.type!=='single') return 0;
+  if(cards.some(c=>c.suit==='X')) return 0;          // 不拿大小王去调,那是自废武功
+  if(!L.holdRange||L.seat===undefined) return 0;
+  const opps=[0,1,2,3].filter(p=>p%2!==L.seat%2);
+  const oppLo=opps.reduce((a,p)=>a+L.holdRange(p,'T').lo,0);
+  const oppHi=opps.reduce((a,p)=>a+L.holdRange(p,'T').hi,0);
+  if(oppHi<=0) return 0;                              // 对手主已断:调过去只是白送牌权
+  const edge=drawTrumpValue(L);
+  const drawOut=Math.min(oppLo,2)*AIP.tiaoDrawUnit*(edge>0?1:AIP.tiaoNoEdge);
+  // 牌权过渡:在外压得住这张的主,有多大比例可能在队友那边
+  const pt=L.holdRange((L.seat+2)%4,'T');
+  const {higher}=unseenBeats(L.mem,{suit:'T',top:cl.top,type:'single'},L.trump);
+  const share=pt.hi+oppHi>0?pt.hi/(pt.hi+oppHi):0;
+  const handoff=higher>0?(pt.lo>0?1:AIP.tiaoNoPartnerT)*share*AIP.oppTempo*AIP.tiaoHandoff:0;
+  return AIP.tiaoWang*(drawOut+handoff);
 }
 
 /* 领出的牌权项(v4)。
@@ -2182,17 +2424,36 @@ function scoreLeadCore(L, cl, cards){
   const dtc=cl.suit==='T'?Math.min(0,drawTrumpValue(L))-AIP.leadWeakTrump:0;
   if(cl.type==='tractor')
     return {score:30+size*4-(ruffable?10:0)-fut+dtc,reason:'拖拉机难跟,压一手',pWin:LEAD_PWIN.tractor};
-  if(cl.type==='pair')
-    return {score:20-cl.top*0.5-pts*4-(ruffable?8:0)-fut+dtc,
+  if(cl.type==='pair'){
+    // 对子的「探路」比单张危险小(对子难被跟死),但同样受豁免条件约束
+    const safePair=cl.suit!=='T'&&((L.partnerAce&&L.partnerAce[cl.suit])
+                   ||unseenPointsIn(L.mem,cl.suit,L.trump)===0);
+    return {score:20-cl.top*0.5-pts*4-(ruffable?8:0)-fut+dtc
+                  -(cl.suit!=='T'&&!safePair?AIP.probePenalty*AIP.probePairScale:0),
             reason:pts?'分对慎出,无保护先探路':'出对子探路',
             pWin:LEAD_PWIN.pair};
+  }
   let s=16-cl.top*0.8-pts*6-(ruffable&&pts?8:0)-fut, reason='小牌探路';
   if(cl.suit==='T'){
-    s+=Math.min(0,drawTrumpValue(L))-AIP.leadWeakTrump;
-    reason='小主领出压不住场,吊不出对手的大主';
+    // 低主领出有两种完全不同的情形,旧版混为一谈、一律重罚:
+    //   · 对手主已断 / 我方主不占优 → 确实是白烧一张主再把牌权送出去
+    //   · 对手还必须跟主、我方主占优 → 这是**调王**,用极小的消耗逼对手出大牌、
+    //     或者把牌权过渡给队友。判据见 tiaoWangValue(要下界,所以以前做不了)。
+    const tw=tiaoWangValue(L,cl,cards);
+    s+=Math.min(0,drawTrumpValue(L))-AIP.leadWeakTrump+tw;
+    reason=tw>AIP.leadWeakTrump*0.5?'调主:小主换牌权,逼对手出大牌'
+          :'小主领出压不住场,吊不出对手的大主';
   }else{
+    /* 副色小牌「探路」通常是坏棋:把牌权无消耗地交出去,还可能连分一起送。
+     * 只有几种情形下它不是探路,而是有明确目的的一手 —— 其余一律降到兜底,
+     * 让调主之类的候选先出线。 */
     const fr=feedRuffValue(L,cl,cards);
+    const partnerHasAce=L.partnerAce&&L.partnerAce[cl.suit];
+    const noPts=unseenPointsIn(L.mem,cl.suit,L.trump)===0;
     if(fr>0){ s+=fr; reason='主打队友的断门,让他毙下这墩'; }
+    else if(partnerHasAce){ s+=AIP.probeSafeBonus; reason='队友多半握着这门的 A —— 这是贴分,不是探路'; }
+    else if(noPts){ reason='这门的分已经打光,交牌权代价小'; }
+    else { s-=AIP.probePenalty; reason='副色小牌探路(下策:白交牌权)'; }
   }
   return {score:s,reason,pWin:LEAD_PWIN.single};
 }
@@ -2298,12 +2559,13 @@ const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
   canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,clampAtGate,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
-  makeMemory,maxUnseenIdx,unseenPairAbove,isBossPlay,buildFollow,currentWinner,minWinFollow,
+  makeMemory,maxUnseenIdx,unseenPairAbove,pPairAbove,pBeaterIn,keyToCard,isBossPlay,buildFollow,currentWinner,minWinFollow,
   aiChooseFollow,aiChooseLead,coachScoreFollow,coachScoreLead,makeVoids,followCtx,leadCtx,scoreLeadPlay,
   AIP,globalIdx,easeEnds,bossChain,pWinLastTrick,faceValue,voidProb,
   scoreDeclOption,declThreshold,aiDeclDecide,projectLen,trumpCountUnder,sideQuality,pPairOverride,
   phaseOf,futureValue,pTeamWin,laterPoints,scorePlay,unseenPointsIn,leadPointsEV,pSurvive,unseenBeats,roundScore,pointWeight,ruffThrow,SCORE_LADDER,makeReads,maxHoldIn,makeVoidProb,cheapKey,dumpKey,kittyPointsEst,tempoValue,
-  bossUnits,feedRuffValue,reserveHold,reserveUnit};
+  bossUnits,feedRuffValue,reserveHold,reserveUnit,
+  makeHoldRange,partnerAceRead,tiaoWangValue};
 if(typeof module!=='undefined') module.exports=ENGINE;
 </script>
 
@@ -2573,6 +2835,35 @@ function runTests(E){
     ok('记牌:HA出尽后HK封顶', E.isBossPlay(E.classify([view.hand[0]],T),mem,T)===true);
     const view2={seat:0,hand:[C('H',13)],trump:T,history:[],buriedKnown:[]};
     ok('记牌:HA未见时HK非最大', E.isBossPlay(E.classify([view2.hand[0]],T),E.makeMemory(view2),T)===false);
+    /* 理论最大对子(v4.6):同点数的两张可能分在两家,凑不成对。
+     * 开局未见牌多、每家手牌也多,「凑成对」的概率还有 0.26,不该当钢板;
+     * 打到只剩几张时同一个局面就该当钢板了。 */
+    {
+      const filler=n=>{const f=[];for(let i=0;i<n;i++)f.push(C('C',3+(i%9)));return f;};
+      const opener={seat:0,hand:[...P('H',13),...filler(23)],trump:T,history:[],buriedKnown:[]};
+      const mOpen=E.makeMemory(opener);
+      ok('对子:开局 HA 两张全未见 → HK 对不算钢板',
+         E.isBossPlay(E.classify([C('H',13),C('H',13)],T),mOpen,T)===false);
+      ok('对子:此时「在外有更大对」的概率显著大于阈值',
+         E.pPairAbove(mOpen,'H',E.ordIdx(C('H',13),T),T)>0.2);
+      // 只剩 3 张手牌:未见牌少,两张 HA 落在同一家的概率掉下来
+      const late={seat:0,hand:[...P('H',13),C('C',3)],trump:T,history:[],buriedKnown:[]};
+      // 把绝大多数牌都记成已见,只留 HA 两张 + 少量
+      const mLate=E.makeMemory(late);
+      for(const k in mLate.unseen){
+        const c=E.keyToCard(k);
+        if(!(c.suit==='H'&&c.rank===14)) mLate.unseen[k]=0;
+      }
+      ok('对子:收官只剩两张 HA 未见 → 概率降到阈值下,HK 对当钢板',
+         E.isBossPlay(E.classify([C('H',13),C('H',13)],T),mLate,T)===true);
+      ok('对子:严格意义上仍有更大的对(判据确实走的是概率这条路)',
+         E.unseenPairAbove(mLate,'H',E.ordIdx(C('H',13),T),T)===true);
+      // 阈值置 0 = 退回旧的布尔判据
+      const save=E.AIP.pairBossMaxP; E.AIP.pairBossMaxP=0;
+      ok('对子:阈值置 0 时退回旧判据',
+         E.isBossPlay(E.classify([C('H',13),C('H',13)],T),mLate,T)===false);
+      E.AIP.pairBossMaxP=save;
+    }
   }
   // 跟牌:对手暂大且能吃 → 用最省的牌吃(HQ 而非 HA)
   {
@@ -2605,6 +2896,73 @@ function runTests(E){
     const view={seat:0,hand:[...P('X',16),C('H',4),C('C',7)],trump:T,history:[],buriedKnown:[]};
     const ch=E.aiChooseLead(view);
     ok('收官底肥:王对留着守最后一墩', !ch.cards.some(c=>c.rank===16));
+  }
+  /* ---- v4.8:对子被压的概率按组合算 ---- */
+  {
+    const b={higher:8,total:12,pairRanks:4};
+    const pPair=E.pBeaterIn({type:'pair'},b,4);
+    const pSingle=E.pBeaterIn({type:'single'},b,4);
+    ok('单张仍走旧公式', Math.abs(pSingle-(1-Math.pow(1-8/12,4)))<1e-9);
+    ok('对子被压的概率远低于单张', pPair<pSingle*0.5);
+    ok('拖拉机比对子更难被压',
+       E.pBeaterIn({type:'tractor',len:2},b,4)<pPair);
+    // 这门在外没有成对的点数 → 对子压根压不住
+    ok('在外无对子时,我的对子不可能被同门压掉',
+       E.pBeaterIn({type:'pair'},{higher:6,total:9,pairRanks:0},3)===0);
+    // 他这门只摸到一张 → 凑不出对
+    ok('他这门只有一张时压不了对子',
+       E.pBeaterIn({type:'pair'},{higher:4,total:8,pairRanks:2},1)===0);
+    ok('pairUrn=0 时退回旧的单张公式',
+       (()=>{const o=E.AIP.pairUrn;E.AIP.pairUrn=0;
+             const z=E.pBeaterIn({type:'pair'},b,4);E.AIP.pairUrn=o;
+             return Math.abs(z-pSingle)<1e-9;})());
+  }
+  /* ---- v4.7:持有区间下界 / 队友 A 的读牌 / 调主 ---- */
+  // 手牌数恒等约束:某家在别门的上界之和不足以填满手牌时,剩下的必然在这一门
+  {
+    const mem=E.makeMemory({hand:[],trump:T,history:[],buriedKnown:[]});
+    const reads=E.makeReads([],T);
+    // 制造硬断门:1 号在方块/梅花/红桃上都断了,那 8 张手牌只能全是主
+    reads.hard[1]={D:true,C:true,H:true};
+    const hr=E.makeHoldRange(reads,mem,T,8);
+    ok('下界:三门都断,8 张必然全在主门', hr(1,'T').lo===8);
+    ok('下界:已知断门的那一门上界为 0', hr(1,'D').hi===0);
+  }
+  // 队友外面还有 A 却敢用 K 领出并赢下 → 几乎可以断定 A 在他手里
+  {
+    const hist=[{seat:2,cards:[C('H',13)]},{seat:3,cards:[C('H',5)]},
+                {seat:0,cards:[C('H',4)]},{seat:1,cards:[C('H',9)]}];
+    const r=E.partnerAceRead(hist,T,0);
+    ok('队友 K 领出赢墩 → 推断他握着这门的 A', r.H===true);
+    ok('这个推断不外溢到别的花色', !r.D);
+  }
+  // 同样的 K,如果被人毙掉/压掉,就推不出任何东西
+  {
+    const hist=[{seat:2,cards:[C('H',13)]},{seat:3,cards:[C('H',5)]},
+                {seat:0,cards:[C('H',4)]},{seat:1,cards:[C('S',3)]}];
+    ok('K 被毙掉则不成立', !E.partnerAceRead(hist,T,0).H);
+  }
+  // 调主:对手手上还有主 → 小主领出不该再吃满额罚分
+  {
+    const view={seat:0,trump:T,history:[],buriedKnown:[],
+                hand:[C('S',14),C('S',13),C('S',9),C('S',8),C('S',7),C('H',3),C('D',4)]};
+    const L=E.leadCtx(view);
+    const v=E.tiaoWangValue(L,E.classify([C('S',7)],T),[C('S',7)]);
+    ok('主多于对手时,小主领出被认成调主(收益为正)', v>0);
+    ok('调主关掉后收益归零',
+       (()=>{const o=E.AIP.tiaoWang;E.AIP.tiaoWang=0;
+             const z=E.tiaoWangValue(L,E.classify([C('S',7)],T),[C('S',7)]);
+             E.AIP.tiaoWang=o; return z===0;})());
+  }
+  // 探路豁免:推断出队友握 A 时,这门的小牌是贴分不是探路,不该吃罚分
+  {
+    const hist=[{seat:2,cards:[C('H',13)]},{seat:3,cards:[C('H',5)]},
+                {seat:0,cards:[C('H',4)]},{seat:1,cards:[C('H',9)]}];
+    const mk=h=>({seat:0,trump:T,history:h,buriedKnown:[],
+                  hand:[C('H',3),C('D',6),C('D',7),C('C',9)]});
+    ok('推断出的 A 已经接进领出上下文', E.leadCtx(mk(hist)).partnerAce.H===true);
+    // 这门不会再被当成「白交牌权」的探路(具体落到贴分还是送毙,取决于别的项)
+    ok('队友握 A 的那门不再吃探路罚分', !/下策/.test(E.aiChooseLead(mk(hist)).reason));
   }
   // ---- v4 场景测试 ----
   // 护底该留哪一手:主牌 > 副牌对子 > 副牌单张(副牌单张最容易被毙,最不可能独大到最后)
