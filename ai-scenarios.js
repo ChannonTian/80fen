@@ -1,7 +1,7 @@
 /* 80分 AI —— 用户反馈的九条，逐条做成可复现的场景断言。
  *
  * 用法：
- *   node ai-scenarios.js /path/to/80fen-test.html
+ *   node ai-scenarios.js /path/to/80fen-dev.html
  *   node ai-scenarios.js /path/to/index.html
  *
  * 它做两件事：
@@ -12,7 +12,7 @@
  */
 const fs=require('fs'), vm=require('vm'), path=require('path');
 const file=process.argv[2];
-if(!file){ console.error('用法: node ai-scenarios.js <80fen-test.html|index.html>'); process.exit(1); }
+if(!file){ console.error('用法: node ai-scenarios.js <80fen-dev.html|index.html>'); process.exit(1); }
 const src=fs.readFileSync(file,'utf8');
 const blocks=[...src.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
 const ctx={module:{exports:{}},console,Math,Object,Array,Set,Map,JSON,String,Number};

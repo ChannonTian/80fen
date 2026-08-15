@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>[测试版] 80分(上海规则)</title>
+<title>[开发版] 80分(上海规则)</title>
 <style>
   :root{--felt:#0f5132;--felt2:#0b3d26;--gold:#ffd75e;
         /* 牌宽是整个界面的标尺:牌面、字号、间距都跟着它缩放 */
@@ -289,7 +289,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.5.7(测试版)</div>
+<div id="versionTag">80分 v0.7.0(开发版)</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -4243,7 +4243,7 @@ const TERMS_CN={bigJoker:'大王',smallJoker:'小王',trump:'主牌',noTrump:'�
   bury:'扣底',lead:'领出',zheng:'正常主',fu:'副常主',voidSuit:'断门',openVoid:'开局断门',
   rankA:'A',rankK:'K',rankQ:'Q',rankJ:'J',levelUp:'升级',
   defenders:'闲家',tiaoji:'跳级',guangtou:'剃光头'};   // 闲家/跳级/剃光头:沪语全国通用
-let useSH=true; try{ const v=localStorage.getItem('80fentest-lang'); if(v) useSH=v==='sh'; }catch(e){}
+let useSH=true; try{ const v=localStorage.getItem('80fendev-lang'); if(v) useSH=v==='sh'; }catch(e){}
 const T=k=>(useSH&&window.TERMS_SH&&window.TERMS_SH[k])||TERMS_CN[k]||k;
 
 const SUIT_SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
@@ -4253,10 +4253,10 @@ const HUMAN=0;
 const typeName=t=>({single:'单张',pair:'对子',tractor:T('tractor'),throw:T('throwP')}[t]);
 const rankName=r=>r===14?T('rankA'):r===13?T('rankK'):r===12?T('rankQ'):r===11?T('rankJ'):String(r);
 let G=null, seedBase=Date.now()%100000, activeTab='score', replayMode=false, histBySuit=false;
-let notes=[]; try{ notes=JSON.parse(localStorage.getItem('80fentest-notes')||'[]'); }catch(e){}
+let notes=[]; try{ notes=JSON.parse(localStorage.getItem('80fendev-notes')||'[]'); }catch(e){}
 
 // ---- 音效(WebAudio 合成,无外部资源,可关) ----
-let sndOn=true; try{ sndOn=localStorage.getItem('80fentest-snd')!=='off'; }catch(e){}
+let sndOn=true; try{ sndOn=localStorage.getItem('80fendev-snd')!=='off'; }catch(e){}
 let _actx=null;
 function beep(freq,dur=0.08,type='sine',gain=0.06,delay=0){
   if(!sndOn) return;
@@ -4300,13 +4300,13 @@ const S_DEFAULT={
 };
 let S={...S_DEFAULT, gates:[...S_DEFAULT.gates], rules:{...RULE_DEFAULTS}};
 try{
-  const saved=JSON.parse(localStorage.getItem('80fentest-set')||'{}');
+  const saved=JSON.parse(localStorage.getItem('80fendev-set')||'{}');
   Object.assign(S,saved);
   S.rules={...RULE_DEFAULTS,...(saved.rules||{})};   // 老存档没有 rules 字段时回落到出厂值
 }catch(e){}
 function applyRules(){ Object.assign(RULES,S.rules); }
 applyRules();
-function saveS(){ try{ localStorage.setItem('80fentest-set',JSON.stringify(S)); }catch(e){} }
+function saveS(){ try{ localStorage.setItem('80fendev-set',JSON.stringify(S)); }catch(e){} }
 // 秒 → 毫秒,顺手挡掉手输的空值/负数/非数字
 const secs=(v,fallback)=>1000*Math.max(0,(typeof v==='number'&&isFinite(v))?v:fallback);
 function aiThinkMs(){
@@ -4445,9 +4445,9 @@ function openSettings(){
   num('stDeclWait','declWait');
   $('stManual').onchange=e=>{ S.manualNext=e.target.checked; saveS(); fill(); };
   $('stLang').onchange=e=>{ useSH=e.target.value==='sh';
-    try{ localStorage.setItem('80fentest-lang',useSH?'sh':'cn'); }catch(_){ } if(G) render(); };
+    try{ localStorage.setItem('80fendev-lang',useSH?'sh':'cn'); }catch(_){ } if(G) render(); };
   $('stSnd').onchange=e=>{ sndOn=e.target.checked;
-    try{ localStorage.setItem('80fentest-snd',sndOn?'on':'off'); }catch(_){ } };
+    try{ localStorage.setItem('80fendev-snd',sndOn?'on':'off'); }catch(_){ } };
   $('cOn').onchange=e=>{ C.on=e.target.checked; saveC(); if(G) render(); };
   $('cSens').onchange=e=>{ C.gapSens=e.target.value; saveC(); };
   $('cStrict').onchange=e=>{ C.strict=e.target.checked; saveC(); };
@@ -4462,8 +4462,8 @@ function openSettings(){
     S=snapshot.S; C=snapshot.C; useSH=snapshot.useSH; sndOn=snapshot.sndOn;
     saveS(); saveC(); applyRules();
     try{
-      localStorage.setItem('80fentest-lang',useSH?'sh':'cn');
-      localStorage.setItem('80fentest-snd',sndOn?'on':'off');
+      localStorage.setItem('80fendev-lang',useSH?'sh':'cn');
+      localStorage.setItem('80fendev-snd',sndOn?'on':'off');
     }catch(_){ }
     if(G) render();
     closeSettings();
@@ -4495,8 +4495,8 @@ window.__showKitty=()=>{
 
 // ---- 教练设置(全部可开关可调,默认全开) ----
 let C={on:true, gapSens:'中', strict:false, review:true, quiz:true, memShow:false};
-try{ Object.assign(C,JSON.parse(localStorage.getItem('80fentest-coach')||'{}')); }catch(e){}
-function saveC(){ try{ localStorage.setItem('80fentest-coach',JSON.stringify(C)); }catch(e){} }
+try{ Object.assign(C,JSON.parse(localStorage.getItem('80fendev-coach')||'{}')); }catch(e){}
+function saveC(){ try{ localStorage.setItem('80fendev-coach',JSON.stringify(C)); }catch(e){} }
 // 教练的「失误」门槛,单位是折算后的期望分。
 // 领出与跟牌的评分基准不同(领出含「拿住牌权」的战略值,量纲约为跟牌的 4 倍),
 // 所以领出的差值先除以 LEAD_GAP_SCALE 再比,否则教练会对领出唠叨、对跟牌失明。
@@ -5317,7 +5317,7 @@ function sendNote(){
   const v=el.value.trim();
   if(!v) return;
   notes.push(v); el.value='';
-  try{ localStorage.setItem('80fentest-notes',JSON.stringify(notes.slice(-100))); }catch(e){}
+  try{ localStorage.setItem('80fendev-notes',JSON.stringify(notes.slice(-100))); }catch(e){}
   renderPanel();
 }
 

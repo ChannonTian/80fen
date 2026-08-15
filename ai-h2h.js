@@ -17,7 +17,7 @@ const fs=require('fs'),vm=require('vm');
 function load(f){const b=[...fs.readFileSync(f,'utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
   const ctx={module:{exports:{}},console,Math,Object,Array,Set,Map,JSON,String,Number};
   ctx.globalThis=ctx;vm.createContext(ctx);vm.runInContext(b[0],ctx);return ctx.module.exports;}
-const NEW=load(process.argv[2]||'80fen-test.html');
+const NEW=load(process.argv[2]||'80fen-dev.html');
 const OLD=load(process.argv[3]||'index.html');
 const E=NEW;
 
@@ -93,7 +93,7 @@ for(let s=1;s<=N;s++){
 }
 const mean=diff/n, sd=Math.sqrt(sq/n-mean*mean), se=sd/Math.sqrt(n);
 console.log(`同桌配对对照 ${n} 副(${N} 种子 × 交换阵营)`);
-console.log(`  新版 ${process.argv[2]||'80fen-test.html'}   旧版 ${process.argv[3]||'index.html'}`);
+console.log(`  新版 ${process.argv[2]||'80fen-dev.html'}   旧版 ${process.argv[3]||'index.html'}`);
 console.log(`  新版净胜 ${(mean/2).toFixed(2)} 分/局  (SE ${(se/2).toFixed(2)}, t=${(mean/se).toFixed(2)})`);
 console.log(`  新版坐庄丢掉最后一墩 ${(100*lostNew/nNew).toFixed(1)}%  (${lostNew}/${nNew})`);
 console.log(`  旧版坐庄丢掉最后一墩 ${(100*lostOld/nOld).toFixed(1)}%  (${lostOld}/${nOld})`);
