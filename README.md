@@ -5,7 +5,7 @@
 纯静态、零依赖、无构建:一个 `index.html` + 一个 `terms-shanghai.js`。
 
 * **[在线试玩稳定版](https://channontian.github.io/80fen/)**
-* [在线试玩开发版](https://channontian.github.io/80fen/80fen-dev.html)
+* [在线试玩测试版](https://channontian.github.io/80fen/80fen-test.html)
 
 ## 文件
 
@@ -16,20 +16,15 @@
 | `RULES.md` | 规则决定书 |
 | `AI-DESIGN.md` | AI 设计笔记:三个阶段的评分公式与对应函数 |
 | `CHANGELOG.md` | 更新日志 |
-| `80fen-dev.html` | 开发版,本地实验用,尚未确定是否合入正式版的新功能都先在这里改 |
+| `80fen-test.html` | 测试副本,用于实验尚未确定是否合入正式版的新功能 |
 | `AI-v4-PROPOSAL.md` | AI v4 的方案与实验记录 |
 | `ai-scenarios.js` | 回归场景库:每条实战反馈一条断言,`node ai-scenarios.js <html>` |
-| `ai-h2h.js` | 同桌配对对照脚本:`node ai-h2h.js <新版html> <旧版html>` |
 | `80fen-architecture-plan.md` | 架构演进草案 |
 
-三层流水线:**本地 `80fen-dev.html`(开发版)→ GitHub `80fen-test.html`(测试版,验收后推)
-→ GitHub `index.html`(正式版)。** 每次晋级就是把当前文件内容整份复制过去、改文件名,
-`title` / `versionTag` / localStorage 前缀(`80fendev-` / `80fentest-` / `80fen-`)三处
-测试标记跟着改;晋级完的那个名字腾出来,继续挂下一轮开发。三个文件都共用 GitHub Pages,
-localStorage 前缀分开,试玩不会互相污染笔记与设置。
+`80fen-test.html`(原 `80fen-dev.html`)不随 `index.html` 自动同步,需要时手动对比合并;它和正式版共用 GitHub Pages,但 localStorage 前缀是 `80fentest-`,试玩不会污染正式版的笔记与设置。
 
 v0.5.0(AI v4)已在 2026-08-08 合入正式版。v0.5.1 / v0.5.2 已在 2026-08-10 一并合入正式版。
-v0.5.3~v0.5.7 已在 2026-08-15 一并合入正式版。**此后开发版又领先:开发版 v0.7.0,正式版 v0.5.7。**
+v0.5.3~v0.5.7 已在 2026-08-15 一并合入正式版。**此后测试版又领先:测试版 v0.7.0,正式版 v0.5.7。**
 同桌配对对照(1600 副,交换阵营):v0.7.0 相对 v0.5.7 **+5.63 ±1.05 分/局**(t=5.39),
 庄家丢掉最后一墩 41.6% → 24.9%。
 
@@ -75,7 +70,7 @@ AI 只回答「合法之中选哪个」,规则判定全部交给引擎——所�
 所以每条实战反馈都要钉一条断言进 `ai-scenarios.js`:
 
 ```
-node ai-scenarios.js 80fen-dev.html    # 开发版 v0.7.0:15/15
+node ai-scenarios.js 80fen-test.html   # 测试版 v0.7.0:15/15
 node ai-scenarios.js index.html        # 正式版 v0.5.7:5/15
 ```
 
