@@ -293,7 +293,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.3(测试版)</div>
+<div id="versionTag">80分 v0.7.4(测试版)</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -741,6 +741,8 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   oppSpendModel: 1,
   oppSpendGain: 1,           // 台面分在他眼里的权重
   oppSpendTempo: 4,          // 拿到牌权对他值多少分
+  /* 把「他肯不肯花」接进 pSurvive 的盖毙那一支(v0.7.4)。0 = 退回 0.90/0.50 两个常数。 */
+  willingBeats: 1,
   /* 对子/拖拉机被压的概率单独按组合算(见 pBeaterIn)。pairUrn=0 退回旧的单张公式。 */
   pairUrn: 1,
   tractorTighten: 0.6,        // 拖拉机还要求连着,在 p^need 之上再收一道
@@ -2144,16 +2146,20 @@ function futureValue(cards, X){
 }
 
 // 在外(别家手里)这门还剩多少张、其中多少张压得住 cl
-function unseenBeats(mem, cl, trump){
+function unseenBeats(mem, cl, trump, ceil){
   let higher=0, total=0, pairRanks=0;
   for(const k in mem.unseen){
     const n=mem.unseen[k]; if(n<=0) continue;
     const c=keyToCard(k);
     if(effSuit(c,trump)!==cl.suit) continue;
     total+=n;
+    const idx=ordIdx(c,trump);
+    // ceil:只数**他肯为这一墩花**的那一档(v0.7.4,见 oppSpendCeil)。
+    // 不传 ceil = 老口径,只要更大就算能压。
+    const up=idx>cl.top && (ceil===undefined||idx<=ceil);
     // 对子/拖拉机要压住得成对,单张只要更大就行
-    if(ordIdx(c,trump)>cl.top && (cl.type==='single'||n>=2)) higher+=n;
-    if(ordIdx(c,trump)>cl.top && n>=2) pairRanks++;
+    if(up && (cl.type==='single'||n>=2)) higher+=n;
+    if(up && n>=2) pairRanks++;
   }
   return {higher,total,pairRanks};
 }
@@ -2194,6 +2200,18 @@ function pSurvive(X, cl, seats){
   const iRuffed=cl.suit==='T'&&leadSuit!=='T';        // 我这手是毙牌
   const beats=unseenBeats(mem,cl,trump);             // 在外能压住我这手的牌
   const {higher,total}=beats;
+  /* 「他会不会压过来」原来是一个概率 × 一个手调常数(0.90/0.50)。可面对一个**会算账**的
+   * 对手,这不是概率问题:他要么肯花、要么不肯,取决于这一墩值不值那张牌。
+   * v0.7.4 把毙牌被盖毙那一支换成最优应对:能压我的牌只数**他肯花的那一档**
+   * (oppSpendCeil),门槛之上的牌他本来就不会为这墩动。
+   *
+   * 面对最优对手,「逼他花掉一张大牌」这层消耗收益确实会归零 —— 他会选择不花。
+   * 但那不等于这一手没价值:他不花,这一墩连分就是我的。价值是两支里**他会选的那一支**,
+   * 而这正是这个写法算出来的东西;旧的常数式算的是两支的一个中间值,两边都不对。 */
+  const oCeil=AIP.willingBeats&&iRuffed
+    ?(X._osc!==undefined?X._osc:(X._osc=oppSpendCeil(X,X.hand?X.hand.length:9)))
+    :undefined;
+  const beatsW=oCeil===undefined?beats:unseenBeats(mem,cl,trump,oCeil);
   const lsTotal=leadSuit==='T'?0:unseenBeats(mem,{suit:leadSuit,top:-1,type:'single'},trump).total;
   const trAvail=unseenBeats(mem,{suit:'T',top:-1,type:'single'},trump).total;
   // 他手上这门大约几张 = 这门在外的张数 × 他占未见牌的比例。
@@ -2234,7 +2252,8 @@ function pSurvive(X, cl, seats){
   };
   let p=1;
   for(const s of seats){
-    const pHasS=(AIP.voidCondK||AIP.holdKRange)?pBeaterIn(cl,beats,kOf(s)):pHas;
+    const pHasS=(AIP.voidCondK||AIP.holdKRange||oCeil!==undefined)
+                ?pBeaterIn(cl,beatsW,kOf(s)):pHas;
     const knownVoid=leadSuit!=='T'&&X.voids[s]&&X.voids[s][leadSuit];
     // 他在「领出的那一门」断门的概率 —— 毙牌与被毙都以这个为前提。
     // 优先用从出牌方式反推出来的概率(makeReads),没有推断时退回按门厚薄的粗估。
@@ -2245,7 +2264,8 @@ function pSurvive(X, cl, seats){
     if(iRuffed){
       // 我已经毙了。他要盖过我,得先在领出门也断门,再拿出更大的主牌 ——
       // 旧版漏了「他也得断门」这个前提,把毙牌的存活率算得极低,于是 AI 几乎从不毙。
-      pBeat=pVoidLead*pHasS*(X.ptsTable>0?0.90:0.50);   // 空气墩未必值得他花主牌
+      // willingBeats 打开时,「值不值得他花」已经在 beatsW 里表达过了,不再乘那个常数
+      pBeat=pVoidLead*pHasS*(oCeil!==undefined?1:(X.ptsTable>0?0.90:0.50));
     }else if(knownVoid){
       pBeat=(X.ptsTable>0?0.80:0.35)*(trAvail>0?0.85:0);   // 已知缺门 → 只可能被毙
     }else{
