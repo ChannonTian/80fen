@@ -10,7 +10,7 @@ const E=load(process.argv[2]||'80fen-test.html');
 const N=+process.argv[3]||150;
 E.AIP.egSearch=0;
 if(process.env.OV) Object.assign(E.AIP,JSON.parse(process.env.OV));
-let qLead=0,qLost=0,qPts=0, voidLead=0,voidLeadLost=0,voidLeadPts=0, leads=0;
+let voidLeadAlt=0,voidLeadAltPts=0,vAltLost=0,vAltPts=0,vAltPtLost=0,vAltPtPts=0,qLead=0,qLost=0,qPts=0, voidLead=0,voidLeadLost=0,voidLeadPts=0, leads=0;
 for(let seed=1;seed<=N;seed++){
   const {first}=E.cutForFirst(seed);
   const {hands,kitty}=E.dealRound(seed,first);
@@ -48,9 +48,15 @@ for(let seed=1;seed<=N;seed++){
             const iHaveBigger=hb.some(c=>E.effSuit(c,trump)===cl.suit&&E.ordIdx(c,trump)>cl.top);
             if(bigOut>0&&!iHaveBigger&&cl.top>=8){ qLead++; watch={kind:'q',seat}; }
           }
-          // E':明知有对手在这门断门还领这门
+          // E':明知有对手在这门断门还领这门。只有「当时另有门可领」才算得上错 ——
+          // 手上只剩这一门时它是被迫的,不该算进账。
           const oppVoid=[0,1,2,3].some(p=>p%2!==seat%2&&voids[p]&&voids[p][cl.suit]);
-          if(oppVoid){ voidLead++; watch={kind:watch?'both':'v',seat,q:!!watch}; }
+          const suits=new Set(hb.map(c=>E.effSuit(c,trump)));
+          const hadAlt=suits.size>1;
+          const carriesPts=E.countPoints(cards)>0;
+          if(oppVoid){ voidLead++;
+            if(hadAlt){ voidLeadAlt++; if(carriesPts) voidLeadAltPts++; }
+            watch={kind:watch?'both':'v',seat,q:!!watch,hadAlt,carriesPts}; }
         }
       }else{
         const lead=E.classify(plays[0].cards,trump);
@@ -65,7 +71,9 @@ for(let seed=1;seed<=N;seed++){
     const res=E.resolveTrick(plays,trump);
     if(watch&&res.winner%2!==watch.seat%2){
       if(watch.kind==='q'||watch.kind==='both'||watch.q){ qLost++; qPts+=res.points; }
-      if(watch.kind==='v'||watch.kind==='both'){ voidLeadLost++; voidLeadPts+=res.points; }
+      if(watch.kind==='v'||watch.kind==='both'){ voidLeadLost++; voidLeadPts+=res.points;
+        if(watch.hadAlt){ vAltLost++; vAltPts+=res.points;
+          if(watch.carriesPts){ vAltPtLost++; vAltPtPts+=res.points; } } }
     }
     history.push(...plays); leader=res.winner; if(++tricks>60)break;
   }
@@ -74,3 +82,5 @@ console.log(`${process.argv[2]}  ${N} 局,共领出 ${leads} 次`);
 console.log(`D 领出一张「上面还有更大的、我手里又没有」的副色高牌(Q 以上): ${qLead} 次,`+
             `丢掉 ${qLost} 次 (${(100*qLost/Math.max(1,qLead)).toFixed(1)}%),送出 ${qPts} 分`);
 console.log(`E' 明知有对手在这门断门仍领这门: ${voidLead} 次,丢掉 ${voidLeadLost} 次,送出 ${voidLeadPts} 分`);
+console.log(`   其中当时另有门可领: ${voidLeadAlt} 次,丢掉 ${vAltLost} 次,送出 ${vAltPts} 分`);
+console.log(`   再收紧到「这一手还带着分」: ${voidLeadAltPts} 次,丢掉 ${vAltPtLost} 次,送出 ${vAltPtPts} 分`);

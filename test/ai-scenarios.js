@@ -152,6 +152,27 @@ console.log(`\n===== ${path.basename(file)} =====\n`);
         ()=>r2.cands.some(c=>/接过|毙下来|压到/.test(c.reason||'')), '至少生成一个「接过牌权」候选');
 }
 
+/* ── 送分：明知对手在这门断门，还带着分领这门 ─────────────────────────
+ * 根因在 partnerRescueP：它把「队友本门还有更大的牌」当成能救这一墩，
+ * 可只要有对手断门，这墩是被一张**主**盖走的，队友那张本门的 A 没用。
+ * 配一条对照组：同样的牌面、没人断门时，该收这一墩就得收。 */
+{
+  const h=()=>H(['HK','H6','C6','C7','D4','D5','S6']);
+  // 第1墩 0 领 HA，1 号垫方块 → 1 号红桃硬断门；第2墩 0 用 CA 保住牌权
+  const base=[{seat:0,cards:H(['HA'])},{seat:2,cards:H(['H3'])},{seat:3,cards:H(['H4'])},
+              {seat:0,cards:H(['CA'])},{seat:1,cards:H(['C3'])},
+              {seat:2,cards:H(['C4'])},{seat:3,cards:H(['C5'])}];
+  const mk=p1=>{const t=base.slice(); t.splice(1,0,{seat:1,cards:H([p1])}); return t;};
+  const lead=hist=>E.aiChooseLead({seat:0,trump:T,declSeat:0,history:hist,
+                                   buriedKnown:[],hand:h()});
+  const rVoid=lead(mk('D9'));      // 1 号垫方块 = 红桃断门
+  const rCtrl=lead(mk('H5'));      // 对照：1 号跟了红桃，没断门
+  check('E1','已知对手在红桃断门 → 不该把 10 分的红桃K 领出去送毙',
+        `${ns(rVoid.cards)}（${rVoid.reason}）`, ()=>ns(rVoid.cards)!=='HK', '不是 HK');
+  check('E1b','对照组：没人断门时，这张红桃K 该收下这一墩',
+        `${ns(rCtrl.cards)}（${rCtrl.reason}）`, ()=>ns(rCtrl.cards)==='HK', 'HK');
+}
+
 /* ── ①⑥ 统计口径：跑一批自对弈，把关键比率打出来 ─────────────────────── */
 {
   let n=0,lost=0,k10=0,k10lost=0;
