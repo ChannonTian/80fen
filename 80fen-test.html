@@ -293,7 +293,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.4(测试版)</div>
+<div id="versionTag">80分 v0.7.5(测试版)</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -743,6 +743,9 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   oppSpendTempo: 4,          // 拿到牌权对他值多少分
   /* 把「他肯不肯花」接进 pSurvive 的盖毙那一支(v0.7.4)。0 = 退回 0.90/0.50 两个常数。 */
   willingBeats: 1,
+  /* 后手还有已知断门的对手时,毙牌的罚分(v0.7.5,见上面的反事实回放)。
+   * push 的第 5 参是罚分,所以正数才是罚。0 = 关闭。 */
+  ruffVoidBehind: 20,       // 见上面 voidBehind 处的反事实回放
   /* 对子/拖拉机被压的概率单独按组合算(见 pBeaterIn)。pairUrn=0 退回旧的单张公式。 */
   pairUrn: 1,
   tractorTighten: 0.6,        // 拖拉机还要求连着,在 p^need 之上再收一道
@@ -2617,11 +2620,22 @@ function aiChooseFollow(view, plays){
        * 已经被更大的主毙过(cur 是主而我这手也是主但压不过)的局面进不到这里:
        * minWinFollow 那时就返回 null。 */
       const voidRuffOpp=AIP.ruffOppRule&&isRuff&&X.ptsTable>=AIP.ruffOppMinPts;
+      /* v0.7.5 ——「后手还有已知在这门断门的对手」时,这一毙多半是白花一张主。
+       *
+       * 这一条不是推出来的,是**定点反事实回放**量出来的:在这个决策点上分叉,
+       * 三条支路各用同一套 AI 打完整局(两个版本 × 1200 局 × 850+ 个决策点):
+       *     A 最省的毙法(现状)      基准
+       *     B 毙到手上最大的主       +0.07 ±0.71 / −0.71 ±0.70  ← 等于零
+       *     C 不毙,垫一张废牌        +1.32 ±0.55 / +2.11 ±0.58  ← t=2.4 / 3.6
+       * 也就是说 v0.7.1~v0.7.4 整条「毙得够高」的路子方向就错了:
+       * 问题不在毙得不够高,在**这张主比这一墩值钱**,压根不该动。
+       * 聚合自对弈看不见它 —— 一次决策的价值被整局稀释掉了;定点分叉一量就出来。 */
+      const voidBehind=isRuff&&X.remainingOpp.some(s=>X.voids[s]&&X.voids[s][lead.suit]);
       push(win,isRuff?'ruff':'over',true,
         X.isLast?(isRuff?'最后一手,毙掉收分':'最后一手,稳吃这墩')
                 :(voidRuffOpp?'这门我断门、台面有分而对手暂大 —— 毙下来'
                  :(X.oppRuffRisk?'尝试吃,但后手或被毙':(isRuff?'断门毙牌抢分':'能吃住,争这墩'))),
-        voidRuffOpp?AIP.ruffOppBonus:0);
+        (voidRuffOpp?AIP.ruffOppBonus:0)+(voidBehind?AIP.ruffVoidBehind:0));
       /* 1a′. 毙得够高:后面还有已知在这门断门的对手 → 小主毙上去会被原样端走。
        * 见 ruffGuardFollow。只在真有已知断门的后手对手时才生成,不然是白花大主。 */
       /* 闸门(v0.7.1):第一版不设闸,实测配对 −0.51、庄家丢掉最后一墩 26.3%→33.7% ——
