@@ -293,7 +293,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.2(测试版)</div>
+<div id="versionTag">80分 v0.7.3(测试版)</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -708,26 +708,18 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   holdKRange: 1,             // 持有区间(硬上下界)夹一道
   voidCondK: 1,              // 已知断门 → 条件概率抬高他在别门(尤其主门)的密度
   voidCondMax: 2.2,          // 抬高倍数的上限(断三门时 pool 会很小,别让它发散)
-  /* 「毙得够高」的候选(见 ruffGuardFollow)。**实测否掉,默认 0**,代码与开关留着。
+  /* 「毙得够高」的候选(见 ruffGuardFollow + oppSpendCeil)。默认开,台面 ≥10 分才考虑。
    *
-   * 修的是什么(150 局):断门毙牌约 1330 次,其中 123 次被**事先已知断门**的对手
-   * 盖毙、而我手上本来就有更大的主 —— 白送 1055 分。开了之后 83 次 / 735 分。
+   * v0.7.1 第一版按「他有没有更大的主」定门槛,实测 −0.92 ±0.15,插桩查明原因:
+   * 断门那家主牌密度高,能过门槛的只剩大小王 —— 178 次触发里 85% 打的是王,
+   * 而 78% 的墩台面是 0 分。掏一张王去赢一墩空气。
    *
-   * 代价(配对对照,四批):−0.51±0.29 / −1.00±0.27 / −0.61±0.22 / −1.17±0.28,
-   * 合并约 **−0.92 ±0.15**;庄家丢掉最后一墩稳定 +6.4~8.3 个百分点。
-   * 加闸(只中盘 + 台面 ≥10 分)则 440 次门槛只选中 9 次、等于不发生,分数 +0.04±0.06。
-   * 也就是说它挣到的那一点全在收官段,而收官段正是它亏钱的地方。
-   *
-   * 「是不是因为底里埋了分才不敢花大主」——同一批种子做过 2×2:
-   *   底里照常埋分 → 开它 −1.10 ±0.29,丢最后一墩 28.4%→35.3%
-   *   少埋分(buryPtShadow 0.6)→ 开它 −0.72 ±0.26,丢最后一墩 28.1%→35.1%
-   * 少埋分只收回三分之一(+0.38 ±0.39,不显著),**丢最后一墩那一栏纹丝不动**。
-   * 结论:中盘花大主的代价主要不是「底里那笔分守不住」,是最后一墩的控制权本身;
-   * 底分只放大它,不是成因。
-   *
-   * 这是「打分器只算一墩」那个上游缺口的第四次现身(见 AI-DESIGN §8)。
-   * 等中盘也有跨墩推演之后再回来试。 */
-  ruffGuard: 0,
+   * v0.7.3 换成「他肯不肯花」(oppSpendCeil):门槛取「他拿得出」与「他肯拿出」的小者。
+   * 王的占比 85% → 29%,中间那一档(副级牌 25%、主Q 10%、主A 9%、正级牌 7%)终于出线。
+   * 配对四批 2800 副:+0.11±0.12 / +0.14±0.10 / +0.07±0.12 / +0.23±0.10,
+   * 合并 **+0.15 ±0.05(t=2.69)**;可避免的被盖毙 118 → 110 次、870 → 765 分;
+   * 庄家丢最后一墩 +1.7 个百分点(不设闸时是 +2.8~4.6,所以分的闸还是要留)。 */
+  ruffGuard: 1,
   /* 埋分的影子成本:每 1 分底分,额外折算多少「分」的留手负担。
    * 动机是 riskBury 只算直接损失,没算「为守住这笔底分,整局都要留手」。
    * 实测这个杠杆推不动:shadow 0.15/0.3/0.6 三档,平均埋底分只从 11.8 掉到
@@ -743,8 +735,12 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * 「守最后一墩」标定的,和「这一墩会不会被原样端走」不是一回事。这是 §8 记过的
    * 同一个上游缺口(打分器只算一墩)。实测 150 局:可避免的被盖毙 123 → 92 次。 */
   ruffGuardBonus: -25,
-  ruffGuardMinPts: 0,        // 台面分下限(0 = 不设闸)
+  ruffGuardMinPts: 10,       // 台面分下限(0 = 不设闸)。空气墩上这条规则挣不到钱
   ruffGuardEnd: 1,           // 收官阶段也允许(0 = 只在中盘)
+  /* 对手的「肯不肯花」模型(见 oppSpendCeil)。0 = 退回只按持有分布定门槛。 */
+  oppSpendModel: 1,
+  oppSpendGain: 1,           // 台面分在他眼里的权重
+  oppSpendTempo: 4,          // 拿到牌权对他值多少分
   /* 对子/拖拉机被压的概率单独按组合算(见 pBeaterIn)。pairUrn=0 退回旧的单张公式。 */
   pairUrn: 1,
   tractorTighten: 0.6,        // 拖拉机还要求连着,在 p^need 之上再收一道
@@ -1774,6 +1770,52 @@ function blockWinFollow(hand, lead, trump, curBest, mem, certain){
   return buildFollow(hand,lead,trump,'cheap',[c],certain);
 }
 
+/* 「他肯为这一墩花到多大的主」(v0.7.3)。
+ *
+ * v0.7.1 的门槛问错了问题:它问「他**有没有**更大的主」,于是断门那家主牌密度高,
+ * 能过门槛的只剩大小王 —— 插桩 300 局,选中「毙高一档」178 次里 85% 打的是王,
+ * 而其中 78% 的墩台面是 0 分。掏一张王去赢一墩空气,自然是 −0.92 分/局。
+ *
+ * 该问的是他**肯不肯**花:他手上那张大牌,是一笔要跟当前这一墩比价的资产。
+ *
+ *     他的收益 = 这一墩的分 × 阶梯权重 + 拿到牌权的那一小截
+ *     他的代价 = 那张主留着的期权价值 = trumpHold × phaseK + (若它是全场最大)收官护底
+ *
+ * 这两条我们本来就会算,只是一直只对自己算。反过来量他,三种实战情景自动分开:
+ *   · 他出级数牌、上面还有王 —— 级数牌不是全场最大,没有护底那一截,代价小,
+ *     台面有分他就肯花 → 我毙不安全,除非我能盖过级数牌。
+ *   · 他只剩一张主级数牌、没有王,抢底本就无望 —— 同样代价小,10 分他就换。
+ *   · 他只剩一张大王,又在收官视野里、底里有分 —— 护底那一截很重,
+ *     代价远超台面这 10 分,他不会为这墩花大王 → 我用主A 毙就够了。
+ * 「大牌」按实战口径取级数牌向上,低于这一档的主本来就没有比价问题。
+ *
+ * 还没做的一截:我逼他花掉一张更大的牌,本身有**消耗**收益(他的保底手少一个),
+ * 这笔复合收益现在没记 —— 记它需要跨墩推演,见 AI-DESIGN §8。
+ */
+function oppSpendCeil(X, handLen){
+  const trump=X.trump, mem=X.mem;
+  if(!mem||!mem.unseen) return 99;
+  const gain=X.ptsTable*(X.pw||1)*AIP.oppSpendGain+AIP.oppSpendTempo;
+  const hz=endHorizonOf(X);
+  const inEnd=handLen<=hz;
+  const kp=inEnd?kittyPts(X):0;
+  const near=inEnd?Math.pow(Math.max(0,1-(handLen-1)/Math.max(1,hz)),AIP.endNearGamma||1):0;
+  const guard=kp*kittyMultOf(X)*near*AIP.endKittyWeight;
+  const ph=phaseK(X);
+  let ceil=-1;
+  for(const k in mem.unseen){
+    if(mem.unseen[k]<=0) continue;
+    const c=keyToCard(k);
+    if(effSuit(c,trump)!=='T') continue;
+    const idx=ordIdx(c,trump);
+    let cost=trumpHold(c,X)*ph;
+    // 它是不是「全场最大」——是的话,它同时是他的保底手,代价要加上护底那一截
+    if(unseenBeats(mem,{suit:'T',top:idx,type:'single'},trump).higher===0) cost+=guard;
+    if(cost<=gain) ceil=Math.max(ceil,idx);
+  }
+  return ceil;
+}
+
 /* 毙得**够高** —— blockWinFollow 的毙牌版(v0.7.1)。
  *
  * blockWinFollow 只管同门(`curBest.suit!==lead.suit` 直接返回 null),毙牌那一侧一直没有
@@ -1785,13 +1827,18 @@ function blockWinFollow(hand, lead, trump, curBest, mem, certain){
  * 实测(正式版 150 局):断门毙牌 1324 次,其中 123 次被事先已知断门的对手盖毙,
  * 而我手上本来就有更大的主 —— 白送 1055 分。
  *
- * 判据:后面还有已知在这门断门的对手 → 他能毙 → 我得毙到**他手上那张最大的主**之上。
+ * 门槛是两条约束里松的那一条(v0.7.3):
+ *   ① **他有没有**:次序统计量 —— 在外 m 张主、他约摸摸到 k 张,他手上最大那张的
+ *      期望位次是从大到小第 `m/(k+1)` 张。(用「在外最大的主」当门槛是错的:
+ *      那等于要求我握大王,实测生成 0 次。)
+ *   ② **他肯不肯**:oppSpendCeil —— 他愿意为这一墩付出的最大代价。
+ * 取两者的**小**者:他既拿不出、也不肯拿的那条线,我毙过去就安全了。
+ * 只有 ② 才让中间那一档(主K/主A)有机会出线 —— 空气墩上 ② 会低到 −1,
+ * 于是整条规则在空气墩上自动噤声,这正是 v0.7.1 那版 −0.92 的病根。
  *
- * 「在外最大的主」是错的门槛:那等于要求我握着大王,几乎永远生成不出候选(实测 0 次)。
- * 要的是次序统计量:在外 m 张主、他大约摸到 k 张,他手上最大的那张的期望位次约是
- * 从大到小数第 `m/(k+1)` 张。毙过这一张,被盖毙的概率就掉到 1/(k+1) 量级。
- * 毙不到就返回 null(那时该考虑的是别毙,交给打分)。 */
-function ruffGuardFollow(hand, lead, trump, curBest, mem, certain, share){
+ * 若最省的毙法本来就压过门槛 → 返回 null(不需要多花牌)。
+ * 毙不到门槛之上也返回 null(那时该考虑的是别毙,交给打分)。 */
+function ruffGuardFollow(hand, lead, trump, curBest, mem, certain, share, ceil){
   if(lead.suit==='T'||lead.type!=='single') return null;
   const tr=hand.filter(c=>effSuit(c,trump)==='T');
   if(!tr.length) return null;
@@ -1807,8 +1854,9 @@ function ruffGuardFollow(hand, lead, trump, curBest, mem, certain, share){
   out.sort((a,b)=>b-a);
   const k=Math.max(1,share||1);
   const idx=Math.min(out.length-1,Math.max(0,Math.floor(out.length/(k+1))-1));
-  const topT=out[idx];                            // 他手上最大那张主的期望
-  if(topT<=curBest.top) return null;              // 最省的毙法本来就压过了
+  const hasT=out[idx];                            // ① 他手上最大那张主的期望
+  const topT=Math.min(hasT,ceil===undefined?hasT:ceil);   // ② 他肯花到哪
+  if(topT<=curBest.top) return null;              // 最省的毙法本来就压过门槛了
   const c=cheapSort(tr.filter(x=>ordIdx(x,trump)>topT),trump,certain)[0];
   if(!c) return null;
   return buildFollow(hand,lead,trump,'cheap',[c],certain);
@@ -2566,7 +2614,8 @@ function aiChooseFollow(view, plays){
         // 他大约摸到几张主 —— 与 pSurvive 的 kOf 同一口径(含断门的条件概率)
         const trOut=unseenBeats(X.mem,{suit:'T',top:-1,type:'single'},trump).total;
         const share=trOut/(X.shareDenom||AIP.handShare);
-        const hi=ruffGuardFollow(view.hand,lead,trump,X.cur.cl,X.mem,certain,share);
+        const ceil=AIP.oppSpendModel?oppSpendCeil(X,view.hand.length):undefined;
+        const hi=ruffGuardFollow(view.hand,lead,trump,X.cur.cl,X.mem,certain,share,ceil);
         if(hi) push(hi,'ruff',true,
           '下家已知在这门断门 —— 毙到在外最大的主之上,别让他原样端走',AIP.ruffGuardBonus);
       }
@@ -3610,7 +3659,7 @@ const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
   canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,clampAtGate,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
-  makeMemory,maxUnseenIdx,unseenPairAbove,pPairAbove,pBeaterIn,keyToCard,isBossPlay,buildFollow,currentWinner,minWinFollow,ruffGuardFollow,
+  makeMemory,maxUnseenIdx,unseenPairAbove,pPairAbove,pBeaterIn,keyToCard,isBossPlay,buildFollow,currentWinner,minWinFollow,ruffGuardFollow,oppSpendCeil,
   aiChooseFollow,aiChooseLead,coachScoreFollow,coachScoreLead,makeVoids,followCtx,leadCtx,scoreLeadPlay,
   AIP,globalIdx,easeEnds,bossChain,pWinLastTrick,faceValue,voidProb,
   scoreDeclOption,declThreshold,aiDeclDecide,projectLen,trumpCountUnder,sideQuality,pPairOverride,
@@ -3975,7 +4024,33 @@ function runTests(E){
          E.makeMemory({hand:weak,trump:T4,history:[],buriedKnown:[]}),false,1)===null);
     ok('本门还有牌时轮不到毙',
        E.ruffGuardFollow(hand.concat([C('H',3)]),lead,T4,lead,mem,false,1)===null);
-    ok('默认关闭(见 AIP.ruffGuard 的注释)', E.AIP.ruffGuard===0);
+    ok('默认开启,且只在台面 ≥10 分时考虑', E.AIP.ruffGuard===1&&E.AIP.ruffGuardMinPts===10);
+  }
+
+  /* ---- v0.7.3:他肯为这一墩花到多大的主(oppSpendCeil)—— 实战三情景 ---- */
+  {
+    const mkX=(hand,pts,phase,buried)=>{
+      const v={seat:0,trump:T,history:[],buriedKnown:buried||[],hand};
+      return {trump:T,mem:E.makeMemory(v),ptsTable:pts,pw:1,phase,hand,
+              buriedKnown:buried||[],isDecl:true,oppVoidP:()=>0.3};
+    };
+    const h=[C('S',14),C('S',13),C('S',9),C('H',4),C('H',5),C('D',6),C('D',7),C('C',8)];
+    const iBig=E.ordIdx({suit:'X',rank:16},T), iSml=E.ordIdx({suit:'X',rank:15},T);
+    const iLvl=E.ordIdx(C('S',2),T), iAce=E.ordIdx(C('S',14),T);
+    // ① 空气墩:他不会为一墩 0 分花任何大牌
+    ok('空气墩:他肯花的上限低于副级牌',
+       E.oppSpendCeil(mkX(h,0,'mid'),12)<E.ordIdx(C('H',2),T));
+    // ② 台面有分、中盘:级数牌上面还有王,没有护底那一截 → 他肯花
+    ok('中盘 10 分:他肯花到级数牌以上',
+       E.oppSpendCeil(mkX(h,10,'mid'),12)>=iLvl);
+    // ③ 收官 + 底里有分:大王是他的保底手,不会为这 10 分动
+    {
+      const endH=[C('S',14),C('S',9),C('H',4),C('D',6)];
+      const bur=[C('H',5),C('H',13),C('D',5),C('D',13)];
+      const ceil=E.oppSpendCeil(mkX(endH,10,'end',bur),4);
+      ok('收官+底里有分:他不会为 10 分花掉大王/小王', ceil<iSml&&ceil<iBig);
+      ok('但主A 这一档他仍然肯花 —— 毙到主A 之上就够', ceil>=iAce);
+    }
   }
 
   /* ---- v4.8:对子被压的概率按组合算 ---- */
