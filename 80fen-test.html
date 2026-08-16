@@ -135,6 +135,7 @@
   #tabs{display:flex;gap:6px;flex:none;flex-wrap:wrap}
   #tabs button{font-size:var(--fsSmall);padding:5px 10px;background:#2c6e4f;color:#fff}
   #tabs button.on{background:var(--gold);color:#222}
+  #panel button.on{background:var(--gold);color:#222}   /* 对局记录里的视图切换按钮,选中态与页签一致 */
   #panel{background:rgba(0,0,0,.3);border-radius:8px;padding:8px 12px;font-size:var(--fsSmall);
          flex:1;min-height:0;overflow-y:auto;color:#cfe8d9}
   .trickRow{display:flex;gap:10px;align-items:center;margin:3px 0 8px;flex-wrap:wrap}
@@ -282,7 +283,6 @@
     <div id="tabs">
       <button data-tab="score">抢分记录</button>
       <button data-tab="log">对局记录</button>
-      <button data-tab="hist">出牌历史</button>
       <button data-tab="coach">教练</button>
       <button data-tab="mem">记牌表</button>
       <button data-tab="notes">笔记</button>
@@ -293,7 +293,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.5(测试版)</div>
+<div id="versionTag">80分 v0.7.7(测试版)</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -314,6 +314,11 @@ const RULES = {
   pointRebelThreshold: 15,      // 【可调】手牌分数 ≤ 此值可完全造反(5的倍数,≤30;0=关闭)
   trumpRebelThreshold: 3,       // 【可调】手牌主牌张数 ≤ 此值也可完全造反(-1=关闭)
   maxRedeal: 3,                 // 同一局最多连续重新发牌次数(防止一直重发)
+  /* 速通模式:级数只在 2/5/10/K/A 这几档上走,每局最多前进一档。
+   * 一整场从 2 打到 A 正常要十几局,试玩时太长;速通把它压到最多 4 局。
+   * 打开时必打关卡自动失效 —— 阶梯本身就是关卡,再叠一层只会更慢。 */
+  speedRun: false,
+  speedLadder: [2,5,10,13,14],  // 2 / 5 / 10 / K / A
 };
 
 const SUITS = ['S','H','D','C'];
@@ -613,6 +618,16 @@ function advanceMatch(levels, declSeat, sc, gates, played){
   let dealer, up, team;
   if(!sc.defendersWin){ team=declTeam; up=sc.declarerLevelsUp; dealer=(declSeat+2)%4; }
   else { team=1-declTeam; up=sc.defenderLevelsUp; dealer=(declSeat+1)%4; }
+  if(RULES.speedRun){
+    // 只在阶梯上走,一局最多一档;在 A 上再赢就是打过 A(>14 → 整场结束)
+    const ld=RULES.speedLadder;
+    const nx=ld.find(x=>x>L[team]);
+    L[team]=up>0?(nx===undefined?L[team]+1:nx):L[team];
+    const over=L[0]>14||L[1]>14;
+    return {levels:L, dealer, matchOver:over,
+            winnerTeam:over?(L[0]>14?0:1):null,
+            gateStopped:null, gateHeld:null, played:pl};
+  }
   const c=clampAtGate(L[team], L[team]+up, gates);
   let level=c.level, gateStopped=c.gate, gateHeld=null;
   // 停在关卡上、却没在这一级坐庄守住过 → 原地不动。
@@ -2631,10 +2646,18 @@ function aiChooseFollow(view, plays){
        * 问题不在毙得不够高,在**这张主比这一墩值钱**,压根不该动。
        * 聚合自对弈看不见它 —— 一次决策的价值被整局稀释掉了;定点分叉一量就出来。 */
       const voidBehind=isRuff&&X.remainingOpp.some(s=>X.voids[s]&&X.voids[s][lead.suit]);
+      /* 理由里凡是提到「分」的,都得先看台面上真有没有分。
+       * 体检(test/audit-reason.js)扫出来:旧写法里「断门毙牌抢分」「毙掉收分」
+       * 一律不看 X.ptsTable,近一半触发在 0 分墩上 —— 牌没打错,话说错了。
+       * 教练页签直接把这句念给玩家听,说错一次,后面几句就都不作数了。 */
+      const pt=X.ptsTable>0;
       push(win,isRuff?'ruff':'over',true,
-        X.isLast?(isRuff?'最后一手,毙掉收分':'最后一手,稳吃这墩')
+        X.isLast?(isRuff?(pt?'最后一手,毙掉收分':'最后一手,毙下这墩')
+                        :(pt?'最后一手,稳吃收分':'最后一手,稳吃这墩'))
                 :(voidRuffOpp?'这门我断门、台面有分而对手暂大 —— 毙下来'
-                 :(X.oppRuffRisk?'尝试吃,但后手或被毙':(isRuff?'断门毙牌抢分':'能吃住,争这墩'))),
+                 :(X.oppRuffRisk?'尝试吃,但后手或被毙'
+                  :(isRuff?(pt?'断门毙牌抢分':'断门毙下,先把牌权拿回来')
+                          :(pt?'能吃住,争这墩分':'能吃住,争这墩')))),
         (voidRuffOpp?AIP.ruffOppBonus:0)+(voidBehind?AIP.ruffVoidBehind:0));
       /* 1a′. 毙得够高:后面还有已知在这门断门的对手 → 小主毙上去会被原样端走。
        * 见 ruffGuardFollow。只在真有已知断门的后手对手时才生成,不然是白花大主。 */
@@ -2726,15 +2749,25 @@ function aiChooseFollow(view, plays){
       push(blockWinFollow(view.hand,lead,trump,X.cur.cl,X.mem),'over',true,
            '压到在外最大分牌之上,别让末家用分牌把队友这墩掀掉',AIP.overPartner);
   }
-  // 2. 贴分 —— 队友大就送分,但确定性不够时收敛
+  /* 2. 贴分 —— 队友大就送分,但确定性不够时收敛。
+   * 注意 buildFollow('dump') 只是「本门里分最多的那手」:这门一张分牌都没有时,
+   * 它照样返回一手 0 分的牌。理由必须**看着结果说**,不能按意图说 —— 体检里
+   * 「贴分」有六成落在 0 分的牌上,就是这么来的。下面的 discard 同理。 */
   const dump=buildFollow(view.hand,lead,trump,'dump',null);
-  push(dump,'dump',false,X.partnerWinning
-    ?(X.certainty>0.8?'队友稳赢,贴分':'队友只是暂大,试贴分')
-    :'跟分(躲不掉的分先出)');
+  const dumpPts=dump?countPoints(dump):0;
+  push(dump,'dump',false, dumpPts===0 ? '这门没分可贴,跟一张'
+    : X.partnerWinning ? (X.certainty>0.8?'队友稳赢,贴分':'队友只是暂大,试贴分')
+    : '跟分(躲不掉的分先出)');
   // 3. 跟小 —— 保留实力
   push(buildFollow(view.hand,lead,trump,'cheap',null),'cheap',false,'跟小,保留实力');
-  // 4. 垫牌 —— 断门时死保不出分、不出主
-  push(buildFollow(view.hand,lead,trump,'discard',null),'discard',false,'垫废牌,不送分也不拆主');
+  // 4. 垫牌 —— 断门时死保不出分、不出主(手上全是分或全是主时它也只能挑个最轻的)
+  const disc=buildFollow(view.hand,lead,trump,'discard',null);
+  const discPts=disc?countPoints(disc):0;
+  const discTrump=disc&&disc.every(c=>effSuit(c,trump)==='T');
+  push(disc,'discard',false,
+    discPts===0&&!discTrump ? '垫废牌,不送分也不拆主'
+    : discTrump ? '没有废牌可垫,只能拆一张主'
+    : '躲不掉,垫掉手上最轻的分牌');
   cands.sort((a,b)=>b.score-a.score);
   const ctx={partnerWinning:X.partnerWinning,isLast:X.isLast,ptsTable:X.ptsTable,
              curSeat:X.cur.seat,curBoss:X.curBoss,leadSuit:lead.suit,phase:X.phase};
@@ -3248,7 +3281,9 @@ function scoreLeadEV(L, cl, cards, pre){
     if(fr>0){ s+=fr; reason='主打队友的断门,让他毙下这墩'; }
     else if(L.partnerAce&&L.partnerAce[cl.suit]&&p<0.6){
       s+=AIP.probeSafeBonus; reason='队友多半握着这门的 A —— 这是贴分,不是探路'; }
-    else if(p<0.4&&unseenPointsIn(L.mem,cl.suit,L.trump)===0) reason='这门的分已经打光,交牌权代价小';
+    // unseenPointsIn 数的是**在外**的分:我自己手上这张分牌不在其中。
+    // 所以话得说成「别人手上没分了」,不能说成「这门的分打光了」—— 我领出的可能正是分牌。
+    else if(p<0.4&&unseenPointsIn(L.mem,cl.suit,L.trump)===0) reason='这门在外已无分,交牌权代价小';
   }
   if(ruffP>0.25&&cl.suit!=='T'&&p>0.6){ reason='压得住,但对手可能缺门来毙'; }
   return {score:s,reason,pWin:p};
@@ -3362,7 +3397,7 @@ function scoreLeadCore(L, cl, cards){
     const noPts=unseenPointsIn(L.mem,cl.suit,L.trump)===0;
     if(fr>0){ s+=fr; reason='主打队友的断门,让他毙下这墩'; }
     else if(partnerHasAce){ s+=AIP.probeSafeBonus; reason='队友多半握着这门的 A —— 这是贴分,不是探路'; }
-    else if(noPts){ reason='这门的分已经打光,交牌权代价小'; }
+    else if(noPts){ reason='这门在外已无分,交牌权代价小'; }
     else { s-=AIP.probePenalty; reason='副色小牌探路(下策:白交牌权)'; }
   }
   return {score:s,reason,pWin:LEAD_PWIN.single};
@@ -3969,6 +4004,36 @@ function runTests(E){
     ok('必打:补打一局后即可过关', st.levels[0]===3&&st.gateHeld===null);
   }
 
+  // ---- 速通模式:级数只走 2/5/10/K/A,每局最多一档 ----
+  {
+    const win=(n)=>({defendersWin:false,declarerLevelsUp:n});
+    const G4=[2,5,10,13];
+    E.RULES.speedRun=true;
+    try{
+      let a=E.advanceMatch([2,2],0,win(4),null,[-1,-1]);
+      ok('速通:打2赢4级也只到5(不开是6)', a.levels[0]===5);
+      a=E.advanceMatch([5,2],0,win(1),null,[-1,-1]);
+      ok('速通:5的下一档是10', a.levels[0]===10);
+      a=E.advanceMatch([10,2],0,win(3),null,[-1,-1]);
+      ok('速通:10的下一档是K', a.levels[0]===13);
+      a=E.advanceMatch([13,2],0,win(2),null,[-1,-1]);
+      ok('速通:K的下一档是A', a.levels[0]===14&&a.matchOver===false);
+      a=E.advanceMatch([14,2],0,win(1),null,[-1,-1]);
+      ok('速通:打过A整场结束', a.matchOver===true&&a.winnerTeam===0);
+      a=E.advanceMatch([5,2],0,{defendersWin:false,declarerLevelsUp:0},null,[-1,-1]);
+      ok('速通:没升级就原地不动', a.levels[0]===5);
+      a=E.advanceMatch([2,5],1,{defendersWin:true,defenderLevelsUp:2},null,[-1,-1]);
+      ok('速通:闲家赢也走同一条阶梯', a.levels[0]===5&&a.dealer===2);
+      a=E.advanceMatch([2,2],0,win(3),G4,[-1,-1]);
+      ok('速通:阶梯即关卡,不再被必打关卡二次拦', a.levels[0]===5&&a.gateHeld===null);
+    } finally { E.RULES.speedRun=false; }
+    // 对照组:关掉之后行为与旧版完全一致
+    let b=E.advanceMatch([2,2],0,win(4),null,[-1,-1]);
+    ok('速通(关):打2赢4级照常升到6', b.levels[0]===6);
+    b=E.advanceMatch([13,2],0,win(2),null,[-1,-1]);
+    ok('速通(关):K赢2级直接过A', b.levels[0]===15&&b.matchOver===true);
+  }
+
   // ---- M3 启发式 AI ----
   // 记牌:两张HA都见过后,HK就是本门最大
   {
@@ -4546,7 +4611,10 @@ const SEAT_NAME=['南(你)','东','北(队友)','西'];
 const HUMAN=0;
 const typeName=t=>({single:'单张',pair:'对子',tractor:T('tractor'),throw:T('throwP')}[t]);
 const rankName=r=>r===14?T('rankA'):r===13?T('rankK'):r===12?T('rankQ'):r===11?T('rankJ'):String(r);
-let G=null, seedBase=Date.now()%100000, activeTab='score', replayMode=false, histBySuit=false;
+// logMode:对局记录页签里的三种看法 —— 事件流 / 每墩出牌 / 按花色归堆。
+// 原来「对局记录」和「出牌历史」是两个页签,内容有一半是重的(都在列每墩谁出了什么),
+// 合成一个页签、三个视图,右栏少一个按钮,也不用来回切着找同一件事。
+let G=null, seedBase=Date.now()%100000, activeTab='score', logMode='event';
 let notes=[]; try{ notes=JSON.parse(localStorage.getItem('80fentest-notes')||'[]'); }catch(e){}
 
 // ---- 音效(WebAudio 合成,无外部资源,可关) ----
@@ -4583,6 +4651,7 @@ const RULE_DEFAULTS={
 };
 const S_DEFAULT={
   fullRebel:'off',   // 低分/少主:off=关闭 | redeal=仅重新发牌(不抢庄) | scramble=完全造反(双方抢庄)
+  speedRun:false,    // 速通:级数只走 2/5/10/K/A,每局最多升一档(见 RULES.speedRun)
   gatesOn:true,      // 必打关卡:跳级途中撞上就停在关卡上
   gates:[2,5,10,13], // 关卡级数(13=K)
 
@@ -4600,6 +4669,7 @@ try{
 }catch(e){}
 function applyRules(){ Object.assign(RULES,S.rules); }
 applyRules();
+RULES.speedRun=!!S.speedRun;      // 设置是持久化的,启动时同步进引擎
 function saveS(){ try{ localStorage.setItem('80fentest-set',JSON.stringify(S)); }catch(e){} }
 // 秒 → 毫秒,顺手挡掉手输的空值/负数/非数字
 const secs=(v,fallback)=>1000*Math.max(0,(typeof v==='number'&&isFinite(v))?v:fallback);
@@ -4622,10 +4692,11 @@ function openSettings(){
          <button class="minor" id="stReset">恢复默认</button>
        </div>
      </div>`+
-    // 新开一局:重置整场(级数/庄家全部归零),和上面三个"保存本次改动"的按钮性质不同
+    // 重开整场:级数/庄家全部归零,和上面三个"保存本次改动"的按钮性质不同
     // (会丢掉当前比分),特意隔开、用警示色,不和日常设置项混在一起顺手点到。
+    // 名字里不出现"局" —— 一局是一副牌,这里重置的是整场(从打 2 开始的那一整串)。
     `<div class="setRow" style="margin-top:0;justify-content:center">
-       <button id="stNewMatch" style="background:#c0392b;color:#fff">🔄 新开一局(重置整场)</button></div>`+
+       <button id="stNewMatch" style="background:#c0392b;color:#fff">🔄 重开整场(级数归零)</button></div>`+
     // 顺序按预期改动频率从高到低排:显示/音效、节奏是每次开局都可能顺手调的;
     // 教练模式跟练习目标走,时有变化;规则是几个人说好怎么打就定下来的房规,最少动。
     `<div class="setSection">显示与音效</div>`+
@@ -4670,6 +4741,8 @@ function openSettings(){
     `<div class="setHint" id="rRebelHint"></div>`+
     `<div class="setRow"><label><input type="checkbox" id="rStrict"> 领出${T('tractor')}必须跟${T('tractor')}</label></div>`+
     `<div class="setRow"><label><input type="checkbox" id="rPartial"> 　└ 只有更短的${T('tractor')}也必须跟</label></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="rSpeed"> 速通模式(只打 2/5/10/K/A,每局最多升一档)</label></div>`+
+    `<div class="setHint" id="rSpeedHint"></div>`+
     `<div class="setRow"><label><input type="checkbox" id="rGates"> 必打关卡(不可跳级,须坐庄守住)</label></div>`+
     `<div class="setRow"><label>　└ 关卡级数</label>
        ${[2,5,10,13].map(g=>`<label style="margin-right:8px"><input type="checkbox" class="gateBox" data-g="${g}"> ${rankName(g)}</label>`).join('')}</div>`+
@@ -4691,6 +4764,11 @@ function openSettings(){
     $('rStrict').checked=S.rules.strictTractorFollow;
     $('rPartial').checked=S.rules.partialTractorFollow;
     $('rPartial').disabled=!S.rules.strictTractorFollow;   // 不严格跟拖拉机时,短拖规则没有意义
+    $('rSpeed').checked=!!S.speedRun;
+    $('rSpeedHint').textContent=S.speedRun
+      ? '一整场最多 4 局:2→5→10→K→A。打开时下面的必打关卡不生效(阶梯本身就是关卡)'
+      : '(关闭时按完整级数打,2 一直打到 A)';
+    $('rGates').disabled=!!S.speedRun;
     $('rGates').checked=!!S.gatesOn;
     el.querySelectorAll('.gateBox').forEach(b=>{
       b.checked=S.gates.includes(+b.dataset.g); b.disabled=!S.gatesOn; });
@@ -4727,6 +4805,7 @@ function openSettings(){
   ruleNum('rRedeal','maxRedeal',0);
   ruleBool('rStrict','strictTractorFollow');
   ruleBool('rPartial','partialTractorFollow');
+    $('rSpeed').onchange=e=>{ S.speedRun=e.target.checked; RULES.speedRun=S.speedRun; saveS(); fill(); };
   $('rGates').onchange=e=>{ S.gatesOn=e.target.checked; saveS(); fill(); };
   el.querySelectorAll('.gateBox').forEach(b=>b.onchange=e=>{
     const g=+e.target.dataset.g;
@@ -4763,9 +4842,9 @@ function openSettings(){
     closeSettings();
   };
   $('stClose').onclick=closeSettings;
-  // 新开一局:整场级数/庄家全部归零,不是"下一局"那种保留级数的推进,破坏性操作要确认
+  // 重开整场:级数/庄家全部归零,不是"下一局"那种保留级数的推进,破坏性操作要确认
   $('stNewMatch').onclick=()=>{
-    if(!confirm('新开一局会重置整场比分和级数(从打2重新开始),当前进度无法找回。确定吗?')) return;
+    if(!confirm('重开整场会把双方级数和庄家全部归零(从打2重新开始),当前进度无法找回。确定吗?')) return;
     closeSettings();
     window.__newMatch();
   };
@@ -4840,7 +4919,12 @@ function curTrumpForSort(){ return G.trump|| (G.decl&&G.decl.suit?{suit:G.decl.s
 
 // ================= 整场状态(跨局) =================
 // played:每队已坐庄守住过的最高级数,必打关卡的「打过」判据(见 advanceMatch)
-let M={levels:[2,2], dealer:-1, round:0, played:[-1,-1]};
+/* past:整场里已经打完的每一局的存档,给「跨局复盘」用。
+ * 存的是当局结束那一刻的牌面(初始手牌 / 底牌 / 每墩出牌 / 事件流)和结算结果,
+ * 都是已经不会再变的数组,直接持引用即可 —— 一整场十几局的量级,不必压缩。 */
+let M={levels:[2,2], dealer:-1, round:0, played:[-1,-1], past:[]};
+// null = 看当前这一局;数字 = 看 M.past 里的第几局
+let logRound=null;
 let scrambleNext=false;   // 下一次发牌是否按无庄盘(完全造反后)
 let redealCount=0;        // 本局已重新发牌次数
 // 无庄盘里各家按自己队伍的级数抢亮;庄定盘全桌用庄家级数
@@ -5269,6 +5353,13 @@ function endRound(){
   }else if(C.on&&C.review){
     html+=`<div style="margin-top:8px;font-size:14px;color:#6ec9ff">🎓 教练:本局没有明显失误,漂亮!</div>`;
   }
+  // 存档这一局,供跨局复盘(要在 M.round++ 之前拿局号,也要在 M.levels 被改写之前拿 before)
+  M.past.push({no:M.round+1, trump:G.trump, declSeat:G.declSeat,
+               defPoints:sc.total, defendersWin:sc.defendersWin,
+               kittyPts:sc.kittyPts, mult:sc.mult,
+               levelsBefore:before, levelsAfter:adv.levels.slice(),
+               initialHands:G.initialHands, buried:G.buried.slice(),
+               tricks:G.tricks, log:G.log});
   // 整场推进(adv 在上面已经算好)
   M.levels=adv.levels; M.dealer=adv.dealer; M.round++;
   if(adv.played) M.played=adv.played;
@@ -5285,7 +5376,7 @@ function endRound(){
   if(adv.matchOver){
     const weWon=adv.winnerTeam===0;
     html+=`<div style="margin-top:10px;font-size:20px;color:var(--gold)">${weWon?'你们打过 A,整场胜利!':'对方打过 A,整场告负'}</div>`;
-    html+=`<div style="margin-top:14px"><button onclick="window.__newMatch()">重新开整场</button> <button class="minor" onclick="window.__review()">复盘本局</button></div>`;
+    html+=`<div style="margin-top:14px"><button onclick="window.__newMatch()">重开整场</button> <button class="minor" onclick="window.__review()">复盘本局</button></div>`;
   }else{
     html+=`<div style="margin-top:6px;font-size:14px">级数 —— 你们:打${rankName(Math.min(M.levels[0],14))} / 对方:打${rankName(Math.min(M.levels[1],14))}</div>`;
     html+=`<div style="font-size:14px">下一局 ${SEAT_NAME[M.dealer]} 坐庄,打${rankName(M.levels[M.dealer%2])}</div>`;
@@ -5296,7 +5387,8 @@ function endRound(){
   sndEnd();
 }
 window.__next=()=>{ document.getElementById('overlay').style.display='none'; newRound(); };
-window.__newMatch=()=>{ M={levels:[2,2],dealer:-1,round:0,played:[-1,-1]}; scrambleNext=false; redealCount=0;
+window.__newMatch=()=>{ M={levels:[2,2],dealer:-1,round:0,played:[-1,-1],past:[]}; logRound=null;
+  scrambleNext=false; redealCount=0;
   document.getElementById('overlay').style.display='none'; newRound(); };
 window.__review=()=>{ document.getElementById('overlay').style.display='none';
   render(); setMsg('复盘中:可查看出牌历史、教练复盘等记录,准备好后点下方"下一局"继续'); };
@@ -5402,7 +5494,7 @@ function render(){
   let stripHTML, bind=null;
   if(G.ended){
     stripHTML=G.ended.matchOver
-      ?`<span style="color:var(--gold)">复盘中</span> <button onclick="window.__newMatch()">重新开整场</button>`
+      ?`<span style="color:var(--gold)">复盘中</span> <button onclick="window.__newMatch()">重开整场</button>`
       :`<span style="color:var(--gold)">复盘中</span> <button onclick="window.__next()">下一局</button>`;
     bind=null;
   }else if(G.awaitNext){
@@ -5471,60 +5563,79 @@ function renderPanel(){
   document.querySelectorAll('#tabs button').forEach(b=>
     b.classList.toggle('on',b.dataset.tab===activeTab));
   const el=document.getElementById('panel');
-  if(!activeTab){ el.innerHTML='<span style="opacity:.5">点击上方页签展开:抢分记录 / 对局记录 / 出牌历史 / 教练 / 记牌表 / 笔记</span>'; return; }
+  if(!activeTab){ el.innerHTML='<span style="opacity:.5">点击上方页签展开:抢分记录 / 对局记录 / 教练 / 记牌表 / 笔记</span>'; return; }
   if(activeTab==='coach'){ renderCoachTab(el); return; }
   if(activeTab==='mem'){ renderMemTab(el); return; }
   if(activeTab==='notes'){ renderNotesTab(el); return; }
   if(activeTab==='log'){
-    let html=`<div class="toggleRow"><label><input type="checkbox" id="ckReplay" ${replayMode?'checked':''}> 复盘模式(显示每墩出牌)</label></div>`;
-    if(replayMode){
-      // 各家初始手牌:只在本局打完后开放,局中看等于开天眼
-      if(G.initialHands){
-        html+=G.ended
-          ?`<div class="suitGroup"><b style="color:var(--gold)">本局初始手牌</b>`+
-            G.initialHands.map((h,s)=>
-              `<div class="trickRow"><span class="who">${SEAT_NAME[s]}${s===G.declSeat?'(庄)':''}</span>`+
-              sortForDisplay(h,G.trump).map(c=>cardHTML(c,'mini')).join('')+`</div>`).join('')+
-            (G.buried.length?`<div class="trickRow"><span class="who">底牌</span>`+
-              sortForDisplay(G.buried,G.trump).map(c=>cardHTML(c,'mini')).join('')+`</div>`:'')+
+    if(logRound!=null&&!M.past[logRound]) logRound=null;    // 重开整场后越界的选择
+    /* 看的是「哪一局」和「怎么看」两件独立的事,所以是两行:
+     * 第一行选局(只有打完过局才出现),第二行选视图。
+     * 往回翻的局全都已经结束,初始手牌一律可看 —— 只有当前这局要防开天眼。 */
+    const past=logRound!=null?M.past[logRound]:null;
+    const src=past||{tricks:G.tricks, log:G.log, initialHands:G.initialHands,
+                     buried:G.buried, trump:curTrumpForSort(), declSeat:G.declSeat};
+    const done=past?true:!!G.ended;
+    let html='';
+    if(M.past.length){
+      html+=`<div class="toggleRow" style="flex-wrap:wrap">`+
+        `<button class="minor${logRound==null?' on':''}" data-lr="cur" style="padding:3px 10px;font-size:13px">本局</button>`+
+        M.past.map((r,i)=>`<button class="minor${logRound===i?' on':''}" data-lr="${i}" style="padding:3px 10px;font-size:13px">第${r.no}局</button>`).join('')+
+        `</div>`;
+    }
+    const MODES=[['event','事件'],['trick','每墩出牌'],['suit','按花色']];
+    html+=`<div class="toggleRow">`+MODES.map(([k,label])=>
+      `<button class="minor${logMode===k?' on':''}" data-lm="${k}" style="padding:3px 10px;font-size:13px">${label}</button>`).join('')+`</div>`;
+    if(past){
+      const who=past.declSeat%2===HUMAN%2?'你们':'对方';
+      html+=`<div class="suitGroup" style="font-size:13px">第${past.no}局:${SEAT_NAME[past.declSeat]}(${who})坐庄,`+
+        `主 ${past.trump.suit?SUIT_SYM[past.trump.suit]:'无主'}${rankName(past.trump.rank)},`+
+        `${T('defenders')}得 ${past.defPoints} 分 → ${past.defendersWin?T('defenders')+'上台':'庄家守住'};`+
+        `级数 ${past.levelsBefore.map(x=>rankName(Math.min(x,14))).join('/')} → ${past.levelsAfter.map(x=>rankName(Math.min(x,14))).join('/')}</div>`;
+    }
+    if(logMode==='event'){
+      html+=src.log.map(l=>`<div>· ${l.text}</div>`).join('')||'(尚无记录)';
+    }else if(logMode==='trick'){
+      // 各家初始手牌:只在这一局打完后开放,局中看等于开天眼
+      if(src.initialHands){
+        html+=done
+          ?`<div class="suitGroup"><b style="color:var(--gold)">初始手牌</b>`+
+            src.initialHands.map((h,s)=>
+              `<div class="trickRow"><span class="who">${SEAT_NAME[s]}${s===src.declSeat?'(庄)':''}</span>`+
+              sortForDisplay(h,src.trump).map(c=>cardHTML(c,'mini')).join('')+`</div>`).join('')+
+            (src.buried.length?`<div class="trickRow"><span class="who">底牌</span>`+
+              sortForDisplay(src.buried,src.trump).map(c=>cardHTML(c,'mini')).join('')+`</div>`:'')+
            `</div>`
           :`<div style="opacity:.6;margin-bottom:4px">(各家初始手牌本局结束后可看)</div>`;
       }
-      html+=G.tricks.slice().reverse().map(tk=>
+      // 最新一墩在上:局中最常问的是「刚才那墩谁赢的」;翻旧局时顺序不重要,保持一致
+      html+=src.tricks.slice().reverse().map(tk=>
         `<div class="trickRow"><span class="who">第${tk.no}墩 ${SEAT_NAME[tk.winner]}赢${tk.points?` +${tk.points}分`:''}</span>`+
         tk.plays.map(p=>`<span style="font-size:11px;color:#9fd6b5">${SEAT_NAME[p.seat].slice(0,1)}:</span>`+
-          p.cards.map(c=>cardHTML(c,'mini')).join('')).join('')+`</div>`).join('')||'(尚无记录)';
+          p.cards.map(c=>cardHTML(c,'mini')).join('')).join('')+`</div>`).join('')||'(尚无出牌)';
     }else{
-      html+=G.log.map(l=>`<div>· ${l.text}</div>`).join('')||'(尚无记录)';
+      // 按花色:算哪门还剩什么用的,主牌排最前,门内从大到小
+      const all=src.tricks.flatMap(tk=>tk.plays.flatMap(p=>p.cards.map(c=>({c,seat:p.seat,no:tk.no}))));
+      if(!all.length) html+='(尚无出牌)';
+      else{
+        const t=src.trump;
+        const groups={};
+        all.forEach(x=>{const s=effSuit(x.c,t);(groups[s]=groups[s]||[]).push(x);});
+        const gname=s=>s==='T'?T('trump'):SUIT_NAME[s];
+        html+=Object.keys(groups).sort((a,b)=>(a==='T'?-1:1)-(b==='T'?-1:1)).map(s=>{
+          const sorted=groups[s].sort((a,b)=>ordIdx(b.c,t)-ordIdx(a.c,t));
+          return `<div class="suitGroup"><b style="color:var(--gold)">${gname(s)}(${sorted.length}张)</b><br>${sorted.map(x=>cardHTML(x.c,'mini')).join('')}</div>`;
+        }).join('');
+      }
     }
     el.innerHTML=html;
-    document.getElementById('ckReplay').onchange=e=>{replayMode=e.target.checked;renderPanel();};
+    el.querySelectorAll('[data-lm]').forEach(b=>b.onclick=()=>{ logMode=b.dataset.lm; renderPanel(); });
+    el.querySelectorAll('[data-lr]').forEach(b=>b.onclick=()=>{
+      logRound=b.dataset.lr==='cur'?null:+b.dataset.lr; renderPanel(); });
   }else if(activeTab==='score'){
     const pts=G.capturedCards;
     el.innerHTML=`<div style="margin-bottom:6px">抓分方已抓到 <b style="color:var(--gold)">${G.defPoints}</b> 分,分牌如下:</div>`+
       (pts.length?`<div class="trickRow">${pts.map(c=>cardHTML(c,'mini')).join('')}</div>`:'(还没有抓到分牌)');
-  }else if(activeTab==='hist'){
-    let html=`<div class="toggleRow"><label><input type="checkbox" id="ckSuit" ${histBySuit?'checked':''}> 按花色分组(默认按时间)</label></div>`;
-    const all=G.tricks.flatMap(tk=>tk.plays.flatMap(p=>p.cards.map(c=>({c,seat:p.seat,no:tk.no}))));
-    if(!all.length) html+='(尚无出牌)';
-    else if(histBySuit){
-      const t=curTrumpForSort();
-      const groups={};
-      all.forEach(x=>{const s=effSuit(x.c,t);(groups[s]=groups[s]||[]).push(x);});
-      const gname=s=>s==='T'?T('trump'):SUIT_NAME[s];
-      html+=Object.keys(groups).sort((a,b)=>(a==='T'?-1:1)-(b==='T'?-1:1)).map(s=>{
-        const sorted=groups[s].sort((a,b)=>ordIdx(b.c,t)-ordIdx(a.c,t));
-        return `<div class="suitGroup"><b style="color:var(--gold)">${gname(s)}(${sorted.length}张)</b><br>${sorted.map(x=>cardHTML(x.c,'mini')).join('')}</div>`;
-      }).join('');
-    }else{
-      html+=G.tricks.map(tk=>
-        `<div class="trickRow"><span class="who">第${tk.no}墩</span>`+
-        tk.plays.map(p=>`<span style="font-size:11px;color:#9fd6b5">${SEAT_NAME[p.seat].slice(0,1)}:</span>`+
-          p.cards.map(c=>cardHTML(c,'mini')).join('')).join('')+`</div>`).join('');
-    }
-    el.innerHTML=html;
-    const ck=document.getElementById('ckSuit');
-    if(ck) ck.onchange=e=>{histBySuit=e.target.checked;renderPanel();};
   }
 }
 
