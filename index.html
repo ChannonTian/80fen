@@ -213,7 +213,11 @@
     #controls.dealing #dealZone{min-height:2.4em}
     /* 座位名与张数并排,省一半纵向 */
     .seat{flex-direction:row;gap:6px}
-    #table{grid-template-rows:auto minmax(0,1fr) auto auto}
+    /* v0.7.6:这里原来还有一条 `#table{grid-template-rows:auto minmax(0,1fr) auto auto}`,
+       在同一个 media query 里、写在上面那条之后 —— 后写的赢,出牌区的最小高度
+       (cardH*3)被它整个抹掉了。于是发牌期出牌区被压到 0,牌溢出压在亮牌区和手牌上,
+       发完牌 dealZone 释放两行高度后才自己归位 —— 报障说的「发牌时手牌遮挡亮牌/打牌区,
+       发完后才回位」就是这一条。 */
     #tabs button{padding:5px 9px}
   }
   /* 竖屏且机身矮(iPhone SE 一类,或桌面浏览器窄窗口):出牌区要三张牌高是硬需求,
@@ -289,7 +293,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.0</div>
+<div id="versionTag">80分 v0.7.6</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -581,7 +585,7 @@ function scoreRound({defPoints, kitty, defWonLastTrick, lastLeadSize}){
 // 任一队级数打过 A(>14)整场获胜。
 // 必打关卡有两层,旧版只做了第一层:
 //   1) **不可跳级**:升级途中跨过关卡就停在关卡上(打3升3级本应到6,5是关卡则停在5)。
-//   2) **必须打过**:过这一关的条件是本队在该级**坐过庄**。
+//   2) **必须打过**:过这一关的条件是本队在该级**坐庄守住**过(v0.7.6 前只要求坐过庄)。
 // 第二层原来是缺的,而且缺得不显眼:旧注释写「落点正好等于关卡不算跳过 ——
 // 那本来就要在该级打一局」,这句话对庄家成立、对闲家不成立 ——
 // 一局打的是**庄家方**的级数,所以一支队停在 2 上当闲家、上台升一级,
@@ -592,23 +596,26 @@ function clampAtGate(from, to, gates){
   return hit===undefined?{level:to, gate:null}:{level:hit, gate:hit};
 }
 
-/* played[team] = 该队已经**坐庄打过**的最高级数(没有则 -1)。
+/* played[team] = 该队已经**坐庄守住**过的最高级数(没有则 -1)。
  * 传 null / 不传 = 只做第一层(不可跳级),用于旧调用方与消融。
- * 返回值里带上更新后的 played,调用方存回去即可 —— 引擎自己不留状态。 */
+ * 返回值里带上更新后的 played,调用方存回去即可 —— 引擎自己不留状态。
+ *
+ * v0.7.6:口径从「坐过庄」收紧为「坐庄且守住」。
+ * 旧版把「这一局在打这一级」本身当成打过的证据 —— 但坐庄输了是**没打过这一关**,
+ * 只是被人从这一级上打下去了。实战报障:关卡 10 上坐庄丢庄,下一次上台却直接过了 10。
+ * 收紧之后不会卡死:停在关卡上的一方下一局必坐庄(守住是对家连庄、上台是自己坐庄),
+ * 只是可能要在同一级上反复坐几局,直到真正守住。 */
 function advanceMatch(levels, declSeat, sc, gates, played){
   const declTeam=declSeat%2;
   const L=levels.slice();
-  // 本局是庄家方按**自己的**级数在打,这一局本身就是他们「打过」这一级的证据
   const pl=played?played.slice():null;
-  if(pl) pl[declTeam]=Math.max(pl[declTeam],L[declTeam]);
+  if(pl&&!sc.defendersWin) pl[declTeam]=Math.max(pl[declTeam],L[declTeam]);
   let dealer, up, team;
   if(!sc.defendersWin){ team=declTeam; up=sc.declarerLevelsUp; dealer=(declSeat+2)%4; }
   else { team=1-declTeam; up=sc.defenderLevelsUp; dealer=(declSeat+1)%4; }
   const c=clampAtGate(L[team], L[team]+up, gates);
   let level=c.level, gateStopped=c.gate, gateHeld=null;
-  // 停在关卡上、却没在这一级坐过庄 → 原地不动。
-  // 不会卡死:升级的这一方下一局必坐庄(守住是对家连庄、上台是自己坐庄),
-  // 也就是下一局一定会补上这一关。
+  // 停在关卡上、却没在这一级坐庄守住过 → 原地不动。
   if(gates&&gates.length&&pl&&up>0&&gates.includes(L[team])&&pl[team]<L[team]){
     level=L[team]; gateStopped=null; gateHeld=L[team];
   }
@@ -616,7 +623,7 @@ function advanceMatch(levels, declSeat, sc, gates, played){
   const matchOver=L[0]>14||L[1]>14;
   return {levels:L, dealer, matchOver, winnerTeam:matchOver?(L[0]>14?0:1):null,
           gateStopped,        // 非 null = 跳级被关卡拦下,停在关卡上
-          gateHeld,           // 非 null = 卡在这一关上,因为本队还没坐庄打过它
+          gateHeld,           // 非 null = 卡在这一关上,因为本队还没坐庄守住过这一级
           played:pl};
 }
 
@@ -3704,14 +3711,20 @@ function runTests(E){
     ok('必打:被卡住时下一局由这一方坐庄', a.dealer%2===0);
     // 同一局面,队0此前已坐庄打过2 → 照常升级
     a=E.advanceMatch([2,2],1,win150,G4,[2,-1]);
-    ok('必打:已坐庄打过就放行', a.levels[0]===3&&a.gateHeld===null);
+    ok('必打:已坐庄守住过就放行', a.levels[0]===3&&a.gateHeld===null);
     // 不是关卡的级数不受这条约束
     a=E.advanceMatch([3,2],1,win150,G4,[-1,-1]);
     ok('必打:非关卡级数照常升', a.levels[0]===4&&a.gateHeld===null);
     // 庄家方守住的那一局,本身就是「打过」的证据,不该卡自己
     a=E.advanceMatch([2,2],0,{defendersWin:false,declarerLevelsUp:2},G4,[-1,-1]);
     ok('必打:庄家守住不卡自己(这一局就是在打这一级)', a.levels[0]===4&&a.gateHeld===null);
-    ok('必打:坐庄这一局记进 played', a.played[0]===2);
+    ok('必打:坐庄守住这一局记进 played', a.played[0]===2);
+    // v0.7.6:坐庄输了不算打过这一关 —— 报障就出在这(关卡10上丢庄,再上台却过了10)
+    a=E.advanceMatch([10,10],0,win150,G4,[-1,-1]);
+    ok('必打:坐庄丢庄不记进 played', a.played[0]===-1);
+    ok('必打:对手同样卡在这一关', a.levels[1]===10&&a.gateHeld===10);
+    ok('必打:丢过庄的那一方,上台仍要补打这一关',
+       E.advanceMatch([10,10],1,win150,G4,[-1,-1]).levels[0]===10);
     // 不传 played = 只做第一层,老行为不变
     a=E.advanceMatch([2,2],1,win150,G4);
     ok('必打:不传 played 时退回只挡跳级', a.levels[0]===3&&a.gateHeld===null);
@@ -4376,7 +4389,7 @@ function openSettings(){
     `<div class="setHint" id="rRebelHint"></div>`+
     `<div class="setRow"><label><input type="checkbox" id="rStrict"> 领出${T('tractor')}必须跟${T('tractor')}</label></div>`+
     `<div class="setRow"><label><input type="checkbox" id="rPartial"> 　└ 只有更短的${T('tractor')}也必须跟</label></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="rGates"> 必打关卡(不可跳级,须坐庄打过)</label></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="rGates"> 必打关卡(不可跳级,须坐庄守住)</label></div>`+
     `<div class="setRow"><label>　└ 关卡级数</label>
        ${[2,5,10,13].map(g=>`<label style="margin-right:8px"><input type="checkbox" class="gateBox" data-g="${g}"> ${rankName(g)}</label>`).join('')}</div>`+
     `<div class="setHint" id="rGateHint"></div>`;
@@ -4402,7 +4415,7 @@ function openSettings(){
       b.checked=S.gates.includes(+b.dataset.g); b.disabled=!S.gatesOn; });
     $('rGateHint').textContent=S.gatesOn
       ? (S.gates.length?`两条:① 跳级途中撞上关卡就停在关卡上(打3升3级本应到6,5是关卡→停在5);`
-                        +`② 过关要本队坐庄打过这一级 —— 停在关卡上当闲家上台,只换庄不升级`
+                        +`② 过关要本队在这一级**坐庄守住**过 —— 停在关卡上当闲家上台,只换庄不升级;坐庄丢庄也不算过关`
                        :'⚠️ 一个关卡都没选,等于没开')
       : '(关闭时按实际级数直接跳)';
     // 三个造反阈值只在造反规则打开时生效,关掉就灰掉并说明
@@ -4545,7 +4558,7 @@ function setMsg(t){ document.getElementById('msg').textContent=t||''; }
 function curTrumpForSort(){ return G.trump|| (G.decl&&G.decl.suit?{suit:G.decl.suit,rank:G.trumpRank}:{suit:null,rank:G.trumpRank}); }
 
 // ================= 整场状态(跨局) =================
-// played:每队已坐庄打过的最高级数,必打关卡的「打过」判据(见 advanceMatch)
+// played:每队已坐庄守住过的最高级数,必打关卡的「打过」判据(见 advanceMatch)
 let M={levels:[2,2], dealer:-1, round:0, played:[-1,-1]};
 let scrambleNext=false;   // 下一次发牌是否按无庄盘(完全造反后)
 let redealCount=0;        // 本局已重新发牌次数
@@ -4798,6 +4811,12 @@ function humanPlay(){
     const cl=classify(sel,G.trump);
     if(!cl){ setMsg(T('lead')+`必须是同一门(${T('trump')}算一门)`); return; }
     if(cl.type==='throw'){
+      // 「这明明是拖拉机,为什么算甩牌」—— 报障过一次(6677),但引擎侧全牌型扫描没能复现。
+      // 把判成甩牌的**拆解结果**打进出牌记录,下次再遇到就能直接看出是哪一组没接上。
+      const TN={single:'单张',pair:'对子',tractor:'拖拉机'};
+      log(`判定为${T('throwP')}:拆成 ${cl.comps.length} 组 —— `+
+          cl.comps.map(x=>`${TN[x.type]||x.type}(${x.cards.map(c=>miniName(c)).join('')})`).join(' + ')+
+          `。拖拉机要求两组在**当前牌序**里紧邻(级牌已从牌序里抽走,主门里正副级牌与大小王另算一档)`);
       const chk=checkThrow(G.hands,HUMAN,sel,G.trump);
       if(!chk.ok){
         log(`${T('throwP')}失败!被迫只出最小的一组(不罚分)`);
@@ -4979,7 +4998,7 @@ function endRound(){
   if(adv.gateHeld!=null){
     const who=adv.dealer%2===HUMAN%2?'你们':'对方';
     html+=`<div style="margin-top:8px;font-size:15px;color:var(--gold)">`+
-          `⛔ ${rankName(adv.gateHeld)} 必打 —— ${who}还没坐庄打过 ${rankName(adv.gateHeld)},`+
+          `⛔ ${rankName(adv.gateHeld)} 必打 —— ${who}还没坐庄守住过 ${rankName(adv.gateHeld)},`+
           `本次不升级,下一局由${who}坐庄打 ${rankName(adv.gateHeld)}</div>`;
   }
   if(adv.matchOver){
