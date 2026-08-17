@@ -19,6 +19,8 @@ const ctx={module:{exports:{}},console,Math,Object,Array,Set,Map,JSON,String,Num
 ctx.globalThis=ctx; vm.createContext(ctx);
 vm.runInContext(blocks[0],ctx,{filename:path.basename(file)});
 const E=ctx.module.exports;
+// 扫参时临时改开关:OV='{"nearBossHold":8}' node test/ai-scenarios.js index.html
+if(process.env.OV) Object.assign(E.AIP,JSON.parse(process.env.OV));
 
 let _id=9000;
 const RM={A:14,K:13,Q:12,J:11,T:10};
@@ -159,7 +161,11 @@ console.log(`\n===== ${path.basename(file)} =====\n`);
 {
   const h=()=>H(['HK','H6','C6','C7','D4','D5','S6']);
   // 第1墩 0 领 HA，1 号垫方块 → 1 号红桃硬断门；第2墩 0 用 CA 保住牌权
-  const base=[{seat:0,cards:H(['HA'])},{seat:2,cards:H(['H3'])},{seat:3,cards:H(['H4'])},
+  /* 两副牌,每个点数两张 —— 只出过一张 HA,HK 上面就还压着另一张 HA。
+   * v0.7.8 加了 nearBossHold(「上面只剩一张」的留手溢价)之后,这一条会把
+   * HK 压下去,对照组就测不出「断门」那件事了。把两张 HA 都放进历史,
+   * HK 在两种情形下都是真钢板,E1 与 E1b 的唯一差别重新只剩「对手断不断门」。 */
+  const base=[{seat:0,cards:H(['HA'])},{seat:2,cards:H(['HA'])},{seat:3,cards:H(['H4'])},
               {seat:0,cards:H(['CA'])},{seat:1,cards:H(['C3'])},
               {seat:2,cards:H(['C4'])},{seat:3,cards:H(['C5'])}];
   const mk=p1=>{const t=base.slice(); t.splice(1,0,{seat:1,cards:H([p1])}); return t;};
@@ -171,6 +177,54 @@ console.log(`\n===== ${path.basename(file)} =====\n`);
         `${ns(rVoid.cards)}（${rVoid.reason}）`, ()=>ns(rVoid.cards)!=='HK', '不是 HK');
   check('E1b','对照组：没人断门时，这张红桃K 该收下这一墩',
         `${ns(rCtrl.cards)}（${rCtrl.reason}）`, ()=>ns(rCtrl.cards)==='HK', 'HK');
+}
+
+/* ── D「AA 打完无 K 有 Q，不该先打 Q」──────────────────────────────────
+ * 病灶不是「领了张高牌」，是**把只差一张就成钢板的那个期权提前作废**。
+ * 定点反事实分层给的判据有两条，所以正例/反例也要按这两条各配一组：
+ *   · 在外更大的恰好一张   —— 反例：两张（这时留着没用，实测反而更差）
+ *   · 这门我还有更小的牌   —— 反例：只剩这一张（留不留一样，还挡着断门）
+ * 断言比的是**同一牌面下开关开与关的差**,与默认值解耦 —— 默认值多少都照样跑。
+ * 但没有这个开关的旧版本(正式版尚未晋级时)整段跳过,否则会报一堆假失败。
+ */
+if('nearBossHold' in E.AIP){
+  /* 两副牌 —— 「上面只剩一张」要求 ♦A ×2 和 ♦K ×1 都已经露过面,
+   * 剩下的那一张 ♦K 就是我手上 ♦Q 头上唯一的压制。 */
+  const outAA=[{seat:0,cards:H(['DA'])},{seat:1,cards:H(['D3'])},
+               {seat:2,cards:H(['DA'])},{seat:3,cards:H(['DK'])},
+               {seat:3,cards:H(['C9'])},{seat:0,cards:H(['C3'])},
+               {seat:1,cards:H(['C4'])},{seat:2,cards:H(['C5'])}];
+  // 对照:第二张 ♦A 还没出 → ♦Q 上面还有 ♦A、♦K 两张,这条不该生效
+  const outA1=[{seat:0,cards:H(['DA'])},{seat:1,cards:H(['D3'])},
+               {seat:2,cards:H(['D6'])},{seat:3,cards:H(['DK'])},
+               {seat:3,cards:H(['C9'])},{seat:0,cards:H(['C3'])},
+               {seat:1,cards:H(['C4'])},{seat:2,cards:H(['C5'])}];
+  const multi=['DQ','D4','D5','H7','H8','C7','S6'];   // 这门还有 ♦4 ♦5 可以改领
+  const only =['DQ','H7','H8','H9','C7','C8','S6'];   // 这门只剩 ♦Q 一张
+  /* 比的是**同一个牌面下、开关开与关**的差,不是两个牌面之间的差 ——
+   * 两段历史里 ♦ 的已知情况本来就不同(leadWinP、oppVoidP 都会跟着变),
+   * 拿它们互比会把别人的效果算到这一条头上。
+   * 用 coachScoreLead 直接给 ♦Q 这一手打分,不去 cands 里捞 ——
+   * cands 只留前几名,这条一生效 ♦Q 就掉出榜单,反而读成 NaN。 */
+  const qScore=(hist,hand)=>{
+    const h=H(hand);
+    const view={seat:0,trump:T,declSeat:0,history:hist,buriedKnown:[],hand:h};
+    const r=E.aiChooseLead(view);
+    return {score:E.coachScoreLead(view,[h[0]]), pick:ns(r.cards), reason:r.reason};
+  };
+  const withSwitch=(v,f)=>{const o=E.AIP.nearBossHold;E.AIP.nearBossHold=v;
+                           try{return f();}finally{E.AIP.nearBossHold=o;}};
+  const ON=8;                                        // 断言用固定值,与默认值解耦
+  const d=(hist,hand)=>withSwitch(ON,()=>qScore(hist,hand)).score
+                      -withSwitch(0,()=>qScore(hist,hand)).score;
+  check('D1','上面只剩 K 一张、这门我还有小牌 → 领出 ♦Q 要被扣分',
+        `开关带来的差 ${d(outAA,multi).toFixed(2)}`, ()=>d(outAA,multi)<-1, '明显为负');
+  check('D1b','对照组:上面还有 A、K 两张时不该扣(留着也当不成钢板)',
+        `开关带来的差 ${d(outA1,multi).toFixed(2)}`, ()=>Math.abs(d(outA1,multi))<0.01, '恰好 0');
+  check('D1c','对照组:这门只剩 ♦Q 一张时不该扣(留不留等价,出掉还能断门)',
+        `开关带来的差 ${d(outAA,only).toFixed(2)}`, ()=>Math.abs(d(outAA,only))<0.01, '恰好 0');
+  const pk=withSwitch(E.AIP.nearBossHold,()=>qScore(outAA,multi));
+  console.log(`\n  [参考] 当前默认值下这一手实际领出:${pk.pick}(${pk.reason})`);
 }
 
 /* ── ①⑥ 统计口径：跑一批自对弈，把关键比率打出来 ─────────────────────── */

@@ -26,6 +26,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `ruffOppRule` | `1` | 对手暂大时的「断门有分必毙」 |
 | `oppSpendModel` | `1` | 对手「肯不肯花」模型(`oppSpendCeil`)。v0.7.3 把 −0.92 翻成 +0.15 |
 | `ruffVoidBehind` | `20` | 后手有已知断门的对手时,毙牌吃罚分。v0.7.5,定点反事实量出来的 |
+| `nearBossHold` | `16` | 「上面只剩一张」的留手期权(`futureValue`)。v0.7.8,正式版三批 +0.41 ±0.18、测试版四批 +0.49 ±0.15 |
 | `endKittyWeight` | — | 护底那个「量纲错误的大数值」。**别拆** —— 三次尝试全部掉分,原因见 negative-results |
 
 **默认关、且已被实测否掉的**(`leadEV2` / `endKittyCap` / `reserveFloor` / `drawTrumpVsOne` /
@@ -35,8 +36,6 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 ---
 
 ## 全部参数
-
-共 125 个参数
 
 | `voidValue` | `68` | 完全断门的战略价值(折算成分;扫参在 62~100 区间是平的,取低端) |
 | `voidChainCredit` | `0.55` | 靠稳赢牌保住牌权再断门的折价(笔记里的「视为50%」) |
@@ -112,6 +111,13 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `kittyMult` | `2` | 抠底倍数的估计值(按最后一墩单张算) |
 | `kittyPointBias` | `0.8` | 闲家倒推底分时的折扣(庄家倾向不埋分) |
 | `jokerPairHold` | `7` | 王对的**成对溢价**(单张的压制价值已在 trumpHold 里,别算两遍) |
+
+### v0.7.8 ——「差一张就是钢板」的期权价值(见 futureValue)。
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `nearBossHold` | `16` | 「上面只剩一张」的留手溢价(0 = 关) |
+| `nearBossLeadOnly` | `1` | 只在领出侧生效(反事实量的就是领出侧) |
 | `jokerPairDecl` | `5` | 庄家方护底的额外溢价 |
 | `trumpHoldBase` | `2.5` | 一张主牌的留手底价 |
 | `trumpHoldTop` | `14` | 「在外已无更大」时额外的留手价值(相对刻度,见 trumpHold) |

@@ -293,7 +293,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.7(测试版)</div>
+<div id="versionTag">80分 v0.7.8(测试版)</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -777,6 +777,14 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   kittyMult: 2,               // 抠底倍数的估计值(按最后一墩单张算)
   kittyPointBias: 0.8,        // 闲家倒推底分时的折扣(庄家倾向不埋分)
   jokerPairHold: 7,           // 王对的**成对溢价**(单张的压制价值已在 trumpHold 里,别算两遍)
+  /* v0.7.8 ——「差一张就是钢板」的期权价值(见 futureValue)。
+   * 报障「AA 打完无 K 有 Q,不该先打 Q」。定点反事实 700 局 1032 个决策点:
+   * 在外更大**恰 1 张**且这门我还剩 ≥2 张时,改打这门最小的一张值 +1.74 ±0.78;
+   * 在外更大 ≥2 张时是 −0.20 ±0.74 —— 病灶不是「领高牌」,是**期权被提前扔掉**。
+   * 做成规则之后配对自对弈 12 与 16 各三批 × 700 副,合并 +0.34 ±0.18 / **+0.41 ±0.18**
+   * —— 两者差不到一个 SE,取实测过的 16。0 = 关(与 v0.7.7 行为完全一致)。 */
+  nearBossHold: 16,           // 「上面只剩一张」的留手溢价(0 = 关)
+  nearBossLeadOnly: 1,        // 只在领出侧生效(反事实量的就是领出侧)
   jokerPairDecl: 5,           // 庄家方护底的额外溢价
   trumpHoldBase: 2.5,         // 一张主牌的留手底价
   trumpHoldTop: 14,           // 「在外已无更大」时额外的留手价值(相对刻度,见 trumpHold)
@@ -2148,6 +2156,26 @@ function futureValue(cards, X){
       v+=trumpHold(c,X);
     }else{
       const rem=unseenPointsIn(X.mem,effSuit(c,trump),trump);
+      /* 「差一张就是钢板」—— 上面**只剩一张**没出的牌时,这张牌是个期权:
+       * 那一张一走(被别人领掉、被毙掉、或我用别的牌逼出来),它就是本门最大。
+       * 提前把它领出去等于把期权作废,还白送对手一墩牌权。
+       *
+       * 为什么按位置算而不按点数算:下面那两条 A/K 溢价是**按 rank 写死**的,
+       * 可「离钢板差几张」和 rank 没有固定关系 —— 打 2 的时候黑桃 Q 上面
+       * 只剩一张 K,它和「手握 A 时留 K」是同一件事,而旧式子一分不给。
+       *
+       * 两个前提缺一不可(都是反事实分层量出来的,不是推出来的):
+       *   · 在外更大的**恰好一张**。两张以上时这张牌多半永远轮不到当钢板,
+       *     留着反而挡手 —— 那一层实测 −0.20,不能一起罚。
+       *   · 这门我**还有更小的牌**可以改领。只剩这一张时留不留都一样
+       *     (实测 +0.00),而且出掉它还能断门,不该罚。 */
+      if(AIP.nearBossHold&&cards.length===1&&(!AIP.nearBossLeadOnly||X.leading)){
+        const idx=ordIdx(c,trump), es=effSuit(c,trump);
+        const hi=unseenBeats(X.mem,{suit:es,top:idx,type:'single'},trump).higher;
+        const hasLower=X.hand&&X.hand.some(h=>h.id!==c.id&&effSuit(h,trump)===es
+                                             &&ordIdx(h,trump)<idx);
+        if(hi===1&&hasLower) v+=AIP.nearBossHold;
+      }
       if(c.rank===14) v+=6+0.26*rem;                    // 副A:以后还能捞这门的分
       else if(c.rank===13){
         v+=2+0.10*rem;

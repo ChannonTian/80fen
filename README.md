@@ -15,7 +15,7 @@
 |---|---|---|
 | **[`RULES.md`](RULES.md)** | 玩家 | 规则书。第一部分入门(没打过也能上手),第二部分裁决手册(甩牌、拖拉机怎么跟、抠底几倍、关卡怎么算) |
 | **[`DESIGN.md`](DESIGN.md)** | 改代码的人 | **现在成立**的 AI 设计:三阶段评分公式、每一项的来历、已知短板 |
-| **[`SWITCHES.md`](SWITCHES.md)** | 调参的人 | 125 个 `AIP` 开关的登记表(脚本生成,可重跑) |
+| **[`SWITCHES.md`](SWITCHES.md)** | 调参的人 | 127 个 `AIP` 开关的登记表(脚本生成,可重跑) |
 | **[`CHANGELOG.md`](CHANGELOG.md)** | 想知道哪版改了什么 | 版本总表 + 每版结论 |
 | [`NOTES/ai-journal.md`](NOTES/ai-journal.md) | 未来的自己 | 逐版的完整推演与实验数据(原 CHANGELOG 全文) |
 | [`NOTES/measurement.md`](NOTES/measurement.md) | 同上 | **三把尺子,以及每一把量不到什么**。改 AI 之前先读这页 |
@@ -37,6 +37,7 @@
 | `test/ai-scenarios.js` | 回归场景库:每条实战反馈一条断言 |
 | `test/ai-h2h.js` | 同桌配对对照 |
 | `test/cf-ruff.js` | **定点反事实回放** —— 量「一次决策值多少分」的唯一工具 |
+| `test/cf-highlead.js` | 同上,针对领出侧:「上面还有更大的、我手里又没有」那张高牌 |
 | `test/audit-*.js` | 行为审计:统计某类错误发生了多少次 |
 | `test/audit-reason.js` | **教练理由的事实体检** —— 只查「理由说的和牌面对不对得上」,不评价棋力 |
 | `test/gen-switches.js` | 生成 `SWITCHES.md` |
@@ -45,9 +46,10 @@
 → GitHub `index.html`(正式版)。每次晋级就是把当前文件内容整份复制过去、改文件名,
 `title` / `versionTag` 两处测试标记跟着改。
 
-**当前状态**:正式版 **v0.7.7**,测试版 **v0.7.7**(测试版另带一摞未合的 AI 改动)。
-两条线分开走:问题修复与功能(速通模式、记录页签三合一 + 跨局复盘、教练理由体检)两版同步;
-AI 那一摊(v0.7.1~v0.7.5)对固定参照是 **−0.05 ±0.37(打平)**,仍只留在测试版。
+**当前状态**:正式版 **v0.7.7**,测试版 **v0.7.8**。
+v0.7.8 的 `nearBossHold` 是四个版本以来第一条量得到收益的 AI 改动
+(测试版基线 +0.49 ±0.15、正式版基线 +0.41 ±0.18),先在测试版上跑实测反馈;
+v0.7.1~v0.7.5 那一摊对固定参照是 **−0.05 ±0.37(打平)**,仍留在测试版。
 历史晋级:v0.5.0 于 2026-08-08、v0.5.1~v0.5.2 于 08-10、v0.5.3~v0.7.0 于 08-15 合入正式版。
 
 ## 本地运行
@@ -88,8 +90,8 @@ AI 只回答「合法之中选哪个」,规则判定全部交给引擎——所�
 场景库是回归网,不是尺子:
 
 ```
-node test/ai-scenarios.js 80fen-test.html   # 测试版:17/17
-node test/ai-scenarios.js index.html        # 正式版:17/17
+node test/ai-scenarios.js 80fen-test.html   # 测试版:20/20
+node test/ai-scenarios.js index.html        # 正式版:17/17(D 那组要 nearBossHold,尚未晋级,整段跳过)
 node test/audit-reason.js index.html 200    # 教练理由体检:16 类断言应全部 0 不符
 ```
 
