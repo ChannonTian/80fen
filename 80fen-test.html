@@ -945,6 +945,8 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   takeOverMinPts: 5,          // 断门毙分那一支的桌面分下限
   partnerHoldAfter: 0.72,     // 队友压回来之后,身后还有对手时守得住的比例
   dumpVoidFeedback: 1,        // 贴分时按「贴之后」的台面分重算存活率(0 = 退回旧行为)
+  cashWinPoints: 1,           // 稳拿这墩时,额外生成一条「把主分牌兑现」的候选(0 = 关)
+  cashWinMinAbove: 0.3,       // 上面压着的主牌要占未见主的这个比例,才算「留着也赢不了墩」
 
   /* ==========================================================================
    * v0.5.8 —— 九条实战反馈的根因修复。全部带开关,默认全开,可逐条消融。
@@ -2701,6 +2703,46 @@ function aiChooseFollow(view, plays){
                   :(isRuff?(pt?'断门毙牌抢分':'断门毙下,先把牌权拿回来')
                           :(pt?'能吃住,争这墩分':'能吃住,争这墩')))),
         (voidRuffOpp?AIP.ruffOppBonus:0)+(voidBehind?AIP.ruffVoidBehind:0));
+      /* 1a″. 稳拿这墩时,再给一条「把这张主分牌兑现」的候选。
+       *
+       * 报障:♦ 作主、末家毙牌,玩家出 ♦K 而教练说「更好的是 ♦3 —— 最后一手,毙掉收分」。
+       * 两处都错:
+       *   · ♦K 和 ♦3 同为主牌、同为毙牌,那句理由对两张**同样成立** ——
+       *     一条无法区分建议牌与实际牌的理由,本身就说明这条建议是错的;
+       *   · 真正的区别只有一个:♦K 多收 10 分。而 ♦K 上面压着 14 张主
+       *     (大小王各 2、四门级数牌 8、♦A 2),留在手里赢不了墩,
+       *     期望大致是「一半贴给自己人、一半送给对手」—— 约等于 0,还带送分风险。
+       *     稳拿这墩时出它 = 确定的牌权 + 确定的 10 分。
+       *
+       * 旧写法把**牌序当未来价值的代理**:cheapSort 里两张牌的键差 9 级,
+       * 而 cashPointW 只补 8 级 —— 差一口气,于是永远选不到它。
+       * 不去调那个常数(v0.5.8 的标定没错,错的是拿牌序代表未来价值),
+       * 改成多生成一条候选,让 scorePlay 拿真正的 futureValue 去比。 */
+      if(AIP.cashWinPoints&&certain&&lead.type==='single'&&countPoints(win)===0){
+        const es=effSuit(win[0],trump);
+        const mustBeat=X.cur.cl.suit===es?X.cur.cl.top:-1;
+        /* 闸:只对「留着也赢不了墩」的那种分牌开。
+         * 主级数牌就是反例 —— 打 10 时 ♦10 上面只压着两王(4/33 = 0.12),
+         * 它留着既能赢墩又能带走自己那 10 分,兑现掉是亏的。
+         * 而报障里的 ♦K 上面压着 14/33 = 0.42,留着确实做不了什么。
+         * 判据用和 trumpHold 同一个信号(在外更大的占未见主的比例),不另造一个。 */
+        const lowEnough=x=>{
+          const idx=ordIdx(x,trump); let hi=0,tot=0;
+          for(const k in X.mem.unseen){
+            const n=X.mem.unseen[k]; if(n<=0) continue;
+            const u=keyToCard(k); if(effSuit(u,trump)!=='T') continue;
+            tot+=n; if(ordIdx(u,trump)>idx) hi+=n;
+          }
+          return tot>0&&hi/tot>=AIP.cashWinMinAbove;
+        };
+        const cash=view.hand.filter(x=>effSuit(x,trump)===es&&cardPoints(x)>0
+                                       &&ordIdx(x,trump)>mustBeat&&lowEnough(x))
+          .sort((a,b)=>cardPoints(b)-cardPoints(a)||ordIdx(a,trump)-ordIdx(b,trump))[0];
+        // 规则加成必须和上面那条一致:它说的是「这个局面该毙」,与用哪张主无关。
+        if(cash) push([cash],isRuff?'ruff':'over',true,
+          `最后一手稳拿,顺手把这张 ${cardPoints(cash)} 分兑现(它留在手里也赢不了墩)`,
+          (voidRuffOpp?AIP.ruffOppBonus:0)+(voidBehind?AIP.ruffVoidBehind:0));
+      }
       /* 1a′. 毙得够高:后面还有已知在这门断门的对手 → 小主毙上去会被原样端走。
        * 见 ruffGuardFollow。只在真有已知断门的后手对手时才生成,不然是白花大主。 */
       /* 闸门(v0.7.1):第一版不设闸,实测配对 −0.51、庄家丢掉最后一墩 26.3%→33.7% ——

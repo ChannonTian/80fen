@@ -227,6 +227,47 @@ if('nearBossHold' in E.AIP){
   console.log(`\n  [参考] 当前默认值下这一手实际领出:${pk.pick}(${pk.reason})`);
 }
 
+/* ── F 稳拿这墩时该不该把主分牌兑现（v0.7.9，cashWinPoints）───────────────
+ * 报障：♦ 作主、末家毙牌，玩家出 ♦K 而教练说「更好的是 ♦3 —— 最后一手，毙掉收分」。
+ * 两张同为主、同为毙，那句理由对两张同样成立 —— 建议与实际出牌在理由所指的事情上
+ * 没有区别，这条建议本身就是错的。真正的区别只有一个：♦K 多收 10 分。
+ * 而 ♦K 上面压着 14/33 的未见主，留在手里赢不了墩；主级数牌 ♦10 只压着 4/33，
+ * 留着既能赢墩又能带走自己那 10 分 —— 那才是不该兑现的那种。
+ * 比的是**同一牌面下开关开与关**，与默认值解耦。 */
+if('cashWinPoints' in E.AIP){
+  const CC=(su,r,i)=>({suit:su,rank:r,id:su+r+'_'+(i||1)});
+  const nmOf=x=>x.suit+(x.rank===13?'K':x.rank===14?'A':x.rank);
+  const P3=[{seat:0,cards:[CC('S',13)]},{seat:1,cards:[CC('S',5)]},{seat:2,cards:[CC('S',9)]}];
+  const pick=(T,hand,plays,seat,on)=>{
+    const o=E.AIP.cashWinPoints; E.AIP.cashWinPoints=on;
+    try{ return E.aiChooseFollow({seat,hand,trump:T,declSeat:0,history:[],buriedKnown:[]},plays); }
+    finally{ E.AIP.cashWinPoints=o; }
+  };
+  const T4={suit:'D',rank:4};
+  const h4=[CC('D',13),CC('D',3),CC('D',6),CC('C',6),CC('C',7),
+            CC('C',9),CC('H',8),CC('H',9),CC('H',2),CC('C',2)];
+  const T10={suit:'D',rank:10};
+  const h10=[CC('D',10),CC('D',3),CC('D',6),CC('C',6),CC('C',7),
+             CC('C',9),CC('H',8),CC('H',9),CC('H',2),CC('C',2)];
+  const off=(...a)=>nmOf(pick(...a,0).cards[0]);
+  const on =(...a)=>nmOf(pick(...a,1).cards[0]);
+
+  check('F1','末家稳拿、♦K 上面压着一大半主 → 该把这 10 分兑现',
+        `关→${off(T4,h4,P3,3)}  开→${on(T4,h4,P3,3)}`,
+        ()=>off(T4,h4,P3,3)==='D3'&&on(T4,h4,P3,3)==='DK', '关时 D3、开时 DK');
+  check('F1b','对照组：非末家(不稳拿) → 不该兑现',
+        `关→${off(T4,h4,[{seat:0,cards:[CC('S',13)]}],1)}  ` +
+        `开→${on(T4,h4,[{seat:0,cards:[CC('S',13)]}],1)}`,
+        ()=>off(T4,h4,[{seat:0,cards:[CC('S',13)]}],1)
+           ===on(T4,h4,[{seat:0,cards:[CC('S',13)]}],1), '开关无差别');
+  check('F1c','对照组：那张分牌是主级数牌 ♦10(上面只压着两王) → 留着,不该兑现',
+        `关→${off(T10,h10,P3,3)}  开→${on(T10,h10,P3,3)}`,
+        ()=>off(T10,h10,P3,3)===on(T10,h10,P3,3), '开关无差别');
+  check('F1d','理由必须能区分建议牌与实际牌(不能只说「毙掉收分」)',
+        pick(T4,h4,P3,3,1).reason,
+        ()=>/兑现/.test(pick(T4,h4,P3,3,1).reason), '提到「兑现」而不是泛泛的毙牌');
+}
+
 /* ── ①⑥ 统计口径：跑一批自对弈，把关键比率打出来 ─────────────────────── */
 {
   let n=0,lost=0,k10=0,k10lost=0;

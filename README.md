@@ -15,7 +15,7 @@
 |---|---|---|
 | **[`RULES.md`](RULES.md)** | 玩家 | 规则书。第一部分入门(没打过也能上手),第二部分裁决手册(甩牌、拖拉机怎么跟、抠底几倍、关卡怎么算) |
 | **[`DESIGN.md`](DESIGN.md)** | 改代码的人 | **现在成立**的 AI 设计:三阶段评分公式、每一项的来历、已知短板 |
-| **[`SWITCHES.md`](SWITCHES.md)** | 调参的人 | 128 个 `AIP` 开关的登记表(脚本生成,可重跑) |
+| **[`SWITCHES.md`](SWITCHES.md)** | 调参的人 | 130 个 `AIP` 开关的登记表(脚本生成,可重跑) |
 | **[`CHANGELOG.md`](CHANGELOG.md)** | 想知道哪版改了什么 | 版本总表 + 每版结论 |
 | [`NOTES/ai-journal.md`](NOTES/ai-journal.md) | 未来的自己 | 逐版的完整推演与实验数据(原 CHANGELOG 全文) |
 | [`NOTES/measurement.md`](NOTES/measurement.md) | 同上 | **三把尺子,以及每一把量不到什么**。改 AI 之前先读这页 |
@@ -96,7 +96,7 @@ AI 只回答「合法之中选哪个」,规则判定全部交给引擎——所�
 场景库是回归网,不是尺子:
 
 ```
-node test/ai-scenarios.js 80fen-test.html   # 测试版:20/20
+node test/ai-scenarios.js 80fen-test.html   # 测试版:24/24
 node test/ai-scenarios.js index.html        # 正式版:20/20
 node test/audit-reason.js index.html 200    # 教练理由体检:16 类断言应全部 0 不符
 ```
