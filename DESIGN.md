@@ -1,6 +1,9 @@
 # 80分 启发式 AI —— 设计笔记
 
-> **这一页只放现在成立的东西。** 逐版的推演过程在 [`NOTES/ai-journal.md`](NOTES/ai-journal.md),
+> **这一页只放现在成立的东西,以及已经研究讨论、尚未实现的东西。**
+> 后者集中在 §7(已知短板)、§9(`P × S` 的适用边界)、§10(外部研究对照)——
+> 都是有依据的方案与判断,只是还没落到代码里;正文里凡是这种,都会写明「尚未实现」。
+> 逐版的推演过程在 [`NOTES/ai-journal.md`](NOTES/ai-journal.md),
 > 被否掉的尝试在 [`NOTES/negative-results.md`](NOTES/negative-results.md),
 > 量具与方法论在 [`NOTES/measurement.md`](NOTES/measurement.md),
 > 参数登记表在 [`SWITCHES.md`](SWITCHES.md)。规则本身见 [`RULES.md`](RULES.md)。
