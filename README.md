@@ -40,6 +40,7 @@
 | `test/cf-highlead.js` | 同上,针对领出侧:「上面还有更大的、我手里又没有」那张高牌 |
 | `test/audit-*.js` | 行为审计:统计某类错误发生了多少次 |
 | `test/audit-reason.js` | **教练理由的事实体检** —— 只查「理由说的和牌面对不对得上」,不评价棋力 |
+| `test/check-sync.js` | **三份 build 与文档的一致性体检** —— 晋级、推送之前跑一遍 |
 | `test/gen-switches.js` | 生成 `SWITCHES.md` |
 
 三层流水线:本地 `80fen-dev.html`(开发版)→ GitHub `80fen-test.html`(测试版,验收后推)
@@ -95,6 +96,18 @@ node test/ai-scenarios.js 80fen-test.html   # 测试版:20/20
 node test/ai-scenarios.js index.html        # 正式版:20/20
 node test/audit-reason.js index.html 200    # 教练理由体检:16 类断言应全部 0 不符
 ```
+
+三份 html 之间靠**人手整份复制**同步,开发版还被 `.gitignore` 挡着 —— 飘了没人看得见。
+文档里又写死了版本号和参数条数。**晋级或推送之前跑这个**,不符会以退出码 1 报错:
+
+```
+node test/check-sync.js          # 秒级:版本号、角色标记、开关表、未跟踪文件
+node test/check-sync.js --full   # 再加三份 build 的自测(约 4 分钟)
+```
+
+它钉住的不变量:开发版与测试版逐字节相同(除 `title`/`versionTag` 两行)、正式版版本号
+不超前于测试版、`SWITCHES.md` 主体等于 `gen-switches.js` 的输出、README 标题与 CHANGELOG
+「当前:」行等于对应 build 的 `versionTag`、未跟踪文件都在白名单里。
 
 规矩是**先加场景,再动代码**。凡是「该做 X」的断言都配一条「不该做 X」的对照组,
 否则下一轮会有人把正解当 bug 修掉。
