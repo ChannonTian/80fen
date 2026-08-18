@@ -947,6 +947,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   dumpVoidFeedback: 1,        // 贴分时按「贴之后」的台面分重算存活率(0 = 退回旧行为)
   cashWinPoints: 1,           // 稳拿这墩时,额外生成一条「把主分牌兑现」的候选(0 = 关)
   cashWinMinAbove: 0.3,       // 上面压着的主牌要占未见主的这个比例,才算「留着也赢不了墩」
+  throwBossSubset: 1,         // 甩牌候选可以只甩本门里压不住的那几组(0 = 只能甩整门)
 
   /* ==========================================================================
    * v0.5.8 —— 九条实战反馈的根因修复。全部带开关,默认全开,可逐条消融。
@@ -3722,6 +3723,32 @@ function aiChooseLead(view){
         if(r.score>40) cands.push({cards:bySuit[s],score:r.score,reason:r.reason});
       }
     }
+    /* 甩**子集**:本门里压不住的那几组一起甩,把带不动的小牌留下。
+     *
+     * 报障三条其实是同一件事,根子都在上面那段只认「整门」:
+     *   · ♣KK 领出后确认没人有 ♣ 对 → 剩下的 ♣10♣10 和 ♣7♣7 该一次甩掉,
+     *     可只要手上还有一张管不住的 ♣ 小牌,整门就甩不成立,候选压根不生成;
+     *   · 副色 AAK / AKK 同理 —— A 和 KK 各自都压不住,整门带上一张小牌就废了;
+     *   · 教练「不能辨别撒牌比单张更大」也是它:候选集里没有子集甩牌,
+     *     只能拿单张去比,自然永远建议单张。
+     *
+     * 为什么值得甩:一墩里「后出的牌结构必须和领出的一样才参与比较」(RULES E)。
+     * 分两次打两个对子,对手有**一个**主对就能端走一次;两对一起甩,
+     * 他得同时有**两个**主对才拿得走 —— 概率低得多。牌型本身就是护甲。
+     *
+     * 判据只用「这一组在本门压不住」(isBossPlay),不猜对手断不断门 ——
+     * 断门归 ruffable 那一项管,两件事不混在一起。 */
+    if(AIP.throwBossSubset&&s!=='T'&&comps.length>=2){
+      const boss=comps.filter(cp=>isBossPlay({type:cp.type,len:cp.len,suit:s,top:cp.top},L.mem,trump));
+      if(boss.length>=2&&boss.length<comps.length){
+        const cs=boss.reduce((a2,cp)=>a2.concat(cp.cards),[]);
+        const cl2=classify(cs,trump);
+        if(cl2&&cl2.type==='throw'){
+          const r2=scoreLeadPlay(L,cl2,cs);
+          if(r2.score>40) cands.push({cards:cs,score:r2.score,reason:r2.reason});
+        }
+      }
+    }
   }
   // v3 这里还硬塞过一颗 `score:46 主力雄厚,吊主清场` 的候选。常数 46 无条件压过其他所有
   // 候选,且不看对手还剩几张主 —— 现在吊主的收益由 drawTrumpValue 在正常评分里算出来,
@@ -3774,7 +3801,7 @@ function simulateRound(seed, smartSeats=[0,1,2,3]){
   const declTeam=declSeat%2;
   const smart=new Set(smartSeats);
   const history=[];
-  let leader=declSeat, defPoints=0, lastWinner=declSeat, lastLeadSize=1, tricks=0;
+  let leader=declSeat, defPoints=0, lastWinner=declSeat, lastLeadSize=1, tricks=0, cardsPlayed=0;
   while(hands.some(h=>h.length)){
     const plays=[];
     for(let i=0;i<4;i++){
@@ -3794,6 +3821,7 @@ function simulateRound(seed, smartSeats=[0,1,2,3]){
           throw new Error('AI 出牌不合法 seed='+seed+' seat='+seat);
       }
       cards.forEach(c=>removeCard(hands[seat],c));
+      cardsPlayed+=cards.length;
       plays.push({seat,cards});
     }
     history.push(...plays);
@@ -3804,7 +3832,7 @@ function simulateRound(seed, smartSeats=[0,1,2,3]){
     if(tricks>100) throw new Error('死循环 seed='+seed);
   }
   return {...scoreRound({defPoints,kitty:buried,defWonLastTrick:lastWinner%2!==declTeam,lastLeadSize}),
-          defPoints, tricks, declSeat, noTrump:!trump.suit};
+          defPoints, tricks, declSeat, cardsPlayed, noTrump:!trump.suit};
 }
 
 /* 引擎公开面 —— 浏览器 #test 与 node 无头测试共用同一份,避免两边漂移 */
@@ -4654,7 +4682,11 @@ function runTests(E){
     try{
       const r=E.simulateRound(s);
       if(r){ played++; if(r.noTrump)nt++;
-        if(r.total<0||r.tricks<13) simOK=false; }
+        /* 这里要保证的是「这一局真的打完了」,而不是「打了至少 13 墩」。
+         * 旧判据 tricks<13 悄悄假设了领出多半是单张 —— v0.7.9 的子集甩牌
+         * 让一次领出可以带走四张,合法局面下墩数掉到 12 就会误报。
+         * 换成真正的不变量:四家 25 张必须全部出完(2×54 − 8 张底牌)。 */
+        if(r.total<0||r.cardsPlayed!==100) simOK=false; }
     }catch(e){ simOK=false; }
   }
   ok('40局全AI模拟无崩溃(含'+nt+'局无主)', simOK&&played>30);

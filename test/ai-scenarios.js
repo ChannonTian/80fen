@@ -268,6 +268,39 @@ if('cashWinPoints' in E.AIP){
         ()=>/兑现/.test(pick(T4,h4,P3,3,1).reason), '提到「兑现」而不是泛泛的毙牌');
 }
 
+/* ── G 甩牌只能甩整门 → 可以甩「压不住的那几组」子集（v0.7.9，throwBossSubset）──
+ * 报障三条同一个根:候选生成里甩牌只取 bySuit[s]（整门）。
+ * 手上 ♦A♦A + ♦K + ♦5 时，A 对和 K 单张都压不住，可整门带上那张 ♦5 就甩不成立，
+ * 于是候选压根不生成 —— AAK / AKK 撒不出去、两对不会一起甩、教练也只能建议单张。
+ * 为什么该甩：一墩里「后出的牌结构必须和领出的一样才参与比较」(RULES E)，
+ * 两对一起甩要对手同时有两个主对才端得走，比分两次打安全得多。 */
+if('throwBossSubset' in E.AIP){
+  const GC=(su,r,i)=>({suit:su,rank:r,id:su+r+'_'+(i||1)});
+  const gn=x=>x.suit+(x.rank===13?'K':x.rank===14?'A':x.rank===12?'Q':x.rank);
+  const T2={suit:'H',rank:2};
+  const lead=(hand,on)=>{
+    const o=E.AIP.throwBossSubset; E.AIP.throwBossSubset=on;
+    try{ return E.aiChooseLead({seat:0,hand,trump:T2,declSeat:0,history:[],buriedKnown:[]}); }
+    finally{ E.AIP.throwBossSubset=o; }
+  };
+  const rest=[GC('H',7),GC('H',8),GC('S',6),GC('S',9),GC('C',4),GC('C',7)];
+  // 正例：♦A♦A 是钢板对、♦K 单张也压不住（两张 A 都在我手）、♦5 压得住 → 甩 AAK
+  const hAAK=[GC('D',14,1),GC('D',14,2),GC('D',13),GC('D',5)].concat(rest);
+  // 对照：把 K 换成 Q，两张 ♦K 都在外 → Q 压得住 → 只剩一个钢板组件，不该甩
+  const hAAQ=[GC('D',14,1),GC('D',14,2),GC('D',12),GC('D',5)].concat(rest);
+  const sz=(h,on)=>lead(h,on).cards.length;
+
+  check('G1','♦A♦A + 压不住的 ♦K + 带不动的 ♦5 → 甩 AAK,而不是只出一对',
+        `关→${lead(hAAK,0).cards.map(gn).join('')}  开→${lead(hAAK,1).cards.map(gn).join('')}`,
+        ()=>sz(hAAK,0)===2&&sz(hAAK,1)===3, '关时 2 张、开时 3 张');
+  check('G1b','对照组:只有一个组件压不住(♦Q 上面还有 K)→ 不该甩',
+        `关→${lead(hAAQ,0).cards.map(gn).join('')}  开→${lead(hAAQ,1).cards.map(gn).join('')}`,
+        ()=>sz(hAAQ,0)===sz(hAAQ,1), '开关无差别');
+  check('G1c','甩出去的每一组都必须是本门压不住的(不能把 ♦5 带上)',
+        lead(hAAK,1).cards.map(gn).join(''),
+        ()=>!lead(hAAK,1).cards.some(x=>x.rank===5), '不含 ♦5');
+}
+
 /* ── ①⑥ 统计口径：跑一批自对弈，把关键比率打出来 ─────────────────────── */
 {
   let n=0,lost=0,k10=0,k10lost=0;
