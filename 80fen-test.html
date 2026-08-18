@@ -293,7 +293,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.8(测试版)</div>
+<div id="versionTag">80分 v0.7.9(测试版)</div>
 
 <script src="terms-shanghai.js"></script>
 <script>
@@ -944,6 +944,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   ruffPartnerMinPts: 5,       // 台面分下限:一分没有的空气墩不值得动主
   takeOverMinPts: 5,          // 断门毙分那一支的桌面分下限
   partnerHoldAfter: 0.72,     // 队友压回来之后,身后还有对手时守得住的比例
+  dumpVoidFeedback: 1,        // 贴分时按「贴之后」的台面分重算存活率(0 = 退回旧行为)
 
   /* ==========================================================================
    * v0.5.8 —— 九条实战反馈的根因修复。全部带开关,默认全开,可逐条消融。
@@ -2359,6 +2360,19 @@ function pPartnerTakes(X){
 function pTeamWin(X, cards, beatsCur){
   const cl=classify(cards,X.trump);
   if(!beatsCur){
+    /* 我贴上去的分会把台面抬高,而「肯不肯花一张主牌来毙」看的正是台面分 ——
+     * pSurvive 的已知断门分支就是 0.35 → 0.80 那一跳,pPartnerTakes 里同理。
+     * 旧版这里的 p 用的是 followCtx 里**贴分之前**算好的 certainty,而 gain
+     * 却把我贴的这几分算了进去:贴得越多 gain 越大,存活率一动不动。
+     * 台面 0 分、后手有已知断门的对手时,存活率算成 1−0.35×0.85 = 0.70,
+     * 而贴上一张 10 之后真实值是 1−0.80×0.85 = 0.32 —— 差一倍,方向正好是
+     * 「已知下家断门还把分贴过去」那一簇报障描述的方向。
+     * 所以贴分候选要用「贴之后」的台面分重算一次。 */
+    const my=AIP.dumpVoidFeedback?countPoints(cards):0;
+    if(my>0&&!X.isLast){
+      const XA={...X, ptsTable:X.ptsTable+my};
+      return X.partnerWinning?pSurvive(XA,X.cur.cl,X.remainingOpp):pPartnerTakes(XA);
+    }
     // 对手暂大:只能指望后手的队友把它压回来
     if(!X.partnerWinning) return pPartnerTakes(X);
     return X.certainty;                                    // 队友暂大:活到墩末的概率

@@ -27,6 +27,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `oppSpendModel` | `1` | 对手「肯不肯花」模型(`oppSpendCeil`)。v0.7.3 把 −0.92 翻成 +0.15 |
 | `ruffVoidBehind` | `20` | 后手有已知断门的对手时,毙牌吃罚分。v0.7.5,定点反事实量出来的 |
 | `nearBossHold` | `16` | 「上面只剩一张」的留手期权(`futureValue`)。v0.7.8,正式版三批 +0.41 ±0.18、测试版四批 +0.49 ±0.15 |
+| `dumpVoidFeedback` | `1` | 贴分时按「贴之后」的台面分重算存活率。v0.7.9,修「已知下家断门还把分贴过去」那一簇(8 条报障) |
 | `endKittyWeight` | — | 护底那个「量纲错误的大数值」。**别拆** —— 三次尝试全部掉分,原因见 negative-results |
 
 **默认关、且已被实测否掉的**(`leadEV2` / `endKittyCap` / `reserveFloor` / `drawTrumpVsOne` /
@@ -268,6 +269,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `ruffPartnerMinPts` | `5` | 台面分下限:一分没有的空气墩不值得动主 |
 | `takeOverMinPts` | `5` | 断门毙分那一支的桌面分下限 |
 | `partnerHoldAfter` | `0.72` | 队友压回来之后,身后还有对手时守得住的比例 |
+| `dumpVoidFeedback` | `1` | 贴分时按「贴之后」的台面分重算存活率(0 = 退回旧行为) |
 
 ### 第 0 波:支配性错误。这四条只会删掉「被支配的选项」,不改任何权衡口径。
 

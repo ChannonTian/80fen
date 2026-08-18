@@ -77,8 +77,9 @@ function playRound(seed, aiOf){
 }
 
 const N=+process.argv[4]||800;
+const S0=+(process.env.SEED0||0);          // 种子偏移:分批跑互不重叠的样本,好做多批合并
 let diff=0, n=0, sq=0, lostNew=0, lostOld=0, nNew=0, nOld=0;
-for(let s=1;s<=N;s++){
+for(let s=S0+1;s<=S0+N;s++){
   for(const newTeam of [0,1]){
     const aiOf=seat=>seat%2===newTeam?NEW:OLD;
     let r; try{ r=playRound(s,aiOf); }catch(e){ continue; }
@@ -92,7 +93,7 @@ for(let s=1;s<=N;s++){
   }
 }
 const mean=diff/n, sd=Math.sqrt(sq/n-mean*mean), se=sd/Math.sqrt(n);
-console.log(`同桌配对对照 ${n} 副(${N} 种子 × 交换阵营)`);
+console.log(`同桌配对对照 ${n} 副(${N} 种子 × 交换阵营${S0?`,自 ${S0+1} 起`:''})`);
 console.log(`  新版 ${process.argv[2]||'80fen-test.html'}   旧版 ${process.argv[3]||'index.html'}`);
 console.log(`  新版净胜 ${(mean/2).toFixed(2)} 分/局  (SE ${(se/2).toFixed(2)}, t=${(mean/se).toFixed(2)})`);
 console.log(`  新版坐庄丢掉最后一墩 ${(100*lostNew/nNew).toFixed(1)}%  (${lostNew}/${nNew})`);
