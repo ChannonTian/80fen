@@ -32,7 +32,7 @@
 | `80fen-test.html` | 测试版,推 GitHub 后与正式版共用 Pages |
 | `80fen-dev.html` | 开发版,本地专用(已 `.gitignore`) |
 | `test/ai-scenarios.js` | 回归场景库:每条实战反馈一条断言 |
-| `test/ai-h2h.js` | 同桌配对对照 |
+| `test/ai-h2h.js` | 同桌配对对照。**SE 有两个口径**,看「配对」那行:逐副口径把同一副牌的两半当独立样本,高估 2~3 倍 |
 | `test/cf-ruff.js` | **定点反事实回放** —— 量「一次决策值多少分」的唯一工具 |
 | `test/cf-highlead.js` | 同上,针对领出侧:「上面还有更大的、我手里又没有」那张高牌 |
 | `test/audit-*.js` | 行为审计:统计某类错误发生了多少次 |
