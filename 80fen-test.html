@@ -25,7 +25,7 @@
      重排——代价是地址栏收起后底部会空一截,但比布局中途跳变好。svh 不支持的浏览器
      退回 100vh。 */
   #app{display:grid;height:100vh;height:100svh;padding:8px;gap:8px;margin:0 auto;max-width:1700px;
-       grid-template-columns:minmax(0,1fr) clamp(250px,24vw,380px);
+       grid-template-columns:minmax(0,1fr) min(calc(clamp(250px,24vw,380px)*var(--sideScale,1)),46vw);
        grid-template-rows:auto minmax(0,1fr)}
   #status{grid-column:1/-1}
   #main{grid-column:1;display:flex;flex-direction:column;gap:6px;min-height:0;min-width:0}
@@ -136,6 +136,10 @@
   #tabs button{font-size:var(--fsSmall);padding:5px 10px;background:#2c6e4f;color:#fff}
   #tabs button.on{background:var(--gold);color:#222}
   #panel button.on{background:var(--gold);color:#222}   /* 对局记录里的视图切换按钮,选中态与页签一致 */
+  /* 单墩进度条:拖到第 N 墩把那一墩单独放大看 */
+  #panel .trickSeek{display:flex;align-items:center;gap:8px;margin:4px 0}
+  #panel .trickSeek input{flex:1;min-width:0}
+  #panel .trickSeek span{white-space:nowrap;opacity:.75}
   #panel{background:rgba(0,0,0,.3);border-radius:8px;padding:8px 12px;font-size:var(--fsSmall);
          flex:1;min-height:0;overflow-y:auto;color:#cfe8d9}
   .trickRow{display:flex;gap:10px;align-items:center;margin:3px 0 8px;flex-wrap:wrap}
@@ -198,6 +202,8 @@
     #app{grid-template-columns:minmax(0,1fr);gap:6px;padding:6px;
          grid-template-rows:auto minmax(min-content,1fr) minmax(0,0.6fr)}
     #main,#side{grid-column:1}
+    /* 上下叠的时候右栏就是整宽,"加宽右栏"没有意义,按钮藏掉 */
+    .wideOnly{display:none}
     /* 竖屏把 min-height:0 收回来:牌桌要能把"我至少需要这么高"往上传,
        上面那条 minmax(min-content,1fr) 才有东西可用,否则行照样被压塌、内容照样溢出 */
     #main,#table{min-height:auto}
@@ -229,7 +235,8 @@
   /* ---- 横屏(含手机横握):一律保持左右布局,侧栏收窄给牌桌让位 ---- */
   @media (orientation:landscape) and (max-height:600px){
     :root{--cardW:clamp(32px,2.4vw + 1.6vh,48px)}
-    #app{grid-template-columns:minmax(0,1fr) clamp(170px,20vw,290px);gap:6px;padding:6px}
+    #app{grid-template-columns:minmax(0,1fr) min(calc(clamp(170px,20vw,290px)*var(--sideScale,1)),46vw);
+         gap:6px;padding:6px}
     /* 竖向空间紧,状态栏不许折行,超出就横向滑动 */
     #status{gap:10px;padding:4px 10px;flex-wrap:nowrap;overflow-x:auto;white-space:nowrap}
     #controls{gap:6px;padding:2px}
@@ -293,9 +300,8 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.9(测试版)</div>
+<div id="versionTag">80分 v0.7.10(测试版)</div>
 
-<script src="terms-shanghai.js"></script>
 <script>
 /* ============================================================
  * 80分 游戏引擎 —— 纯函数,不碰 DOM。
@@ -4711,27 +4717,89 @@ if(location.hash==='#test'){
   return;
 }
 
-// ---- 术语(全国版/沪语版) ----
-const TERMS_CN={bigJoker:'大王',smallJoker:'小王',trump:'主牌',noTrump:'无主',tractor:'拖拉机',
-  throwP:'甩牌',ruff:'毙牌',discard:'垫牌',declare:'亮主',counter:'反主',reinforce:'加固',
-  declareV:'亮',counterV:'反',   // 按钮上用的短动词,免得"亮主无主(大)"这种叠字
-  bury:'扣底',lead:'领出',zheng:'正常主',fu:'副常主',voidSuit:'断门',openVoid:'开局断门',
-  rankA:'A',rankK:'K',rankQ:'Q',rankJ:'J',levelUp:'升级',
-  defenders:'闲家',tiaoji:'跳级',guangtou:'剃光头'};   // 闲家/跳级/剃光头:沪语全国通用
-let useSH=true; try{ const v=localStorage.getItem('80fentest-lang'); if(v) useSH=v==='sh'; }catch(e){}
-const T=k=>(useSH&&window.TERMS_SH&&window.TERMS_SH[k])||TERMS_CN[k]||k;
+/* ---- 术语表(全国版 / 沪语版 / English)----
+ *
+ * v0.7.10:沪语那份原来单独挂在 `terms-shanghai.js` 里 —— 产品本体号称单文件,
+ * 却拖着一个外部依赖,双击 index.html 时少放一个文件就静默退回全国版。现在并回来了。
+ *
+ * 三档共用一张表:缺的词逐级回退到全国版,再回退到键名本身。
+ * 只译**术语**(牌张、牌型、动作、座位、花色),界面文案仍是中文 ——
+ * 英语档的用途是让不懂中文术语的人看懂「这一手在干什么」,不是做完整本地化。
+ * 想扩就往 en 里加键,回退机制保证加一半也不会崩。 */
+const TERMS={
+  cn:{bigJoker:'大王',smallJoker:'小王',trump:'主牌',noTrump:'无主',tractor:'拖拉机',
+    throwP:'甩牌',ruff:'毙牌',discard:'垫牌',declare:'亮主',counter:'反主',reinforce:'加固',
+    declareV:'亮',counterV:'反',   // 按钮上用的短动词,免得"亮主无主(大)"这种叠字
+    bury:'扣底',lead:'领出',zheng:'正常主',fu:'副常主',voidSuit:'断门',openVoid:'开局断门',
+    rankA:'A',rankK:'K',rankQ:'Q',rankJ:'J',levelUp:'升级',
+    defenders:'闲家',tiaoji:'跳级',guangtou:'剃光头',
+    suitS:'黑桃♠',suitH:'红桃♥',suitD:'方块♦',suitC:'梅花♣',
+    seat0:'南(你)',seat1:'东',seat2:'北(队友)',seat3:'西'},
+  sh:{bigJoker:'大怪',smallJoker:'小怪',
+    trump:'将牌',        // 也可作「王」
+    noTrump:'无将',tractor:'飞机大炮',throwP:'撒牌',ruff:'敲脱',discard:'氽废',
+    declare:'翻',        // 亮主;也可作「摊」
+    counter:'造反',      // 反主
+    declareV:'翻',       // 按钮上的短动词,如「翻无将(大)」
+    counterV:'反',
+    reinforce:'加固',
+    bury:'灭底',         // 埋底
+    lead:'先出',
+    zheng:'主将',        // 级数牌直接跟在后面,如「主2」
+    fu:'副将',
+    voidSuit:'搿一门么了',   // 断门(无固定术语)
+    openVoid:'天绝',
+    rankA:'Ace',rankK:'老K',rankQ:'皮蛋',
+    rankJ:'J钩',         // 念 djia
+    levelUp:'打上去'},
+    // 闲家/跳级/剃光头/花色/座位:沪语与全国版同,回退即可
+  en:{bigJoker:'Big Joker',smallJoker:'Small Joker',trump:'trump',noTrump:'no-trump',
+    tractor:'tractor',throwP:'throw',ruff:'ruff',discard:'discard',
+    declare:'declare',counter:'counter',reinforce:'reinforce',
+    declareV:'Declare',counterV:'Counter',
+    bury:'bury',lead:'lead',
+    zheng:'primary trump',   // 主门的级数牌
+    fu:'off-suit trump',     // 其余三门的级数牌
+    voidSuit:'void',openVoid:'void from the deal',
+    rankA:'A',rankK:'K',rankQ:'Q',rankJ:'J',levelUp:'level up',
+    defenders:'defenders',tiaoji:'skip a level',guangtou:'shutout',
+    suitS:'Spades♠',suitH:'Hearts♥',suitD:'Diamonds♦',suitC:'Clubs♣',
+    seat0:'South (you)',seat1:'East',seat2:'North (partner)',seat3:'West'}
+};
+let lang='sh';
+try{ const v=localStorage.getItem('80fentest-lang');
+     if(v&&TERMS[v]) lang=v; else if(v==='cn') lang='cn'; }catch(e){}
+const T=k=>(TERMS[lang]&&TERMS[lang][k])||TERMS.cn[k]||k;
 
 const SUIT_SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
-const SUIT_NAME={S:'黑桃♠',H:'红桃♥',D:'方块♦',C:'梅花♣'};
-const SEAT_NAME=['南(你)','东','北(队友)','西'];
+// 花色与座位跟着语言走:英语档下「南(你)」读不通,而它们和牌型一样是术语。
+const SUIT_NAME={get S(){return T('suitS');},get H(){return T('suitH');},
+                 get D(){return T('suitD');},get C(){return T('suitC');}};
+const SEAT_NAME={get 0(){return T('seat0');},get 1(){return T('seat1');},
+                 get 2(){return T('seat2');},get 3(){return T('seat3');},get length(){return 4;}};
 const HUMAN=0;
+/* 座位简称:中文取首字("北/西/东/南"),拉丁字母的座位名(英语档)取首字母后补一个空格,
+ * 否则 "E"+"declare" 会连成 "Edeclare"。原来写在 render() 里,出牌记录也要用,提到顶层。 */
+const seatAbbr=i=>{const nm=SEAT_NAME[i];return /^[A-Za-z]/.test(nm)?nm.slice(0,1)+' ':nm.slice(0,1);};
 const typeName=t=>({single:'单张',pair:'对子',tractor:T('tractor'),throw:T('throwP')}[t]);
 const rankName=r=>r===14?T('rankA'):r===13?T('rankK'):r===12?T('rankQ'):r===11?T('rankJ'):String(r);
 // logMode:对局记录页签里的三种看法 —— 事件流 / 每墩出牌 / 按花色归堆。
 // 原来「对局记录」和「出牌历史」是两个页签,内容有一半是重的(都在列每墩谁出了什么),
 // 合成一个页签、三个视图,右栏少一个按钮,也不用来回切着找同一件事。
 let G=null, seedBase=Date.now()%100000, activeTab='score', logMode='event';
+// 每墩视图的两个看法开关:logAsc = 第 1 墩在上(复盘从头看),logFocus = 只放大第 N 墩(0 = 列全部)
+let logAsc=false, logFocus=0;
 let notes=[]; try{ notes=JSON.parse(localStorage.getItem('80fentest-notes')||'[]'); }catch(e){}
+// 旧版笔记存的是纯字符串,没有局数;读进来补成 {r,t},历史笔记 r=null 就不显示局号
+notes=notes.map(n=>typeof n==='string'?{r:null,t:n}:n).filter(n=>n&&n.t);
+
+/* 右栏宽度:复盘时四家的牌挤在 mini 尺寸里看不清,允许拉宽两档。
+ * 存倍率而不是绝对宽度 —— 横屏窄栏那套 @media 基准要保留,只是整体乘一下。 */
+const SIDE_STEPS=[1,1.35,1.75], SIDE_NAMES=['标准','加宽','特宽'];
+let sideStep=0; try{ sideStep=+(localStorage.getItem('80fentest-sidew')||0); }catch(e){}
+if(!(sideStep>=0&&sideStep<SIDE_STEPS.length)) sideStep=0;
+function applySideW(){ document.documentElement.style.setProperty('--sideScale',SIDE_STEPS[sideStep]); }
+applySideW();
 
 // ---- 音效(WebAudio 合成,无外部资源,可关) ----
 let sndOn=true; try{ sndOn=localStorage.getItem('80fentest-snd')!=='off'; }catch(e){}
@@ -4798,7 +4866,7 @@ function aiThinkMs(){
 // 打开时快照一份,「取消」按快照原样恢复(含已经落盘的 localStorage),
 // 「完成」什么都不用做——每项本来就是改了立即生效+保存。
 function openSettings(){
-  const snapshot={S:JSON.parse(JSON.stringify(S)), C:JSON.parse(JSON.stringify(C)), useSH, sndOn};
+  const snapshot={S:JSON.parse(JSON.stringify(S)), C:JSON.parse(JSON.stringify(C)), lang, sndOn};
   const el=document.getElementById('setContent');
   el.innerHTML=
     `<div class="setHeader"><b>⚙ 设置</b>
@@ -4820,6 +4888,7 @@ function openSettings(){
        <select id="stLang">
          <option value="sh">沪语版(术语切换)</option>
          <option value="cn">普通话(全国版)</option>
+         <option value="en">English (terms only)</option>
        </select></div>`+
     `<div class="setRow"><label><input type="checkbox" id="stSnd"> 🔊 音效</label></div>`+
     `<div class="setSection">节奏</div>`+
@@ -4871,7 +4940,7 @@ function openSettings(){
     $('stManual').checked=!!S.manualNext;
     $('stHold').disabled=!!S.manualNext;
     $('stHoldHint').textContent=S.manualNext?'(手动模式下由你点「下一墩」决定)':'';
-    $('stLang').value=useSH?'sh':'cn'; $('stSnd').checked=sndOn;
+    $('stLang').value=lang; $('stSnd').checked=sndOn;
     $('cOn').checked=C.on; $('cSens').value=C.gapSens; $('cStrict').checked=C.strict;
     $('cReview').checked=C.review; $('cQuiz').checked=C.quiz; $('cMemShow').checked=C.memShow;
     $('rPts').value=S.rules.pointRebelThreshold;
@@ -4933,8 +5002,8 @@ function openSettings(){
   num('stMin','aiThinkMin'); num('stMax','aiThinkMax'); num('stHold','trickHold');
   num('stDeclWait','declWait');
   $('stManual').onchange=e=>{ S.manualNext=e.target.checked; saveS(); fill(); };
-  $('stLang').onchange=e=>{ useSH=e.target.value==='sh';
-    try{ localStorage.setItem('80fentest-lang',useSH?'sh':'cn'); }catch(_){ } if(G) render(); };
+  $('stLang').onchange=e=>{ lang=TERMS[e.target.value]?e.target.value:'cn';
+    try{ localStorage.setItem('80fentest-lang',lang); }catch(_){ } if(G) render(); };
   $('stSnd').onchange=e=>{ sndOn=e.target.checked;
     try{ localStorage.setItem('80fentest-snd',sndOn?'on':'off'); }catch(_){ } };
   $('cOn').onchange=e=>{ C.on=e.target.checked; saveC(); if(G) render(); };
@@ -4948,10 +5017,10 @@ function openSettings(){
   // 取消:每项改动本来就是即改即存,这里把开菜单那一刻的快照整个套回去(含持久化),
   // 而不是只清内存——不然关掉重开又会看到"取消"前改过的值。
   $('stCancel').onclick=()=>{
-    S=snapshot.S; C=snapshot.C; useSH=snapshot.useSH; sndOn=snapshot.sndOn;
+    S=snapshot.S; C=snapshot.C; lang=snapshot.lang; sndOn=snapshot.sndOn;
     saveS(); saveC(); applyRules();
     try{
-      localStorage.setItem('80fentest-lang',useSH?'sh':'cn');
+      localStorage.setItem('80fentest-lang',lang);
       localStorage.setItem('80fentest-snd',sndOn?'on':'off');
     }catch(_){ }
     if(G) render();
@@ -5451,7 +5520,7 @@ function endRound(){
   const humanWon=sc.defendersWin!==humanDecl;
   let html=`<div style="font-size:22px;color:var(--gold)">${humanWon?'你们赢了!':'你们输了'}</div>`;
   html+=`<div>${T('defenders')}共得 <b>${sc.total}</b> 分`;
-  if(defWonLast&&sc.kittyPts) html+=`(含${useSH?'灭底翻出':'抠底'} ${sc.kittyPts}×${sc.mult})`;
+  if(defWonLast&&sc.kittyPts) html+=`(含${T('bury')}翻出 ${sc.kittyPts}×${sc.mult})`;
   html+=`</div>`;
   if(sc.total===0) html+=`<div style="color:var(--gold)">${T('guangtou')}!</div>`;   // 闲家0分
   html+=sc.defendersWin
@@ -5503,8 +5572,10 @@ function endRound(){
   sndEnd();
 }
 window.__next=()=>{ document.getElementById('overlay').style.display='none'; newRound(); };
-window.__newMatch=()=>{ M={levels:[2,2],dealer:-1,round:0,played:[-1,-1],past:[]}; logRound=null;
+window.__newMatch=()=>{ M={levels:[2,2],dealer:-1,round:0,played:[-1,-1],past:[]}; logRound=null; logFocus=0;
   scrambleNext=false; redealCount=0;
+  // 笔记是记这一场的(第几局谁扣了什么底),整场重开就该跟着清空 —— 否则局号会串到新的一场
+  notes=[]; try{ localStorage.removeItem('80fentest-notes'); }catch(e){}
   document.getElementById('overlay').style.display='none'; newRound(); };
 window.__review=()=>{ document.getElementById('overlay').style.display='none';
   render(); setMsg('复盘中:可查看出牌历史、教练复盘等记录,准备好后点下方"下一局"继续'); };
@@ -5533,7 +5604,9 @@ function render(){
   const t=G.trump;
   // 只报当前第几墩,不报总数 —— 一墩可以是单张/对子/拖拉机,总墩数本来就不固定
   const trickNo=G.ended?G.tricks.length:G.tricks.length+1;
-  const declNow=G.decl?`${SEAT_NAME[G.decl.seat].slice(0,1)}${T('declare')} ${G.decl.suit?SUIT_SYM[G.decl.suit]+(G.decl.strength===2?'对':''):(G.decl.strength===4?T('bigJoker'):T('smallJoker'))+'对'}`:'未定';
+  /* 座位缩写后面紧跟术语:中文「东翻」连写没问题,英文 "E"+"declare" 会糊成
+   * "Edeclare"。拉丁字母开头就补一个空格。 */
+  const declNow=G.decl?`${seatAbbr(G.decl.seat)}${T('declare')} ${G.decl.suit?SUIT_SYM[G.decl.suit]+(G.decl.strength===2?'对':''):(G.decl.strength===4?T('bigJoker'):T('smallJoker'))+'对'}`:'未定';
 
   // 出牌状态显示区拆分:阶段性说明(发牌/造反/扣底)去顶部状态栏;
   // 本墩领出信息(更常用、更值得占牌桌中心)直接写进 #msg,替掉"轮到你跟牌"这类泛泛提示
@@ -5572,6 +5645,9 @@ function render(){
     `<button id="btnSet" style="margin-left:auto" onclick="window.__openSet()">⚙ 设置</button>`+
     (phaseHint?`<span class="phaseHint">${phaseHint}</span>`:'');
 
+  /* 座位名跟着语言走。这四个 span 的文字原来只写在静态 HTML 里、从不更新 ——
+   * 加英语档之前没人发现,因为三种中文写法恰好一样。 */
+  for(let s=0;s<4;s++) document.getElementById('n'+s).textContent=SEAT_NAME[s];
   for(let s=1;s<4;s++){
     const n=(G.phase==='dealing'||G.phase==='finalDecl')?G.visCount[s]:G.hands[s].length;
     document.getElementById('b'+s).textContent='🂠 '+n+' 张';
@@ -5583,9 +5659,11 @@ function render(){
   const preplay=(G.phase!=='play');   // 开打前:亮主牌摆在亮主者面前
   for(let s=0;s<4;s++){
     const p=G.trick.find(x=>x.seat===s);
-    let html=p?p.cards.map(c=>cardHTML(c)).join(''):'';
+    /* 出牌区和手牌用同一把尺子(sortForDisplay)。原来这里按打出顺序摆:同一副牌
+     * 在桌上和手上长得不一样,看的人得先在脑子里做一次映射 —— 甩四五张时尤其明显。 */
+    let html=p?sortForDisplay(p.cards,curTrumpForSort()).map(c=>cardHTML(c)).join(''):'';
     if(preplay&&G.declCards&&G.declCards.seat===s)
-      html=G.declCards.cards.map(c=>cardHTML(c)).join('');
+      html=sortForDisplay(G.declCards.cards,curTrumpForSort()).map(c=>cardHTML(c)).join('');
     // 内容没变就别重建 DOM —— 否则 playIn 动画每次 render 都重放(牌一直闪)
     const slot=document.getElementById('p'+s);
     if(slot.__last!==html){ slot.innerHTML=html; slot.__last=html; }
@@ -5692,7 +5770,7 @@ function renderPanel(){
     const src=past||{tricks:G.tricks, log:G.log, initialHands:G.initialHands,
                      buried:G.buried, trump:curTrumpForSort(), declSeat:G.declSeat};
     const done=past?true:!!G.ended;
-    let html='';
+    let html='', seekPaint=null;   // seekPaint:进度条只重画受影响的那块,见下
     if(M.past.length){
       html+=`<div class="toggleRow" style="flex-wrap:wrap">`+
         `<button class="minor${logRound==null?' on':''}" data-lr="cur" style="padding:3px 10px;font-size:13px">本局</button>`+
@@ -5701,7 +5779,9 @@ function renderPanel(){
     }
     const MODES=[['event','事件'],['trick','每墩出牌'],['suit','按花色']];
     html+=`<div class="toggleRow">`+MODES.map(([k,label])=>
-      `<button class="minor${logMode===k?' on':''}" data-lm="${k}" style="padding:3px 10px;font-size:13px">${label}</button>`).join('')+`</div>`;
+      `<button class="minor${logMode===k?' on':''}" data-lm="${k}" style="padding:3px 10px;font-size:13px">${label}</button>`).join('')+
+      `<button class="minor wideOnly" id="sideWider" style="padding:3px 10px;font-size:13px"`+
+      ` title="把右栏拉宽,复盘时看得清楚些">⇔ ${SIDE_NAMES[sideStep]}</button>`+`</div>`;
     if(past){
       const who=past.declSeat%2===HUMAN%2?'你们':'对方';
       html+=`<div class="suitGroup" style="font-size:13px">第${past.no}局:${SEAT_NAME[past.declSeat]}(${who})坐庄,`+
@@ -5724,11 +5804,41 @@ function renderPanel(){
            `</div>`
           :`<div style="opacity:.6;margin-bottom:4px">(各家初始手牌本局结束后可看)</div>`;
       }
-      // 最新一墩在上:局中最常问的是「刚才那墩谁赢的」;翻旧局时顺序不重要,保持一致
-      html+=src.tricks.slice().reverse().map(tk=>
+      /* 默认最新一墩在上:局中最常问的是「刚才那墩谁赢的」。
+       * 但复盘一局是从第 1 墩顺着看的,所以顺序可以翻;再给一条进度条,
+       * 拖到第 N 墩就把那一墩单独按正常尺寸放大 —— mini 尺寸下四家的牌看不清。 */
+      const nT=src.tricks.length;
+      if(logFocus>nT) logFocus=0;
+      const rowOf=(tk,size)=>
         `<div class="trickRow"><span class="who">第${tk.no}墩 ${SEAT_NAME[tk.winner]}赢${tk.points?` +${tk.points}分`:''}</span>`+
-        tk.plays.map(p=>`<span style="font-size:11px;color:#9fd6b5">${SEAT_NAME[p.seat].slice(0,1)}:</span>`+
-          p.cards.map(c=>cardHTML(c,'mini')).join('')).join('')+`</div>`).join('')||'(尚无出牌)';
+        tk.plays.map(p=>`<span style="font-size:11px;color:#9fd6b5">${seatAbbr(p.seat)}:</span>`+
+          sortForDisplay(p.cards,src.trump).map(c=>cardHTML(c,size)).join('')).join('')+`</div>`;
+      const focusHTML=()=>{
+        const tk=src.tricks[logFocus-1];
+        // 累计分按「反方拿到的分」算,和局末结算、状态栏是同一个口径
+        const acc=src.tricks.slice(0,logFocus).reduce((a,x)=>
+          a+(x.winner%2!==src.declSeat%2?x.points:0),0);
+        return `<div class="suitGroup">`+rowOf(tk,'')+
+          `<div style="opacity:.7;font-size:12px;margin-top:4px">`+
+          `领出:${SEAT_NAME[tk.plays[0].seat]} · 打完这墩${T('defenders')}累计 ${acc} 分</div></div>`;
+      };
+      const listHTML=()=>
+        (logAsc?src.tricks.slice():src.tricks.slice().reverse()).map(tk=>rowOf(tk,'mini')).join('')
+        ||'(尚无出牌)';
+      if(nT){
+        html+=`<div class="toggleRow">`+
+          `<button class="minor${logAsc?'':' on'}" data-lo="0" style="padding:3px 10px;font-size:13px">最新在上</button>`+
+          `<button class="minor${logAsc?' on':''}" data-lo="1" style="padding:3px 10px;font-size:13px">第1墩在上</button>`+
+          `</div>`+
+          `<div class="trickSeek"><input type="range" id="trkSeek" min="0" max="${nT}" value="${logFocus}" `+
+          `aria-label="拖到第几墩"><span id="trkLabel">${logFocus?`第 ${logFocus} 墩`:'全部'}</span></div>`;
+        seekPaint=()=>{
+          const lab=document.getElementById('trkLabel'), body=document.getElementById('trkBody');
+          if(lab) lab.textContent=logFocus?`第 ${logFocus} 墩`:'全部';
+          if(body) body.innerHTML=logFocus?focusHTML():listHTML();
+        };
+      }
+      html+=`<div id="trkBody">${nT?(logFocus?focusHTML():listHTML()):'(尚无出牌)'}</div>`;
     }else{
       // 按花色:算哪门还剩什么用的,主牌排最前,门内从大到小
       const all=src.tricks.flatMap(tk=>tk.plays.flatMap(p=>p.cards.map(c=>({c,seat:p.seat,no:tk.no}))));
@@ -5747,7 +5857,17 @@ function renderPanel(){
     el.innerHTML=html;
     el.querySelectorAll('[data-lm]').forEach(b=>b.onclick=()=>{ logMode=b.dataset.lm; renderPanel(); });
     el.querySelectorAll('[data-lr]').forEach(b=>b.onclick=()=>{
-      logRound=b.dataset.lr==='cur'?null:+b.dataset.lr; renderPanel(); });
+      logRound=b.dataset.lr==='cur'?null:+b.dataset.lr; logFocus=0; renderPanel(); });
+    el.querySelectorAll('[data-lo]').forEach(b=>b.onclick=()=>{
+      logAsc=b.dataset.lo==='1'; renderPanel(); });
+    const wbtn=el.querySelector('#sideWider');
+    if(wbtn) wbtn.onclick=()=>{
+      sideStep=(sideStep+1)%SIDE_STEPS.length;
+      try{ localStorage.setItem('80fentest-sidew',sideStep); }catch(e){}
+      applySideW(); fitHandRow(); renderPanel(); };
+    const sk=el.querySelector('#trkSeek');
+    // 只重画标签和牌区,不整块 renderPanel —— innerHTML 一换,正在拖的滑块就被拆掉了
+    if(sk&&seekPaint) sk.oninput=()=>{ logFocus=+sk.value; seekPaint(); };
   }else if(activeTab==='score'){
     const pts=G.capturedCards;
     el.innerHTML=`<div style="margin-bottom:6px">抓分方已抓到 <b style="color:var(--gold)">${G.defPoints}</b> 分,分牌如下:</div>`+
@@ -5814,7 +5934,7 @@ function renderMemTab(el){
     const cmp=myTop?(top?ordIdx(myTop,t)-ordIdx(top,t):1):0;
     const ptTxt=Object.keys(ptBy).sort((a,b)=>b-a).map(r=>`${ptBy[r]}张${rankName(+r)}`).join('、');
     const ptSum=Object.keys(ptBy).reduce((a,r)=>a+cardPoints({rank:+r})*ptBy[r],0);
-    const gone=[1,2,3].filter(x=>voids[x]&&voids[x][s]).map(x=>SEAT_NAME[x].replace(/\(.*\)/,''));
+    const gone=[1,2,3].filter(x=>voids[x]&&voids[x][s]).map(x=>SEAT_NAME[x].replace(/\(.*\)/,'').trim());
     return `<div class="memRow">`+
       `<b style="color:var(--gold)">${name}</b> 别家还剩 <b>${cnt}</b> 张`+
       (cnt?`,最大 ${miniName(top)}`:'(已出尽)')+
@@ -5833,9 +5953,12 @@ function renderMemTab(el){
 
 // ---- 笔记(右栏页签,不再单独占块) ----
 function renderNotesTab(el){
+  // 笔记标局数:一场十几局,回头看「这条是哪局记的」原来只能靠记忆
+  const esc=t=>String(t).replace(/[<>&]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[c]));
   el.innerHTML=
     `<div id="noteInputRow"><input id="noteInput" placeholder="记点什么…" maxlength="120"><button id="noteSend">发送</button></div>`+
-    `<div id="noteList">${notes.slice().reverse().map(n=>`<div class="note">${n.replace(/[<>&]/g,s=>({'<':'&lt;','>':'&gt;','&':'&amp;'}[s]))}</div>`).join('')}</div>`;
+    `<div id="noteList">${notes.slice().reverse().map(n=>`<div class="note">`+
+      (n.r?`<span style="color:var(--gold)">第${n.r}局</span> `:'')+esc(n.t)+`</div>`).join('')}</div>`;
   el.querySelector('#noteSend').onclick=sendNote;
   el.querySelector('#noteInput').onkeydown=e=>{ if(e.key==='Enter') sendNote(); };
 }
@@ -5843,7 +5966,7 @@ function sendNote(){
   const el=document.getElementById('noteInput');
   const v=el.value.trim();
   if(!v) return;
-  notes.push(v); el.value='';
+  notes.push({r:M.round+1,t:v}); el.value='';
   try{ localStorage.setItem('80fentest-notes',JSON.stringify(notes.slice(-100))); }catch(e){}
   renderPanel();
 }
