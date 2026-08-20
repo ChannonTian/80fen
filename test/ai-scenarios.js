@@ -31,8 +31,21 @@ const H=a=>a.map(C);
 const nm=c=>c.suit==='X'?(c.rank===16?'大王':'小王'):c.suit+({14:'A',13:'K',12:'Q',11:'J'}[c.rank]||c.rank);
 const ns=cs=>cs.map(nm).join(' ');
 const T={suit:'S',rank:2};                       // 主=♠，打2
+// [seat,'C1','C2',...] → {seat, cards} —— 把自对弈里捞到的真实残局冻下来用
+const P=a=>a.map(x=>({seat:x[0],cards:H(x.slice(1))}));
 
-let pass=0, fail=0;
+let pass=0, fail=0, known=0;
+/* 已确认的缺陷,修复前必然不过 —— 断言先写下来(规矩是先加场景再动代码),
+ * 但不让整套变红。修好之后必须把 todo() 改回 check():真的过了这里会喊一声并计入失败,
+ * 免得一条已经修好的断言永远挂在「已知未修」里没人管。 */
+function todo(id,title,got,ok,want,note){
+  const good=ok(got);
+  console.log(`${good?'  !!!! ':'  待修 '} [${id}] ${title}`);
+  console.log(`        实际: ${got}`);
+  console.log(`        期望: ${want}${note?'  —— '+note:''}`);
+  if(good){ console.log('        ^^ 这条已经过了,请把 todo() 改成 check()'); fail++; }
+  else known++;
+}
 function check(id,title,got,ok,want){
   const good=ok(got);
   console.log(`${good?'  OK  ':'  FAIL'} [${id}] ${title}`);
@@ -301,6 +314,60 @@ if('throwBossSubset' in E.AIP){
         ()=>!lead(hAAK,1).cards.some(x=>x.rank===5), '不含 ♦5');
 }
 
+/* ── H 跨阶梯线:抢下这一墩就过线,AI 却退缩(#147 那一簇)─────────────────
+ *
+ * 局末目标是 0/40/80/120/160/200 一整排台阶,不是只有 80。`pointWeight` 用一个高斯
+ * 包络近似「此刻一分值多少」,峰值钉在 gap = live/2,理由是「贴着 0 已基本注定」。
+ * 但 gap≈0 一点也不注定 —— 它恰恰取决于此刻要不要去抢这一墩。于是差 5 分就赢下本局时,
+ * 一分的权重反而低于差 15 分(闲家 75 分、还剩 30 分:0.970 vs 1.200)。
+ *
+ * 下面两个局面都是**从自对弈里捞出来的真实残局**(合成牌面在这个项目骗过好几次)。
+ * 两边手牌都多于 egMaxCards,不在收官搜索视野内 —— 收官搜索本身以 levelUtility 为目标、
+ * 阶梯是对的,所以缺陷只发生在视野之外,fixture 必须落在那里才测得到。
+ *
+ * `test/cf-line.js` 6000 副:跨线组 +0.33 ±0.06 个升级当量(t=5.34),
+ * 对照组 −0.08 ±0.03(t=−3.15)—— **两组符号相反**。所以这是阶梯意识的缺陷,
+ * 不是「AI 整体太被动」;H1b 就是钉住后者的对照,防止修法滑成「见暂大就抢」。
+ */
+{
+  const HIST_CTRL=P([
+    [0,'DQ','DQ'],[1,'D4','D6'],[2,'DT','DK'],[3,'D7','DJ'],[0,'D3','D3'],[1,'D5','D7'],[2,'D6','D9'],[3,'DK','DT'],
+    [0,'C8','C8'],[1,'C5','C9'],[2,'C7','C7'],[3,'C4','C4'],[0,'C3','C3'],[1,'CA','S7'],[2,'CT','CK'],[3,'CJ','CQ'],
+    [0,'D8','D8'],[1,'DA','S8'],[2,'DA','DJ'],[3,'S6','S4'],[0,'XB'],[1,'H3'],[2,'H5'],[3,'H7'],
+    [0,'D9'],[1,'H7'],[2,'C6'],[3,'ST'],[1,'S3','S3'],[2,'SQ','SQ'],[3,'SA','SA'],[0,'CQ','CT'],
+    [3,'CA','CK'],[0,'H3','H6'],[1,'S9','SJ'],[2,'CJ','ST'],[0,'XS','XS'],[1,'H9','H9'],[2,'H4','H4'],[3,'HJ','HQ']
+  ]);
+  const PLAY_CTRL=P([[0,'H2'],[1,'H8'],[2,'H6']]);
+  const HAND_CTRL=['HK','C2','C5','S2','S4','H5','XB'];
+  const HIST_LINE=P([
+    [2,'H6','H6','H7','H7'],[3,'H8','H8','H4','H9'],[0,'HT','HK','H4','HJ'],[1,'H5','HK','HJ','HT'],[2,'S9','S9'],[3,'S3','S3'],[0,'S5','S7'],[1,'S6','S6'],
+    [2,'H3','H3'],[3,'HQ','HA'],[0,'HA','CK'],[1,'D8','D8'],[1,'CA'],[2,'D4'],[3,'C3'],[0,'C5'],
+    [2,'XS'],[3,'D3'],[0,'D3'],[1,'D4'],[2,'XB','XB'],[3,'D6','D9'],[0,'D7','D7'],[1,'DT','DT'],
+    [2,'H9'],[3,'S4'],[0,'C3'],[1,'D6'],[1,'S7'],[2,'SJ'],[3,'SQ'],[0,'S8'],
+    [3,'SA'],[0,'SJ'],[1,'ST'],[2,'ST'],[3,'C7','C7'],[0,'C4','CJ'],[1,'C8','CQ'],[2,'HQ','H5'],
+    [3,'SK'],[0,'SA'],[1,'S4'],[2,'SK'],[0,'CA'],[1,'CT'],[2,'DQ'],[3,'C6']
+  ]);
+  const PLAY_LINE=P([[2,'S2'],[3,'DQ'],[0,'D5']]);
+  const HAND_LINE=['D9','S8','DJ','S5','C2','XS'];
+  const ask=(hand,hist,plays,seat,declSeat,trump)=>{
+    const h=H(hand);
+    const view={seat,trump,declSeat,history:hist,buriedKnown:[],hand:h};
+    const r=E.aiChooseFollow(view,plays);
+    const takes=E.currentWinner(plays.concat([{seat,cards:r.cards}]),trump).seat%2===seat%2;
+    return {pick:ns(r.cards), takes, reason:r.reason, def:E.roundScore(view).def};
+  };
+  const TD={suit:'D',rank:2}, TH={suit:'H',rank:2};
+  const a=ask(HAND_LINE,HIST_LINE,PLAY_LINE,1,2,TD);
+  todo('H1','跨线:闲家 35 分、台面 5 分,抢下正好到 40 线(免被跳 2 级)—— 应当抢',
+       a.pick+'(抢下='+a.takes+',闲家已得 '+a.def+' 分)—— '+a.reason,
+       ()=>a.takes, '抢下这一墩(最省的抢法是小王)',
+       'cf-line 实测这一手值 +1 个升级当量 / +10 分');
+  const b=ask(HAND_CTRL,HIST_CTRL,PLAY_CTRL,3,0,TH);
+  check('H1b','对照组:闲家 20 分、台面 0 分,抢下不跨任何线 —— 不该为它花大王',
+        b.pick+'(抢下='+b.takes+',闲家已得 '+b.def+' 分)—— '+b.reason,
+        ()=>!b.takes, '不抢(cf-line 实测抢下要亏 2 个升级当量)');
+}
+
 /* ── ①⑥ 统计口径：跑一批自对弈，把关键比率打出来 ─────────────────────── */
 {
   let n=0,lost=0,k10=0,k10lost=0;
@@ -313,5 +380,5 @@ if('throwBossSubset' in E.AIP){
   console.log(`\n  [统计] ${n} 局自对弈，底分≥10 的局 ${k10} 局（${(100*k10/n).toFixed(0)}%）—— 护底该被触发的频率`);
 }
 
-console.log(`\n通过 ${pass} / 失败 ${fail}\n`);
+console.log(`\n通过 ${pass} / 失败 ${fail}${known?` / 已知未修 ${known}`:''}\n`);
 process.exit(fail?1:0);

@@ -100,8 +100,8 @@ AI 只回答「合法之中选哪个」,规则判定全部交给引擎——所�
 场景库是回归网,不是尺子:
 
 ```
-node test/ai-scenarios.js 80fen-test.html   # 测试版:27/27
-node test/ai-scenarios.js index.html        # 正式版:20/20
+node test/ai-scenarios.js 80fen-test.html   # 测试版:28/28(+1 待修)
+node test/ai-scenarios.js index.html        # 正式版:21/21(+1 待修)
 node test/audit-reason.js index.html 200    # 教练理由体检:16 类断言应全部 0 不符
 ```
 
@@ -119,6 +119,11 @@ node test/check-sync.js --full   # 再加三份 build 的自测(约 4 分钟)
 
 规矩是**先加场景,再动代码**。凡是「该做 X」的断言都配一条「不该做 X」的对照组,
 否则下一轮会有人把正解当 bug 修掉。
+
+「先加场景」意味着断言会先于修复存在。这种用 `todo()` 而不是 `check()` 写,
+计入「已知未修」而不让整套变红;**修好之后必须改回 `check()`** ——
+一条 `todo()` 真的过了,脚本会喊一声并计入失败,免得它永远挂在那里没人管。
+当前挂着的是 H1(跨阶梯线,见 [`DESIGN.md`](DESIGN.md) §7 第一行)。
 
 两个容易踩的坑:
 

@@ -99,6 +99,11 @@ let nCase=0, nSeed=0, nCtrl=0;
 const dPts=[], dLvl=[];            // 按种子聚类后的读数(跨线组)
 const rec=[];                      // 逐命中点明细:{grp,gap,L,dp,dl}
 const CTRL=+(process.env.CTRL||8); // 对照组抽样:每 CTRL 个取 1 个
+/* DUMP=1:把「差距足够大」的真实局面按可粘贴的形式打出来,冻进 ai-scenarios.js。
+ * 合成牌面在这个项目里骗过好几次(见 NOTES),场景断言的原料要从自对弈里捞。 */
+const DUMP=!!process.env.DUMP;
+const cardStr=c=>c.suit==='X'?(c.rank===16?'XB':'XS')
+  :c.suit+({14:'A',13:'K',12:'Q',11:'J',10:'T'}[c.rank]||c.rank);
 
 for(let seed=S0+1;seed<=S0+N;seed++){
   const {first}=E.cutForFirst(seed);
@@ -159,6 +164,17 @@ for(let seed=S0+1;seed<=S0+N;seed++){
               rec.push({grp:L!=null?'line':'ctrl', gap:L!=null?L-defPoints:null, L:L!=null?L:null,
                         dp, dl, ptsTable});
               if(L!=null){ seedPts.push(dp); seedLvl.push(dl); nCase++; }
+              if(DUMP&&((L!=null&&L-defPoints<=5&&dl>=1)||(L==null&&dl<=-1))){
+                console.log('FIX '+JSON.stringify({
+                  grp:L!=null?'line':'ctrl', seed, L, gap:L!=null?L-defPoints:null,
+                  defPoints, dp, dl, trick:tricks+1,
+                  seat, declSeat, trump:{suit:trump.suit,rank:trump.rank},
+                  hand:hands[seat].map(cardStr),
+                  ai:cards.map(cardStr), best:[winners[0]].map(cardStr),
+                  plays:plays.map(pp=>({s:pp.seat,c:pp.cards.map(cardStr)})),
+                  history:history.map(pp=>({s:pp.seat,c:pp.cards.map(cardStr)}))
+                }));
+              }
             }
           }
         }
