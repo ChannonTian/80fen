@@ -9,7 +9,11 @@
         /* 牌宽是整个界面的标尺:牌面、字号、间距都跟着它缩放 */
         --cardW:clamp(48px,2.9vw + 1.3vh,72px);
         --cardH:calc(var(--cardW)*1.44);
-        --miniW:calc(var(--cardW)*0.68);
+        /* 记录/记牌表里的小牌:0.68 倍是照桌面端定的,竖屏 --cardW 只有 34~44px,
+           乘完剩 23~30px —— 四个角的字符互相挤住,牌面直接读不出来(报障:
+           「底部信息区的牌看不清牌面」)。给一个 32px 的绝对下限:再小就不叫紧凑,
+           叫看不清。桌面端 --cardW≥48 时下限不生效,比例照旧。 */
+        --miniW:max(32px,calc(var(--cardW)*0.68));
         --miniH:calc(var(--miniW)*1.44);
         --fsBase:clamp(13px,0.55vw + 0.5vh + 6px,18px);
         --fsSmall:clamp(12px,0.45vw + 0.4vh + 6px,16px)}
@@ -81,8 +85,12 @@
   .card .joker{position:absolute;left:0;right:0;top:14%;bottom:0;writing-mode:vertical-lr;
                text-align:left;font-size:calc(var(--cardW)*.19);letter-spacing:1px;padding-left:32%}
   .mini{width:var(--miniW);height:var(--miniH)}
-  .mini .tl,.mini .br{font-size:calc(var(--miniW)*.44)}
-  .mini .tr,.mini .bl{font-size:calc(var(--miniW)*.42)}
+  /* 小牌只留左上角点数 + 左下角花色,和手牌同一套语言(#hand 也只留左半边)。
+     四个角全画在 30px 出头的牌上,点数和右上角的花色会挨在一起糊成一团 ——
+     「10♣」尤其明显。只留一列,同样的宽度可以把字放大一半还有富余。 */
+  .mini .tr,.mini .br{display:none}
+  .mini .tl{font-size:calc(var(--miniW)*.56)}
+  .mini .bl{font-size:calc(var(--miniW)*.5)}
   .mini .joker{font-size:calc(var(--miniW)*.19);padding-left:32%;top:10%}
   /* 手牌永远单行:JS 按张数动态收紧 --handGap,絶不因换行去挤占牌桌中心区 */
   /* overflow-x:auto 曾经在这里当"万一算错就能横滑"的保险,但 CSS 有个反直觉规则:
@@ -199,8 +207,19 @@
        这就是"发牌时手牌盖住亮牌区、发完才归位"的真身(发完牌 dealZone 那两行预留
        一释放,空间回来就自己好了,所以看着像动画没归位)。
        侧栏内容本来就自带滚动,少给它一点不损失信息;牌桌被压扁却是直接看不清。 */
+    /* 三行的比例本来写成 1fr : 0.6fr,而 CSS 网格对**小于 1 的弹性系数**有一条
+       反直觉规则:0.6fr 只领走剩余空间的 0.6 倍,剩下的 0.4 倍谁也不要。
+       牌桌那行被自己的 min-content 撑到超过应得份额时(手机竖屏一出牌,#msg
+       多出「目前 X 最大 · 台面 N 分」这一行,正好越线),这笔空转的余量就落到
+       唯一的 auto 行 —— 顶部状态栏 —— 头上:align-content 默认 stretch,
+       状态栏被拉高到 150px,两行文字之间豁开一大条,看着就是「一出牌状态栏就变两行」。
+       报障说的正是这个。两处一起改:
+         · 比例保持 1 : 0.6 不变,但同乘 1/0.6 写成 1.667fr : 1fr —— 系数都 ≥1,
+           余量全部由右栏(手机上是下方面板)吃掉,不再有空转的那 0.4;
+         · 状态栏那行从 auto 改成 min-content,它不再是 stretch 的候选,
+           日后别处再冒出空转余量也拉不动它。 */
     #app{grid-template-columns:minmax(0,1fr);gap:6px;padding:6px;
-         grid-template-rows:auto minmax(min-content,1fr) minmax(0,0.6fr)}
+         grid-template-rows:min-content minmax(min-content,1.667fr) minmax(0,1fr)}
     #main,#side{grid-column:1}
     /* 上下叠的时候右栏就是整宽,"加宽右栏"没有意义,按钮藏掉 */
     .wideOnly{display:none}
@@ -300,7 +319,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.10(测试版)</div>
+<div id="versionTag">80分 v0.7.11(测试版)</div>
 
 <script>
 /* ============================================================
@@ -1049,6 +1068,11 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   kittyMultMaxSize: 3,        // 估计时最多按几张算(拖拉机 ×8 已经很极端,别外推更远)
   ladderKitty: 1,             // 阶梯目标的「当前总分」含那笔待翻倍的底分(0=退回旧行为)
   guardPw: 1,                 // 护底项也过 pointWeight,与当墩 ev 用同一把尺子(0=退回旧行为)
+
+  /* ========== v0.7.11:多张垫/贴的取牌口径 ========== */
+  discardGreedy: 1,           // 跟对子/拖拉机要垫多张时逐张贪心,每取一张重算排序键
+                              // (0=退回旧的「一次排序取前 k 张」,即拆对子、两门各丢一张、
+                              //  同点不同花被成对取走那版行为;见 fillPick 的注释)
 };
 
 // 全局牌力序:主牌恒高于任何副牌。
@@ -1663,20 +1687,58 @@ const dumpPts=(c,trump)=>cardPoints(c)*
   (trump&&effSuit(c,trump)==='T'?AIP.dumpTrumpDiscount:1);
 const dumpSort=(cards,trump)=>cards.slice().sort((a,b)=>
   (dumpPts(b,trump)-dumpPts(a,trump))||(globalIdx(a,trump)-globalIdx(b,trump)));
-// 垫牌排序:优先垫短门(造缺)、不拆对、不垫分、不垫A/K、绝不垫主
-const discardSort=(cards,trump)=>{
+// 垫牌排序键:优先垫短门(造缺)、不拆对、不垫分、不垫A/K、绝不垫主。
+// 键抽成独立函数,是因为多张垫/贴时要按「剩下的牌」一遍遍重算它(见 fillPick),
+// 而「贴分」同分时也拿它当次序键。
+const discardVal=(cards,trump)=>{
   const groups={};
   cards.forEach(c=>{const s=effSuit(c,trump);(groups[s]=groups[s]||[]).push(c);});
-  const v=c=>{
+  return c=>{
     const s=effSuit(c,trump);
     // 主牌一律排最后:同样不是分牌时,将牌价值大概率高于任何副花色牌
     if(s==='T') return 500+ordIdx(c,trump)*4;
-    const g=groups[s];
+    const g=groups[s]||[c];
     const isPair=g.filter(x=>pairKey(x)===pairKey(c)).length>=2;
     return ordIdx(c,trump)+(cardPoints(c)?30:0)+(isPair?14:0)
           +controlPremium(c)+(g.length<=2?-5:0);
   };
+};
+const discardSort=(cards,trump)=>{
+  const v=discardVal(cards,trump);
   return cards.slice().sort((a,b)=>v(a)-v(b));
+};
+/* 断门(或不足)时要垫/贴出去的那 k 张 —— **逐张贪心,每取一张就重算排序键**。
+ *
+ * 报障:「跟一对牌、垫其他花色废牌时,AI 还在凑对子」。查下来 AI 没有任何凑对子的
+ * 意图,是**一次排序取前 k 张**这个写法的副作用 —— 键是按整手牌算的,取走一张之后
+ * 局面就变了,而排序看不见这件事:
+ *   · 副牌的 ordIdx 只看点数,♠9 与 ♥9 的键**完全相同**、在结果里又紧挨着,
+ *     于是成对被取走 —— 看着就是在凑对子(实测 150 局:同点不同花 7 次、真对子 8 次);
+ *   · 拆了自家的对子还留个孤张(♠8♠8+♦8 里取走 ♠8+♦8,手上剩一张没用的 ♠8);
+ *   · 两张分别丢在两门,哪一门也没短下去 —— 而「造缺」正是垫牌的第一条道理。
+ * 逐张重算就同时治这三样:第二张时,被拆开的那张不再算「对子」(少 14 的罚分)、
+ * 已经垫过的那门又短了一张(≤2 时拿到造缺的 −5),两者都自己升上来。
+ * 真正的平局(两门都还长、点数又一样)再用一个 0.5 的次序 —— 键全是整数,
+ * 它破得了平局却压不过任何真实差价:同分就接着垫已经开始垫的那门,别两门各丢一张。
+ * 没有引入新的权重,改的只是「键该按哪一手牌算」。 */
+const fillPick=(pool,k,trump,strat)=>{
+  if(!AIP.discardGreedy)   // 消融:退回「一次排序取前 k 张」
+    return (strat==='dump'?dumpSort(pool,trump):discardSort(pool,trump)).slice(0,k);
+  const out=[], suits=new Set();
+  let remain=pool.slice();
+  while(out.length<k&&remain.length){
+    const dv=discardVal(remain,trump);
+    const key=c=>dv(c)-(suits.has(effSuit(c,trump))?0.5:0);
+    // 贴分仍然是「先塞大分」,只是同分时改用垫牌的那把尺子定序(旧版是 globalIdx,
+    // 它既不认对子也不认门长 —— 这一路才是拆对子的那一路)
+    const cmp=strat==='dump'
+      ? (a,b)=>(dumpPts(b,trump)-dumpPts(a,trump))||(key(a)-key(b))
+      : (a,b)=>key(a)-key(b);
+    const pick=remain.slice().sort(cmp)[0];
+    out.push(pick); suits.add(effSuit(pick,trump));
+    remain=remain.filter(c=>c.id!==pick.id);
+  }
+  return out;
 };
 
 // 构造性跟牌:满足全部义务,自由部分按策略挑。
@@ -1691,9 +1753,11 @@ function buildFollow(hand, lead, trump, strat, seed, certain){
                 :(cs,tr)=>cheapSort(cs,tr,certain);
   if(inSuit.length<=n){
     inSuit.forEach(c=>{ if(!used.has(c.id)){chosen.push(c);used.add(c.id);} });
-    const restSort=strat==='dump'?dumpSort(rest,trump):discardSort(rest,trump);  // 垫牌讲究:造缺不拆对
-    for(const c of restSort){ if(chosen.length>=n)break;
-      if(!used.has(c.id)){chosen.push(c);used.add(c.id);} }
+    // 垫牌讲究:造缺不拆对 —— 多张时逐张贪心(见 fillPick),不是一次排序取前几张
+    for(const c of fillPick(rest.filter(c=>!used.has(c.id)),n-chosen.length,trump,
+                            strat==='dump'?'dump':'discard')){
+      chosen.push(c); used.add(c.id);
+    }
   }else{
     const comps=decompose(inSuit,trump);
     if(RULES.strictTractorFollow && lead.type==='tractor' && !chosen.length){
