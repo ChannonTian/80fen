@@ -368,6 +368,51 @@ if('throwBossSubset' in E.AIP){
         ()=>!b.takes, '不抢(cf-line 实测抢下要亏 2 个升级当量)');
 }
 
+/* ── I「跟一对牌、垫其他花色废牌时,AI 还在凑对子」(v0.7.11,discardGreedy)────
+ * 报障说的是**外观**,查下来 AI 没有凑对子的意图 —— 病根是「一次排序取前 k 张」:
+ * 排序键按整手牌算,取走一张之后局面就变了而排序看不见。副牌的 ordIdx 只看点数,
+ * ♠9 与 ♥9 的键完全相同又紧挨着,于是被成对取走(150 局自对弈:同点不同花 7 次);
+ * 贴分那一路更糙(键只有分值+globalIdx),会把自家的对子整对丢出去或拆掉留个孤张。
+ * 逐张贪心、每取一张重算键,三样一起治。
+ * 配对口径 200 局:同门(造缺)103→119、两门各一张 57→44;贴分路拆对 14→12。
+ *
+ * 对照组 I1b 是必须的:修法很容易滑成「一律往同一门垫」,而另一门只剩单张时,
+ * 垫掉那张单张才是真的造缺。 */
+if('discardGreedy' in E.AIP){
+  const LEAD_HH=E.classify(H(['H5','H5']),T);          // 对手领 ♥ 对子,我 ♥ 断门、手上无主
+  const fill=(hand,strat,on)=>{
+    const o=E.AIP.discardGreedy; E.AIP.discardGreedy=on;
+    try{ const r=E.buildFollow(H(hand),LEAD_HH,T,strat,null); return r?ns(r):'null'; }
+    finally{ E.AIP.discardGreedy=o; }
+  };
+  const sameSuit=s=>{const a=s.split(' ');return a.length===2&&a[0][0]===a[1][0];};
+  // 两门都还长(各 3 张),最便宜的两张恰好同点不同花 —— 正是报障截图里 ♠9+♥9 那一手
+  const H_SPREAD=['D9','DJ','DQ','C9','CJ','CQ','CK'];
+  // 对照:♦ 只剩单张,垫掉它就是断门,不该为了「同门」硬留着
+  const H_VOID1=['D9','C9','C7','C4','CK'];
+  // 贴分路:♣8 是自家的对子,♦8+♦J 是等值(都不带分)的废牌
+  const H_PAIR=['C8','D8','C8','DJ'];
+
+  check('I1','两门都长、最便宜的两张同点不同花 → 该同门垫两张(造缺),不是两门各丢一张',
+        `关→${fill(H_SPREAD,'discard',0)}  开→${fill(H_SPREAD,'discard',1)}`,
+        ()=>!sameSuit(fill(H_SPREAD,'discard',0))&&sameSuit(fill(H_SPREAD,'discard',1)),
+        '关时两门各一张、开时同门两张');
+  check('I1b','对照组:另一门只剩单张(垫掉就断门)→ 两版都该垫那张单张,不是硬凑同门',
+        `关→${fill(H_VOID1,'discard',0)}  开→${fill(H_VOID1,'discard',1)}`,
+        ()=>fill(H_VOID1,'discard',0)===fill(H_VOID1,'discard',1), '开关无差别');
+  check('I2','贴分(队友暂大)时不该动自家的对子 —— ♣8♣8 留着,贴 ♦8+♦J',
+        `关→${fill(H_PAIR,'dump',0)}  开→${fill(H_PAIR,'dump',1)}`,
+        ()=>fill(H_PAIR,'dump',1)==='D8 DJ'&&fill(H_PAIR,'dump',0)!=='D8 DJ',
+        '关时动 ♣8 对、开时贴 D8 DJ');
+  // 走完整决策路径:候选是生成出来了,但最后选中的是不是它,要由 scorePlay 说了算
+  const vI={seat:3,trump:T,declSeat:2,history:[],buriedKnown:[],hand:H(H_SPREAD)};
+  const pI=[{seat:2,cards:H(['H5','H5'])}];
+  const path=on=>{const o=E.AIP.discardGreedy;E.AIP.discardGreedy=on;
+    try{ return ns(E.aiChooseFollow(vI,pI).cards); } finally{ E.AIP.discardGreedy=o; }};
+  check('I1c','同上,走完整决策路径(实际打出去的那一手)',
+        `关→${path(0)}  开→${path(1)}`, ()=>sameSuit(path(1)), '开时同门两张');
+}
+
 /* ── ①⑥ 统计口径：跑一批自对弈，把关键比率打出来 ─────────────────────── */
 {
   let n=0,lost=0,k10=0,k10lost=0;
