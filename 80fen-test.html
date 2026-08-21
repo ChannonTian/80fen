@@ -319,7 +319,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.11(测试版)</div>
+<div id="versionTag">80分 v0.7.12(测试版)</div>
 
 <script>
 /* ============================================================
@@ -4908,7 +4908,12 @@ const S_DEFAULT={
   trickHold:3.0,     // 一墩出完后牌留桌秒数
   manualNext:false,  // true = 手动点击进入下一墩
   declWait:10.0,     // 发完牌后留给你亮主/反主的时间(秒),可点「不亮」提前结束
+  autoLast:true,     // 这一手没得选(剩的牌恰好等于本墩要出的张数)时自动出,不用再点一下
 };
+/* 托管与「没得选」时的节奏:托管是**快进一段**,不是看 AI 慢慢想,
+ * 所以思考/留桌时间都压到这两个常数以内;没得选的那一手给一个短停顿,
+ * 让人看清出的是什么再收墩(直接出会像卡了一下)。 */
+const AUTO_STEP_MS=350, AUTO_HOLD_MS=700, FORCED_MS=450;
 let S={...S_DEFAULT, gates:[...S_DEFAULT.gates], rules:{...RULE_DEFAULTS}};
 try{
   const saved=JSON.parse(localStorage.getItem('80fentest-set')||'{}');
@@ -4923,14 +4928,17 @@ function saveS(){ try{ localStorage.setItem('80fentest-set',JSON.stringify(S)); 
 const secs=(v,fallback)=>1000*Math.max(0,(typeof v==='number'&&isFinite(v))?v:fallback);
 function aiThinkMs(){
   const lo=Math.max(0,+S.aiThinkMin||0), hi=Math.max(lo,+S.aiThinkMax||0);
-  return 1000*(lo+Math.random()*(hi-lo));
+  const ms=1000*(lo+Math.random()*(hi-lo));
+  return (G&&G.auto)?Math.min(ms,AUTO_STEP_MS):ms;   // 托管中四家一起快进
 }
 
 // ---- 设置菜单 ----
 // 打开时快照一份,「取消」按快照原样恢复(含已经落盘的 localStorage),
 // 「完成」什么都不用做——每项本来就是改了立即生效+保存。
 function openSettings(){
-  const snapshot={S:JSON.parse(JSON.stringify(S)), C:JSON.parse(JSON.stringify(C)), lang, sndOn};
+  // 托管不在 S 里(它按局生效),但「取消」要能把它一起退回去,否则勾了再点取消它还开着
+  const snapshot={S:JSON.parse(JSON.stringify(S)), C:JSON.parse(JSON.stringify(C)), lang, sndOn,
+                  auto:!!(G&&G.auto)};
   const el=document.getElementById('setContent');
   el.innerHTML=
     `<div class="setHeader"><b>⚙ 设置</b>
@@ -4963,6 +4971,9 @@ function openSettings(){
        <input type="number" id="stMin" min="0" max="10" step="0.5"> –
        <input type="number" id="stMax" min="0" max="10" step="0.5"></div>`+
     `<div class="setRow"><label><input type="checkbox" id="stManual"> 手动点击进入下一墩</label></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="stAutoLast"> 最后一手自动出(没得选时不用再点一下)</label></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="stAuto"> 托管:让 AI 替你出牌</label></div>`+
+    `<div class="setHint" id="stAutoHint"></div>`+
     `<div class="setRow"><label>每墩出完留桌(秒)</label>
        <input type="number" id="stHold" min="0" max="15" step="0.5"></div>`+
     `<div class="setHint" id="stHoldHint"></div>`+
@@ -5002,6 +5013,14 @@ function openSettings(){
     $('stMax').value=S.aiThinkMax;  $('stHold').value=S.trickHold;
     $('stDeclWait').value=S.declWait;
     $('stManual').checked=!!S.manualNext;
+    $('stAutoLast').checked=!!S.autoLast;
+    // 托管只在出牌阶段有意义:扣底/亮主/低分造反这些「一局只做一次」的决定仍然归你
+    const canAuto=!!G&&G.phase==='play'&&!G.ended;
+    $('stAuto').checked=!!(G&&G.auto);
+    $('stAuto').disabled=!canAuto;
+    $('stAutoHint').textContent=canAuto
+      ? '本局有效,打完自动交还;托管的墩不计入教练的失误统计。牌桌上「出牌」会变成「停止托管」'
+      : '(要在出牌阶段才能托管)';
     $('stHold').disabled=!!S.manualNext;
     $('stHoldHint').textContent=S.manualNext?'(手动模式下由你点「下一墩」决定)':'';
     $('stLang').value=lang; $('stSnd').checked=sndOn;
@@ -5066,6 +5085,9 @@ function openSettings(){
   num('stMin','aiThinkMin'); num('stMax','aiThinkMax'); num('stHold','trickHold');
   num('stDeclWait','declWait');
   $('stManual').onchange=e=>{ S.manualNext=e.target.checked; saveS(); fill(); };
+  $('stAutoLast').onchange=e=>{ S.autoLast=e.target.checked; saveS(); fill();
+    if(G) scheduleHumanAuto(); };          // 可能正轮到你、而这一手恰好没得选
+  $('stAuto').onchange=e=>{ window.__setAuto(e.target.checked); fill(); };
   $('stLang').onchange=e=>{ lang=TERMS[e.target.value]?e.target.value:'cn';
     try{ localStorage.setItem('80fentest-lang',lang); }catch(_){ } if(G) render(); };
   $('stSnd').onchange=e=>{ sndOn=e.target.checked;
@@ -5077,12 +5099,14 @@ function openSettings(){
   $('cQuiz').onchange=e=>{ C.quiz=e.target.checked; saveC(); };
   $('cMemShow').onchange=e=>{ C.memShow=e.target.checked; saveC(); if(G) renderPanel(); };
   $('stReset').onclick=()=>{ S={...S_DEFAULT, gates:[...S_DEFAULT.gates], rules:{...RULE_DEFAULTS}};
+    if(G&&G.auto) window.__setAuto(false);      // 「恢复默认」也把托管交还
     saveS(); applyRules(); fill(); if(G) render(); };
   // 取消:每项改动本来就是即改即存,这里把开菜单那一刻的快照整个套回去(含持久化),
   // 而不是只清内存——不然关掉重开又会看到"取消"前改过的值。
   $('stCancel').onclick=()=>{
     S=snapshot.S; C=snapshot.C; lang=snapshot.lang; sndOn=snapshot.sndOn;
     saveS(); saveC(); applyRules();
+    if(G&&G.auto!==snapshot.auto) window.__setAuto(snapshot.auto);
     try{
       localStorage.setItem('80fentest-lang',lang);
       localStorage.setItem('80fentest-snd',sndOn?'on':'off');
@@ -5205,7 +5229,10 @@ function newRound(){
      leader:-1,trick:[],trickNo:0,tricks:[],defPoints:0,capturedCards:[],lastWinner:-1,
      lastLeadSize:1,phase:'dealing',selected:new Set(),log:[],awaitNext:false,
      aiTimer:null,holdTimer:null,declTimer:null,declTick:null,declDeadline:0,
-     coachNotes:[],coachChat:[],hintCards:null,quiz:null};
+     coachNotes:[],coachChat:[],hintCards:null,quiz:null,
+     /* 托管挂在 G 上而不是 S 上 —— 它按局生效,不跟着设置一起存下来:
+      * 新的一局必须从你自己的那一手开始,不能上次开着这次就替你打完。 */
+     auto:false, autoTricks:0};
   if(cutsLog) log(cutsLog);
   if(dealerKnown) log(`第${M.round+1}局:${SEAT_NAME[M.dealer]} 坐庄,打${rankName(trumpRank)}(${T('counter')}只改主色,不易庄不拿底)`);
   render(); setMsg('发牌中…可随时'+T('declare')+'/'+T('counter'));
@@ -5385,11 +5412,18 @@ function snapshotHands(){ G.initialHands=G.hands.map(h=>h.slice()); }
 // 表现为座位顺序错乱、一墩挤进 5 张、四家手牌张数不等。
 // 两道保险:① 排新的 AI 之前先撤掉上一个待执行的;② 回调真正执行时复核局面没被推进过。
 function step(){
-  if(G.phase!=='play') return;
+  /* `endRound` 只置 G.ended,不改 G.phase(结算弹层期间 phase 仍是 play)——
+   * 所以光看 phase 挡不住「局已结束还被排上一手」:那时四家手牌全空,
+   * aiChooseLead 会在空手牌上取 cards[0] 而炸掉。以前没人撞到,是因为局末最后一手
+   * 一定是人点出来的、点完就没有下一次排程了;托管/自动出把那一手也接管之后,
+   * 收尾阶段第一次有了「结算之后还有定时器在飞」的可能。 */
+  if(G.phase!=='play'||G.ended) return;
+  if(G.hands.every(h=>!h.length)) return;
   if(G.trick.length===4){ finishTrick(); return; }
   const seat=(G.leader+G.trick.length)%4;
   clearTimeout(G.aiTimer); G.aiTimer=null;
-  if(seat===HUMAN){ render(); return; }   // 轮到谁由 render() 里的本墩领出信息 + 名字高亮体现,不再单独提示
+  // 轮到谁由 render() 里的本墩领出信息 + 名字高亮体现,不再单独提示
+  if(seat===HUMAN){ render(); scheduleHumanAuto(); return; }
   render();
   const trickNoAtSchedule=G.trickNo, posAtSchedule=G.trick.length;
   G.aiTimer=setTimeout(()=>{
@@ -5415,6 +5449,71 @@ function step(){
     playCards(seat,cards);
   },aiThinkMs());
 }
+
+/* 「这一手你没得选」:手上剩的牌恰好等于本墩要出的张数 —— 领出时是最后一张,
+ * 跟牌时是最后一手,全出是唯一的合法选择。需求表里的「最后一墩自动出」说的就是它:
+ * 没有选择余地,还要点一次。
+ * 兜底:理论上全出必然合法(牌都在这儿了),真判成不合法就交还给人,别自作主张。 */
+function forcedHand(){
+  const hand=G.hands[HUMAN];
+  if(!hand.length) return null;
+  if(G.trick.length===0) return hand.length===1?hand.slice():null;
+  const lead=classify(G.trick[0].cards,G.trump);
+  if(!lead||hand.length!==lead.cards.length) return null;
+  return isLegalFollow(hand,lead,hand,G.trump)?hand.slice():null;
+}
+
+/* 托管 / 最后一手自动出 —— 轮到你、但这一手不需要你做决定时,替你出掉。
+ *
+ * 两件事共用一条排程,因为它们的风险是同一个:排下去之后局面可能已经被推进
+ * (你抢先点了出牌、上一墩收掉了),回调必须复核。校验与 step() 里排 AI 那一手同一套。
+ * 教练:托管的墩**不写 coachNotes** —— 那不是你的选择,记进失误统计等于把 AI 的账
+ * 算到你头上(局末复盘那句话也会跟着改口,见 endRound)。所以这里走的是 playCards,
+ * 不是 humanPlay:后者才是「你自己出的牌」那条路,失误反馈只挂在那上面。 */
+function scheduleHumanAuto(){
+  if(!G||G.phase!=='play'||G.ended||G.trick.length>=4) return;
+  if((G.leader+G.trick.length)%4!==HUMAN) return;
+  const forced=S.autoLast?forcedHand():null;
+  if(!G.auto&&!forced) return;
+  clearTimeout(G.aiTimer);
+  const trickNoAtSchedule=G.trickNo, posAtSchedule=G.trick.length;
+  G.aiTimer=setTimeout(()=>{
+    G.aiTimer=null;
+    if(G.phase!=='play'||G.ended) return;
+    if(G.trickNo!==trickNoAtSchedule||G.trick.length!==posAtSchedule) return;
+    if((G.leader+G.trick.length)%4!==HUMAN) return;
+    if(!G.auto&&!(S.autoLast&&forced)) return;        // 中途被关掉了
+    let cards=forced;      // 没得选的那一手直接出,不必再劳烦 AI 算一遍
+    if(!cards){
+      const view=viewFor(HUMAN);
+      if(G.trick.length===0){
+        const ch=aiChooseLead(view); cards=ch.cards;
+        const chk=checkThrow(G.hands,HUMAN,cards,G.trump);
+        if(!chk.ok) cards=chk.forced;
+      }else{
+        const lead=classify(G.trick[0].cards,G.trump);
+        const ch=aiChooseFollow(view,G.trick); cards=ch.cards;
+        if(!isLegalFollow(G.hands[HUMAN],lead,cards,G.trump))
+          cards=genFollow(G.hands[HUMAN],lead,G.trump,rng(G.seed+G.trickNo));
+      }
+      G.autoTricks++;                       // 只数「AI 真替你做了选择」的那几墩
+    }
+    G.selected.clear(); G.hintCards=null;
+    playCards(HUMAN,cards);
+  }, forced?FORCED_MS:aiThinkMs());
+}
+
+/* 托管开关。它不在 S 里(不持久化),也只在出牌阶段有意义 ——
+ * 扣底、亮主、低分造反这些「一局只做一次」的决定仍然归你。 */
+window.__setAuto=on=>{
+  if(!G) return;
+  G.auto=!!on;
+  if(G.auto){ G.selected.clear(); G.hintCards=null; log('托管开始 —— AI 替你出牌'); }
+  else if(G.autoTricks||G.phase==='play') log('托管结束');
+  render();
+  if(G.auto) step();          // 可能正轮到你:立刻把这一手排上
+  else scheduleHumanAuto();   // 关掉托管后,「没得选」那条仍然生效
+};
 
 function humanPlay(){
   // 不能只靠按钮 disabled 把关 —— 渲染有时差,漏一手就会插到别人的顺位里
@@ -5533,13 +5632,15 @@ function playCards(seat,cards){
 
 // 一墩四家出完:牌留在桌上给人看清楚,到点(或玩家点「下一墩」)再收墩
 function holdTrick(){
-  if(S.manualNext){
+  // 托管时忽略「手动点下一墩」:每墩都要点一下的话,托管就没有意义了
+  if(S.manualNext&&!G.auto){
     G.awaitNext=true; render();
     setMsg('本墩出完 —— 点「下一墩」继续');
     return;
   }
   clearTimeout(G.holdTimer);
-  G.holdTimer=setTimeout(finishTrick,secs(S.trickHold,S_DEFAULT.trickHold));
+  G.holdTimer=setTimeout(finishTrick,
+    G.auto?AUTO_HOLD_MS:secs(S.trickHold,S_DEFAULT.trickHold));
 }
 window.__nextTrick=()=>{ if(G&&G.awaitNext){ G.awaitNext=false; finishTrick(); } };
 
@@ -5568,6 +5669,7 @@ function finishTrick(){
 
 function endRound(){
   redealCount=0;                 // 本局真正打完了,重发计数归零
+  G.auto=false;                  // 托管按局生效:这一局打完就交还,下一局从你自己的手开始
   const declTeam=G.declSeat%2;
   const defWonLast=G.lastWinner%2!==declTeam;
   const sc=scoreRound({defPoints:G.defPoints,kitty:G.buried,defWonLastTrick:defWonLast,
@@ -5593,14 +5695,19 @@ function endRound(){
   if(G.buried.length)
     html+=`<div style="margin-top:8px;font-size:13px">底牌:${G.buried.map(c=>miniName(c)).join(' ')}</div>`;
   // 教练:局后复盘关键回合(按分差取前3)
+  /* 托管的墩不进失误统计(它们不是你的选择),所以这里也要**改口** ——
+   * 否则替你打了十墩之后还夸你「没有明显失误」,这句表扬就不作数了。 */
+  const autoNote=G.autoTricks?`(本局有 ${G.autoTricks} 墩是托管的,不计入失误统计)`:'';
   if(C.on&&C.review&&G.coachNotes.length){
     const top=G.coachNotes.slice().sort((a,b)=>b.gap-a.gap).slice(0,3);
     html+=`<div style="margin-top:10px;text-align:left;font-size:14px;background:rgba(110,201,255,.1);border-radius:8px;padding:8px 12px">`+
       `<b style="color:#6ec9ff">🎓 关键回合复盘</b>`+
       top.map(n=>`<div>第${n.no}墩:你出 ${desc(n.my)} → 教练建议 ${desc(n.best)}(${n.reason})</div>`).join('')+
+      (autoNote?`<div style="opacity:.8">${autoNote}</div>`:'')+
       `</div>`;
   }else if(C.on&&C.review){
-    html+=`<div style="margin-top:8px;font-size:14px;color:#6ec9ff">🎓 教练:本局没有明显失误,漂亮!</div>`;
+    html+=`<div style="margin-top:8px;font-size:14px;color:#6ec9ff">🎓 教练:`+
+      (G.autoTricks?`本局你自己出的那几墩没有明显失误 ${autoNote}`:'本局没有明显失误,漂亮!')+`</div>`;
   }
   // 存档这一局,供跨局复盘(要在 M.round++ 之前拿局号,也要在 M.levels 被改写之前拿 before)
   M.past.push({no:M.round+1, trump:G.trump, declSeat:G.declSeat,
@@ -5681,6 +5788,8 @@ function render(){
   else if(G.phase==='lowrebel') phaseHint=`低分/少${T('trump')}:分数≤${RULES.pointRebelThreshold}或${T('trump')}≤${RULES.trumpRebelThreshold}张可${rebelName()}`;
   else if(G.phase==='kitty') phaseHint=`${T('bury')}阶段:庄家从手牌(含底牌)中选 ${RULES.kittySize} 张扣下`;
   else if(G.phase==='play'){
+    // 托管中要一眼看得见 —— 否则「我的牌怎么自己出掉了」就是下一条报障
+    if(G.auto) phaseHint='托管中:AI 正在替你出牌 —— 点「停止托管」随时收回';
     if(G.trick.length>0){
       const lead=classify(G.trick[0].cards,G.trump);
       const suitName=lead.suit==='T'?(t.suit?T('trump'):T('noTrump')):SUIT_NAME[lead.suit];
@@ -5796,8 +5905,15 @@ function render(){
   }
 
   const myTurn=!G.ended&&G.phase==='play'&&G.trick.length<4&&(G.leader+G.trick.length)%4===HUMAN;
-  document.getElementById('btnPlay').disabled=!myTurn;
-  document.getElementById('btnClear').disabled=!(G.selected.size>0);
+  /* 托管中,「出牌」这颗按钮改成「停止托管」—— 托管时出牌/重选/问教练都用不上,
+   * 与其加第四颗按钮把底部三区挤爆(手机竖屏一行只放得下三颗),不如让这颗改口:
+   * 一下开(设置里)、一下关(这里),而且关的那一下永远在同一个位置。 */
+  const auto=!!G.auto&&G.phase==='play'&&!G.ended;
+  const btnPlay=document.getElementById('btnPlay');
+  btnPlay.textContent=auto?'停止托管':'出牌';
+  btnPlay.classList.toggle('minor',auto);
+  btnPlay.disabled=auto?false:!myTurn;
+  document.getElementById('btnClear').disabled=auto||!(G.selected.size>0);
   // 扣底:选够 8 张才可点
   const buryReady=G.phase==='kitty'&&G.selected.size===RULES.kittySize;
   document.getElementById('btnBury').disabled=!buryReady;
@@ -5809,7 +5925,7 @@ function render(){
   // 庄家区本局用不上(你不坐庄)就整块收起来,不留灰按钮占地方
   document.getElementById('btnBury').hidden=(G.phase!=='kitty');
   document.getElementById('btnKitty').hidden=!canSeeKitty;
-  document.getElementById('btnHint').disabled=!(C.on&&myTurn);
+  document.getElementById('btnHint').disabled=auto||!(C.on&&myTurn);
   // 只在发牌/亮主阶段给发牌区留两行高度,其余时候把这块高度还给牌桌
   document.getElementById('controls').classList.toggle('dealing',
     G.phase==='dealing'||G.phase==='finalDecl');
@@ -6035,7 +6151,9 @@ function sendNote(){
   renderPanel();
 }
 
-document.getElementById('btnPlay').onclick=humanPlay;
+document.getElementById('btnPlay').onclick=()=>{
+  if(G&&G.auto) window.__setAuto(false); else humanPlay();
+};
 document.getElementById('btnClear').onclick=()=>{G.selected.clear();render();};
 document.getElementById('btnBury').onclick=buryKitty;
 document.getElementById('btnHint').onclick=askCoach;
