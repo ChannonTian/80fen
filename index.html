@@ -4009,7 +4009,7 @@ function runTests(E){
   ok('参数开:必须跟出手中短拖', okOn===false);
   const okOn2=E.isLegalFollow(hand,leadT3,[...hand.slice(0,4),hand[6],hand[7]],T); // 55-66+KK
   ok('参数开:55-66+KK 合法', okOn2===true);
-  E.RULES.partialTractorFollow=false;
+  E.RULES.partialTractorFollow=true; // 恢复默认值,别漏给后面跑同一 vm 上下文的调用者
 
   let res=E.resolveTrick([
     {seat:0,cards:[C('H',5)]},{seat:1,cards:[C('H',13)]},
