@@ -5,7 +5,14 @@
 
 ---
 
-## 一、同桌配对自对弈(`test/ai-h2h.js`、`ab.js`)
+> **工具现状(2026-08-28 核对)**:下文多处写的 `ab.js` 是当年**只存在于本地**的脚本,
+> 从未进过仓库;它的功能现在由 [`test/ai-h2h.js`](../test/ai-h2h.js) 承担
+> (`node test/ai-h2h.js <新版html> <旧版html> [种子数]`,分批用 `SEED0=` 偏移种子)。
+> 「对固定参照」不是另一个工具,就是把第二个参数换成 `index.html`。
+> **`AOVER` / `BOVER` 那两个开关覆盖环境变量,committed 版本里没有** ——
+> 要做全关空跑,现在的做法是复制一份 html、手改 `AIP` 里那几个开关再跑。
+
+## 一、同桌配对自对弈(`test/ai-h2h.js`)
 
 **做法**:同一批种子打两遍,交换阵营;引擎统一取一份,只把 `aiDiscard` / `aiChooseLead` /
 `aiChooseFollow` 按座位分派到新旧两版。打分是以 80 为零点的零和:做闲家 (闲家分−80),做庄家 (80−闲家分)。
@@ -109,7 +116,7 @@
 
 ---
 
-## 二、对固定参照(`ab.js A=index.html B=80fen-test.html`)
+## 二、对固定参照(`node test/ai-h2h.js 80fen-test.html index.html`)
 
 **做法**:同上,但 A 换成一个**固定的旧版本**(通常是当前正式版)。
 
@@ -201,13 +208,16 @@ v0.7.7 一扫就是四条,最高的一条占比 62.4%。
 ```bash
 # ① 跨文件空跑:正式版复制一份,自己跟自己打 → 必须精确 0.00
 cp index.html /tmp/copy.html
-AOVER="egSearch=0" BOVER="egSearch=0" node ab.js index.html /tmp/copy.html 300 20000
+node test/ai-h2h.js /tmp/copy.html index.html 300
 
 # ② 全关空跑:把这一版所有新开关关掉 → 必须精确 0.00
 #    不是 0.00 就说明有改动没留开关,消融结论全部作废
-AOVER="egSearch=0" BOVER="egSearch=0,新开关1=0,新开关2=0,..." \
-  node ab.js index.html 80fen-test.html 700 20000
+cp 80fen-test.html /tmp/alloff.html   # 手改 /tmp/alloff.html 里 AIP 的新开关为 0
+node test/ai-h2h.js /tmp/alloff.html index.html 700
 ```
+
+(当年这两条是用本地 `ab.js` 的 `AOVER`/`BOVER` 跑的,`egSearch=0` 只为提速;
+现在没有那两个环境变量,改开关要落到文件上。)
 
 这两个空跑在 v0.7.5 救过一次:−0.35 到底是真效果还是跨文件的量具偏差,只有它们能分开。
 
