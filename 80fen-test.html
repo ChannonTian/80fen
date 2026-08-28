@@ -245,6 +245,13 @@
        发完牌 dealZone 释放两行高度后才自己归位 —— 报障说的「发牌时手牌遮挡亮牌/打牌区,
        发完后才回位」就是这一条。上一轮修的是对的,只是这条残留把它盖回去了。 */
     #tabs button{padding:5px 9px}
+    /* 桌面端三区按钮统一定宽(按最长文案「亮无将(大)」量)是为了排一行齐整,
+       竖屏放不下:出牌/重选/问教练 + 托管 + 看底牌 五颗 × 6.6em 早就出界了。
+       竖屏改成按文案自适应,省下的宽度正好够托管那一颗落到牌桌上。 */
+    #controls button{min-width:0;padding:6px 10px}
+    #controls{gap:6px}
+    #mainZone{gap:6px}
+    #dealerZone{gap:6px}
   }
   /* 竖屏且机身矮(iPhone SE 一类,或桌面浏览器窄窗口):出牌区要三张牌高是硬需求,
      省不出来就只能把牌本身做小 —— 牌小一号总比记录面板被挤没了强。 */
@@ -300,6 +307,8 @@
         <button id="btnHint" style="background:#6ec9ff">问教练</button>
       </div>
       <div id="dealerZone">
+        <!-- 托管排在最左:它整个出牌阶段都在,位置不会因为「看底牌」出现与否而漂移 -->
+        <button id="btnAuto" class="minor" onclick="window.__setAuto(!(window.__G&&window.__G().auto))">托管</button>
         <button id="btnBury" class="minor">扣底</button>
         <button id="btnKitty" class="minor" onclick="window.__showKitty()">看底牌</button>
       </div>
@@ -319,7 +328,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.12(测试版)</div>
+<div id="versionTag">80分 v0.7.13(测试版)</div>
 
 <script>
 /* ============================================================
@@ -5019,7 +5028,7 @@ function openSettings(){
     $('stAuto').checked=!!(G&&G.auto);
     $('stAuto').disabled=!canAuto;
     $('stAutoHint').textContent=canAuto
-      ? '本局有效,打完自动交还;托管的墩不计入教练的失误统计。牌桌上「出牌」会变成「停止托管」'
+      ? '本局有效,打完自动交还;托管的墩不计入教练的失误统计。牌桌上(扣底那一区)也有这颗按钮'
       : '(要在出牌阶段才能托管)';
     $('stHold').disabled=!!S.manualNext;
     $('stHoldHint').textContent=S.manualNext?'(手动模式下由你点「下一墩」决定)':'';
@@ -5505,6 +5514,7 @@ function scheduleHumanAuto(){
 
 /* 托管开关。它不在 S 里(不持久化),也只在出牌阶段有意义 ——
  * 扣底、亮主、低分造反这些「一局只做一次」的决定仍然归你。 */
+window.__G=()=>G;      // html 里的 inline onclick 在 IIFE 外面,取不到 G
 window.__setAuto=on=>{
   if(!G) return;
   G.auto=!!on;
@@ -5738,6 +5748,9 @@ function endRound(){
     html+=`<div style="font-size:14px">下一局 ${SEAT_NAME[M.dealer]} 坐庄,打${rankName(M.levels[M.dealer%2])}</div>`;
     html+=`<div style="margin-top:14px"><button onclick="window.__next()">下一局</button> <button class="minor" onclick="window.__review()">复盘本局</button></div>`;
   }
+  // 弹层之下的牌桌也要跟着进「已结束」态(托管按钮收起、发牌区改成「复盘中」),
+  // 否则点「复盘本局」把弹层关掉之前,底下还留着上一秒的按钮
+  render();
   document.getElementById('overlayContent').innerHTML=html;
   document.getElementById('overlay').style.display='flex';
   sndEnd();
@@ -5905,14 +5918,17 @@ function render(){
   }
 
   const myTurn=!G.ended&&G.phase==='play'&&G.trick.length<4&&(G.leader+G.trick.length)%4===HUMAN;
-  /* 托管中,「出牌」这颗按钮改成「停止托管」—— 托管时出牌/重选/问教练都用不上,
-   * 与其加第四颗按钮把底部三区挤爆(手机竖屏一行只放得下三颗),不如让这颗改口:
-   * 一下开(设置里)、一下关(这里),而且关的那一下永远在同一个位置。 */
+  /* 托管自己占一颗按钮,落在庄家区(和扣底/看底牌同一区)—— 第一版把它塞进设置里、
+   * 让「出牌」改口成「停止托管」,开一次要点三下,实测太不方便。放到桌面上要解决的是
+   * 宽度:竖屏那一行原本按最长文案定死 min-width,五颗就挤爆了,所以竖屏改成按文案自适应
+   * (见 @media 里的 #controls button)。托管中「出牌/重选/问教练」照旧灰掉 —— 不是不能点,
+   * 是这时候本来就没有你要做的决定。 */
   const auto=!!G.auto&&G.phase==='play'&&!G.ended;
-  const btnPlay=document.getElementById('btnPlay');
-  btnPlay.textContent=auto?'停止托管':'出牌';
-  btnPlay.classList.toggle('minor',auto);
-  btnPlay.disabled=auto?false:!myTurn;
+  const btnAuto=document.getElementById('btnAuto');
+  btnAuto.textContent=auto?'停止托管':'托管';
+  btnAuto.classList.toggle('minor',!auto);      // 托管中变成醒目色,一眼看得见它开着
+  btnAuto.hidden=!(G.phase==='play'&&!G.ended);
+  document.getElementById('btnPlay').disabled=auto||!myTurn;
   document.getElementById('btnClear').disabled=auto||!(G.selected.size>0);
   // 扣底:选够 8 张才可点
   const buryReady=G.phase==='kitty'&&G.selected.size===RULES.kittySize;
@@ -5922,7 +5938,7 @@ function render(){
   // 看底牌:只有你是庄家、且底牌已扣下才可点
   const canSeeKitty=G.declSeat===HUMAN&&G.buried.length>0;
   document.getElementById('btnKitty').disabled=!canSeeKitty;
-  // 庄家区本局用不上(你不坐庄)就整块收起来,不留灰按钮占地方
+  // 扣底/看底牌本局用不上(你不坐庄)就收起来,不留灰按钮占地方(托管那颗另有显隐规则)
   document.getElementById('btnBury').hidden=(G.phase!=='kitty');
   document.getElementById('btnKitty').hidden=!canSeeKitty;
   document.getElementById('btnHint').disabled=auto||!(C.on&&myTurn);
@@ -6151,9 +6167,7 @@ function sendNote(){
   renderPanel();
 }
 
-document.getElementById('btnPlay').onclick=()=>{
-  if(G&&G.auto) window.__setAuto(false); else humanPlay();
-};
+document.getElementById('btnPlay').onclick=humanPlay;
 document.getElementById('btnClear').onclick=()=>{G.selected.clear();render();};
 document.getElementById('btnBury').onclick=buryKitty;
 document.getElementById('btnHint').onclick=askCoach;
