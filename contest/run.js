@@ -57,8 +57,8 @@ const lvlDiff=[], ptsDiff=[];
  * 逐场口径却会把 d 与 −d 当成两个独立样本,凭空算出一个不小的 SE。
  * 余下的方差全部来自两边**行为真的不同**的那些种子 —— 那才是要量的东西。 */
 const pairL=[], pairP=[], pairW=[];
-const vioA={count:0,by:{},ms:0}, vioB={count:0,by:{},ms:0};
-const acc=(dst,v)=>{ dst.count+=v.count; dst.ms+=v.ms;
+const vioA={count:0,by:{},ms:0,penalties:0}, vioB={count:0,by:{},ms:0,penalties:0};
+const acc=(dst,v)=>{ dst.count+=v.count; dst.ms+=v.ms; dst.penalties+=v.penalties;
   const s=v.summary(); for(const k in s) dst.by[k]=(dst.by[k]||0)+s[k]; };
 
 const t0=Date.now();
@@ -120,7 +120,8 @@ console.log(`\n  ── 逐场口径(高估 SE,只作对照)──`);
 console.log(`  胜率 ±${(100*seRate).toFixed(1)}%   级数差 SE ${L.se.toFixed(2)}`+
             `   每局净分 SE ${(P.se/2).toFixed(2)}(n=${P.n})`);
 console.log(`\n  平均 ${(rounds/games).toFixed(1)} 局/场`);
-const vr=(tag,v)=>console.log(`  ${tag} 违规 ${v.count}${v.count?'  '+JSON.stringify(v.by):''},AI 用时 ${(v.ms/1000).toFixed(1)}s`);
+const vr=(tag,v)=>console.log(`  ${tag} 违规 ${v.count}${v.count?'  '+JSON.stringify(v.by):''}`+
+  `,甩牌被罚 ${v.penalties} 次(规则内,不是违规),AI 用时 ${(v.ms/1000).toFixed(1)}s`);
 vr('A',vioA); vr('B',vioB);
 if(flags.has('--json')){
   const out=pos[3]||'contest-result.json';

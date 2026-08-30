@@ -27,7 +27,12 @@ class Violations {
     this.by={};        // 按种类的**全量**计数
     this.list=[];      // 前 50 条明细,只为了看得见细节
     this.count=0; this.ms=0;
+    this.penalties=0;  // 甩牌被罚 —— 规则内的结果,不是违规,单独数
   }
+  // 甩牌赌输了。它和"返回了不在手上的牌"完全是两回事:后者是 bug,
+  // 前者是策略 —— 甩牌本来就是赌没人吃得下最小的那一组,基线自己也会赌输。
+  // 混在违规里报,参赛者会以为自己写错了。
+  penalty(){ this.penalties++; }
   add(kind, detail){
     this.count++;
     this.by[kind]=(this.by[kind]||0)+1;
@@ -217,7 +222,7 @@ function playRound(st){
           cards=resolveCards(ret, hands[seat], vio[team], 'lead');
           if(!cards) cards=st.fallbackLead(hands[seat], trump, rand);
           const chk=E.checkThrow(hands, seat, cards, trump);
-          if(!chk.ok){ vio[team].add('lead:甩牌被罚', ''); cards=chk.forced; }
+          if(!chk.ok){ vio[team].penalty(); cards=chk.forced; }
         }else{
           const lead=E.classify(plays[0].cards, trump);
           const ret=callAI(ai.follow, ai, [view, cpPlays(plays)], vio[team], 'follow');
