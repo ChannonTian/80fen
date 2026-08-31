@@ -66,6 +66,7 @@ learn/
 | [`notes/negative-results.md`](docs/notes/negative-results.md) | 同上 | 试过、测了、否掉的改动。动那些默认关的开关之前先读 |
 | [`notes/release-log.md`](docs/notes/release-log.md) | 同上 | **v0.5.8~v0.7.0** 的上线备忘。v0.7.1 起上线前的检查固化成 `check-sync` 与 `docs/DESIGN.md` §12,这一页不再追加 |
 | [`notes/archive-plans.md`](docs/notes/archive-plans.md) | 同上 | 两份已实施的旧方案,存档 |
+| [`notes/llm-coach-plan.md`](docs/notes/llm-coach-plan.md) | 同上 | **教练接大模型(千问)的可行性与做法** —— 探索,未实施。评分器是脑、模型是嘴,以及为什么反过来做会同时踩掉四条硬约束 |
 
 ## 代码文件
 
@@ -86,6 +87,7 @@ learn/
 | `test/audit-dumpvoid.js` | 行为审计:「后手有已知断门的对手,我却把分贴过去」 |
 | `test/check-sync.js` | **三份 build 与文档的一致性体检** —— 晋级、推送之前跑一遍 |
 | `test/gen-switches.js` | 生成 `docs/SWITCHES.md` |
+| `test/probe-llm.js` | **千问接入的可行性探针** —— 量 CORS、模型清单、改建议率/编事实率/延迟。不改任何 build,`--dump` 可离线看证据包 |
 | `test/rules-vectors.js` | 规则书 §S5 新增向量的可执行版 —— 写进规则书之前必须先在引擎上跑过 |
 | `test/league-resume.js` | 联赛断点续跑的回归测试:进程被杀之后记录还读不读得出来、续跑的结果和一口气跑的一不一样 |
 | `contest/engine.js` | 比赛用的引擎包:从 build 里**运行时抽取**块①,每个参赛者一个隔离 realm |
