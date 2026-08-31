@@ -59,7 +59,55 @@ function load(file){
   return {E, AI:full, RULES:full.RULES};
 }
 
-/* ---------- 比赛用:一个参赛者 = 一个 realm ----------
+/* ---------- 参赛者的屋子:空的 ----------
+ *
+ * 关键:这里**一行我们的代码都不加载**。
+ *
+ * 早先参赛者和陪练共用 createRealm,那个 realm 里跑过块①,于是 ctx 的全局
+ * `module.exports` 上挂着整个 ENGINE —— 参赛者写一行 globalThis.module.exports
+ * 就能把引擎连同 101 个 AI 内部函数整个读出来,「自己照规则书写引擎」这条就废了。
+ *
+ * 参赛者拿到的是:一间只有 JS 内建的屋子,加一个只能读磁盘上 .js 的极简 require。
+ * 没有 fs、没有 process、没有网络、没有 npm。他要的一切自己写。
+ */
+function guestRealm(tag){
+  const con={};
+  for(const m of ['log','warn','error','info','debug'])
+    con[m]=(...a)=>console[m](`[${tag||'guest'}]`, ...a);
+  const ctx=freshContext({console:con});
+  // 全局 module 是给加载器用的中转,清空它 —— 别让它变成一个信息通道
+  vm.runInContext('globalThis.module={exports:{}};globalThis.exports=module.exports;',ctx);
+
+  const cache=new Map();
+  function req(fromDir, spec){
+    let f=path.resolve(fromDir, spec);
+    if(!f.endsWith('.js')){
+      // 支持 require('./foo') 与 require('<目录>') → <目录>/index.js
+      if(fs.existsSync(f) && fs.statSync(f).isDirectory()) f=path.join(f,'index.js');
+      else f+='.js';
+    }
+    if(cache.has(f)) return cache.get(f).exports;
+    const code=fs.readFileSync(f,'utf8');
+    const mod={exports:{}};
+    cache.set(f,mod);
+    const wrap=vm.runInContext(
+      `(function(module, exports, require, __filename, __dirname){\n${code}\n})`,
+      ctx, {filename:f});
+    wrap(mod, mod.exports, s=>req(path.dirname(f), s), f, path.dirname(f));
+    return mod.exports;
+  }
+
+  // 提交可以是一个 .js,也可以是一个目录(入口 index.js)—— 他们要装下自己的引擎
+  function mount(entry){
+    const mod=req(process.cwd(), entry);
+    const ai = typeof mod==='function' ? mod()
+             : (mod && typeof mod.create==='function' ? mod.create() : mod);
+    return ai;
+  }
+  return {ctx, require:req, mount};
+}
+
+/* ---------- 我们自己那份陪练的屋子 ----------
  *
  * realm 里没有 node 的 require,所以自带一个极简的 CommonJS 加载器:
  * 只认磁盘上的 .js,源码同样在 realm 里跑。于是参赛者 require 进来的东西
@@ -113,4 +161,4 @@ function createRealm(buildFile, tag){
   return {E, AI:full, ctx, require:realmRequire, mount};
 }
 
-module.exports={load, runBlock, freshContext, createRealm, ENGINE_API};
+module.exports={load, runBlock, freshContext, createRealm, guestRealm, ENGINE_API};
