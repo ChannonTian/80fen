@@ -95,7 +95,13 @@ v0.7.5 及以前那部分在 **[`NOTES/ai-journal.md`](NOTES/ai-journal.md)**(�
 
 ### 发出去的那一份
 
-`contest/public/` 原样复制到参赛 repo 即可:手册、`RULES.md` 副本、提交模板。
+参赛 repo:**https://github.com/ChannonTian/80fen-contest**。
+`contest/public/` 就是它的全部内容:手册、规则书、提交模板、`submissions/`。
+
+`public/RULES.md` 是**生成的**(`contest/gen-public.js`),对主 repo 的 `RULES.md`
+只做两处必要改写 —— 开头提到 `index.html`、结尾链到 `DESIGN.md`,参赛者两样都看不到。
+`check-sync` 钉住这一条:手工副本会悄悄漂,而漂了之后参赛者按老规则写、裁判按新规则判,
+罚分就成了冤枉。
 **手册里没有我们的任何代码,也没有任何关于我们这个 AI 的线索** —— 上一版写的
 「五条可超越点」整个撤掉了:那泄露的是我们这个实现的弱点,等于让所有人往一处打。
 

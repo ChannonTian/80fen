@@ -49,7 +49,8 @@
 | `contest/referee.js` | 裁判器:在 node 里完整复刻界面块的一整场打级对局 |
 | `contest/run.js` | 单对详跑:交换阵营、三个口径、配对统计 |
 | `contest/league.js` | **联赛**:所有选手两两对过局,多进程并行,出积分榜 |
-| `contest/public/` | **要推到参赛 repo 的全部内容** —— 手册、规则书副本、提交模板 |
+| `contest/public/` | **参赛 repo([80fen-contest](https://github.com/ChannonTian/80fen-contest))的全部内容** —— 手册、规则书、提交模板 |
+| `contest/gen-public.js` | 生成 `contest/public/RULES.md`;`check-sync` 钉住它与主 repo 同步 |
 | `contest/baseline.js` | 现版 AI 的参赛接口包装 —— 排名的标尺,也是参赛者的起点 |
 | `contest/selftest.js` | **裁判器自测** —— 31 项,含空屋隔离与护栏对故意作弊的提交是否兜得住 |
 

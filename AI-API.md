@@ -7,14 +7,28 @@
 
 ## 1. 哪些发出去,哪些留着
 
-`contest/public/` **就是要推到参赛 repo 的全部内容**,原样复制过去即可:
+参赛 repo:**https://github.com/ChannonTian/80fen-contest**
+
+`contest/public/` **就是那个 repo 的全部内容**,原样复制过去即可:
 
 ```
 contest/public/
-  README.md          参赛手册:接口、罚分、赛制、十个坑
-  RULES.md           规则书(主 repo 的副本)
-  example/index.js   提交模板:五个方法的空壳,零策略零引擎
+  README.md             参赛手册:接口、罚分、赛制、十个坑
+  RULES.md              规则书 —— **生成的**,见下
+  example/index.js      提交模板:五个方法的空壳,零策略零引擎
+  submissions/README.md 提交放这里,一人一个目录
 ```
+
+```bash
+node contest/gen-public.js          # 重新生成 public/RULES.md
+cp -r contest/public/. <参赛repo>/  # 同步过去
+```
+
+`public/RULES.md` 是**生成的**,不能手改。它对主 repo 的 `RULES.md` 只做两处必要
+改写(开头提到 `index.html` 那句、结尾链到 `DESIGN.md` 那句 —— 参赛者两样都看不到),
+正文一个字不动。`check-sync` 钉着这一条:手工副本会悄悄漂,而漂了之后参赛者按老规则
+写、裁判按新规则判,罚分就成了冤枉。主 repo 的 `RULES.md` 改了措辞导致替换失配时,
+生成器会报错并指出是哪一段。
 
 其余一律留在这边。特别是:
 
