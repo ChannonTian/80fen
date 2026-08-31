@@ -11,12 +11,15 @@
 
 每份文档一个读者、一种时态,**同一件事只有一个家**。
 两份「照着能做出同样东西」的文档:规则交给 [`RULES.md`](RULES.md)(第三部分),
-产品交给 [`DESIGN.md`](DESIGN.md)(第一部分)。
+产品交给 [`DESIGN.md`](DESIGN.md)(第一部分)。AI 比赛的运营看
+[`AI-API.md`](AI-API.md),发给参赛者的那一份在 [`contest/public/`](contest/public/)。
 
 | 文档 | 写给谁 | 里面是什么 |
 |---|---|---|
 | **[`RULES.md`](RULES.md)** | 玩家 + 要重新实现这套规则的人 | 规则书。①入门(没打过也能上手)②裁决手册(甩牌、拖拉机怎么跟、抠底几倍、关卡怎么算)③**实现规格**:八个判定的伪码、参数总表、一套自测向量 —— 跑通那张表就是同一个游戏 |
 | **[`DESIGN.md`](DESIGN.md)** | 改代码的人 + 要复刻这个产品的人 | ①**产品规格**(§A–§G):九条硬约束、代码地图、数据模型、接口契约、界面规格、复刻路线图与验收清单 ②**AI 设计**(§0–§10):三阶段评分公式、每一项的来历、已知短板 ③功能总表(§11)与工程(§12) |
+| **[`AI-API.md`](AI-API.md)** | 办比赛的人(内部) | 哪些发出去哪些留着、怎么跑联赛、裁判的关键实现决定、赛制标定数据、收提交的流程 |
+| **[`contest/public/README.md`](contest/public/README.md)** | 参赛者 | 参赛手册:五个方法的契约、`view` 字段表、罚分、赛制、十个坑。**不含我们的任何代码,也不含关于我们这个 AI 的线索** |
 | **[`SWITCHES.md`](SWITCHES.md)** | 调参的人 | 132 个 `AIP` 开关的登记表(脚本生成,可重跑) |
 | **[`CHANGELOG.md`](CHANGELOG.md)** | 想知道哪版改了什么 | 版本总表 + 每版结论 |
 | [`NOTES/ai-journal.md`](NOTES/ai-journal.md) | 未来的自己 | **v0.1.0~v0.7.5** 的完整推演与实验数据(当年的 CHANGELOG 全文)。v0.7.6 起不再分家,直接写在 `CHANGELOG.md` |
@@ -42,6 +45,16 @@
 | `test/audit-dumpvoid.js` | 行为审计:「后手有已知断门的对手,我却把分贴过去」 |
 | `test/check-sync.js` | **三份 build 与文档的一致性体检** —— 晋级、推送之前跑一遍 |
 | `test/gen-switches.js` | 生成 `SWITCHES.md` |
+| `contest/engine.js` | 比赛用的引擎包:从 build 里**运行时抽取**块①,每个参赛者一个隔离 realm |
+| `contest/referee.js` | 裁判器:在 node 里完整复刻界面块的一整场打级对局 |
+| `contest/run.js` | 单对详跑:交换阵营、三个口径、配对统计 |
+| `contest/league.js` | **联赛**:所有选手两两对过局,多进程并行,出积分榜 |
+| `contest/public/` | **参赛 repo([80fen-contest](https://github.com/ChannonTian/80fen-contest))的全部内容** —— 手册、规则书、提交模板 |
+| `contest/gen-public.js` | 生成 `contest/public/RULES.md`;`check-sync` 钉住它与主 repo 同步 |
+| `contest/baseline.js` | 现版 AI 的参赛接口包装 —— 排名的标尺,也是参赛者的起点 |
+| `contest/selftest.js` | **裁判器自测** —— 31 项,含空屋隔离与护栏对故意作弊的提交是否兜得住 |
+
+比赛相关的代码都在 `contest/`,**不进 build** —— 三份 html 一个字节都不为比赛改动。
 
 三层流水线:本地 `80fen-dev.html`(开发版)→ GitHub `80fen-test.html`(测试版,验收后推)
 → GitHub `index.html`(正式版)。每次晋级就是把当前文件内容整份复制过去、改文件名,

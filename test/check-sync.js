@@ -99,6 +99,16 @@ if(has('SWITCHES.md')&&has(TEST)){
   }
 }else na('SWITCHES.md 与 AIP 同步', '缺文件');
 
+/* 发给参赛者的规则书是**生成**的(contest/gen-public.js),只对主 repo 的 RULES.md
+ * 做两处必要改写。手工副本会悄悄漂,而漂了之后参赛者按老规则写、裁判按新规则判 ——
+ * 罚分就成了冤枉。 */
+if(has('contest/public/RULES.md')&&has('RULES.md')){
+  const r=cp.spawnSync('node',['contest/gen-public.js','--check'],{encoding:'utf8'});
+  if(r.status===0) ok('contest/public/RULES.md == 主 repo 的 RULES.md(两处改写除外)');
+  else bad('发给参赛者的规则书与主 repo 同步',
+           (r.stderr||'').trim() || '重新生成:node contest/gen-public.js');
+}else na('参赛者规则书与主 repo 同步', '缺文件');
+
 console.log('\n\x1b[1m文档里写死的版本号\x1b[0m');
 if(has('README.md')&&M[PROD]){
   const h=(read('README.md').match(/^#\s+.*?v(\d+\.\d+\.\d+)/m)||[])[1];
