@@ -27,6 +27,7 @@
 | [`NOTES/negative-results.md`](NOTES/negative-results.md) | 同上 | 试过、测了、否掉的改动。动那些默认关的开关之前先读 |
 | [`NOTES/release-log.md`](NOTES/release-log.md) | 同上 | **v0.5.8~v0.7.0** 的上线备忘。v0.7.1 起上线前的检查固化成 `check-sync` 与 `DESIGN.md` §12,这一页不再追加 |
 | [`NOTES/archive-plans.md`](NOTES/archive-plans.md) | 同上 | 两份已实施的旧方案,存档 |
+| [`NOTES/llm-coach-plan.md`](NOTES/llm-coach-plan.md) | 同上 | **教练接大模型(千问)的可行性与做法** —— 探索,未实施。评分器是脑、模型是嘴,以及为什么反过来做会同时踩掉四条硬约束 |
 
 ## 代码文件
 
@@ -45,6 +46,7 @@
 | `test/audit-dumpvoid.js` | 行为审计:「后手有已知断门的对手,我却把分贴过去」 |
 | `test/check-sync.js` | **三份 build 与文档的一致性体检** —— 晋级、推送之前跑一遍 |
 | `test/gen-switches.js` | 生成 `SWITCHES.md` |
+| `test/probe-llm.js` | **千问接入的可行性探针** —— 量 CORS、模型清单、改建议率/编事实率/延迟。不改任何 build,`--dump` 可离线看证据包 |
 | `contest/engine.js` | 比赛用的引擎包:从 build 里**运行时抽取**块①,每个参赛者一个隔离 realm |
 | `contest/referee.js` | 裁判器:在 node 里完整复刻界面块的一整场打级对局 |
 | `contest/run.js` | 单对详跑:交换阵营、三个口径、配对统计 |
