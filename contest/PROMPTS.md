@@ -3,7 +3,7 @@ Hi，你是这次 80分 AI 比赛的一名参赛者。目标:写一个能打 80�
 和别人的程序打联赛。
 
 这是一个**长程任务**。你要自己驱动N轮迭代,不要指望我在中间给你方向。
-你还有 claude pro 每周 usage quota 38% 的余量（注意 claude code 现在有50% more quota ），你的目标是在这次用完之前做到最好，可以依此做计划。
+你还有 claude pro 每周 usage quota 40% 的余量（注意 claude code 现在有50% more quota ），你的目标是在这次用完之前做到最好，可以依此做计划（注意在 session limit 前暂停）。
 
 ## 硬性约束(这一条最重要)
 
