@@ -66,7 +66,7 @@ learn/
 | [`notes/negative-results.md`](docs/notes/negative-results.md) | 同上 | 试过、测了、否掉的改动。动那些默认关的开关之前先读 |
 | [`notes/release-log.md`](docs/notes/release-log.md) | 同上 | **v0.5.8~v0.7.0** 的上线备忘。v0.7.1 起上线前的检查固化成 `check-sync` 与 `docs/DESIGN.md` §12,这一页不再追加 |
 | [`notes/archive-plans.md`](docs/notes/archive-plans.md) | 同上 | 两份已实施的旧方案,存档 |
-| [`notes/llm-coach-plan.md`](docs/notes/llm-coach-plan.md) | 同上 | **教练接大模型(千问)的可行性与做法** —— 探索,未实施。评分器是脑、模型是嘴,以及为什么反过来做会同时踩掉四条硬约束 |
+| [`notes/llm-coach-plan.md`](docs/notes/llm-coach-plan.md) | 同上 | **教练接大模型(千问)的可行性与做法** —— 探索,未实施。说了算 ≠ 说得对:教练按可信度分层说话 |
 
 ## 代码文件
 
