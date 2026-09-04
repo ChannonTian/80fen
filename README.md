@@ -51,6 +51,8 @@
 | `contest/league.js` | **联赛**:所有选手两两对过局,多进程并行,出积分榜 |
 | `contest/public/` | **参赛 repo([80fen-contest](https://github.com/ChannonTian/80fen-contest))的全部内容** —— 手册、规则书、提交模板 |
 | `contest/gen-public.js` | 生成 `contest/public/RULES.md`;`check-sync` 钉住它与主 repo 同步 |
+| `contest/gen-viewer.js` | 给参赛提交**套上 GUI 壳**,生成人类观察员能坐下来打的页面 |
+| `80fen-contest-<选手>-v1.html` | 参赛版观察页。引擎与界面同正式版(逐字节),只换了三家 AI |
 | `contest/baseline.js` | 现版 AI 的参赛接口包装 —— 排名的标尺,也是参赛者的起点 |
 | `contest/selftest.js` | **裁判器自测** —— 31 项,含空屋隔离与护栏对故意作弊的提交是否兜得住 |
 
