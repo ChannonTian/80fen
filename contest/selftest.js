@@ -7,6 +7,7 @@
  */
 'use strict';
 const {load, freshContext, createRealm, guestRealm}=require('./engine.js');
+const {mount, isHouse}=require('./mount.js');
 const {playMatch}=require('./referee.js');
 const {makeBaseline}=require('./baseline.js');
 const vm=require('vm');
@@ -38,6 +39,17 @@ console.log('realm 隔离');
   x.AI.AIP.egSearch=12345;
   ok('两次 load 的 AIP 互不相干', y.AI.AIP.egSearch!==12345);
   ok('两次 load 的 RULES 是不同对象', x.E.RULES!==y.E.RULES);
+
+  /* 白名单:只有包装我们 AI 的那两个走 house 屋子。
+   * league.js 和 run.js 早先各写各的装载逻辑,run.js 那份把**所有**提交都装进
+   * house 屋子 —— 同一份提交在联赛和单对详跑里跑出不同结果。现在都走 mount.js。 */
+  ok('陪练在白名单里', isHouse('contest/ai-baseline.js') && isHouse('./contest/ai-baseline.js'));
+  ok('发给参赛者的模板不在白名单里', !isHouse('contest/public/example/index.js'));
+  ok('我们自己的测试夹具也不在白名单里', !isHouse('contest/ai-cheater.js'));
+  // 空屋装出来的作弊者摸不到引擎 —— 摸到了它会把数字报回来
+  const probe=mount('contest/ai-cheater.js','probe',BUILD,false);
+  ok('mount() 给非白名单的是空屋', probe.peeked===0, `peeked=${probe.peeked}`);
+  ok('mount() 给白名单的是 house 屋子', typeof mount('contest/ai-baseline.js','probe2',BUILD,false).onDeal==='function');
 }
 
 // ---------- 2. 一场基线自对局的结构不变量 ----------

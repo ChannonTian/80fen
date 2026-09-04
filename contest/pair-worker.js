@@ -5,25 +5,9 @@
  * 跨进程天然隔离,一个工人崩了不影响别的对。
  */
 'use strict';
-const {load, createRealm, guestRealm}=require('./engine.js');
+const {load}=require('./engine.js');
+const {mount}=require('./mount.js');
 const {playMatch}=require('./referee.js');
-
-/* 自家安插的选手用**显式白名单** —— 只有这两个包装了我们的 AI,需要 house 屋子。
- * 早先按 `contest/` 前缀判,那会把 contest/public/example/(发给参赛者的模板)
- * 也判成自家、塞给它我们的引擎 —— 模板在我们这儿能跑、发出去就跑不了。
- * 除白名单外**一律空屋**,包括我们自己放在 contest/ 下的测试夹具。 */
-const HOUSE=new Set(['contest/ai-baseline.js','contest/ai-norebel.js']);
-const norm=p=>String(p).replace(/\\/g,'/').replace(/^\.\//,'');
-const isHouse=p=>HOUSE.has(norm(p));
-
-function mount(file, tag, build, eg){
-  if(isHouse(file)){
-    const r=createRealm(build, tag);
-    if(!eg) r.AI.AIP.egSearch=0;
-    return r.mount(file);
-  }
-  return guestRealm(tag).mount(file);
-}
 
 process.on('message', job=>{
   const {a, b, seeds, seed0, build, eg, gates, fullRebel, keepHands}=job;
@@ -69,8 +53,12 @@ process.on('message', job=>{
       }
       dP.push(r.history.length?sum/r.history.length:0);
       acc(R.vio.a, r.vio[aTeam]); acc(R.vio.b, r.vio[1-aTeam]);
-      // 每局一行摘要 —— 排名和申诉都够用;完整手牌记录要加 --log-hands
-      if(keepHands) R.log.push({seed:s, aTeam, rounds:r.history});
+      /* 每局一行摘要 —— 排名和申诉都够用;逐墩记录量太大,不记。
+       * aTeam 是 A 这次坐哪一队(0 或 1),同一个 seed 的两场就是阵营对调的那一对。 */
+      if(keepHands) R.log.push({seed:s, aTeam,
+        winner: r.winnerTeam===null ? null : (r.winnerTeam===aTeam?'a':'b'),
+        levels: [r.levels[aTeam], r.levels[1-aTeam]],
+        rounds: r.history});
     }
     if(dL.length===2){ R.pairL.push((dL[0]+dL[1])/2);
                        R.pairP.push((dP[0]+dP[1])/2);
