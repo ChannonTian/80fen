@@ -336,3 +336,5 @@ fs.writeFileSync(OUT, html);
 console.log(`✓ ${path.basename(OUT)}  ${(html.length/1024).toFixed(0)}KB` +
             `(其中参赛代码 ${totalKB}KB:${files.map(f=>f.id).join(' ')})`);
 console.log(`  patch ${P.length} 处全部命中,localStorage 前缀 ${LS}`);
+// 「命中」只说明锚点找到了,不说明拼出来的能跑 —— 发出去之前必须真跑一局
+console.log(`  下一步:node contest/verify-viewer.js ${path.basename(OUT)}`);

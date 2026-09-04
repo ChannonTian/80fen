@@ -161,11 +161,33 @@ node contest/gen-viewer.js /path/to/submissions/<选手> <选手>
 * **右下角实时显示违规与罚分。** 一个 AI 频繁出非法牌,观察员一眼就该看见,
   不用等联赛跑完。控制台里 `CONTESTANT.vio` 有明细。
 * `window.__viewer` 是观察页专用的调试口(`G`/`M`/`S` 和几个驱动函数),
-  比赛裁判那边没有这东西。
+  比赛裁判那边没有这东西 —— `verify-viewer.js` 也靠它驱动整局。
 
-生成之后**必须在真浏览器里跑一局**再发出去:页面是靠字符串 patch 拼的,`patch 全部命中`
-只说明找到了锚点,不说明拼出来的东西能跑。验证要点:`CONTESTANT.loadErr` 为空、
-五个方法到位、托管能把整局打完、四家剩牌归零、零页面报错。
+### localStorage 的隔离现状
+
+| 页面 | key 前缀 |
+|---|---|
+| `index.html`(正式版) | `80fentest-` |
+| `80fen-test.html`(测试版) | `80fentest-` ← **和正式版共用** |
+| `80fen-contest-<选手>-v1.html` | `80fen-c-<选手>-` |
+
+**三组,不是四组。** 正式版和测试版共用一套 key 是**既有行为**(两份 build 逐字节相同,
+标记之外一个字都不差,自然连 key 也一样),不是套壳时引入的。后果是设置、语言、音效、
+侧栏宽度、以及**笔记**在这两版之间共享。参赛版之间、以及参赛版对这两版,都是隔开的。
+
+生成之后**必须在真浏览器里跑一局**再发出去:
+
+```bash
+npm i playwright                                  # 项目本身零依赖,装哪都行
+node contest/verify-viewer.js 80fen-contest-<选手>-v1.html [截图.png]
+```
+
+页面是靠字符串 patch 拼的,`patch 全部命中`只说明找到了锚点,**不说明拼出来的东西能跑** ——
+第一版就是全部命中、页面却直接 `G is not defined`。验证脚本查五件事:参赛代码加载无误
+且五个方法在位、托管能把整局打完、四家剩牌归零、违规数(正常是 0)、零页面报错。
+
+浏览器用环境里预装的那个(`/opt/pw-browsers/chromium`),**不要跑 `playwright install`** ——
+playwright 自带的版本号常和预装的对不上。
 
 ## 6. 收提交
 
