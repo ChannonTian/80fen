@@ -34,7 +34,8 @@ cp -r contest/public/. <参赛repo>/  # 同步过去
 
 * `index.html` / `80fen-test.html` —— 引擎和 AI 都在里面
 * `contest/baseline.js`、`contest/ai-baseline.js` —— 陪练,101 个 AI 内部函数的包装
-* `contest/engine.js`、`referee.js`、`league.js`、`pair-worker.js` —— 裁判
+* `contest/engine.js`、`referee.js`、`league.js`、`pair-worker.js`、`report.js` —— 裁判与赛报
+* `contest/results/` —— 历次联赛的完整记录
 
 **参赛者拿不到引擎是设计,不是省事。** 他们照 `RULES.md` §S3 自己写引擎,写歪了用罚分说话 —— 代码和策略一样计分。
 
@@ -51,9 +52,14 @@ node contest/league.js <选手1> <选手2> ... [--seeds=30] [--jobs=N]
 选手可以是 `.js` 或目录(入口 `index.js`)。陪练(`contest/ai-baseline.js`)默认作为一名选手加进去,`--no-house` 去掉。
 
 ```bash
-node contest/selftest.js index.html      # 裁判器自测,31 项,改动裁判后必跑
+node contest/selftest.js index.html      # 裁判器自测,36 项,改动裁判后必跑
 node contest/run.js A.js B.js 120        # 单对详跑,三个口径 + 配对统计
+node contest/report.js <result.json> [rounds.ndjson.gz]   # 出赛报(Markdown)
 ```
+
+**陪练要带 `--eg`。** `run.js`/`league.js` 默认把 `AIP.egSearch` 关掉(快 4 倍),那是调参时图快用的;
+正式跑要开,因为线上 `index.html` 的默认就是 `egSearch: 1` —— 关着跑等于让我们安插的选手降级出战,
+排名会好看,但不是它真实的牌力。参赛者不受这个开关约束,想搜就搜,代价是超时。
 
 ### 规模
 
@@ -65,7 +71,30 @@ node contest/run.js A.js B.js 120        # 单对详跑,三个口径 + 配对统
 | 17 | 136 | 11 小时 | 1.5 小时 |
 | 31 | 465 | 39 小时 | 5 小时 |
 
-`--log-hands` 会把每一手都记下来 —— 17 名选手全量约 2400 万手,只在要复盘某一对时开。默认每局一行摘要,排名和申诉都够用。
+开 `--eg` 再乘 4。3 名选手 × 300 副 + `--eg` 实测约 1 小时(4 核)。
+
+### 记录
+
+```bash
+node contest/league.js ... --seeds=300 --eg --log-rounds \
+     --log=contest/results/<日期>-rounds.ndjson.gz \
+     --out=contest/results/<日期>-league.json
+node contest/report.js contest/results/<日期>-league.json \
+     contest/results/<日期>-rounds.ndjson.gz
+```
+
+三份东西,分工不同:
+
+| 文件 | 内容 | 谁看 |
+|---|---|---|
+| `<日期>-league.md` | 赛报:积分榜、对战表、逐对配对统计、打法画像 | 人 |
+| `<日期>-league.json` | 积分榜 + 每一对的配对样本(一个种子一个数)| 想自己重算的人 |
+| `<日期>-rounds.ndjson.gz` | 一行一场,`rounds[]` 里一局一条 | 复盘、申诉 |
+
+逐局记录**不进** `league-result.json` —— 300 副 × 3 对缩进过的 JSON 是几十兆,排行榜就没法看了。
+一行一局的 NDJSON,`.gz` 结尾自动压缩,3 名选手 × 300 副约 44000 局、压缩后不到 1 MB。
+逐墩记录不记:17 名选手全量约 2400 万手,复盘一对牌用同一个种子重跑一遍就有了
+(决策路径里没有 `Math.random`,同种子必然同牌同走法)。
 
 ---
 

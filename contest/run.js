@@ -10,15 +10,16 @@
  *   · 每局净分 —— 把整场拆回单副口径,样本量 ×30
  * 排名用胜场,判断"这次改动有没有用"看后两个。
  *
- * 每个参赛者在**自己的 realm** 里加载 —— 引擎、AI、以及**提交自己的代码**都在里面
- * (见 engine.js 的 createRealm)。改 Array.prototype、改 AIP、改引擎,
- * 都只改到自己那一份。裁判用第三份独立加载的引擎判合法性,谁也碰不到。
+ * 每个参赛者在**自己的空 realm** 里加载 —— 一行我们的代码都没有(见 contest/mount.js)。
+ * 改 Array.prototype、改内建,都只改到自己那一份。裁判用另一份独立加载的引擎判
+ * 合法性,谁也碰不到。只有自家安插的陪练走 house 屋子,因为它包的就是我们的 AI。
  *
- * `egSearch=0` 是在 mount **之前**设的,所以参赛者可以在自己的工厂里把它设回来。
- * 这是有意的:计算预算该由超时来管,不该由裁判禁用某个功能 —— 想搜就搜,代价是时间。
+ * 陪练默认关收官蒙特卡洛(快 4 倍),`--eg` 打开。**正式跑分要开** ——
+ * 线上 index.html 的默认就是 egSearch:1,关着跑等于让它降级出战。
  */
 'use strict';
-const {load, createRealm}=require('./engine.js');
+const {load}=require('./engine.js');
+const {mount}=require('./mount.js');
 const {playMatch}=require('./referee.js');
 
 const args=process.argv.slice(2);
@@ -34,16 +35,16 @@ if(!fileA||!fileB){
 
 // ---- 裁判自己的引擎:参赛者碰不到 ----
 const REF=load(BUILD);
-// ---- 每个参赛者一份独立的 realm:引擎、AI、以及**提交自己的代码**都在里面 ----
-function mount(file, tag){
-  const realm=createRealm(BUILD, tag);
-  if(!flags.has('--eg')) realm.AI.AIP.egSearch=0;   // 默认关收官蒙特卡洛,快 4 倍
-  const ai=realm.mount(file);
+/* 装屋子走 contest/mount.js —— 和联赛**同一条**路径。
+ * 这里原本自己写了一份,把所有提交都装进 house 屋子,于是单对详跑时
+ * 参赛者摸得到我们的引擎、联赛里摸不到:同一份提交两条路跑出不同结果。 */
+function put(file, tag){
+  const ai=mount(file, tag, BUILD, flags.has('--eg'));
   for(const m of ['onDeal','onRebel','discard','lead','follow'])
     if(typeof ai[m]!=='function') console.error(`  ! ${file} 没有实现 ${m}(),该阶段将走裁判兜底`);
   return ai;
 }
-const A=mount(fileA,'A'), B=mount(fileB,'B');
+const A=put(fileA,'A'), B=put(fileB,'B');
 // 兜底用裁判自己的那份基线,和参赛者无关
 const FB={engine:REF.E,
   fallbackDiscard:(h,t)=>REF.AI.aiDiscard(h,t),
