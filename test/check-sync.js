@@ -14,6 +14,7 @@
  *   · 正式版的版本号不能**超前**于测试版(流水线是单向的)
  *   · docs/SWITCHES.md 的主体必须等于 gen-switches.js 对测试版的输出
  *   · README / CHANGELOG 里写的版本号,必须等于对应 build 的 versionTag
+ *   · 规则书 §S5 新增的那些向量,引擎跑出来必须一致
  *   · .md 与比赛主页里指向仓库内文件的链接都得指得到东西
  *   · 未跟踪文件必须在白名单里(防 `git add -A` 把本地杂物扫进仓库)
  */
@@ -132,6 +133,16 @@ if(has(DOC.changelog)&&M[PROD]&&M[TEST]){
              `文档写 正式版 v${p||'?'} / 测试版 v${t||'?'},实际 v${M[PROD].ver} / v${M[TEST].ver}`);
   }
 }else na('CHANGELOG 当前行', '缺文件');
+
+console.log('\n\x1b[1m规则书的自测向量\x1b[0m');
+/* §S5 里 2026-09-05 新增的那些向量还没并进块②(那要走流水线),先由这个脚本钉着。
+ * 规则书写了什么、引擎就得给出什么 —— 对不上要么是引擎的 bug,要么是规则书写错了。 */
+if(has('test/rules-vectors.js')&&has(PROD)){
+  const r=cp.spawnSync('node',['test/rules-vectors.js',PROD],{encoding:'utf8'});
+  const n=(String(r.stdout).match(/通过 (\d+) 项/)||[])[1];
+  if(r.status===0) ok(`§S5 新增向量 ${n}/${n}(正式版)`);
+  else bad('§S5 新增向量', String(r.stdout).split('\n').filter(l=>l.includes('✗')).join('\n'));
+}else na('§S5 新增向量', '缺文件');
 
 console.log('\n\x1b[1m文档链接\x1b[0m');
 /* 所有 .md 里指向仓库内文件的链接都得指得到东西。
