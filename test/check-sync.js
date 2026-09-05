@@ -135,7 +135,8 @@ if(has(DOC.changelog)&&M[PROD]&&M[TEST]){
   }
 }else na('CHANGELOG 当前行', '缺文件');
 
-/* contest/public/ 就是参赛 repo 的全部内容,两边必须逐字节一致。
+/* contest/public/ 是参赛 repo 里**手册那几份**的副本,两边必须逐字节一致。
+ * (参赛 repo 另有 submissions/ 和一份用量统计 NOTES.md,不在这个镜像里。)
  * 2026-09-05 发现真漂了:RULES.md 这边新、README 和 submissions/README 那边新
  * (有人直接在 GitHub 上加了一句「禁止查看其他选手的提交」)。
  * 参赛 repo 不在这个 checkout 里就跳过 —— 只有并排放着的时候才查得了。 */
