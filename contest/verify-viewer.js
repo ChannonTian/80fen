@@ -20,12 +20,27 @@
 'use strict';
 const path=require('path');
 
+/* playwright 常常是**全局**装的(容器镜像里就带),而全局的 node_modules 不在
+ * 从 repo 往上找的那条链上 —— 于是这里报「需要 playwright」,其实机器上有。
+ * 所以先按常规找,找不到再去 npm 的全局根目录捞一次。 */
 let chromium;
-try{ ({chromium}=require('playwright')); }
-catch(e){
-  console.error('需要 playwright:  npm i playwright');
-  console.error('(浏览器用环境里预装的,不要跑 playwright install)');
-  process.exit(2);
+function loadPlaywright(){
+  try{ return require('playwright'); }catch(e){}
+  try{
+    const root=require('child_process')
+      .execSync('npm root -g',{encoding:'utf8',stdio:['ignore','pipe','ignore']}).trim();
+    if(root) return require(require('path').join(root,'playwright'));
+  }catch(e){}
+  return null;
+}
+{
+  const pw=loadPlaywright();
+  if(!pw){
+    console.error('需要 playwright:  npm i playwright  (或 npm i -g playwright)');
+    console.error('(浏览器用环境里预装的,不要跑 playwright install)');
+    process.exit(2);
+  }
+  chromium=pw.chromium;
 }
 
 // 环境里预装的 Chromium。playwright 自带的版本号常和它对不上,直接指路径最省事。
