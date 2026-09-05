@@ -115,7 +115,7 @@ function guestRealm(tag){
  *
  * 里面**没有** require('fs') / require('child_process') / process —— 提交拿不到
  * 文件系统和进程。这不是安全沙箱(vm 从来不是),是把"不小心"和"顺手作弊"挡住;
- * 真要防恶意代码得上子进程 + 权限,见 AI-API.md §4 对边界的说明。
+ * 真要防恶意代码得上子进程 + 权限,见 docs/contest-ops.md §4 对边界的说明。
  */
 function createRealm(buildFile, tag){
   const con={};

@@ -14,7 +14,7 @@
  *   · 真被断门方收走的分 —— 净损失的下界,这个才是要压下去的数
  *
  * 注意它**不是尺子**:少贴分不等于多赢分,分可能只是换个地方丢。
- * 聚合收益看 ai-h2h.js,见 NOTES/measurement.md。
+ * 聚合收益看 ai-h2h.js,见 docs/notes/measurement.md。
  */
 const fs=require('fs'),vm=require('vm');
 const b=[...fs.readFileSync(process.argv[2]||'80fen-test.html','utf8')

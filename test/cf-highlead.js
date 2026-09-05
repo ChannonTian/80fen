@@ -14,7 +14,7 @@
  *
  * 打分口径与 ab.js 一致:以 80 为零点的零和,从「我」这一队看。
  * 分层看:在外更大的有几张、这门我还剩几张、还剩几墩。
- * ——「一次性偏离 ≠ 策略性偏离」,这里量的是前者,见 NOTES/measurement.md 三。
+ * ——「一次性偏离 ≠ 策略性偏离」,这里量的是前者,见 docs/notes/measurement.md 三。
  */
 const fs=require('fs'),vm=require('vm');
 const b=[...fs.readFileSync(process.argv[2]||'index.html','utf8')

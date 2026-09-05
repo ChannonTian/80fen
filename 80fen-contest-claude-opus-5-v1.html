@@ -7913,8 +7913,22 @@ const TERMS={
     suitS:'Spades♠',suitH:'Hearts♥',suitD:'Diamonds♦',suitC:'Clubs♣',
     seat0:'South (you)',seat1:'East',seat2:'North (partner)',seat3:'West'}
 };
+/* localStorage 的前缀按**文件名**走,不写死一个常量:
+ *   index.html(以及 / 这个目录首页) → 历史键名
+ *   80fen-test.html                  → 80fen-t-
+ *   80fen-contest-<选手>-v1.html     → 80fen-c-<选手>-
+ * 正式版留用历史键名是有意的 —— 换掉等于把所有在玩的人的设置和笔记凭空抹掉。
+ * 而**跟着文件名推、不写成常量**也是有意的:晋级是整份复制 + 改两处身份标记,
+ * 前缀要是第三处得手改的东西,迟早有一次会忘 —— 忘了就是把线上玩家切到
+ * 测试版的存储上。观察页也吃这条规则,所以生成器不用再替换一遍键名。 */
+const LSP=(()=>{
+  const f=(String(location.pathname).match(/[^/]*$/)||[''])[0];
+  const c=f.match(/^80fen-contest-(.+)-v\d+\.html$/);
+  if(c) return '80fen-c-'+c[1]+'-';
+  return f==='80fen-test.html' ? '80fen-t-' : '80fentest-';
+})();
 let lang='sh';
-try{ const v=localStorage.getItem('80fen-c-claude-opus-5-lang');
+try{ const v=localStorage.getItem(LSP+'lang');
      if(v&&TERMS[v]) lang=v; else if(v==='cn') lang='cn'; }catch(e){}
 const T=k=>(TERMS[lang]&&TERMS[lang][k])||TERMS.cn[k]||k;
 
@@ -7936,20 +7950,20 @@ const rankName=r=>r===14?T('rankA'):r===13?T('rankK'):r===12?T('rankQ'):r===11?T
 let G=null, seedBase=Date.now()%100000, activeTab='score', logMode='event';
 // 每墩视图的两个看法开关:logAsc = 第 1 墩在上(复盘从头看),logFocus = 只放大第 N 墩(0 = 列全部)
 let logAsc=false, logFocus=0;
-let notes=[]; try{ notes=JSON.parse(localStorage.getItem('80fen-c-claude-opus-5-notes')||'[]'); }catch(e){}
+let notes=[]; try{ notes=JSON.parse(localStorage.getItem(LSP+'notes')||'[]'); }catch(e){}
 // 旧版笔记存的是纯字符串,没有局数;读进来补成 {r,t},历史笔记 r=null 就不显示局号
 notes=notes.map(n=>typeof n==='string'?{r:null,t:n}:n).filter(n=>n&&n.t);
 
 /* 右栏宽度:复盘时四家的牌挤在 mini 尺寸里看不清,允许拉宽两档。
  * 存倍率而不是绝对宽度 —— 横屏窄栏那套 @media 基准要保留,只是整体乘一下。 */
 const SIDE_STEPS=[1,1.35,1.75], SIDE_NAMES=['标准','加宽','特宽'];
-let sideStep=0; try{ sideStep=+(localStorage.getItem('80fen-c-claude-opus-5-sidew')||0); }catch(e){}
+let sideStep=0; try{ sideStep=+(localStorage.getItem(LSP+'sidew')||0); }catch(e){}
 if(!(sideStep>=0&&sideStep<SIDE_STEPS.length)) sideStep=0;
 function applySideW(){ document.documentElement.style.setProperty('--sideScale',SIDE_STEPS[sideStep]); }
 applySideW();
 
 // ---- 音效(WebAudio 合成,无外部资源,可关) ----
-let sndOn=true; try{ sndOn=localStorage.getItem('80fen-c-claude-opus-5-snd')!=='off'; }catch(e){}
+let sndOn=true; try{ sndOn=localStorage.getItem(LSP+'snd')!=='off'; }catch(e){}
 let _actx=null;
 function beep(freq,dur=0.08,type='sine',gain=0.06,delay=0){
   if(!sndOn) return;
@@ -7999,14 +8013,14 @@ const S_DEFAULT={
 const AUTO_STEP_MS=350, AUTO_HOLD_MS=700, FORCED_MS=450;
 let S={...S_DEFAULT, gates:[...S_DEFAULT.gates], rules:{...RULE_DEFAULTS}};
 try{
-  const saved=JSON.parse(localStorage.getItem('80fen-c-claude-opus-5-set')||'{}');
+  const saved=JSON.parse(localStorage.getItem(LSP+'set')||'{}');
   Object.assign(S,saved);
   S.rules={...RULE_DEFAULTS,...(saved.rules||{})};   // 老存档没有 rules 字段时回落到出厂值
 }catch(e){}
 function applyRules(){ Object.assign(RULES,S.rules); }
 applyRules();
 RULES.speedRun=!!S.speedRun;      // 设置是持久化的,启动时同步进引擎
-function saveS(){ try{ localStorage.setItem('80fen-c-claude-opus-5-set',JSON.stringify(S)); }catch(e){} }
+function saveS(){ try{ localStorage.setItem(LSP+'set',JSON.stringify(S)); }catch(e){} }
 // 秒 → 毫秒,顺手挡掉手输的空值/负数/非数字
 const secs=(v,fallback)=>1000*Math.max(0,(typeof v==='number'&&isFinite(v))?v:fallback);
 function aiThinkMs(){
@@ -8172,9 +8186,9 @@ function openSettings(){
     if(G) scheduleHumanAuto(); };          // 可能正轮到你、而这一手恰好没得选
   $('stAuto').onchange=e=>{ window.__setAuto(e.target.checked); fill(); };
   $('stLang').onchange=e=>{ lang=TERMS[e.target.value]?e.target.value:'cn';
-    try{ localStorage.setItem('80fen-c-claude-opus-5-lang',lang); }catch(_){ } if(G) render(); };
+    try{ localStorage.setItem(LSP+'lang',lang); }catch(_){ } if(G) render(); };
   $('stSnd').onchange=e=>{ sndOn=e.target.checked;
-    try{ localStorage.setItem('80fen-c-claude-opus-5-snd',sndOn?'on':'off'); }catch(_){ } };
+    try{ localStorage.setItem(LSP+'snd',sndOn?'on':'off'); }catch(_){ } };
   $('cOn').onchange=e=>{ C.on=e.target.checked; saveC(); if(G) render(); };
   $('cSens').onchange=e=>{ C.gapSens=e.target.value; saveC(); };
   $('cStrict').onchange=e=>{ C.strict=e.target.checked; saveC(); };
@@ -8191,8 +8205,8 @@ function openSettings(){
     saveS(); saveC(); applyRules();
     if(G&&G.auto!==snapshot.auto) window.__setAuto(snapshot.auto);
     try{
-      localStorage.setItem('80fen-c-claude-opus-5-lang',lang);
-      localStorage.setItem('80fen-c-claude-opus-5-snd',sndOn?'on':'off');
+      localStorage.setItem(LSP+'lang',lang);
+      localStorage.setItem(LSP+'snd',sndOn?'on':'off');
     }catch(_){ }
     if(G) render();
     closeSettings();
@@ -8224,8 +8238,8 @@ window.__showKitty=()=>{
 
 // ---- 教练设置(全部可开关可调,默认全开) ----
 let C={on:false, gapSens:'中', strict:false, review:true, quiz:true, memShow:false};
-try{ Object.assign(C,JSON.parse(localStorage.getItem('80fen-c-claude-opus-5-coach')||'{}')); }catch(e){}
-function saveC(){ try{ localStorage.setItem('80fen-c-claude-opus-5-coach',JSON.stringify(C)); }catch(e){} }
+try{ Object.assign(C,JSON.parse(localStorage.getItem(LSP+'coach')||'{}')); }catch(e){}
+function saveC(){ try{ localStorage.setItem(LSP+'coach',JSON.stringify(C)); }catch(e){} }
 // 教练的「失误」门槛,单位是折算后的期望分。
 // 领出与跟牌的评分基准不同(领出含「拿住牌权」的战略值,量纲约为跟牌的 4 倍),
 // 所以领出的差值先除以 LEAD_GAP_SCALE 再比,否则教练会对领出唠叨、对跟牌失明。
@@ -8936,7 +8950,7 @@ window.__next=()=>{ document.getElementById('overlay').style.display='none'; new
 window.__newMatch=()=>{ M={levels:[2,2],dealer:-1,round:0,played:[-1,-1],past:[]}; logRound=null; logFocus=0;
   scrambleNext=false; redealCount=0;
   // 笔记是记这一场的(第几局谁扣了什么底),整场重开就该跟着清空 —— 否则局号会串到新的一场
-  notes=[]; try{ localStorage.removeItem('80fen-c-claude-opus-5-notes'); }catch(e){}
+  notes=[]; try{ localStorage.removeItem(LSP+'notes'); }catch(e){}
   document.getElementById('overlay').style.display='none'; newRound(); };
 window.__review=()=>{ document.getElementById('overlay').style.display='none';
   render(); setMsg('复盘中:可查看出牌历史、教练复盘等记录,准备好后点下方"下一局"继续'); };
@@ -9233,7 +9247,7 @@ function renderPanel(){
     const wbtn=el.querySelector('#sideWider');
     if(wbtn) wbtn.onclick=()=>{
       sideStep=(sideStep+1)%SIDE_STEPS.length;
-      try{ localStorage.setItem('80fen-c-claude-opus-5-sidew',sideStep); }catch(e){}
+      try{ localStorage.setItem(LSP+'sidew',sideStep); }catch(e){}
       applySideW(); fitHandRow(); renderPanel(); };
     const sk=el.querySelector('#trkSeek');
     // 只重画标签和牌区,不整块 renderPanel —— innerHTML 一换,正在拖的滑块就被拆掉了
@@ -9337,7 +9351,7 @@ function sendNote(){
   const v=el.value.trim();
   if(!v) return;
   notes.push({r:M.round+1,t:v}); el.value='';
-  try{ localStorage.setItem('80fen-c-claude-opus-5-notes',JSON.stringify(notes.slice(-100))); }catch(e){}
+  try{ localStorage.setItem(LSP+'notes',JSON.stringify(notes.slice(-100))); }catch(e){}
   renderPanel();
 }
 

@@ -288,7 +288,8 @@ function playRound(st){
     else if(applied<0) vio[1-declTeam].applied+=-applied;
     const sc=E.scoreRound({defPoints:penalized, kitty:buried,
       defWonLastTrick: lastWinner%2!==declTeam, lastLeadSize});
-    return {sc, declSeat, declTeam, trump, redealCount, rawDefPoints:defPoints,
+    return {sc, declSeat, declTeam, trump, declStrength: decl?decl.strength:0,
+            redealCount, rawDefPoints:defPoints, tricks,
             penalty:[pen[0],pen[1]], penaltyApplied:applied,
             defWonLast: lastWinner%2!==declTeam, scrambleNext};
   }
@@ -317,9 +318,15 @@ function playMatch(matchSeed, aiOf, o){
                              opt.gates&&opt.gates.length?opt.gates:null, M.played);
     M.levels=adv.levels; M.dealer=adv.dealer; M.round++;
     if(adv.played) M.played=adv.played;
+    /* 一局一条记录 —— 复盘和申诉都靠它:谁坐庄、亮的什么主、闲家拿了多少分
+     * (rawTotal 是罚分之前的原始分,total 是判罚并算过底翻之后的最终分)、
+     * 两队级数怎么走的。逐墩记录量太大,不进这里。 */
     rounds.push({no:M.round, declSeat:r.declSeat, declTeam:r.declTeam,
+                 trump:r.trump.suit, trumpRank:r.trump.rank, declStrength:r.declStrength,
                  total:r.sc.total, rawTotal:r.rawDefPoints, penalty:r.penalty,
-                 defendersWin:r.sc.defendersWin,
+                 defendersWin:r.sc.defendersWin, defWonLast:r.defWonLast,
+                 tricks:r.tricks, kittyPts:r.sc.kittyPts, mult:r.sc.mult,
+                 defLevelsUp:r.sc.defenderLevelsUp,
                  before, after:adv.levels.slice(), redeals:r.redealCount});
     if(adv.matchOver){ winnerTeam=adv.winnerTeam; break; }
   }

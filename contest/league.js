@@ -9,7 +9,9 @@
  *   --seeds=30     每一对跑多少副牌(每副打两场,交换阵营)。默认 30
  *   --jobs=N       并行进程数,默认按 CPU 核数
  *   --eg           给自家陪练开收官蒙特卡洛(慢 4 倍)
- *   --log-hands    把每一手牌都记下来(数据量很大,只在要复盘某一对时开)
+ *   --log-rounds   每一局记一行,写进 --log=FILE(默认 league-rounds.ndjson.gz)。
+ *                  排名和申诉靠它复盘;逐墩记录量太大,不记。
+ *   --log=FILE     逐局记录的去处。以 .gz 结尾就自动压缩。
  *   --out=FILE     结果写成 JSON,默认 league-result.json
  *
  * 为什么两两都要打:只对一个固定陪练打,优化目标会歪成「专治这一个对手」。
@@ -20,7 +22,7 @@
  */
 'use strict';
 const {fork}=require('child_process');
-const os=require('os'), fs=require('fs'), path=require('path');
+const os=require('os'), fs=require('fs'), path=require('path'), zlib=require('zlib');
 
 const argv=process.argv.slice(2);
 const opt=(k,d)=>{ const a=argv.find(x=>x.startsWith(`--${k}=`)); return a?a.slice(k.length+3):d; };
@@ -30,6 +32,15 @@ const files=argv.filter(a=>!a.startsWith('--'));
 const SEEDS=+opt('seeds',30), SEED0=+opt('seed0',0);
 const BUILD=process.env.BUILD||'index.html';
 const OUT=opt('out','league-result.json');
+const KEEP=has('log-rounds')||has('log-hands');   // --log-hands 是旧名字,留着不打断手上的脚本
+const LOGF=opt('log','league-rounds.ndjson.gz');
+/* 逐局记录**不进** league-result.json —— 300 副 × 3 对缩进过的 JSON 是几十兆,
+ * 排行榜就没法看了。分开写成一行一局的 NDJSON,.gz 结尾自动压缩。 */
+let logStream=null, logRounds=0;
+if(KEEP){
+  const raw=fs.createWriteStream(LOGF);
+  logStream=/\.gz$/.test(LOGF) ? (()=>{ const gz=zlib.createGzip(); gz.pipe(raw); return gz; })() : raw;
+}
 const JOBS=Math.max(1, +opt('jobs', Math.max(1, os.cpus().length-1)));
 
 const players=files.map((p,i)=>({id:path.basename(p).replace(/\.js$/,''), path:p, idx:i}));
@@ -59,6 +70,14 @@ const results=[];
 
 function takeResult(r){
   if(r.err){ console.error(`  ! ${r.a} vs ${r.b}:${r.err}`); done++; return; }
+  if(r.log && r.log.length){
+    for(const m of r.log){
+      logStream.write(JSON.stringify({a:r.a, b:r.b, seed:m.seed, aTeam:m.aTeam,
+        winner:m.winner, levels:m.levels, rounds:m.rounds})+'\n');
+      logRounds+=m.rounds.length;
+    }
+  }
+  delete r.log;
   results.push(r);
   const ia=players.findIndex(p=>p.id===r.a), ib=players.findIndex(p=>p.id===r.b);
   const A=T[ia], B=T[ib];
@@ -82,7 +101,7 @@ function feed(w){
   if(next>=pairs.length){ w.kill(); return; }
   const [i,j]=pairs[next++];
   w.send({a:players[i], b:players[j], seeds:SEEDS, seed0:SEED0, build:BUILD,
-          eg:has('eg'), keepHands:has('log-hands')});
+          eg:has('eg'), keepHands:KEEP});
 }
 
 const workers=[];
@@ -101,7 +120,11 @@ function finish(){
   workers.forEach(w=>{ try{ w.kill(); }catch(e){} });
   process.stderr.write('\r' + ' '.repeat(70) + '\r');
   report();
-  process.exit(0);
+  if(logStream) logStream.end(()=>{
+    console.log(`→ ${LOGF}(${logRounds} 局逐局记录,一行一场)\n`);
+    process.exit(0);
+  });
+  else process.exit(0);
 }
 
 function stat(a){ if(!a.length) return {m:0,se:0,n:0};
@@ -158,5 +181,5 @@ function report(){
     build:BUILD, table:rows.map(r=>({id:r.id,w:r.w,l:r.l,d:r.d,rate:r.rate,
       lvl:r.lvl,pts:r.pts,vioCount:r.vioCount,vioPts:r.vioPts,vioApplied:r.vioApplied,vioBy:r.vioBy,
       rounds:r.rounds,opp:r.opp})), pairs:results}, null, 2));
-  console.log(`\n→ ${OUT}(含每一对的完整数据${has('log-hands')?'与逐手记录':''})\n`);
+  console.log(`\n→ ${OUT}(积分榜与每一对的汇总)`);
 }

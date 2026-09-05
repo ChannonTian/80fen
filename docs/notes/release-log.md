@@ -1,12 +1,12 @@
 # 上线备忘
 
 > 原名 `上线备忘-v0.5.8.md`,后续版本的备忘直接往下追加,所以文件名早已名不副实。
-> 里面提到的 `AI-DESIGN.md` = 现在的 `DESIGN.md`,`CHANGELOG.md` 的完整历史条目
+> 里面提到的 `AI-DESIGN.md` = 现在的 `docs/DESIGN.md`,`docs/CHANGELOG.md` 的完整历史条目
 > = 现在的 `NOTES/ai-journal.md`。**这是历史记录,不改写。**
 >
 > **时间范围:v0.5.8 ~ v0.7.0。** v0.7.1 起不再单独写上线备忘 ——
-> 「上线前跑什么」已经固化成 [`test/check-sync.js`](../test/check-sync.js) 与
-> [`DESIGN.md`](../DESIGN.md) §12,一次改动的结论写进 `CHANGELOG.md`,
+> 「上线前跑什么」已经固化成 [`test/check-sync.js`](../../test/check-sync.js) 与
+> [`docs/DESIGN.md`](../DESIGN.md) §12,一次改动的结论写进 `docs/CHANGELOG.md`,
 > 这一页不再追加。
 
 ---
@@ -19,7 +19,7 @@
 |---|---|
 | `80fen-test.html` | AI 逻辑（第 1 个 `<script>` 块）。**界面/样式/第 3 个 script 块零改动** —— 已用 diff 逐字节确认 |
 | `ai-scenarios.js` | 新增。回归场景库，15 条断言 |
-| `CHANGELOG.md` | 新增 v0.5.8 条目 |
+| `docs/CHANGELOG.md` | 新增 v0.5.8 条目 |
 | `AI-DESIGN.md` | §5.4 补 (b′)(c)、新增 §5.5c、§6 加第 4 层验证、§7 更新三行、版本沿革 |
 | `README.md` | 版本号、文件表、开发备忘里加「配对自对弈量不到什么」 |
 

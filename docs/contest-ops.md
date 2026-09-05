@@ -1,6 +1,6 @@
 # AI 比赛 —— 运营手册(内部)
 
-**参赛者看的是 [`contest/public/README.md`](contest/public/README.md),不是这一份。**
+**参赛者看的是 [`contest/public/README.md`](../contest/public/README.md),不是这一份。**
 那一份里没有我们的任何代码,也没有任何关于我们这个 AI 的线索。
 
 ---
@@ -24,21 +24,23 @@ node contest/gen-public.js          # 重新生成 public/RULES.md
 cp -r contest/public/. <参赛repo>/  # 同步过去
 ```
 
-`public/RULES.md` 是**生成的**,不能手改。它对主 repo 的 `RULES.md` 只做两处必要
-改写(开头提到 `index.html` 那句、结尾链到 `DESIGN.md` 那句 —— 参赛者两样都看不到),
+`public/RULES.md` 是**生成的**,不能手改。它对主 repo 的 `docs/RULES.md` 只做两处必要
+改写(开头提到 `index.html` 那句、结尾链到 `docs/DESIGN.md` 那句 —— 参赛者两样都看不到),
 正文一个字不动。`check-sync` 钉着这一条:手工副本会悄悄漂,而漂了之后参赛者按老规则
-写、裁判按新规则判,罚分就成了冤枉。主 repo 的 `RULES.md` 改了措辞导致替换失配时,
+写、裁判按新规则判,罚分就成了冤枉。主 repo 的 `docs/RULES.md` 改了措辞导致替换失配时,
 生成器会报错并指出是哪一段。
 
 其余一律留在这边。特别是:
 
 * `index.html` / `80fen-test.html` —— 引擎和 AI 都在里面
 * `contest/baseline.js`、`contest/ai-baseline.js` —— 陪练,101 个 AI 内部函数的包装
-* `contest/engine.js`、`referee.js`、`league.js`、`pair-worker.js` —— 裁判
+* `contest/engine.js`、`referee.js`、`league.js`、`pair-worker.js`、`report.js` —— 裁判与赛报
+* `contest/results/` —— 历次联赛的完整记录
+* `contest.html` —— 比赛主页(对外),数字全部来自 `contest/results/`
 
-**参赛者拿不到引擎是设计,不是省事。** 他们照 `RULES.md` §S3 自己写引擎,写歪了用罚分说话 —— 代码和策略一样计分。
+**参赛者拿不到引擎是设计,不是省事。** 他们照 `docs/RULES.md` §S3 自己写引擎,写歪了用罚分说话 —— 代码和策略一样计分。
 
-`RULES.md` 是**唯一权威**:裁判的实现和它不一致就是我们的 bug,公开修、受影响的对局重跑。别让比赛变成猜我们的实现细节。
+`docs/RULES.md` 是**唯一权威**:裁判的实现和它不一致就是我们的 bug,公开修、受影响的对局重跑。别让比赛变成猜我们的实现细节。
 
 ---
 
@@ -51,9 +53,15 @@ node contest/league.js <选手1> <选手2> ... [--seeds=30] [--jobs=N]
 选手可以是 `.js` 或目录(入口 `index.js`)。陪练(`contest/ai-baseline.js`)默认作为一名选手加进去,`--no-house` 去掉。
 
 ```bash
-node contest/selftest.js index.html      # 裁判器自测,31 项,改动裁判后必跑
+node contest/selftest.js index.html      # 裁判器自测,36 项,改动裁判后必跑
 node contest/run.js A.js B.js 120        # 单对详跑,三个口径 + 配对统计
+node contest/report.js <result.json> [rounds.ndjson.gz]   # 出赛报(Markdown)
+node contest/review.js <rounds.ndjson.gz> --all           # 逐选手复盘
 ```
+
+**陪练要带 `--eg`。** `run.js`/`league.js` 默认把 `AIP.egSearch` 关掉(快 4 倍),那是调参时图快用的;
+正式跑要开,因为线上 `index.html` 的默认就是 `egSearch: 1` —— 关着跑等于让我们安插的选手降级出战,
+排名会好看,但不是它真实的牌力。参赛者不受这个开关约束,想搜就搜,代价是超时。
 
 ### 规模
 
@@ -65,7 +73,31 @@ node contest/run.js A.js B.js 120        # 单对详跑,三个口径 + 配对统
 | 17 | 136 | 11 小时 | 1.5 小时 |
 | 31 | 465 | 39 小时 | 5 小时 |
 
-`--log-hands` 会把每一手都记下来 —— 17 名选手全量约 2400 万手,只在要复盘某一对时开。默认每局一行摘要,排名和申诉都够用。
+开 `--eg` 再乘 4。3 名选手 × 300 副 + `--eg` 实测约 1 小时(4 核)。
+
+### 记录
+
+```bash
+node contest/league.js ... --seeds=300 --eg --log-rounds \
+     --log=contest/results/<日期>-rounds.ndjson.gz \
+     --out=contest/results/<日期>-league.json
+node contest/report.js contest/results/<日期>-league.json \
+     contest/results/<日期>-rounds.ndjson.gz
+```
+
+三份东西,分工不同:
+
+| 文件 | 内容 | 谁看 |
+|---|---|---|
+| `<日期>-league.md` | 赛报:积分榜、对战表、逐对配对统计、打法画像 | 人 |
+| `<日期>-league.json` | 积分榜 + 每一对的配对样本(一个种子一个数)| 想自己重算的人 |
+| `<日期>-review-<选手>.md` | 逐选手复盘:分差丢在哪一侧、关卡、底、亮主、最差十局 | 选手本人 |
+| `<日期>-rounds.ndjson.gz` | 一行一场,`rounds[]` 里一局一条 | 复盘、申诉 |
+
+逐局记录**不进** `league-result.json` —— 300 副 × 3 对缩进过的 JSON 是几十兆,排行榜就没法看了。
+一行一局的 NDJSON,`.gz` 结尾自动压缩,3 名选手 × 300 副约 44000 局、压缩后不到 1 MB。
+逐墩记录不记:17 名选手全量约 2400 万手,复盘一对牌用同一个种子重跑一遍就有了
+(决策路径里没有 `Math.random`,同种子必然同牌同走法)。
 
 ---
 
@@ -126,7 +158,7 @@ realm 里没有 `fs`、没有 `process`、没有网络、没有 npm。**这不�
 
 **联赛每对 30 副够**:排名靠对所有人的累计战绩,单对的噪声会被平均掉。但要判断某一次改动值不值,得 500 上下 —— 这个项目历史上量到过的 AI 改动是 +0.56~+0.88 分/局那个量级。
 
-**看配对口径,别看逐场口径。** 交换阵营的两场是同一批牌,牌运在它们之间反相;当成独立样本会凭空算出 SE(实测:两边跑同一个 AI 时逐场口径报 ±20.4%,配对口径是 0)。同一个坑 `NOTES/measurement.md` 写过一整页,搭跑分器时又踩了一次。
+**看配对口径,别看逐场口径。** 交换阵营的两场是同一批牌,牌运在它们之间反相;当成独立样本会凭空算出 SE(实测:两边跑同一个 AI 时逐场口径报 ±20.4%,配对口径是 0)。同一个坑 `docs/notes/measurement.md` 写过一整页,搭跑分器时又踩了一次。
 
 ---
 
