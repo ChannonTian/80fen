@@ -3,17 +3,21 @@
  *   node contest/gen-public.js          # 写文件
  *   node contest/gen-public.js --check  # 只校验是否与主 repo 同步(check-sync 用)
  *
- * 为什么要生成而不是手工复制一份:主 repo 的 RULES.md 会继续改,手工副本会悄悄漂,
+ * 为什么要生成而不是手工复制一份:主 repo 的 docs/RULES.md 会继续改,手工副本会悄悄漂,
  * 而漂了之后参赛者按老规则写、裁判按新规则判 —— 罚分就成了冤枉。
  * 这里只做两处**必要**的改写,正文一个字不动:
  *   1) 开头提到 index.html / 80fen-test.html —— 参赛者看不到那两个文件
  *   2) 结尾链到 DESIGN.md —— 那是我们的内部文档,不该指过去,链过去也是断的
  * 除这两处之外任何差异都算漂移,check-sync 会报。
+ *
+ * 所以 docs/RULES.md 里的路径要写**裸文件名**,别写成 `docs/DESIGN.md` ——
+ * 这一份是要发出去的,参赛者那边没有我们的目录结构。2026-09-05 把文档收进 docs/ 时
+ * 顺手把它也改了,SUBS 立刻失配 —— 那次是 check-sync 挡下来的。
  */
 'use strict';
 const fs=require('fs'), path=require('path');
 const ROOT=path.join(__dirname,'..');
-const SRC=path.join(ROOT,'RULES.md');
+const SRC=path.join(ROOT,'docs','RULES.md');
 const DST=path.join(ROOT,'contest','public','RULES.md');
 
 const SUBS=[
@@ -32,8 +36,8 @@ function build(){
   let s=fs.readFileSync(SRC,'utf8');
   for(const [from,to] of SUBS){
     if(!s.includes(from)){
-      console.error(`✗ 主 repo 的 RULES.md 里找不到要替换的这一段:\n---\n${from}\n---`);
-      console.error('  (多半是 RULES.md 改了措辞 —— 把 contest/gen-public.js 里的 SUBS 跟着改)');
+      console.error(`✗ 主 repo 的 docs/RULES.md 里找不到要替换的这一段:\n---\n${from}\n---`);
+      console.error('  (多半是 docs/RULES.md 改了措辞 —— 把 contest/gen-public.js 里的 SUBS 跟着改)');
       process.exit(2);
     }
     s=s.split(from).join(to);

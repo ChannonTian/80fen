@@ -7,26 +7,45 @@
 * **[在线试玩稳定版](https://channontian.github.io/80fen/)**
 * [在线试玩测试版](https://channontian.github.io/80fen/80fen-test.html)
 
+## 仓库长什么样
+
+根目录只放**部署出去的东西**和 README —— GitHub Pages 把整个仓库根目录当站点发,
+所以这几份 html 的路径就是线上的 URL,不能挪。其余按用途分开:
+
+```
+index.html                     正式版(线上 /)
+80fen-test.html                测试版
+80fen-contest-<选手>-v1.html   参赛版观察页
+contest.html                   比赛主页
+
+docs/                          文档
+  RULES.md  DESIGN.md  SWITCHES.md  CHANGELOG.md  contest-ops.md
+  notes/                       过程笔记(推演、量法、否掉的尝试、上线备忘)
+
+test/                          三份 build 的测试与体检脚本
+contest/                       比赛:裁判、联赛、赛报、参赛 repo 的内容、历次结果
+```
+
 ## 文档地图
 
 每份文档一个读者、一种时态,**同一件事只有一个家**。
-两份「照着能做出同样东西」的文档:规则交给 [`RULES.md`](RULES.md)(第三部分),
-产品交给 [`DESIGN.md`](DESIGN.md)(第一部分)。AI 比赛的运营看
-[`AI-API.md`](AI-API.md),发给参赛者的那一份在 [`contest/public/`](contest/public/)。
+两份「照着能做出同样东西」的文档:规则交给 [`docs/RULES.md`](docs/RULES.md)(第三部分),
+产品交给 [`docs/DESIGN.md`](docs/DESIGN.md)(第一部分)。AI 比赛的运营看
+[`docs/contest-ops.md`](docs/contest-ops.md),发给参赛者的那一份在 [`contest/public/`](contest/public/)。
 
 | 文档 | 写给谁 | 里面是什么 |
 |---|---|---|
-| **[`RULES.md`](RULES.md)** | 玩家 + 要重新实现这套规则的人 | 规则书。①入门(没打过也能上手)②裁决手册(甩牌、拖拉机怎么跟、抠底几倍、关卡怎么算)③**实现规格**:八个判定的伪码、参数总表、一套自测向量 —— 跑通那张表就是同一个游戏 |
-| **[`DESIGN.md`](DESIGN.md)** | 改代码的人 + 要复刻这个产品的人 | ①**产品规格**(§A–§G):九条硬约束、代码地图、数据模型、接口契约、界面规格、复刻路线图与验收清单 ②**AI 设计**(§0–§10):三阶段评分公式、每一项的来历、已知短板 ③功能总表(§11)与工程(§12) |
-| **[`AI-API.md`](AI-API.md)** | 办比赛的人(内部) | 哪些发出去哪些留着、怎么跑联赛、裁判的关键实现决定、赛制标定数据、收提交的流程 |
+| **[`docs/RULES.md`](docs/RULES.md)** | 玩家 + 要重新实现这套规则的人 | 规则书。①入门(没打过也能上手)②裁决手册(甩牌、拖拉机怎么跟、抠底几倍、关卡怎么算)③**实现规格**:八个判定的伪码、参数总表、一套自测向量 —— 跑通那张表就是同一个游戏 |
+| **[`docs/DESIGN.md`](docs/DESIGN.md)** | 改代码的人 + 要复刻这个产品的人 | ①**产品规格**(§A–§G):九条硬约束、代码地图、数据模型、接口契约、界面规格、复刻路线图与验收清单 ②**AI 设计**(§0–§10):三阶段评分公式、每一项的来历、已知短板 ③功能总表(§11)与工程(§12) |
+| **[`docs/contest-ops.md`](docs/contest-ops.md)** | 办比赛的人(内部) | 哪些发出去哪些留着、怎么跑联赛、裁判的关键实现决定、赛制标定数据、收提交的流程 |
 | **[`contest/public/README.md`](contest/public/README.md)** | 参赛者 | 参赛手册:五个方法的契约、`view` 字段表、罚分、赛制、十个坑。**不含我们的任何代码,也不含关于我们这个 AI 的线索** |
-| **[`SWITCHES.md`](SWITCHES.md)** | 调参的人 | 132 个 `AIP` 开关的登记表(脚本生成,可重跑) |
-| **[`CHANGELOG.md`](CHANGELOG.md)** | 想知道哪版改了什么 | 版本总表 + 每版结论 |
-| [`NOTES/ai-journal.md`](NOTES/ai-journal.md) | 未来的自己 | **v0.1.0~v0.7.5** 的完整推演与实验数据(当年的 CHANGELOG 全文)。v0.7.6 起不再分家,直接写在 `CHANGELOG.md` |
-| [`NOTES/measurement.md`](NOTES/measurement.md) | 同上 | **三把尺子,以及每一把量不到什么**。改 AI 之前先读这页 |
-| [`NOTES/negative-results.md`](NOTES/negative-results.md) | 同上 | 试过、测了、否掉的改动。动那些默认关的开关之前先读 |
-| [`NOTES/release-log.md`](NOTES/release-log.md) | 同上 | **v0.5.8~v0.7.0** 的上线备忘。v0.7.1 起上线前的检查固化成 `check-sync` 与 `DESIGN.md` §12,这一页不再追加 |
-| [`NOTES/archive-plans.md`](NOTES/archive-plans.md) | 同上 | 两份已实施的旧方案,存档 |
+| **[`docs/SWITCHES.md`](docs/SWITCHES.md)** | 调参的人 | 132 个 `AIP` 开关的登记表(脚本生成,可重跑) |
+| **[`docs/CHANGELOG.md`](docs/CHANGELOG.md)** | 想知道哪版改了什么 | 版本总表 + 每版结论 |
+| [`notes/ai-journal.md`](docs/notes/ai-journal.md) | 未来的自己 | **v0.1.0~v0.7.5** 的完整推演与实验数据(当年的 CHANGELOG 全文)。v0.7.6 起不再分家,直接写在 `docs/CHANGELOG.md` |
+| [`notes/measurement.md`](docs/notes/measurement.md) | 同上 | **三把尺子,以及每一把量不到什么**。改 AI 之前先读这页 |
+| [`notes/negative-results.md`](docs/notes/negative-results.md) | 同上 | 试过、测了、否掉的改动。动那些默认关的开关之前先读 |
+| [`notes/release-log.md`](docs/notes/release-log.md) | 同上 | **v0.5.8~v0.7.0** 的上线备忘。v0.7.1 起上线前的检查固化成 `check-sync` 与 `docs/DESIGN.md` §12,这一页不再追加 |
+| [`notes/archive-plans.md`](docs/notes/archive-plans.md) | 同上 | 两份已实施的旧方案,存档 |
 
 ## 代码文件
 
@@ -44,14 +63,15 @@
 | `test/audit-reason.js` | **教练理由的事实体检** —— 只查「理由说的和牌面对不对得上」,不评价棋力 |
 | `test/audit-dumpvoid.js` | 行为审计:「后手有已知断门的对手,我却把分贴过去」 |
 | `test/check-sync.js` | **三份 build 与文档的一致性体检** —— 晋级、推送之前跑一遍 |
-| `test/gen-switches.js` | 生成 `SWITCHES.md` |
+| `test/gen-switches.js` | 生成 `docs/SWITCHES.md` |
 | `contest/engine.js` | 比赛用的引擎包:从 build 里**运行时抽取**块①,每个参赛者一个隔离 realm |
 | `contest/referee.js` | 裁判器:在 node 里完整复刻界面块的一整场打级对局 |
 | `contest/mount.js` | 一份提交装进哪间屋子 —— 白名单里的走 house,其余一律空屋 |
 | `contest/run.js` | 单对详跑:交换阵营、三个口径、配对统计 |
 | `contest/league.js` | **联赛**:所有选手两两对过局,多进程并行,出积分榜 |
 | `contest/report.js` | 把一次联赛写成赛报:积分榜、对战表、逐对配对统计、打法画像 |
-| `contest/results/` | 历次联赛的完整记录 —— 赛报、积分榜 JSON、逐局 NDJSON |
+| `contest/review.js` | 逐选手复盘:分差丢在哪一侧、关卡局、底、亮主、丢分最多的十局 |
+| `contest/results/` | 历次联赛的完整记录 —— 赛报、复盘、积分榜 JSON、逐局 NDJSON |
 | `contest/public/` | **参赛 repo([80fen-contest](https://github.com/ChannonTian/80fen-contest))的全部内容** —— 手册、规则书、提交模板 |
 | `contest/gen-public.js` | 生成 `contest/public/RULES.md`;`check-sync` 钉住它与主 repo 同步 |
 | `contest/gen-viewer.js` | 给参赛提交**套上 GUI 壳**,生成人类观察员能坐下来打的页面 |
@@ -68,8 +88,8 @@
 
 **当前状态**:正式版 **v0.7.12**,测试版 **v0.7.13**。
 v0.7.13 是测试版独有的一条界面改动 + 两份文档的补齐:**托管按钮从设置里搬到牌桌上**
-(庄家区,竖屏按钮改成按文案自适应才腾得出位置);`RULES.md` 补第三部分「实现规格」、
-`DESIGN.md` 补第一部分「产品规格」与 §12「工程与验证」。**不动 AI** ——
+(庄家区,竖屏按钮改成按文案自适应才腾得出位置);`docs/RULES.md` 补第三部分「实现规格」、
+`docs/DESIGN.md` 补第一部分「产品规格」与 §12「工程与验证」。**不动 AI** ——
 引擎块与自测块与正式版逐字节相同。
 v0.7.12 及以前:2026-08-28 整份复制合入正式版。
 v0.7.9~v0.7.12 这一摞随之落地:**甩牌只能甩整门**(16 批 22400 副 +0.88 ±0.28,
@@ -111,7 +131,7 @@ AI 只回答「合法之中选哪个」,规则判定全部交给引擎——所�
 **测试与对照实验都可以 node 无头跑**(提取 script 块 eval 后调 `runTests`)。
 改 AI 时只跑单元测试不够 —— 评分权重的改动往往不会让任何断言失败,却能让棋力明显退步。
 
-**动手之前请读 [`NOTES/measurement.md`](NOTES/measurement.md)**:那里有三把尺子
+**动手之前请读 [`notes/measurement.md`](docs/notes/measurement.md)**:那里有三把尺子
 (配对自对弈 / 对固定参照 / 定点反事实)、每一把量不到什么、验证量具本身的两个空跑,
 以及一份七条的检查清单。这个项目踩过的坑基本都是量错了,不是想错了。
 
@@ -141,7 +161,7 @@ node test/check-sync.js --full   # 再加三份 build 的自测(约 4 分钟)
 「先加场景」意味着断言会先于修复存在。这种用 `todo()` 而不是 `check()` 写,
 计入「已知未修」而不让整套变红;**修好之后必须改回 `check()`** ——
 一条 `todo()` 真的过了,脚本会喊一声并计入失败,免得它永远挂在那里没人管。
-当前挂着的是 H1(跨阶梯线,见 [`DESIGN.md`](DESIGN.md) §7 第一行)。
+当前挂着的是 H1(跨阶梯线,见 [`docs/DESIGN.md`](docs/DESIGN.md) §7 第一行)。
 
 两个容易踩的坑:
 

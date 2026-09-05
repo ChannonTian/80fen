@@ -9,7 +9,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 ## 怎么用
 
 * **消融**:`AOVER` / `BOVER` 环境变量按座位覆盖任意参数,做同桌配对对照 ——
-  用法见 [`NOTES/measurement.md`](NOTES/measurement.md)
+  用法见 [`notes/measurement.md`](notes/measurement.md)
 * **`0` 通常是「退回上一版行为」**。这是这个项目的硬规矩:每条 AI 改动都要能一键退回,
   否则消融结论不可信(全关空跑必须精确 0.00)
 * **扫大批量自对弈时记得 `egSearch=0`** —— 收官蒙特卡洛约 460ms/局,不关会很慢
@@ -34,7 +34,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 **默认关、且已被实测否掉的**(`leadEV2` / `endKittyCap` / `reserveFloor` / `drawTrumpVsOne` /
 `tiaoUnlock` / `buryPtShadow` / `takeOverScope` …)集中记在
-[`NOTES/negative-results.md`](NOTES/negative-results.md),动它们之前先读那一页。
+[`notes/negative-results.md`](notes/negative-results.md),动它们之前先读那一页。
 
 ---
 

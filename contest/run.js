@@ -52,7 +52,7 @@ const FB={engine:REF.E,
 
 let winA=0, winB=0, draw=0, rounds=0, redeals=0;
 const lvlDiff=[], ptsDiff=[];
-/* 配对口径 —— NOTES/measurement.md 的核心教训,这里必须再守一次。
+/* 配对口径 —— docs/notes/measurement.md 的核心教训,这里必须再守一次。
  * 把同一个 matchSeed 的两场(阵营对调)合成一个数,再对 N 个种子求 SE。
  * 两边 AI 完全一样时,两场是同一场的镜像 → D 每个种子都恰好是 0,SE 也是 0;
  * 逐场口径却会把 d 与 −d 当成两个独立样本,凭空算出一个不小的 SE。

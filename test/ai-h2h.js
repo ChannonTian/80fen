@@ -9,7 +9,7 @@
  *
  * 输出净胜分/局、SE、t 值,以及「庄家丢掉最后一墩」的比例。
  *
- * SE 有两个口径,都打出来(v0.7.10 加的配对口径,见 NOTES/measurement.md):
+ * SE 有两个口径,都打出来(v0.7.10 加的配对口径,见 docs/notes/measurement.md):
  *   · 逐副:把 2N 副当成 2N 个独立样本。**这是以前唯一的口径,它系统性高估 SE。**
  *     交换阵营的两副是同一副牌,牌运在它们之间是**反相**的 —— 两版完全一样时
  *     d 与 −d 成对出现,净胜恒等于 0,SE 却算出 1.8 分/局。
@@ -113,7 +113,7 @@ const sdP=Math.sqrt(paired.reduce((a,x)=>a+(x-mP)*(x-mP),0)/P);
 const seP=sdP/Math.sqrt(P);
 const nzArr=paired.filter(x=>x!==0);        // 两版行为真的不同的种子 —— 真实样本量
 const nz=nzArr.length;
-// 符号检验:每副净分差是重尾的,t 检验因此偏保守(见 NOTES/measurement.md 清单第 10 条)。
+// 符号检验:每副净分差是重尾的,t 检验因此偏保守(见 docs/notes/measurement.md 清单第 10 条)。
 // 配对之后每个种子就是一个独立读数,可以直接数正负号,不必再等「多批合并」。
 const pos=nzArr.filter(x=>x>0).length;
 const z=nz?(Math.abs(pos-nz/2)-0.5)/Math.sqrt(nz/4):0;         // 连续性修正

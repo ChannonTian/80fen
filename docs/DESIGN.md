@@ -1,25 +1,25 @@
 # 80分 —— 设计文档
 
 > 一份文档说清三件事:**这是个什么产品、怎么把它整个重做出来、AI 为什么这么想。**
-> 规则本身不在这里 —— 在 [`RULES.md`](RULES.md)(那一份自带实现规格与自测向量,
+> 规则本身不在这里 —— 在 [`docs/RULES.md`](RULES.md)(那一份自带实现规格与自测向量,
 > 照它写就能得到同一套引擎)。
 
 **三条阅读路径:**
 
 | 你要做的事 | 从哪读起 |
 |---|---|
-| **照着重做一个一样的产品** | 第一部分 §A–§G(产品规格与复刻路线图)→ [`RULES.md`](RULES.md) 第三部分(引擎)→ 回来读第二部分(AI)。§G 是验收清单 |
+| **照着重做一个一样的产品** | 第一部分 §A–§G(产品规格与复刻路线图)→ [`docs/RULES.md`](RULES.md) 第三部分(引擎)→ 回来读第二部分(AI)。§G 是验收清单 |
 | **改这份代码** | §B(代码地图)+ §C(数据模型)+ §D(三条接口契约),再读你要动的那一块 |
-| **改 AI / 调参** | 第二部分 §0–§10,动手前先读 [`NOTES/measurement.md`](NOTES/measurement.md) |
+| **改 AI / 调参** | 第二部分 §0–§10,动手前先读 [`notes/measurement.md`](notes/measurement.md) |
 
 **这一页只放现在成立的东西,以及已经研究讨论、尚未实现的东西。**
 后者集中在 §7(AI 已知短板)、§9(`P × S` 的适用边界)、§10(外部研究对照)、
 §11.9(产品侧还没做的功能)——都是有依据的方案与判断,只是还没落到代码里;
 正文里凡是这种,都会写明「尚未实现」。
-逐版的推演过程在 [`NOTES/ai-journal.md`](NOTES/ai-journal.md),
-被否掉的尝试在 [`NOTES/negative-results.md`](NOTES/negative-results.md),
-量具与方法论在 [`NOTES/measurement.md`](NOTES/measurement.md),
-参数登记表在 [`SWITCHES.md`](SWITCHES.md)。
+逐版的推演过程在 [`notes/ai-journal.md`](notes/ai-journal.md),
+被否掉的尝试在 [`notes/negative-results.md`](notes/negative-results.md),
+量具与方法论在 [`notes/measurement.md`](notes/measurement.md),
+参数登记表在 [`docs/SWITCHES.md`](SWITCHES.md)。
 
 所有函数名都可以在 `80fen-test.html` 的三个 `<script>` 块里直接搜到。
 
@@ -119,8 +119,8 @@
 
 | 想找 | grep |
 |---|---|
-| 某条规则怎么判的 | `RULES.md` 里那条的函数名 |
-| 某个 AI 权重什么意思 | [`SWITCHES.md`](SWITCHES.md),或 `AIP` 里那一行的注释 |
+| 某条规则怎么判的 | `docs/RULES.md` 里那条的函数名 |
+| 某个 AI 权重什么意思 | [`docs/SWITCHES.md`](SWITCHES.md),或 `AIP` 里那一行的注释 |
 | 一局的流程 | `function newRound` → `dealTick` → `settleTrump` → `afterTrumpSet` → `step` |
 | 某个按钮干了什么 | `id="btnXxx"`,再搜 `btnXxx` |
 | 某块界面怎么画的 | `function render` 里按 `document.getElementById` 找 |
@@ -133,7 +133,7 @@
 
 ## C. 数据模型
 
-牌、主、牌型的结构在 [`RULES.md`](RULES.md) §S1,那是引擎的公共词汇,这里不重复。
+牌、主、牌型的结构在 [`docs/RULES.md`](RULES.md) §S1,那是引擎的公共词汇,这里不重复。
 下面是**产品侧**的四个状态对象,以及 AI 的唯一信息入口。
 
 ### `G` —— 当前这一局(`newRound` 建,局末不清,供复盘)
@@ -159,7 +159,7 @@ M = { levels:[2,2], dealer:-1, round:0, played:[-1,-1], past:[] }
 ```
 
 `levels` 两队级数;`dealer` 下一局庄家(`-1` = 无庄局);`played` 每队**坐庄守住过**的最高级数
-(必打关卡的判据,见 `RULES.md` H);`past` 每局的存档(初始手牌/底牌/每墩/事件流/结算),
+(必打关卡的判据,见 `docs/RULES.md` H);`past` 每局的存档(初始手牌/底牌/每墩/事件流/结算),
 给跨局复盘用 —— 都是已经不会再变的数组,直接持引用即可。
 
 ### `S`(设置) / `C`(教练) —— 持久化
@@ -189,8 +189,8 @@ viewFor(seat) = {
 
 ### `AIP` / `RULES` —— 两处参数,分工不同
 
-* `RULES`:**规则**参数(房规)。改它会改变什么是合法的,见 `RULES.md` I。
-* `AIP`:**AI 权重**开关,132 个,登记表 [`SWITCHES.md`](SWITCHES.md) 由脚本生成。
+* `RULES`:**规则**参数(房规)。改它会改变什么是合法的,见 `docs/RULES.md` I。
+* `AIP`:**AI 权重**开关,132 个,登记表 [`docs/SWITCHES.md`](SWITCHES.md) 由脚本生成。
   约定:每个新机制都带一个开关,**置 0 能退回旧行为** —— 这是消融实验的前提,
   也是线上出问题时的回退路径。
 
@@ -308,7 +308,7 @@ gap = clamp(最小可见宽对应的 gap, 自然重叠 gap, 刚好塞下的 gap)
 
 | # | 里程碑 | 做什么 | 验收判据 |
 |---|---|---|---|
-| 1 | **引擎 + 自测** | 照 [`RULES.md`](RULES.md) 第三部分写纯函数引擎 | `RULES.md` §S5 那张向量表逐条通过。**这一步不写界面** |
+| 1 | **引擎 + 自测** | 照 [`docs/RULES.md`](RULES.md) 第三部分写纯函数引擎 | `docs/RULES.md` §S5 那张向量表逐条通过。**这一步不写界面** |
 | 2 | **随机 AI 打通全流程** | `aiLead` / `genFollow` 只保证合法,不求好 | 无头跑 1000 局不抛异常、不死循环,四家手牌张数恒相等,总分恒为 200 |
 | 3 | **界面骨架** | 三套布局 + 发牌 + 出牌 + 结算弹层 | 手机竖屏、横屏、桌面三种下都**一屏不滚动**,25 张手牌单行不溢出 |
 | 4 | **启发式 AI 三阶段** | 记牌 → 候选生成 → 打分 → 择优(第二部分) | 同桌配对对照下明显强于第 2 步的随机 AI;每个候选都带一句理由 |
@@ -320,7 +320,7 @@ gap = clamp(最小可见宽对应的 gap, 自然重叠 gap, 刚好塞下的 gap)
 
 ## G. 验收清单:你复刻的是不是同一个产品
 
-**规则层**(逐条见 `RULES.md` §S5)
+**规则层**(逐条见 `docs/RULES.md` §S5)
 
 - [ ] 引擎自测全过;`partialTractorFollow` 开/关两种都符合预期
 - [ ] 同一 seed 必然复现同一局
@@ -1129,7 +1129,7 @@ controlPremium(c) = A:30  K:12  Q:4  其余 0
 同桌配对对照(2400 副 = 1200 种子 × 交换阵营,新版 vs `discardGreedy=0` 的自己):
 **+0.17 分/局 ±0.15(t=1.14),符号检验 p=0.86 —— 在分辨率之下,读作打平。**
 两版行为不同的只有 131/1200 个种子(10.9%),其余种子配对差恒为 0、不贡献信息。
-按 `NOTES/measurement.md` 的规矩记账:这一条**不是**靠聚合尺子成立的,
+按 `docs/notes/measurement.md` 的规矩记账:这一条**不是**靠聚合尺子成立的,
 靠的是行为审计 + 第一性判据(排序键该按取牌之后的手牌算),尺子只用来确认它没变坏。
 
 ### 5.5 领出(`aiChooseLead` / `scoreLeadPlay`)
@@ -1476,7 +1476,7 @@ reserve(X) = E[未来还剩的毙牌机会里,最好的那一次值多少分]
 每次机会的分布(`unseenPointsIn` 除以该门剩余张数)、取最好的那一次(次序统计量,
 和 `oppSpendCeil` 同一个工具)。**收官护底是这组机会里最贵的那一次(底分 ×2),
 是特例而不是另一件事** —— 如果这条成立,`endKittyWeight` / `reserveUnit` / `reserveMarginal`
-会被同一个式子吸收掉。分三步做,每步用 `test/cf-ruff.js` 验收(见 `NOTES/measurement.md`)。
+会被同一个式子吸收掉。分三步做,每步用 `test/cf-ruff.js` 验收(见 `docs/notes/measurement.md`)。
 
 **在这条建出来之前,不要再去拆那几个常数,也不要再加按墩生效的毙牌规则。**
 
@@ -1809,7 +1809,7 @@ $W$ 是整场胜率。在 A 级和关卡上,两者差别很大。
 > 双明手控制变量因此降级:108 张牌的完全信息解本来也算不动,而配对已经把牌运这一项
 > 整个消掉了。真要再往下压,下一步是**只在开关真的触发的副上花算力** ——
 > 配对之后没触发的种子 `D` 恒为 0,跑它们不带任何信息。
-> 详见 [`NOTES/measurement.md`](NOTES/measurement.md) §1.1。
+> 详见 [`notes/measurement.md`](notes/measurement.md) §1.1。
 
 ---
 
@@ -1826,7 +1826,7 @@ $W$ 是整场胜率。在 A 级和关卡上,两者差别很大。
 要改一个功能,先在这里查到入口,再去 §C/§E 看它挂在哪个数据和哪套布局上。
 
 口径:**列的是测试版 v0.7.13 里真的能点到的功能**。
-正式版 v0.7.12 与它只差一处:托管按钮还在设置里,牌桌上是「出牌」改口(见 `CHANGELOG.md` v0.7.13)。
+正式版 v0.7.12 与它只差一处:托管按钮还在设置里,牌桌上是「出牌」改口(见 `docs/CHANGELOG.md` v0.7.13)。
 「已研究讨论、尚未实现」的单独放在 §11.9,不与上面混排。
 
 ### 11.1 一局的状态机
@@ -1864,7 +1864,7 @@ $W$ 是整场胜率。在 A 级和关卡上,两者差别很大。
 
 固定不可调的规则(写死在 `RULES`):两副牌 108 张、每人 25 张、底牌 8 张、
 抠底倍数 = 最后一墩每人出牌数 × 2、主 AA 与副常主对可连(`offsuitRankTractor`)。
-规则本身的裁决口径在 [`RULES.md`](RULES.md),不在这里。
+规则本身的裁决口径在 [`docs/RULES.md`](RULES.md),不在这里。
 
 ### 11.3 界面骨架
 
@@ -2033,7 +2033,7 @@ node test/check-sync.js --full   # 再加三份 build 的引擎自测(约 4 分�
 | 开发版与测试版**逐字节相同**(除 `title`/`versionTag` 两行) | 开发版不在仓库里,飘了看不见 |
 | 每份 build 的标记与它的角色对得上 | 开发版不能自称正式版 |
 | 正式版版本号**不超前于**测试版 | 流水线是单向的 |
-| `SWITCHES.md` 主体 == `gen-switches.js` 的输出 | 开关表落后于 `AIP` 是常态,得钉住 |
+| `docs/SWITCHES.md` 主体 == `gen-switches.js` 的输出 | 开关表落后于 `AIP` 是常态,得钉住 |
 | README 标题 / CHANGELOG「当前:」行 == 对应 build 的 `versionTag` | 文档里写死了版本号 |
 | 未跟踪文件都在白名单里 | 防 `git add -A` 把本地杂物扫进仓库 |
 
@@ -2050,12 +2050,12 @@ node test/check-sync.js --full   # 再加三份 build 的引擎自测(约 4 分�
 **改 AI 时只跑单元测试远远不够**:评分权重的改动往往不会让任何断言失败,却能让棋力明显退步。
 
 `contest/` 是**外挂的**:它从 build 里运行时抽取块①,自己不留副本,所以 build 改了它自动跟上,
-也不需要 `check-sync` 再钉一条新不变量。运营见 [`AI-API.md`](AI-API.md),
-发给参赛者的手册在 [`contest/public/`](contest/public/)。
+也不需要 `check-sync` 再钉一条新不变量。运营见 [`contest-ops.md`](contest-ops.md),
+发给参赛者的手册在 [`contest/public/`](../contest/public/)。
 
 ### 12.4 度量:三把尺子,以及每一把量不到什么
 
-完整方法论在 [`NOTES/measurement.md`](NOTES/measurement.md),**动 AI 之前请先读那一页**。
+完整方法论在 [`notes/measurement.md`](notes/measurement.md),**动 AI 之前请先读那一页**。
 这里只放最容易踩的三条:
 
 * **同桌配对对照有两个口径。** 逐副口径把同一副牌的两半当独立样本,SE 会**高估 2~3 倍**;
@@ -2091,7 +2091,7 @@ node test/check-sync.js --full   # 再加三份 build 的引擎自测(约 4 分�
 改了 `AIP` 之后重新生成登记表:
 
 ```bash
-node test/gen-switches.js 80fen-test.html > SWITCHES.md   # 或按 check-sync 的提示重跑
+node test/gen-switches.js 80fen-test.html > docs/SWITCHES.md   # 或按 check-sync 的提示重跑
 ```
 
 ### 12.7 发布
@@ -2102,7 +2102,7 @@ GitHub Pages(`main` / `(root)`),`git push` 后一两分钟自动更新。
 
 ## 附:版本沿革
 
-> 这里只到 v0.7.0。**v0.7.1 起的逐版结论直接写在 [`CHANGELOG.md`](CHANGELOG.md)**
+> 这里只到 v0.7.0。**v0.7.1 起的逐版结论直接写在 [`docs/CHANGELOG.md`](CHANGELOG.md)**
 > ——那些条目已经带了完整的推演与实测数据,在这里复述一遍只会多出一个会飘的副本。
 
 - **v0.7.0(2026-08-15,仅测试版)** 收官蒙特卡洛。剩 ≤5 张时改为抽样推演:
@@ -2170,7 +2170,7 @@ GitHub Pages(`main` / `(root)`),`git push` 后一两分钟自动更新。
 
 ---
 
-*两份已实施的旧方案(最初架构规划、AI v4 提升方案)已移入 `NOTES/archive-plans.md`。*
+*两份已实施的旧方案(最初架构规划、AI v4 提升方案)已移入 `docs/notes/archive-plans.md`。*
 
 ---
 
