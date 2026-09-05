@@ -310,14 +310,19 @@ const ANCHOR='function viewFor(seat){';
 if(!html.includes(ANCHOR)){ console.error('✗ 找不到界面块的插入锚点 viewFor'); process.exit(2); }
 html=html.replace(ANCHOR, shim + '\n' + ANCHOR);
 
-/* localStorage 隔离。
- * 部署之后正式版和几个参赛版在同一个域名下,**共享 localStorage** ——
- * 设置、语言、尤其是**笔记**会串在一起,观察员对两个 AI 的记录混成一摊。
- * 每个参赛版换一套自己的 key。 */
+/* localStorage 隔离 —— 这里**不用改**,正式版自己按文件名推前缀(见它的 LSP)。
+ * 部署之后正式版和几个参赛版在同一个域名下会共享 localStorage,设置、语言、
+ * 尤其是**笔记**串在一起,观察员对两个 AI 的记录就混成一摊。规则在正式版里,
+ * 这里只核对文件名能被它认出来 —— 认不出就会掉回正式版的键名,悄悄串台。 */
 const LS=`80fen-c-${name}-`;
-const before=(html.match(/'80fentest-/g)||[]).length;
-html=html.split("'80fentest-").join(`'${LS}`);
-if(before===0){ console.error('✗ 找不到 localStorage key —— 正式版换写法了?'); process.exit(2); }
+if(!/^80fen-contest-.+-v\d+\.html$/.test(path.basename(OUT))){
+  console.error(`✗ 文件名 ${path.basename(OUT)} 不符合 80fen-contest-<选手>-v<数字>.html —— ` +
+                `正式版的 LSP 认不出它,localStorage 会和正式版串在一起`);
+  process.exit(2);
+}
+if(!html.includes("const LSP=")){
+  console.error('✗ 正式版里找不到 LSP —— localStorage 前缀换写法了?'); process.exit(2);
+}
 
 // 标记:两个参赛版长得一模一样,观察员开两个标签必须一眼分得清在看谁
 html=html.replace(/<title>[^<]*<\/title>/, `<title>[${name}] 80分 参赛版</title>`);
