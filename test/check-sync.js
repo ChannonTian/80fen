@@ -12,14 +12,18 @@
  *   · 开发版与测试版必须逐字节相同,除了 title / versionTag 那两行标记
  *   · 每份 build 的标记要和它的角色对上(开发版不能自称正式版)
  *   · 正式版的版本号不能**超前**于测试版(流水线是单向的)
- *   · SWITCHES.md 的主体必须等于 gen-switches.js 对测试版的输出
+ *   · docs/SWITCHES.md 的主体必须等于 gen-switches.js 对测试版的输出
  *   · README / CHANGELOG 里写的版本号,必须等于对应 build 的 versionTag
+ *   · .md 里指向仓库内文件的链接都得指得到东西
  *   · 未跟踪文件必须在白名单里(防 `git add -A` 把本地杂物扫进仓库)
  */
 const fs=require('fs'), cp=require('child_process');
 
 const DEV='80fen-dev.html', TEST='80fen-test.html', PROD='index.html';
 /* 允许存在的未跟踪文件。本地开发版由 .gitignore 挡着,不会出现在这里。 */
+/* 文档都在 docs/ 下(2026-09-05 归拢),这里集中一处,再挪就只改这几行 */
+const DOC={rules:'docs/RULES.md', design:'docs/DESIGN.md', switches:'docs/SWITCHES.md',
+           changelog:'docs/CHANGELOG.md', contestOps:'docs/contest-ops.md'};
 const UNTRACKED_OK=[/^80fen-dev.*\.html$/, /^scratchpad\//];
 
 let fail=0, skip=0;
@@ -85,26 +89,26 @@ if(M[TEST]&&M[PROD]){
 }else na('版本先后', '缺一份');
 
 console.log('\n\x1b[1m生成的文档\x1b[0m');
-if(has('SWITCHES.md')&&has(TEST)){
+if(has(DOC.switches)&&has(TEST)){
   const body=s=>{const i=s.indexOf('\n### ');return i<0?null:s.slice(i);};
   let gen=null;
   try{ gen=cp.execFileSync('node',[`${__dirname}/gen-switches.js`,TEST],{encoding:'utf8'}); }
   catch(e){ bad('gen-switches.js 能跑', e.message); }
   if(gen){
-    const g=body(gen), c=body(read('SWITCHES.md'));
-    if(!g||!c) bad('SWITCHES.md 能定位到主体(### 开头那段)');
-    else if(g.trimEnd()===c.trimEnd()) ok(`SWITCHES.md 主体 == AIP(${(gen.match(/共 (\d+) 个参数/)||[])[1]} 个参数)`);
-    else bad('SWITCHES.md 主体 == gen-switches.js 的输出',
+    const g=body(gen), c=body(read(DOC.switches));
+    if(!g||!c) bad('docs/SWITCHES.md 能定位到主体(### 开头那段)');
+    else if(g.trimEnd()===c.trimEnd()) ok(`docs/SWITCHES.md 主体 == AIP(${(gen.match(/共 (\d+) 个参数/)||[])[1]} 个参数)`);
+    else bad('docs/SWITCHES.md 主体 == gen-switches.js 的输出',
              '开关表落后于 AIP。重新生成:node test/gen-switches.js 80fen-test.html');
   }
-}else na('SWITCHES.md 与 AIP 同步', '缺文件');
+}else na('docs/SWITCHES.md 与 AIP 同步', '缺文件');
 
-/* 发给参赛者的规则书是**生成**的(contest/gen-public.js),只对主 repo 的 RULES.md
+/* 发给参赛者的规则书是**生成**的(contest/gen-public.js),只对主 repo 的 docs/RULES.md
  * 做两处必要改写。手工副本会悄悄漂,而漂了之后参赛者按老规则写、裁判按新规则判 ——
  * 罚分就成了冤枉。 */
-if(has('contest/public/RULES.md')&&has('RULES.md')){
+if(has('contest/public/RULES.md')&&has(DOC.rules)){
   const r=cp.spawnSync('node',['contest/gen-public.js','--check'],{encoding:'utf8'});
-  if(r.status===0) ok('contest/public/RULES.md == 主 repo 的 RULES.md(两处改写除外)');
+  if(r.status===0) ok('contest/public/RULES.md == 主 repo 的 docs/RULES.md(两处改写除外)');
   else bad('发给参赛者的规则书与主 repo 同步',
            (r.stderr||'').trim() || '重新生成:node contest/gen-public.js');
 }else na('参赛者规则书与主 repo 同步', '缺文件');
@@ -117,9 +121,9 @@ if(has('README.md')&&M[PROD]){
   else bad('README.md 标题 == 正式版版本号', `README 写 v${h},正式版是 v${M[PROD].ver}`);
 }else na('README 标题版本号', '缺文件');
 
-if(has('CHANGELOG.md')&&M[PROD]&&M[TEST]){
-  const line=(read('CHANGELOG.md').match(/^当前:.*$/m)||[])[0];
-  if(!line) bad('CHANGELOG.md 有「当前:」那一行');
+if(has(DOC.changelog)&&M[PROD]&&M[TEST]){
+  const line=(read(DOC.changelog).match(/^当前:.*$/m)||[])[0];
+  if(!line) bad('docs/CHANGELOG.md 有「当前:」那一行');
   else{
     const p=(line.match(/正式版\s*\**\s*v(\d+\.\d+\.\d+)/)||[])[1];
     const t=(line.match(/测试版\s*\**\s*v(\d+\.\d+\.\d+)/)||[])[1];
@@ -128,6 +132,32 @@ if(has('CHANGELOG.md')&&M[PROD]&&M[TEST]){
              `文档写 正式版 v${p||'?'} / 测试版 v${t||'?'},实际 v${M[PROD].ver} / v${M[TEST].ver}`);
   }
 }else na('CHANGELOG 当前行', '缺文件');
+
+console.log('\n\x1b[1m文档链接\x1b[0m');
+/* 所有 .md 里指向仓库内文件的链接都得指得到东西。
+ * 2026-09-05 把文档收进 docs/ 时,三条链接是靠人眼漏掉的(DESIGN 指 contest/public/、
+ * 两份 notes 指 ../test/*.js)—— 挪文件时链接会断,而断链在 GitHub 上是静默的。 */
+{
+  const walk=d=>fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>{
+    if(e.name==='node_modules'||e.name==='.git') return [];
+    const f=d+'/'+e.name;
+    return e.isDirectory()?walk(f):(/\.md$/.test(e.name)?[f]:[]);
+  });
+  const broken=[];
+  let n=0;
+  for(const f of walk('.')){
+    const dir=f.slice(0,f.lastIndexOf('/'));
+    for(const m of read(f).matchAll(/\]\(([^)#\s]+)[^)]*\)/g)){
+      const href=m[1];
+      if(/^(https?:|mailto:|#)/.test(href)) continue;
+      n++;
+      if(!has(require('path').normalize(dir+'/'+href))) broken.push(`${f} → ${href}`);
+    }
+  }
+  if(!broken.length) ok(`${n} 个仓库内链接都指得到`);
+  else bad(`${n} 个仓库内链接都指得到`, broken.slice(0,10).join('\n') +
+           (broken.length>10?`\n… 共 ${broken.length} 条`:''));
+}
 
 console.log('\n\x1b[1m工作区\x1b[0m');
 try{

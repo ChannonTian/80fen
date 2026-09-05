@@ -27,7 +27,7 @@ const Phi=x=>{ const t=1/(1+0.2316419*Math.abs(x)), d=Math.exp(-x*x/2)/Math.sqrt
   const p=1-d*t*(0.319381530+t*(-0.356563782+t*(1.781477937+t*(-1.821255978+t*1.330274429))));
   return x>=0?p:1-p; };
 /* 符号检验:配对之后每个种子是一个独立读数,直接数正负号。
- * 净分差是重尾的,t 检验对它偏保守(NOTES/measurement.md 清单第 10 条)。 */
+ * 净分差是重尾的,t 检验对它偏保守(docs/notes/measurement.md 清单第 10 条)。 */
 function signTest(arr){
   const nz=arr.filter(x=>x!==0), n=nz.length, pos=nz.filter(x=>x>0).length;
   if(!n) return {n:0,pos:0,p:1};
@@ -122,7 +122,7 @@ w(`## 每一对`);
 w('');
 w(`配对口径:同一种子的两场先合成一个数,再对种子求 SE。两边 AI 完全一样时`);
 w(`每个种子恰好是 0、SE 也是 0;逐场口径却会把 d 和 −d 当成两个独立样本,`);
-w(`凭空算出一个不小的 SE —— 这是 \`NOTES/measurement.md\` 记过的坑,这里守住。`);
+w(`凭空算出一个不小的 SE —— 这是 \`docs/notes/measurement.md\` 记过的坑,这里守住。`);
 w('');
 for(const p of J.pairs){
   const L2=stat(p.pairL), P2=stat(p.pairP), W2=stat(p.pairW);

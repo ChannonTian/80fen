@@ -1,6 +1,6 @@
 # 存档:两份已实施的旧方案
 
-从 `DESIGN.md` 搬出来的冻结附录。**这两份是历史,不是现状** ——
+从 `docs/DESIGN.md` 搬出来的冻结附录。**这两份是历史,不是现状** ——
 里面的判断当时成立,后来被实测推翻过好几处(见 `NOTES/negative-results.md`)。
 留着是因为它们记录了「当初为什么这么设计」,改代码时偶尔要回来查。
 
@@ -98,7 +98,7 @@ Each milestone is playable/testable before moving on:
 
 ### 6. Risks & mitigations
 
-- **Rule ambiguity (biggest risk)**: Shanghai 80分 has house-rule variants (throw penalties, kitty multiplier ×2 vs. 2^n, trump declaration overrides). Mitigation: write a `RULES.md` companion doc as decisions come up; make variant points config flags in one `RULES` object.
+- **Rule ambiguity (biggest risk)**: Shanghai 80分 has house-rule variants (throw penalties, kitty multiplier ×2 vs. 2^n, trump declaration overrides). Mitigation: write a `docs/RULES.md` companion doc as decisions come up; make variant points config flags in one `RULES` object.
 - **`classifyPlay`/throw logic bugs**: mitigate with the M1 test harness; add every bug found during play as a test case.
 - **Single file growing unwieldy**: acceptable to ~3–5k lines; use clear section banners. If it hurts, split into `engine.js`/`ai.js`/`ui.js` later — the layer separation makes this a 10-minute change.
 
@@ -112,7 +112,7 @@ Build M1: the engine with a visible test-runner page (no game UI yet). It forces
 
 > 动手前的诊断原文,机制说明已并入 §2~§5,版本沿革见「附:版本沿革」v4 条目。保留这里是为了回看当时的判断哪些站住了、哪些被后续实测推翻。
 
-> **状态:2026-08-05 已实施(v0.5.0)。** 八条里做完七条,结果与实测数字见 `CHANGELOG.md`,
+> **状态:2026-08-05 已实施(v0.5.0)。** 八条里做完七条,结果与实测数字见 `docs/CHANGELOG.md`,
 > 机制说明已并入 `AI-DESIGN.md`。唯一没做的是 §2.3(b)**调王** —— 它需要「对手每门的持有区间」
 > 这层模型(§7 第二条),现在只有上界、没有下界,估不出「谁手上还有大主」,所以先欠着。
 > 下面保留的是**动手前**的诊断原文,便于回看当时的判断哪些站住了、哪些没有。
