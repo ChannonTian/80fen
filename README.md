@@ -74,7 +74,7 @@ contest/                       比赛:裁判、联赛、赛报、参赛 repo 的
 | `contest/report.js` | 把一次联赛写成赛报:积分榜、对战表、逐对配对统计、打法画像 |
 | `contest/review.js` | 逐选手复盘:分差丢在哪一侧、关卡局、底、亮主、丢分最多的十局 |
 | `contest/results/` | 历次联赛的完整记录 —— 赛报、复盘、积分榜 JSON、逐局 NDJSON |
-| `contest/public/` | **参赛 repo([80fen-contest](https://github.com/ChannonTian/80fen-contest))的全部内容** —— 手册、规则书、提交模板 |
+| `contest/public/` | **参赛 repo([80fen-contest](https://github.com/ChannonTian/80fen-contest))的手册那几份** —— 手册、规则书、提交模板。`check-sync` 钉住两边逐字节一致 |
 | `contest/gen-public.js` | 生成 `contest/public/RULES.md`;`check-sync` 钉住它与主 repo 同步 |
 | `contest/gen-viewer.js` | 给参赛提交**套上 GUI 壳**,生成人类观察员能坐下来打的页面 |
 | `contest/verify-viewer.js` | 在真浏览器里把观察页跑完一局 —— **生成完必须跑,发出去之前** |
