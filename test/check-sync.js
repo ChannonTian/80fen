@@ -14,7 +14,7 @@
  *   · 正式版的版本号不能**超前**于测试版(流水线是单向的)
  *   · docs/SWITCHES.md 的主体必须等于 gen-switches.js 对测试版的输出
  *   · README / CHANGELOG 里写的版本号,必须等于对应 build 的 versionTag
- *   · .md 里指向仓库内文件的链接都得指得到东西
+ *   · .md 与比赛主页里指向仓库内文件的链接都得指得到东西
  *   · 未跟踪文件必须在白名单里(防 `git add -A` 把本地杂物扫进仓库)
  */
 const fs=require('fs'), cp=require('child_process');
@@ -141,17 +141,24 @@ console.log('\n\x1b[1m文档链接\x1b[0m');
   const walk=d=>fs.readdirSync(d,{withFileTypes:true}).flatMap(e=>{
     if(e.name==='node_modules'||e.name==='.git') return [];
     const f=d+'/'+e.name;
-    return e.isDirectory()?walk(f):(/\.md$/.test(e.name)?[f]:[]);
+    // 比赛主页也是手写链接的,一起查;三份 build 是生成/复制来的,里面没有仓库内链接
+    return e.isDirectory()?walk(f):(/\.md$/.test(e.name)||e.name==='contest.html'?[f]:[]);
   });
   const broken=[];
   let n=0;
   for(const f of walk('.')){
     const dir=f.slice(0,f.lastIndexOf('/'));
-    for(const m of read(f).matchAll(/\]\(([^)#\s]+)[^)]*\)/g)){
-      const href=m[1];
-      if(/^(https?:|mailto:|#)/.test(href)) continue;
+    /* 代码块和行内代码里的东西是**样例**,不是链接。文档里正好讲到「markdown 的
+     * ](…) 语法」时,不剥掉的话这行字自己会被当成一条断链。 */
+    const body=read(f).replace(/```[\s\S]*?```/g,'').replace(/`[^`\n]*`/g,'');
+    // markdown 的 ](…) 和 html 的 href="…" —— 比赛主页是手写 html,只查前一种查不到它
+    const hrefs=[...body.matchAll(/\]\(([^)#\s]+)[^)]*\)/g)].map(m=>m[1])
+      .concat(/\.html$/.test(f) ? [...read(f).matchAll(/href="([^"]+)"/g)].map(m=>m[1]) : []);
+    for(const href of hrefs){
+      if(/^(https?:|mailto:|#|data:)/.test(href)) continue;
       n++;
-      if(!has(require('path').normalize(dir+'/'+href))) broken.push(`${f} → ${href}`);
+      const t=require('path').normalize(dir+'/'+href.split('#')[0].split('?')[0]);
+      if(!has(t)) broken.push(`${f} → ${href}`);
     }
   }
   if(!broken.length) ok(`${n} 个仓库内链接都指得到`);
