@@ -35,7 +35,8 @@ function signTest(arr){
   return {n, pos, p:2*(1-Phi(z))};
 }
 const sg=x=>(x>=0?'+':'')+x.toFixed(2);
-const pf=p=>p<1e-4?p.toExponential(1):p.toFixed(4);
+// 符号检验在 300 个种子全同号时正态近似直接给 0 —— 报成 <1e-16,别写「p=0」
+const pf=p=>p<=0?'<1e-16':p<1e-4?p.toExponential(1):p.toFixed(4);
 
 // ---------- 逐局记录 ----------
 let rounds=null;
@@ -76,7 +77,9 @@ w(`# 80分 AI 联赛 · 赛报`);
 w('');
 w(`| | |`);
 w(`|---|---|`);
-w(`| 日期 | ${new Date().toISOString().slice(0,10)} |`);
+// 日期取输入文件名上的那个 —— 赛报可能隔天才生成,写「今天」是错的
+const DATE=(path.basename(pos[0]).match(/^(\d{4}-\d{2}-\d{2})/)||[,new Date().toISOString().slice(0,10)])[1];
+w(`| 跑的日期 | ${DATE} |`);
 w(`| 选手 | ${J.players.join('、')}(${N} 名) |`);
 w(`| 赛制 | 两两对过局,${N*(N-1)/2} 对 × ${J.seeds} 副牌 × 交换阵营 = 每对 ${J.seeds*2} 场 |`);
 w(`| 裁判引擎 | \`${J.build}\` |`);
@@ -171,10 +174,12 @@ w(`- 这一节是**跨所有对手**汇总的,对手强弱不同会拉动这些�
   const STN={0:'没人亮',1:'单张',2:'一对',3:'反主',4:'反反主'};
   for(const id of J.table.map(r=>r.id)){
     const q=prof[id]; if(!q||!q.decl) continue;
+    // 罕见但真发生过的事(反主、无主)四舍五入会变成 0% —— 低于 1% 的直接报次数
+    const pc=v=>{ const x=100*v/q.decl; return x<1 ? `${v} 局` : `${x.toFixed(0)}%`; };
     const su=Object.entries(q.suit).sort((a,b)=>b[1]-a[1])
-      .map(([k,v])=>`${SN[k]||k} ${(100*v/q.decl).toFixed(0)}%`).join('、');
+      .map(([k,v])=>`${SN[k]||k} ${pc(v)}`).join('、');
     const st=Object.entries(q.strength).sort((a,b)=>a[0]-b[0])
-      .map(([k,v])=>`${STN[k]||k} ${(100*v/q.decl).toFixed(0)}%`).join('、');
+      .map(([k,v])=>`${STN[k]||k} ${pc(v)}`).join('、');
     w(`| ${id} | ${su} | ${st} |`);
   }
   w('');
