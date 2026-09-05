@@ -14,6 +14,7 @@
  *   · 正式版的版本号不能**超前**于测试版(流水线是单向的)
  *   · docs/SWITCHES.md 的主体必须等于 gen-switches.js 对测试版的输出
  *   · README / CHANGELOG 里写的版本号,必须等于对应 build 的 versionTag
+ *   · contest/public/ 与参赛 repo 逐字节一致(参赛 repo 并排放着时)
  *   · 规则书 §S5 新增的那些向量,引擎跑出来必须一致
  *   · .md 与比赛主页里指向仓库内文件的链接都得指得到东西
  *   · 未跟踪文件必须在白名单里(防 `git add -A` 把本地杂物扫进仓库)
@@ -133,6 +134,23 @@ if(has(DOC.changelog)&&M[PROD]&&M[TEST]){
              `文档写 正式版 v${p||'?'} / 测试版 v${t||'?'},实际 v${M[PROD].ver} / v${M[TEST].ver}`);
   }
 }else na('CHANGELOG 当前行', '缺文件');
+
+/* contest/public/ 就是参赛 repo 的全部内容,两边必须逐字节一致。
+ * 2026-09-05 发现真漂了:RULES.md 这边新、README 和 submissions/README 那边新
+ * (有人直接在 GitHub 上加了一句「禁止查看其他选手的提交」)。
+ * 参赛 repo 不在这个 checkout 里就跳过 —— 只有并排放着的时候才查得了。 */
+{
+  const CONTEST=require('path').join(__dirname,'..','..','80fen-contest');
+  if(has(CONTEST)){
+    const files=['README.md','RULES.md','example/index.js','submissions/README.md'];
+    const drift=files.filter(f=>{
+      const a='contest/public/'+f, b=require('path').join(CONTEST,f);
+      return has(a)&&has(b) && read(a)!==read(b);
+    });
+    if(!drift.length) ok(`contest/public/ == 参赛 repo(${files.length} 份)`);
+    else bad('contest/public/ == 参赛 repo', '漂了:'+drift.join('、'));
+  }else na('contest/public/ == 参赛 repo', '参赛 repo 不在旁边');
+}
 
 console.log('\n\x1b[1m规则书的自测向量\x1b[0m');
 /* §S5 里 2026-09-05 新增的那些向量还没并进块②(那要走流水线),先由这个脚本钉着。
