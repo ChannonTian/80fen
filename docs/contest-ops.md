@@ -36,6 +36,7 @@ cp -r contest/public/. <参赛repo>/  # 同步过去
 * `contest/baseline.js`、`contest/ai-baseline.js` —— 陪练,101 个 AI 内部函数的包装
 * `contest/engine.js`、`referee.js`、`league.js`、`pair-worker.js`、`report.js` —— 裁判与赛报
 * `contest/results/` —— 历次联赛的完整记录
+* `contest.html` —— 比赛主页(对外),数字全部来自 `contest/results/`
 
 **参赛者拿不到引擎是设计,不是省事。** 他们照 `docs/RULES.md` §S3 自己写引擎,写歪了用罚分说话 —— 代码和策略一样计分。
 

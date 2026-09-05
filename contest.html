@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>80分 AI 比赛</title>
+<meta name="description" content="写一个会打 80分(上海规则)的程序,和别人的程序打联赛。规则书是唯一的输入,引擎自己写。">
+<style>
+:root{
+  --bg:#fbfaf8; --fg:#1c1b19; --dim:#6b6862; --faint:#96928a;
+  --rule:#e3e0da; --card:#fff; --accent:#2c6e4f; --accent-dim:#5a8f74;
+  --warm:#8a6a2f; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --bg:#14161a; --fg:#e6e4e0; --dim:#a09c95; --faint:#7b7770;
+    --rule:#2b2f35; --card:#191c21; --accent:#9fd6b5; --accent-dim:#7ab897;
+    --warm:#e0b96a;
+  }
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,-apple-system,sans-serif;
+  font-size:16px; line-height:1.75;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:760px; margin:0 auto; padding:0 24px 96px}
+
+/* ---- 页头 ---- */
+header{padding:72px 0 8px}
+h1{font-size:34px; line-height:1.25; margin:0 0 10px; letter-spacing:-.01em; font-weight:700}
+.tagline{font-size:18px; color:var(--dim); margin:0 0 22px; line-height:1.6}
+.meta{font-size:13.5px; color:var(--faint); font-family:var(--mono); margin:0 0 26px}
+.meta b{color:var(--accent); font-weight:600}
+
+/* ---- 快捷入口 ---- */
+.links{display:flex; flex-wrap:wrap; gap:8px; margin:0 0 8px; padding:0; list-style:none}
+.links a{
+  display:inline-block; padding:7px 14px; border:1px solid var(--rule); border-radius:999px;
+  color:var(--fg); text-decoration:none; font-size:14px; background:var(--card);
+  transition:border-color .12s, color .12s;
+}
+.links a:hover{border-color:var(--accent); color:var(--accent)}
+.links a .ar{color:var(--faint); font-size:12px}
+
+/* ---- 章节 ---- */
+section{padding-top:44px}
+/* 中文标题不吃字母间距 —— .13em 拉开之后只是变松散,不会像拉丁小型大写那样变精神 */
+h2{
+  font-size:15.5px; font-weight:700; letter-spacing:.04em; color:var(--accent);
+  margin:0 0 18px; padding-bottom:9px; border-bottom:1px solid var(--rule);
+}
+h3{font-size:17px; margin:30px 0 8px; font-weight:650; line-height:1.5}
+p{margin:0 0 14px}
+a{color:var(--accent); text-decoration:none; border-bottom:1px solid transparent}
+p a,li a,td a{border-bottom-color:var(--rule)}
+p a:hover,li a:hover,td a:hover{border-bottom-color:var(--accent)}
+strong{font-weight:650}
+code{font-family:var(--mono); font-size:.88em; background:var(--card);
+     border:1px solid var(--rule); border-radius:4px; padding:1px 5px}
+ul{margin:0 0 14px; padding-left:1.3em}
+li{margin:0 0 6px}
+.note{color:var(--dim); font-size:14.5px}
+
+/* ---- 表 ---- */
+.scroll{overflow-x:auto; margin:0 0 16px; -webkit-overflow-scrolling:touch}
+table{border-collapse:collapse; width:100%; font-size:14.5px; min-width:440px}
+th,td{text-align:left; padding:9px 12px 9px 0; border-bottom:1px solid var(--rule); vertical-align:top}
+th{font-size:12.5px; letter-spacing:.04em; color:var(--faint); font-weight:600;
+   text-transform:none; white-space:nowrap}
+td.n{text-align:right; font-family:var(--mono); font-variant-numeric:tabular-nums; white-space:nowrap}
+/* 表头只右对齐、不用等宽 —— 等宽字体没有中文字形,「陪练」会掉回正文字体,
+   同一行里中英文表头看起来像两种字体 */
+th.n{text-align:right; white-space:nowrap}
+tr.me td{background:transparent}
+.rank{color:var(--faint); font-family:var(--mono); width:1.5em}
+
+/* ---- 选手卡 ---- */
+.player{
+  border:1px solid var(--rule); border-radius:10px; background:var(--card);
+  padding:18px 20px; margin:0 0 12px;
+}
+.player h3{margin:0 0 4px; font-size:18px; display:flex; align-items:baseline;
+           gap:10px; flex-wrap:wrap}
+.player h3 .place{font-size:12px; font-family:var(--mono); color:var(--faint);
+                  border:1px solid var(--rule); border-radius:4px; padding:1px 6px}
+.player .sub{color:var(--dim); font-size:14.5px; margin:0 0 12px}
+.player .row{display:flex; flex-wrap:wrap; gap:6px}
+.player .row a{
+  font-size:13px; padding:5px 11px; border:1px solid var(--rule); border-radius:6px;
+  background:var(--bg); color:var(--fg); border-bottom:1px solid var(--rule);
+}
+.player .row a:hover{border-color:var(--accent); color:var(--accent)}
+.player .row a.key{border-color:var(--accent-dim); color:var(--accent)}
+
+/* ---- 要点块 ---- */
+.finding{border-left:3px solid var(--rule); padding:2px 0 2px 18px; margin:0 0 22px}
+.finding h3{margin:0 0 6px}
+.finding.hot{border-left-color:var(--accent)}
+
+/* ---- 时间线 ---- */
+.tl{list-style:none; padding:0; margin:0}
+.tl li{display:flex; gap:16px; padding:9px 0; border-bottom:1px solid var(--rule)}
+.tl .d{font-family:var(--mono); font-size:13px; color:var(--faint);
+       white-space:nowrap; padding-top:2px; flex:0 0 5.4em}
+
+footer{margin-top:64px; padding-top:22px; border-top:1px solid var(--rule);
+       color:var(--faint); font-size:13.5px}
+footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
+
+@media (max-width:600px){
+  header{padding-top:48px}
+  h1{font-size:27px}
+  .tagline{font-size:16.5px}
+  .wrap{padding:0 18px 64px}
+  .tl li{flex-direction:column; gap:2px}
+  .tl .d{flex:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <h1>80分 AI 比赛</h1>
+  <p class="tagline">写一个会打 80分(上海规则)的程序,和别人的程序打联赛。<br>
+     规则书是唯一的输入 —— <strong>规则引擎要你自己实现</strong>,我们不借任何代码给你。</p>
+  <p class="meta">第一届 · 2026-09-04 · <b>2 份提交 + 1 个基准</b> · 1800 场 / 44528 局 · 两份提交零违规</p>
+  <ul class="links">
+    <li><a href="https://github.com/ChannonTian/80fen-contest">参赛 repo <span class="ar">↗</span></a></li>
+    <li><a href="https://github.com/ChannonTian/80fen/blob/main/docs/RULES.md">规则书 <span class="ar">↗</span></a></li>
+    <li><a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-04-league.md">赛报 <span class="ar">↗</span></a></li>
+    <li><a href="./">试玩基准版</a></li>
+  </ul>
+</header>
+
+<section id="what">
+  <h2>这是什么</h2>
+  <p>80分(升级/拖拉机,上海打法)是一个四人两队、打级到 A 的牌类游戏。这个比赛让不同的人各写一个会打它的程序,放在同一台机器、同一批牌上比。</p>
+  <p><strong>参赛者写的只是「决策」这一半。</strong>发牌、判合法、记分、升级都由裁判负责。但<strong>规则要自己实现</strong> —— 手上有的就是一本规则书,拿不到我们的引擎、AI 或任何代码。</p>
+  <p>这是有意的。给了引擎,比赛就变成「在别人的框架里调参数」;不给,写歪了用罚分说话 —— <strong>代码和策略一样计分</strong>。</p>
+</section>
+
+<section id="format">
+  <h2>赛制</h2>
+  <p><strong>打级,考全套。</strong>一场从 2 打到 A,过 <code>2/5/10/13</code> 四道关,先打过 A 的赢,平均 25 局左右。亮主、造反、扣底、领出、跟牌 —— 五个决策全部由参赛者做。</p>
+  <p><strong>联赛:所有选手两两都要对过局。</strong>我们安插一个基准选手一起打,它和大家受同样的规则约束。只对一个固定对手打,优化目标会歪成「专治这一个」;两两对过局之后,靠某个对手的特定弱点吃分的选手在别人身上讨不到便宜。</p>
+
+  <h3>每一对怎么打</h3>
+  <p>同一批牌<strong>两边各打一遍</strong>:第一场你坐东西家,第二场你坐南北家,牌完全一样。同一手好牌两边都摸到过,剩下的差距才是真本事。</p>
+  <p class="note">打级里这只能消掉每场第一局的牌运 —— 庄家轮换按输赢分叉,之后两场的牌序列必然发散。这是打级赛制的固有代价,报数据时按「同一种子两场取平均」再对种子求标准误。</p>
+
+  <h3>看哪些数</h3>
+  <div class="scroll"><table>
+    <tr><th>口径</th><th>是什么</th></tr>
+    <tr><td><strong>胜场</strong></td><td>谁先打过 A —— 打级的定义,但一场只有 1 bit</td></tr>
+    <tr><td><strong>净胜级/场</strong></td><td>打完时你比对手高几级。连续量,三个口径里<strong>最灵敏</strong></td></tr>
+    <tr><td><strong>每局净分</strong></td><td>把整场拆回单局口径,样本量 ×25</td></tr>
+    <tr><td><strong>罚分/局</strong></td><td>你的规则实现错了多少</td></tr>
+  </table></div>
+  <p><strong>罚分:</strong>出了非法牌,裁判替你出一手合法的把局面走下去,并按<strong>替出的张数 × 5 分</strong>罚,罚分记给对方队。甩牌被吃不算违规 —— 那是规则内的赌博,输了就强制出最小的那组。</p>
+</section>
+
+<section id="players">
+  <h2>选手</h2>
+  <p>每份提交都套上了正式版的图形界面,<strong>人可以坐下来直接和它打一局</strong>。引擎和界面与正式版逐字节相同,只把四处 AI 调用换成了参赛者的代码 —— 你看到的牌力就是它在联赛里的牌力。</p>
+
+  <div class="player">
+    <h3>陪练(基准)<span class="place">第 1 名</span></h3>
+    <p class="sub">我们安插的选手,包的是正式版在用的那套 AI(v0.7.12,开着收官蒙特卡洛)。它不是「标准答案」,只是一把有刻度的尺子。</p>
+    <div class="row">
+      <a class="key" href="./">坐下来打一局</a>
+      <a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-04-review-baseline.md">复盘 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen/blob/main/docs/DESIGN.md">AI 设计文档 ↗</a>
+    </div>
+  </div>
+
+  <div class="player">
+    <h3>claude-opus-5<span class="place">第 2 名</span></h3>
+    <p class="sub">106 KB,四个文件(引擎 / 走法 / 策略 / 入口)。自建跑分器并做过配对校准(同版本对打差值恰好 0),迭代 43 轮。</p>
+    <div class="row">
+      <a class="key" href="80fen-contest-claude-opus-5-v1.html">坐下来打一局</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/tree/main/submissions/claude-opus-5">提交代码 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-04-review-claude-opus-5.md">复盘 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/blob/main/submissions/claude-opus-5/NOTES.md">规则书反馈 ↗</a>
+    </div>
+  </div>
+
+  <div class="player">
+    <h3>deepseek-v4-pro<span class="place">第 3 名</span></h3>
+    <p class="sub">48 KB,三个文件。同样自建了四口径跑分器与消融流程,记录了 27 条「试过什么、留了还是退了」。</p>
+    <div class="row">
+      <a class="key" href="80fen-contest-deepseek-v4-pro-v1.html">坐下来打一局</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/tree/main/submissions/deepseek-v4-pro">提交代码 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-04-review-deepseek-v4-pro.md">复盘 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/blob/main/submissions/deepseek-v4-pro/NOTES.md">规则书反馈 ↗</a>
+    </div>
+  </div>
+
+  <p class="note">观察页右下角有个违规计数器,实时显示这个 AI 出了几手非法牌。教练模式默认关着 —— 它的评分用的是我们原版的 AI,不是参赛者的,开着会让人误以为那是这个 AI 的想法。</p>
+</section>
+
+<section id="results">
+  <h2>结果</h2>
+  <p>3 名选手两两对过局,每对 <strong>300 副牌 × 交换阵营 = 600 场</strong>,共 1800 场 / 44528 局。裁判引擎是线上正式版 <code>index.html</code>,4 核跑了 72 分钟。</p>
+
+  <div class="scroll"><table>
+    <tr>
+      <th class="rank"></th><th>选手</th><th class="n">胜-负</th><th class="n">胜率</th>
+      <th class="n">净胜级/场</th><th class="n">每局净分</th><th class="n">违规</th>
+    </tr>
+    <tr><td class="rank">1</td><td>陪练</td><td class="n">1093-107</td><td class="n">91.1%</td>
+        <td class="n">+8.32 ±0.17</td><td class="n">+19.86</td><td class="n">0</td></tr>
+    <tr><td class="rank">2</td><td>claude-opus-5</td><td class="n">691-509</td><td class="n">57.6%</td>
+        <td class="n">+1.85 ±0.33</td><td class="n">+5.13</td><td class="n">0</td></tr>
+    <tr><td class="rank">3</td><td>deepseek-v4-pro</td><td class="n">16-1184</td><td class="n">1.3%</td>
+        <td class="n">−10.17 ±0.10</td><td class="n">−24.98</td><td class="n">0</td></tr>
+  </table></div>
+
+  <h3>对战表</h3>
+  <div class="scroll"><table>
+    <tr><th></th><th class="n">陪练</th><th class="n">claude-opus-5</th><th class="n">deepseek-v4-pro</th></tr>
+    <tr><td>陪练</td><td class="n">—</td><td class="n">495-105</td><td class="n">598-2</td></tr>
+    <tr><td>claude-opus-5</td><td class="n">105-495</td><td class="n">—</td><td class="n">586-14</td></tr>
+    <tr><td>deepseek-v4-pro</td><td class="n">2-598</td><td class="n">14-586</td><td class="n">—</td></tr>
+  </table></div>
+  <p class="note">行对列,胜-负。</p>
+</section>
+
+<section id="findings">
+  <h2>我们看到的三件事</h2>
+
+  <div class="finding hot">
+    <h3>1. 两份提交都零违规 —— 比赛的前提成立了</h3>
+    <p>44528 局,跟牌一次不错,连「亮主压不过现在的」那种判断失误都是 0。<strong>照一本规则书从零写引擎、写对,是做得到的。</strong>这是能拿去邀请下一批人的证据。</p>
+  </div>
+
+  <div class="finding">
+    <h3>2. 差距完全传递,没有克制关系</h3>
+    <p>三对的强弱是一条直线:陪练 &gt; claude-opus-5 &gt; deepseek-v4-pro,每一对的 t 值都在两位数以上(+9.17 / +11.16 / +5.47 级每场,t = 60 / 108 / 24)。没有出现「A 打不过 B、B 打不过 C、C 却打不过 A」。</p>
+    <p class="note">这也意味着 300 副对这个量级的差距是大材小用 —— 下次遇到势均力敌的两家再堆种子。</p>
+  </div>
+
+  <div class="finding hot">
+    <h3>3. 三家都只跟自己打过 —— 这是最值钱的一条教训</h3>
+    <p>两份提交都做得很扎实:自建跑分器、做了配对口径校准(同版本对打差值恰好 0)、跑了几十轮消融。但<strong>参照物全是自己的历史版本和自己写的笨对手</strong>。</p>
+    <p>deepseek 记着「对 dumb 全胜 +22 级」「v0→v5 累计 +11.6 级」;两个数都是真的,放到联赛里仍然被陪练压 11.16 级。</p>
+    <p><strong>自对弈能测出改动有没有用,测不出绝对水平。</strong></p>
+  </div>
+
+  <h3>差距的形状</h3>
+  <p>分不出高下的地方三家几乎一样 —— 亮主花色都是均匀的四分之一,亮主强度都是单张六成、一对四成。<strong>差距全在出牌</strong>:</p>
+  <div class="scroll"><table>
+    <tr><th>选手</th><th class="n">抢到庄</th><th class="n">坐庄守住</th><th class="n">坐庄放分</th><th class="n">当闲拿分</th></tr>
+    <tr><td>陪练</td><td class="n">62.2%</td><td class="n">62.1%</td><td class="n">70.7</td><td class="n">94.1</td></tr>
+    <tr><td>claude-opus-5</td><td class="n">51.3%</td><td class="n">52.3%</td><td class="n">76.1</td><td class="n">83.7</td></tr>
+    <tr><td>deepseek-v4-pro</td><td class="n">35.6%</td><td class="n">28.4%</td><td class="n">105.2</td><td class="n">68.7</td></tr>
+  </table></div>
+  <p class="note">「抢到庄」基本是守擂率的果而不是因 —— 打级里守住就继续坐庄。<strong>逐选手的完整复盘</strong>(分差丢在哪一侧、关卡局、底、亮主偏好、丢分最多的十局带 seed 可复现)在上面每位选手的「复盘」链接里。</p>
+</section>
+
+<section id="feedback">
+  <h2>参赛者挑出的规则书的洞</h2>
+  <p>照着规则书写引擎的人,比写规则书的人更容易发现它哪里说不清。两份提交都交了一份 <code>NOTES.md</code>,按「照着写不出来 / 必须自己拍板」排序。</p>
+  <p><strong>两家独立撞上了同一条:</strong>规则书说「打 25 墩」,但只要有人领出对子或拖拉机,一墩就消耗每人两张以上,总墩数必然少于 25(实测 17~21 墩)。正确的终止条件是「手牌出完」,而规则书没有一处写这件事,自测向量也没覆盖。一家是第 21 墩崩在 <code>classify(undefined)</code> 上才发现的。</p>
+  <p>其余还包括:切牌的 4 张牌怎么处理、亮主窗口从谁开始绕圈、造反是「只问够格的」还是「都问」、罚分封顶的「满」是多少、裁判替出时具体出什么牌。</p>
+  <p class="note">规则书是<strong>唯一权威</strong>:裁判的实现和它不一致就是我们的 bug —— 公开修、受影响的对局重跑。这些反馈会进下一版规则书。</p>
+</section>
+
+<section id="fair">
+  <h2>怎么保证公平</h2>
+  <ul>
+    <li><strong>空屋。</strong>每份提交在自己的 <code>vm</code> realm 里加载,<strong>一行我们的代码都不预置</strong> —— 没有引擎、没有 <code>fs</code>、没有 <code>process</code>、没有网络、没有 npm。改内建对象只改到自己那一份。裁判用另一份独立加载的引擎判合法性。</li>
+    <li><strong>确定性。</strong>AI 的决策路径里没有 <code>Math.random</code> 和 <code>Date.now</code>。同一个种子必然出同样的牌、走同样的路 —— 任何一局都能原样重跑。</li>
+    <li><strong>看得见的只有 <code>view</code>。</strong>每次决策拿到的是一份深拷贝并冻结的局面,只含公开信息和自己的手牌。</li>
+    <li><strong>基准不降级出战。</strong>陪练开着线上默认的收官蒙特卡洛跑(慢 4 倍)。关着跑排名会好看,但那不是它真实的牌力。</li>
+    <li><strong>不封计算量。</strong>参赛者想搜就搜,代价是时间 —— 预算由超时管,不由裁判禁用某个功能。</li>
+    <li><strong>裁判自己也有自测。</strong>36 项,含空屋隔离、每局的结构不变量、罚分是否真的落到结算里,以及护栏对一份<strong>故意作弊</strong>的提交兜不兜得住(它会投毒内建、摸全局、越界出牌)。</li>
+  </ul>
+  <p class="note"><code>vm</code> 从来不是安全沙箱 —— 这套隔离挡的是「不小心」和「顺手作弊」,不是恶意代码。真要防那个得上子进程加权限。</p>
+</section>
+
+<section id="records">
+  <h2>记录</h2>
+  <p>一次联赛留下四份东西,都在仓库里:</p>
+  <div class="scroll"><table>
+    <tr><th>文件</th><th>内容</th></tr>
+    <tr><td><a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-04-league.md">赛报</a></td>
+        <td>积分榜、对战表、逐对配对统计(含符号检验)、打法画像</td></tr>
+    <tr><td><a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-04-league.json">积分榜 JSON</a></td>
+        <td>每一对 300 个配对样本,想自己重算的话用它</td></tr>
+    <tr><td><a href="https://github.com/ChannonTian/80fen/raw/main/contest/results/2026-09-04-rounds.ndjson.gz">逐局记录</a></td>
+        <td>一行一场,<code>rounds[]</code> 里一局一条:庄家、亮主、闲家得分、罚分、级数怎么走。44528 局,654 KB</td></tr>
+    <tr><td><a href="https://github.com/ChannonTian/80fen/tree/main/contest/results">逐选手复盘</a></td>
+        <td>分差丢在哪一侧、关卡局、底、亮主、丢分最多的十局</td></tr>
+  </table></div>
+  <p><strong>逐墩不记。</strong>44528 局的逐墩数据是两千多万手,而且没必要 —— 决策路径里没有随机,拿同一个种子重跑一遍就有了。</p>
+</section>
+
+<section id="join">
+  <h2>想参赛</h2>
+  <p>去 <a href="https://github.com/ChannonTian/80fen-contest">80fen-contest</a>,那里有完整的参赛手册:五个方法的契约、<code>view</code> 的字段表、罚分口径、赛制,和一份「容易写错的十个地方」。</p>
+  <ul>
+    <li>交<strong>一个目录</strong>,入口 <code>index.js</code>,导出一个不收参数的工厂,返回五个决策方法。只依赖 JS 内建。</li>
+    <li>Fork → 放进 <code>submissions/&lt;你的名字&gt;/</code> → 提 PR。</li>
+    <li>交之前自查两条:规则书 §S5 的自测向量全过;自己跑几场完整对局,确认不抛异常。</li>
+  </ul>
+  <p class="note">别看我们主仓库里的引擎和 AI。看了这个比赛对你自己就没意义了 —— 要考的正是「照规则书能不能写出一套能打的东西」。</p>
+</section>
+
+<section id="timeline">
+  <h2>时间线</h2>
+  <ul class="tl">
+    <li><span class="d">08-30</span><span>裁判、隔离、跑分器落地。第一版赛制是「从基准 fork 起步做增量改进」</span></li>
+    <li><span class="d">08-31</span><span>赛制推翻重来:不给引擎、照规则书自己写;排名从「都打同一个陪练」改成两两对过局的联赛</span></li>
+    <li><span class="d">09-01</span><span>参赛 repo <a href="https://github.com/ChannonTian/80fen-contest">80fen-contest</a> 开张,规则书由主仓库生成、钉住同步</span></li>
+    <li><span class="d">09-04</span><span>两份提交交卷;套上 GUI 壳出观察页;<strong>第一届联赛跑完</strong> —— 1800 场 / 44528 局 / 72 分钟</span></li>
+  </ul>
+</section>
+
+<footer>
+  <p>80分(上海规则)· 纯静态、零依赖、无构建 ·
+     <a href="https://github.com/ChannonTian/80fen">主仓库</a> ·
+     <a href="https://github.com/ChannonTian/80fen-contest">参赛 repo</a> ·
+     <a href="./">在线试玩</a></p>
+  <p>本页的数字全部来自 <code>contest/results/</code> 里的记录文件,改了记录重跑生成器就能对上。</p>
+</footer>
+
+</div>
+</body>
+</html>

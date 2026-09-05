@@ -6,6 +6,7 @@
 
 * **[在线试玩稳定版](https://channontian.github.io/80fen/)**
 * [在线试玩测试版](https://channontian.github.io/80fen/80fen-test.html)
+* **[AI 比赛主页](https://channontian.github.io/80fen/contest.html)** —— 赛制、选手、结果、对局记录,和每份提交套上 GUI 壳的观察页
 
 ## 仓库长什么样
 
@@ -77,6 +78,7 @@ contest/                       比赛:裁判、联赛、赛报、参赛 repo 的
 | `contest/gen-viewer.js` | 给参赛提交**套上 GUI 壳**,生成人类观察员能坐下来打的页面 |
 | `contest/verify-viewer.js` | 在真浏览器里把观察页跑完一局 —— **生成完必须跑,发出去之前** |
 | `80fen-contest-<选手>-v1.html` | 参赛版观察页。引擎与界面同正式版(逐字节),只换了三家 AI |
+| `contest.html` | **比赛主页** —— 赛制、选手、结果、记录。数字全部来自 `contest/results/`,可核对 |
 | `contest/baseline.js` | 现版 AI 的参赛接口包装 —— 排名的标尺,也是参赛者的起点 |
 | `contest/selftest.js` | **裁判器自测** —— 36 项,含空屋隔离与护栏对故意作弊的提交是否兜得住 |
 
