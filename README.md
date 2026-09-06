@@ -66,6 +66,7 @@ contest/                       比赛:裁判、联赛、赛报、参赛 repo 的
 | `test/check-sync.js` | **三份 build 与文档的一致性体检** —— 晋级、推送之前跑一遍 |
 | `test/gen-switches.js` | 生成 `docs/SWITCHES.md` |
 | `test/rules-vectors.js` | 规则书 §S5 新增向量的可执行版 —— 写进规则书之前必须先在引擎上跑过 |
+| `test/league-resume.js` | 联赛断点续跑的回归测试:进程被杀之后记录还读不读得出来、续跑的结果和一口气跑的一不一样 |
 | `contest/engine.js` | 比赛用的引擎包:从 build 里**运行时抽取**块①,每个参赛者一个隔离 realm |
 | `contest/referee.js` | 裁判器:在 node 里完整复刻界面块的一整场打级对局 |
 | `contest/mount.js` | 一份提交装进哪间屋子 —— 白名单里的走 house,其余一律空屋 |
