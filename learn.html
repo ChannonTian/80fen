@@ -6,23 +6,27 @@
 <title>80分教学 · 第一单元</title>
 <style>
 /* ============================================================
-   80分教学版 —— 原型 v0.0.2
-   视觉语言对照 Duolingo 国际象棋课的真实界面:
-     顶栏 X + 细进度条 / 题型行 + 角色气泡指令 / 关键词高亮 /
-     「新规则」徽章 / 底部 小圆提示钮 + 宽 CTA / 底部滑入反馈条 /
-     蜿蜒关卡路径 + 单元 banner。
-   牌面沿用正式版 index.html 的四色牌与「牌宽是唯一标尺」的做法。
+   80分教学版 —— 原型 v0.0.3
+   四段式框架:进度条 / 出题区 / 牌桌区 / 答题区。
+   反馈不做全屏浮层 —— 讲解回到出题区(猫改口),对错与「继续」落在
+   答题区,手牌全程可见。看反馈的时候手里还有什么牌,是要一起看的。
+   配色:橄榄绿系,不用 Duolingo 那支亮绿。
    ============================================================ */
 :root{
-  --green:#58CC02; --green-rim:#58A700; --green-bg:#D7FFB8; --green-tx:#4B9B00;
-  --red:#FF4B4B;   --red-rim:#EA2B2B;   --red-bg:#FFDFE0;   --red-tx:#EA2B2B;
-  --blue:#1CB0F6;  --blue-rim:#1899D6;  --blue-bg:#DDF4FF;
-  --purple:#CE82FF; --purple-tx:#A560E8;
-  --yellow:#FFC800;
-  --tx:#3C3C3C; --tx2:#777777; --line:#E5E5E5; --dis:#E5E5E5; --dis-tx:#AFAFAF;
-  --page:#FFFFFF; --felt:#F1F7F3;
+  /* 橄榄绿主色系 */
+  --ol:#6A8D2F; --ol-rim:#52701F; --ol-bg:#EDF4DB; --ol-tx:#496517; --ol-dk:#3D5416;
+  /* 砖红(错) */
+  --rd:#BC4A33; --rd-rim:#98371F; --rd-bg:#FAE8E2; --rd-tx:#9A3A24;
+  /* 靛蓝(选中) */
+  --bl:#4A7FA5; --bl-rim:#3A6A8A; --bl-bg:#E7F0F6; --bl-tx:#345F7C;
+  /* 梅紫(新规则徽章、关键词) */
+  --pu:#7E5C99; --pu-bg:#F0EAF5;
+  /* 金(分值角标) */
+  --gd:#DDA32C; --gd-tx:#4A3708;
+  --tx:#33362E; --tx2:#7A7C72; --line:#E2E0D6; --dis:#E4E2D8; --dis-tx:#A9A79C;
+  --page:#FFFCF6; --felt:#F3F1E7;
 
-  /* 牌宽是唯一标尺。教学版一屏只有 2~8 张牌,给得比正式版大得多 —— 看得清是学习的前提 */
+  /* 牌宽是唯一标尺 */
   --cardW:clamp(50px,14.5vw,72px);
   --cardH:calc(var(--cardW)*1.44);
   --fs:clamp(15px,4vw,17px);
@@ -34,55 +38,67 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
   font:600 var(--fs)/1.45 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif}
 #app{height:100svh;display:flex;flex-direction:column;max-width:560px;margin:0 auto;position:relative;overflow:hidden}
 
-/* ---------- 实体感按钮(下沿 4px,按下时下沉) ---------- */
-.btn{display:block;width:100%;border:0;border-radius:16px;padding:14px 20px;
+/* ---------- 按钮 ---------- */
+.btn{display:block;width:100%;border:0;border-radius:14px;padding:13px 20px;
   font:800 clamp(15px,4.2vw,17px)/1.2 inherit;letter-spacing:.5px;color:#fff;
-  background:var(--green);border-bottom:4px solid var(--green-rim);cursor:pointer}
+  background:var(--ol);border-bottom:4px solid var(--ol-rim);cursor:pointer}
 .btn:active:not(:disabled){transform:translateY(4px);border-bottom-width:0;margin-bottom:4px}
-.btn:disabled{background:var(--dis);color:var(--dis-tx);border-bottom-color:#D0D0D0;cursor:default}
-.rnd{width:52px;height:52px;flex:none;border-radius:14px;border:2px solid var(--line);border-bottom-width:4px;
-  background:#fff;font-size:22px;cursor:pointer;display:grid;place-items:center;color:var(--blue)}
-.rnd:active{transform:translateY(3px);border-bottom-width:1px}
-.rnd:disabled{opacity:.4;cursor:default}
+.btn:disabled{background:var(--dis);color:var(--dis-tx);border-bottom-color:#CFCDC2;cursor:default}
+.btn.red{background:var(--rd);border-bottom-color:var(--rd-rim)}
+.rnd{width:50px;height:50px;flex:none;border-radius:13px;border:2px solid var(--line);
+  border-bottom-width:4px;background:#fff;font-size:21px;cursor:pointer;display:grid;
+  place-items:center;color:var(--ol-tx)}
+.rnd:active:not(:disabled){transform:translateY(3px);border-bottom-width:1px}
+.rnd:disabled{opacity:.35;cursor:default}
 
-/* ---------- 顶栏 ---------- */
-#top{display:flex;align-items:center;gap:14px;padding:12px 16px 6px;flex:none}
-#quit{border:0;background:none;color:var(--dis-tx);font-size:26px;line-height:1;cursor:pointer;padding:0 2px}
-#bar{flex:1;height:14px;background:var(--line);border-radius:7px;overflow:hidden}
-#barIn{height:100%;width:0;background:var(--green);border-radius:7px;position:relative;
+/* ==========  ① 进度条  ========== */
+#top{display:flex;align-items:center;gap:13px;padding:11px 16px 5px;flex:none}
+#quit{border:0;background:none;color:var(--dis-tx);font-size:25px;line-height:1;cursor:pointer;padding:0 2px}
+#bar{flex:1;height:13px;background:var(--line);border-radius:7px;overflow:hidden}
+#barIn{height:100%;width:0;background:var(--ol);border-radius:7px;position:relative;
   transition:width .35s cubic-bezier(.4,0,.2,1)}
-#barIn::after{content:"";position:absolute;left:7px;right:7px;top:3px;height:3px;border-radius:2px;background:rgba(255,255,255,.4)}
+#barIn::after{content:"";position:absolute;left:6px;right:6px;top:3px;height:3px;border-radius:2px;background:rgba(255,255,255,.35)}
 
-/* ---------- 题型行 + 新规则徽章 ---------- */
-#badge{padding:4px 18px 0;flex:none}
-#badge span{display:inline-flex;align-items:center;gap:6px;color:var(--purple-tx);
-  font:800 11px/1 inherit;letter-spacing:1.2px}
-#badge span::before{content:"";width:14px;height:14px;border-radius:50%;background:var(--purple)}
-#task{padding:2px 18px 8px;font:800 clamp(18px,5vw,21px)/1.3 inherit;flex:none}
-
-/* ---------- 教练 + 气泡 ---------- */
-#coach{display:flex;align-items:flex-start;gap:8px;padding:0 18px 8px;flex:none}
-#face{width:56px;height:56px;flex:none}
+/* ==========  ② 出题区  ========== */
+#ask{flex:none;padding:2px 16px 8px}
+#badge{min-height:15px}
+#badge span{display:inline-flex;align-items:center;gap:6px;color:var(--pu);font:800 11px/1 inherit;letter-spacing:1.2px}
+#badge span::before{content:"";width:13px;height:13px;border-radius:50%;background:var(--pu)}
+#task{font:800 clamp(17px,4.8vw,20px)/1.3 inherit;margin:2px 0 7px}
+#coach{display:flex;align-items:flex-start;gap:8px}
+#face{width:54px;height:54px;flex:none}
 #bub{position:relative;background:#fff;border:2px solid var(--line);border-radius:14px;
-  padding:9px 13px;font:600 clamp(13px,3.7vw,15px)/1.4 inherit;flex:1}
-#bub::before,#bub::after{content:"";position:absolute;top:16px;border:8px solid transparent}
+  padding:9px 12px;font:600 clamp(13px,3.7vw,15px)/1.45 inherit;flex:1;transition:background .2s,border-color .2s}
+#bub::before,#bub::after{content:"";position:absolute;top:15px;border:8px solid transparent}
 #bub::before{left:-16px;border-right-color:var(--line)}
 #bub::after{left:-13px;border-right-color:#fff}
-#bub b{color:var(--purple-tx)}                 /* 关键词高亮 */
-#bub .term{color:var(--purple-tx);border-bottom:2px dotted var(--purple);cursor:help}
+#bub b{color:var(--pu)}
+#bub .term{color:var(--pu);border-bottom:2px dotted var(--pu);cursor:help}
+#bub .sim{display:block;margin-top:4px;font-size:.85em;color:var(--tx2);font-weight:600}
+#bub.good .sim,#bub.bad .sim{color:inherit;opacity:.78}
+#bub .tip{display:block;margin-top:5px;color:var(--pu);font-size:.9em}
+/* 讲解态:猫改口说反馈 */
+#bub.good{background:var(--ol-bg);border-color:#C6DA9A} #bub.good::after{border-right-color:var(--ol-bg)}
+#bub.good::before{border-right-color:#C6DA9A}
+#bub.bad{background:var(--rd-bg);border-color:#EFC4B7} #bub.bad::after{border-right-color:var(--rd-bg)}
+#bub.bad::before{border-right-color:#EFC4B7}
+#bub.good b,#bub.bad b{color:inherit;text-decoration:underline;text-underline-offset:3px}
 
-/* ---------- 牌桌 ---------- */
-#table{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:10px;padding:2px 12px}
+/* ==========  ③ 牌桌区 + ④ 手牌:作为一个整体居中,中间只留一点  ========== */
+#board{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:4px;padding:2px 12px 22px}   /* 下留白把整组往上顶 */
+#table{display:flex;flex-direction:column;align-items:center;gap:9px;width:100%}
+#hand{display:flex;justify-content:center;gap:8px;min-height:calc(var(--cardH) + 10px);
+  align-items:flex-end}
 
-.seatmap{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:min(300px,88%);place-items:center}
+.seatmap{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:min(300px,90%);place-items:center}
 .seatbtn{border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;background:#fff;
-  padding:10px 4px;width:100%;font:800 14px/1.25 inherit;color:var(--tx);cursor:pointer}
+  padding:11px 4px;width:100%;font:800 14px/1.25 inherit;color:var(--tx);cursor:pointer}
 .seatbtn small{display:block;font-weight:700;font-size:11px;color:var(--tx2);margin-top:3px}
-.seatbtn.me{background:var(--felt);cursor:default;border-color:#CFE3D7}
-.seatbtn.sel{border-color:var(--blue);background:var(--blue-bg);color:#1179A8}
-.seatbtn.ok{border-color:var(--green);background:var(--green-bg);color:var(--green-tx)}
-.seatbtn.no{border-color:var(--red);background:var(--red-bg);color:var(--red-tx)}
+.seatbtn.me{background:var(--felt);cursor:default;border-color:#D8D5C6}
+.seatbtn.sel{border-color:var(--bl);background:var(--bl-bg);color:var(--bl-tx)}
+.seatbtn.ok{border-color:var(--ol);background:var(--ol-bg);color:var(--ol-tx)}
+.seatbtn.no{border-color:var(--rd);background:var(--rd-bg);color:var(--rd-tx)}
 .arrowbox{font:700 11px/1.3 inherit;color:var(--tx2);text-align:center}
 
 .trick{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;width:100%;max-width:330px;
@@ -90,140 +106,135 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
 .slot{display:flex;flex-direction:column;align-items:center;gap:3px;justify-content:center;
   min-height:calc(var(--cardH) + 18px)}
 .slot .who{font:700 11px/1 inherit;color:var(--tx2);white-space:nowrap}
-.slot.mine .who,.slot.mate .who{color:var(--green-tx)}
-.slot .who.win{background:var(--yellow);color:#5a4200;border-radius:5px;padding:2px 6px}
-.slot .ph{width:var(--cardW);height:var(--cardH);border-radius:7px;border:2px dashed #CCDCD2}
+.slot.mine .who,.slot.mate .who{color:var(--ol-tx)}
+.slot .who.win{background:var(--gd);color:var(--gd-tx);border-radius:5px;padding:2px 6px}
+.slot .ph{width:var(--cardW);height:var(--cardH);border-radius:7px;border:2px dashed #D3D0C1}
 .tcenter{grid-column:2;font:700 11px/1.35 inherit;color:var(--tx2);text-align:center}
-
 .pile{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:330px}
-.opts{display:flex;flex-direction:column;gap:9px;width:100%;max-width:330px}
-.opt{border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;background:#fff;
-  padding:12px 15px;font:700 clamp(14px,4vw,16px)/1.3 inherit;color:var(--tx);cursor:pointer;text-align:left}
-.opt.sel{border-color:var(--blue);background:var(--blue-bg);color:#1179A8}
-.opt.ok{border-color:var(--green);background:var(--green-bg);color:var(--green-tx)}
-.opt.no{border-color:var(--red);background:var(--red-bg);color:var(--red-tx)}
+.opts{display:flex;flex-direction:column;gap:8px;width:100%;max-width:330px}
+.opt{border:2px solid var(--line);border-bottom-width:4px;border-radius:13px;background:#fff;
+  padding:11px 15px;font:700 clamp(14px,4vw,16px)/1.3 inherit;color:var(--tx);cursor:pointer;text-align:left}
+.opt.sel{border-color:var(--bl);background:var(--bl-bg);color:var(--bl-tx)}
+.opt.ok{border-color:var(--ol);background:var(--ol-bg);color:var(--ol-tx)}
+.opt.no{border-color:var(--rd);background:var(--rd-bg);color:var(--rd-tx)}
 
 /* ---------- 牌 ---------- */
 .card{position:relative;display:inline-block;width:var(--cardW);height:var(--cardH);flex:none;
-  background:#fff;color:#111;border-radius:7px;border:1.5px solid #C8C8C8;font-weight:800;
-  user-select:none;box-shadow:0 2px 0 rgba(0,0,0,.10);vertical-align:top}
-.card.sS{color:#141414} .card.sH{color:#c0392b} .card.sD{color:#b0185c} .card.sC{color:#0a3b23}
+  background:#fff;color:#111;border-radius:7px;border:1.5px solid #CBC8BA;font-weight:800;
+  user-select:none;box-shadow:0 2px 0 rgba(0,0,0,.09);vertical-align:top}
+.card.sS{color:#141414} .card.sH{color:#B33A2B} .card.sD{color:#A8286A} .card.sC{color:#14472C}
 .card .tl{position:absolute;top:3px;left:5px;font-size:calc(var(--cardW)*.40);line-height:1}
 .card .bl{position:absolute;bottom:3px;left:5px;font-size:calc(var(--cardW)*.38);line-height:1}
+/* 角标只能放右下:左上是点数(「10」占两个字宽)、左下是花色 */
 .card .pt{position:absolute;right:3px;bottom:3px;font-size:calc(var(--cardW)*.25);line-height:1;
-  background:var(--yellow);color:#5a4200;border-radius:5px;padding:2px 4px;font-weight:800}
-  /* 角标只能放右下:左上是点数(「10」占两个字宽)、左下是花色 */
+  background:var(--gd);color:var(--gd-tx);border-radius:5px;padding:2px 4px;font-weight:800}
 .card.pick{cursor:pointer;transition:transform .1s}
-.card.sel{transform:translateY(-13px);box-shadow:0 2px 0 rgba(0,0,0,.10),0 0 0 3px var(--blue)}
-.card.ok{box-shadow:0 2px 0 rgba(0,0,0,.1),0 0 0 3px var(--green)}
-.card.no{box-shadow:0 2px 0 rgba(0,0,0,.1),0 0 0 3px var(--red);opacity:.6}
-.card.dim{opacity:.35}
-.card.hint{box-shadow:0 2px 0 rgba(0,0,0,.1),0 0 0 3px var(--yellow)}
-.card.played{animation:playIn .3s cubic-bezier(.2,.9,.3,1.3)}
-@keyframes playIn{from{transform:translateY(24px) scale(.85);opacity:0}to{transform:none;opacity:1}}
-.flyer{position:fixed;z-index:60;transition:transform .5s cubic-bezier(.5,0,.6,1),opacity .5s;pointer-events:none}
+.card.sel{transform:translateY(-13px);box-shadow:0 2px 0 rgba(0,0,0,.09),0 0 0 3px var(--bl)}
+.card.ok{box-shadow:0 2px 0 rgba(0,0,0,.09),0 0 0 3px var(--ol)}
+.card.no{box-shadow:0 2px 0 rgba(0,0,0,.09),0 0 0 3px var(--rd);opacity:.6}
+.card.dim{opacity:.32}
+.card.played{animation:playIn .28s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes playIn{from{transform:translateY(22px) scale(.85);opacity:0}to{transform:none;opacity:1}}
+.flyer{position:fixed;z-index:60;transition:transform .48s cubic-bezier(.5,0,.6,1),opacity .48s;pointer-events:none}
 
-#hand{flex:none;display:flex;justify-content:center;gap:8px;padding:8px 12px 2px;
-  min-height:calc(var(--cardH) + 20px)}
+/* ==========  ⑤ 答题区(按钮 / 反馈)  ========== */
+#foot{flex:none;padding:9px 16px calc(10px + env(safe-area-inset-bottom));
+  border-top:2px solid var(--line);background:#fff;transition:background .2s,border-color .2s}
+#foot.good{background:var(--ol-bg);border-top-color:#C6DA9A}
+#foot.bad{background:var(--rd-bg);border-top-color:#EFC4B7}
+#verdict{display:none;font:800 clamp(16px,4.4vw,18px)/1.2 inherit;margin-bottom:8px}
+#foot.good #verdict{display:block;color:var(--ol-tx)}
+#foot.bad  #verdict{display:block;color:var(--rd-tx)}
+#btnRow{display:flex;gap:11px;align-items:center}
+#btnRow .btn{flex:1}
+#foot.good .rnd,#foot.bad .rnd{background:#fff;border-color:rgba(0,0,0,.09)}
 
-/* ---------- 底部 ---------- */
-#foot{flex:none;display:flex;gap:12px;align-items:center;
-  padding:8px 16px calc(10px + env(safe-area-inset-bottom));border-top:2px solid var(--line);background:#fff}
-#foot .btn{flex:1}
-#fb{position:absolute;left:0;right:0;bottom:0;transform:translateY(115%);z-index:40;
-  padding:14px 16px calc(12px + env(safe-area-inset-bottom));border-radius:20px 20px 0 0;
-  transition:transform .28s cubic-bezier(.2,.9,.3,1)}
-#fb.show{transform:none}
-#fb.good{background:var(--green-bg)} #fb.bad{background:var(--red-bg)}
-#fbTitle{font:800 clamp(17px,4.6vw,19px)/1.2 inherit;margin-bottom:5px}
-#fbText{font:600 clamp(13px,3.6vw,15px)/1.45 inherit;margin-bottom:11px}
-#fb.good #fbTitle,#fb.good #fbText{color:var(--green-tx)}
-#fb.bad  #fbTitle,#fb.bad  #fbText{color:var(--red-tx)}
-#fbRow{display:flex;gap:12px;align-items:center}
-#fbRow .btn{flex:1}
-#fb.bad .btn{background:var(--red);border-bottom-color:var(--red-rim)}
-#fb.good .rnd{border-color:#B7E88A;color:var(--green-tx);background:#fff}
-#fb.bad  .rnd{border-color:#FFC2C4;color:var(--red-tx);background:#fff}
-
-/* ---------- 地图 / 完成页 ---------- */
+/* ==========  地图:一个单元 = 一「手」牌  ========== */
 .page{position:absolute;inset:0;background:var(--page);z-index:50;display:flex;flex-direction:column;
   overflow-y:auto;-webkit-overflow-scrolling:touch}
 .page.hide{display:none}
-.unithead{margin:14px 16px 4px;background:var(--green);color:#fff;border-radius:16px;
-  padding:13px 18px;border-bottom:4px solid var(--green-rim);flex:none}
-.unithead small{display:block;font:800 11px/1 inherit;letter-spacing:1.4px;opacity:.92;margin-bottom:5px}
-.unithead b{font-size:19px}
-.path{padding:52px 0 48px;flex:none}
-.step{display:flex;justify-content:center;position:relative}
-.node{width:76px;height:68px;border-radius:50%;border:0;background:var(--green);
-  border-bottom:8px solid var(--green-rim);color:#fff;font-size:27px;cursor:pointer;
-  display:grid;place-items:center;position:relative}
-.node:active{transform:translateY(5px);border-bottom-width:3px}
-.node.lock{background:var(--dis);border-bottom-color:#CFCFCF;color:#fff;cursor:default}
-.node.done{background:var(--yellow);border-bottom-color:#E0A500}
-.tip{position:absolute;top:-42px;left:50%;transform:translateX(-50%);background:#fff;
-  color:var(--green-tx);border:2px solid var(--line);border-radius:12px;font:800 12px/1 inherit;
-  padding:8px 12px;white-space:nowrap;animation:bob 1.5s ease-in-out infinite}
-.tip::after{content:"";position:absolute;bottom:-8px;left:50%;margin-left:-6px;
-  border:6px solid transparent;border-top-color:#fff}
-@keyframes bob{0%,100%{transform:translateX(-50%)}50%{transform:translateX(-50%) translateY(-5px)}}
-.dots{display:flex;gap:4px;justify-content:center;margin-top:7px}
-.dots i{width:8px;height:8px;border-radius:50%;background:var(--line);display:block}
-.dots i.on{background:var(--yellow)}
-.lbl{text-align:center;font:700 12px/1.3 inherit;color:var(--tx2);margin-top:6px}
+.unit{margin:14px 16px 0;background:var(--ol);color:#fff;border-radius:16px;padding:12px 17px;
+  border-bottom:4px solid var(--ol-rim)}
+.unit.lock{background:var(--dis);border-bottom-color:#CFCDC2;color:#8B897E}
+.unit small{display:block;font:800 11px/1 inherit;letter-spacing:1.4px;opacity:.9;margin-bottom:5px}
+.unit b{font-size:18px}
+.fan{display:flex;justify-content:center;padding:22px 12px 4px;min-height:130px;align-items:flex-end}
+.lnode{--w:clamp(50px,15vw,64px);width:var(--w);height:calc(var(--w)*1.44);flex:none;
+  margin-left:-10px;border-radius:8px;border:0;padding:0;position:relative;cursor:default;
+  transition:transform .16s;transform-origin:bottom center}
+.lnode:first-child{margin-left:0}
+/* 牌背 */
+.lnode.back{background:
+   repeating-linear-gradient(45deg,rgba(255,255,255,.14) 0 3px,transparent 3px 7px),
+   repeating-linear-gradient(-45deg,rgba(255,255,255,.14) 0 3px,transparent 3px 7px),
+   linear-gradient(160deg,var(--ol),var(--ol-dk));
+  box-shadow:0 2px 0 rgba(0,0,0,.14);border:2px solid rgba(255,255,255,.5)}
+.lnode.back.lock{background:
+   repeating-linear-gradient(45deg,rgba(255,255,255,.16) 0 3px,transparent 3px 7px),
+   linear-gradient(160deg,#BFBDB1,#9E9C90);border-color:rgba(255,255,255,.45)}
+.lnode.back::after{content:"80";position:absolute;inset:0;display:grid;place-items:center;
+  color:rgba(255,255,255,.82);font:800 calc(var(--w)*.34)/1 inherit;letter-spacing:1px}
+/* 正面(已完成) */
+.lnode.face{background:#fff;border:1.5px solid #CBC8BA;box-shadow:0 2px 0 rgba(0,0,0,.09);color:#B33A2B}
+.lnode.face .r{position:absolute;top:4px;left:6px;font:800 calc(var(--w)*.4)/1 inherit}
+.lnode.face .s{position:absolute;bottom:4px;left:6px;font:800 calc(var(--w)*.38)/1 inherit}
+.lnode.face .star{position:absolute;right:3px;bottom:3px;background:var(--gd);color:var(--gd-tx);
+  border-radius:5px;font:800 calc(var(--w)*.26)/1 inherit;padding:2px 4px}
+/* 当前:抬起 + 可点 */
+.lnode.now{cursor:pointer;transform:translateY(-16px) rotate(-2deg);z-index:3;
+  box-shadow:0 4px 0 rgba(0,0,0,.16),0 0 0 3px var(--gd)}
+.lnode.face{z-index:2}
+.lnode.now:active{transform:translateY(-10px)}
+.nowline{text-align:center;font:800 clamp(15px,4.2vw,17px)/1.3 inherit;margin:12px 16px 3px}
+.nowsub{text-align:center;font:600 12px/1.3 inherit;color:var(--tx2);margin-bottom:12px}
+.golead{margin:0 16px 6px}
+.locknote{text-align:center;color:var(--tx2);font:600 12px/1.4 inherit;padding:10px 16px 20px}
+
 #done{align-items:center;justify-content:center;text-align:center;padding:24px;gap:2px}
-#done .big{font-size:62px}
-#done h2{font:800 25px/1.2 inherit;color:var(--green-tx);margin:8px 0 2px}
+#done .big{font-size:58px}
+#done h2{font:800 24px/1.2 inherit;color:var(--ol-tx);margin:8px 0 2px}
 #done p{color:var(--tx2);font-weight:600;margin:0 0 20px}
 .stats{display:flex;gap:12px;margin-bottom:24px}
-.stat{border:2px solid var(--yellow);border-radius:14px;padding:8px 20px;min-width:100px}
-.stat b{display:block;font-size:22px;color:#B58900}
+.stat{border:2px solid var(--gd);border-radius:14px;padding:8px 20px;min-width:100px}
+.stat b{display:block;font-size:21px;color:#8A6510}
 .stat small{font-size:11px;color:var(--tx2);font-weight:800;letter-spacing:1px}
 </style>
 </head>
 <body>
 <div id="app">
 
-  <div class="page" id="map">
-    <div class="unithead"><small>第一部 · 会打一墩</small><b>单元 1 · 你和你的搭档</b></div>
-    <div class="path" id="path"></div>
-  </div>
+  <div class="page" id="map"></div>
 
+  <!-- ① 进度条 -->
   <div id="top">
     <button id="quit" title="退出">&times;</button>
     <div id="bar"><div id="barIn"></div></div>
   </div>
-  <div id="badge"></div>
-  <div id="task"></div>
-  <div id="coach">
-    <svg id="face" viewBox="0 0 64 64" aria-hidden="true">
-      <ellipse cx="32" cy="60" rx="19" ry="9" fill="#F7C6A0"/>
-      <circle cx="32" cy="34" r="20" fill="#F7C6A0"/>
-      <path d="M11 30c0-13 42-13 42 0 0 3-42 3-42 0z" fill="#2F6B4F"/>
-      <path d="M9 30h46a2 2 0 0 1 0 4H9a2 2 0 0 1 0-4z" fill="#245640"/>
-      <circle cx="25" cy="36" r="2.6" fill="#3C3C3C"/><circle cx="39" cy="36" r="2.6" fill="#3C3C3C"/>
-      <path d="M25 45q7 5 14 0" stroke="#3C3C3C" stroke-width="2.6" fill="none" stroke-linecap="round"/>
-    </svg>
-    <div id="bub"></div>
-  </div>
-  <div id="table"></div>
-  <div id="hand"></div>
-  <div id="foot">
-    <button class="rnd" id="hintBtn" title="问教练">💡</button>
-    <button class="btn" id="cta" disabled>检查</button>
+
+  <!-- ② 出题区 -->
+  <div id="ask">
+    <div id="badge"></div>
+    <div id="task"></div>
+    <div id="coach"><span id="face"></span><div id="bub"></div></div>
   </div>
 
-  <div id="fb">
-    <div id="fbTitle"></div>
-    <div id="fbText"></div>
-    <div id="fbRow">
-      <button class="rnd" id="whyBtn" title="为什么">?</button>
-      <button class="btn" id="fbBtn">继续</button>
+  <!-- ③ 牌桌区 + 手牌 -->
+  <div id="board">
+    <div id="table"></div>
+    <div id="hand"></div>
+  </div>
+
+  <!-- ④ 答题区 -->
+  <div id="foot">
+    <div id="verdict"></div>
+    <div id="btnRow">
+      <button class="rnd" id="hintBtn" title="问教练">💡</button>
+      <button class="btn" id="cta" disabled>检查</button>
     </div>
   </div>
 
   <div class="page hide" id="done">
-    <div class="big">🎉</div>
+    <div class="big">🐱</div>
     <h2>这一课通关了</h2>
     <p>你已经看得懂一墩牌了</p>
     <div class="stats">
@@ -238,7 +249,42 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
 (function(){
 'use strict';
 
-/* ================= 牌与术语 ================= */
+/* ================= 教练:狸花猫 =================
+   三种表情共用一个头,只换眼睛和嘴。狸花猫的辨识点:额头 M 纹、
+   背青灰底的黑色鲭鱼纹、琥珀绿的眼睛。 */
+function catSVG(mood){
+  const eyes = mood==='good'
+    ? `<path d="M20 36q5-5 10 0M42 36q5-5 10 0" stroke="#2B2A24" stroke-width="3" fill="none" stroke-linecap="round"/>`
+    : mood==='bad'
+    ? `<ellipse cx="25" cy="37" rx="6" ry="6.5" fill="#F2EFE4"/><ellipse cx="47" cy="37" rx="6" ry="6.5" fill="#F2EFE4"/>
+       <ellipse cx="25" cy="37" rx="5" ry="5.6" fill="#A9B84E"/><ellipse cx="47" cy="37" rx="5" ry="5.6" fill="#A9B84E"/>
+       <ellipse cx="25" cy="37" rx="1.9" ry="5" fill="#1E1D18"/><ellipse cx="47" cy="37" rx="1.9" ry="5" fill="#1E1D18"/>
+       <circle cx="23.2" cy="34.6" r="1.5" fill="#fff"/><circle cx="45.2" cy="34.6" r="1.5" fill="#fff"/>`
+    : `<ellipse cx="25" cy="37" rx="6" ry="5.6" fill="#F2EFE4"/><ellipse cx="47" cy="37" rx="6" ry="5.6" fill="#F2EFE4"/>
+       <ellipse cx="25" cy="37" rx="5.1" ry="4.8" fill="#A9B84E"/><ellipse cx="47" cy="37" rx="5.1" ry="4.8" fill="#A9B84E"/>
+       <ellipse cx="25" cy="37" rx="1.7" ry="4.3" fill="#1E1D18"/><ellipse cx="47" cy="37" rx="1.7" ry="4.3" fill="#1E1D18"/>
+       <circle cx="23.3" cy="35" r="1.4" fill="#fff"/><circle cx="45.3" cy="35" r="1.4" fill="#fff"/>`;
+  const mouth = mood==='good'
+    ? `<path d="M30 50q6 6 12 0" stroke="#5C5344" stroke-width="2.2" fill="none" stroke-linecap="round"/>`
+    : mood==='bad'
+    ? `<path d="M31 52q5-4 10 0" stroke="#5C5344" stroke-width="2.2" fill="none" stroke-linecap="round"/>`
+    : `<path d="M31 49q2.5 3 5 0M36 49q2.5 3 5 0" stroke="#5C5344" stroke-width="2.2" fill="none" stroke-linecap="round"/>`;
+  return `<svg viewBox="0 0 72 72" width="100%" height="100%" aria-hidden="true">
+   <path d="M11 30 L13 7 L31 17 Z" fill="#A2977F"/><path d="M15 26 L16.5 13 L27 19 Z" fill="#DCA9A6"/>
+   <path d="M61 30 L59 7 L41 17 Z" fill="#A2977F"/><path d="M57 26 L55.5 13 L45 19 Z" fill="#DCA9A6"/>
+   <ellipse cx="36" cy="39" rx="26" ry="24" fill="#A99E86"/>
+   <path d="M36 15 L31 26 M36 15 L41 26 M26 19 L23 28 M46 19 L49 28" stroke="#5C5344" stroke-width="3" stroke-linecap="round" fill="none"/>
+   <path d="M12 36 L4 33 M12 42 L4 42 M60 36 L68 33 M60 42 L68 42" stroke="#5C5344" stroke-width="2.4" stroke-linecap="round" opacity=".55"/>
+   <ellipse cx="36" cy="49" rx="13" ry="10" fill="#EFEADC"/>
+   ${eyes}
+   <path d="M33 44 L39 44 L36 47.6 Z" fill="#D0757E"/>
+   ${mouth}
+   <path d="M22 46 L8 44 M22 49 L9 51 M50 46 L64 44 M50 49 L63 51" stroke="#8E8878" stroke-width="1.4" opacity=".55" stroke-linecap="round"/>
+  </svg>`;
+}
+function setCat(mood){ document.getElementById('face').innerHTML=catSVG(mood); }
+
+/* ================= 牌 ================= */
 const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
 const PTS={5:5,10:10,13:10};
 const RS=r=>r>10?({11:'J',12:'Q',13:'K',14:'A'})[r]:String(r);
@@ -255,41 +301,29 @@ const SEAT=['南','东','北','西'];
 const isUs=s=>s%2===0;
 const nameOf=s=>SEAT[s]+(s===0?'(你)':s===2?'(队友)':'');
 
-/* ================= 第一课 =================
-   每题 {badge?, task, prompt, hint, ...}
-   task   = 题型行(短)     prompt = 教练气泡里的指令
-   badge  = 「新规则」徽章  hint   = 💡 给出的提示
-*/
+/* ================= 单元 1 · 第 1 课 ================= */
 const LESSON={ qs:[
-
-{ type:'seat', badge:'新概念',
-  task:'认认人',
+{ type:'seat', badge:'新概念', task:'认认人',
   prompt:'四个人两两搭档。你坐<b>南</b>边 —— 谁是你的队友?',
-  hint:'队友不在你旁边。',
-  answer:2,
+  hint:'队友不在你旁边。', answer:2,
   good:'对。<b>坐你对面</b>的是队友,左右两家都是对手。',
   bad:'不对。左右两家是对手,<b>坐你对面</b>的那家才是队友。' },
 
-{ type:'multi', badge:'新概念',
-  task:'挑出分牌',
+{ type:'multi', badge:'新概念', task:'挑出分牌',
   prompt:'一副牌里只有<b>三种牌算分</b>。把有分的都点出来。',
-  hint:'一共三张。最大的那张 A 不算分。',
-  cards:[H(3),H(5),H(9),H(13),H(10),H(14)],
-  answer:['H50','H130','H100'],
+  hint:'一共三张。最大的 A 不算分。',
+  cards:[H(3),H(5),H(9),H(13),H(10),H(14)], answer:['H50','H130','H100'],
   good:'对。<b>5 算 5 分,10 和 K 各算 10 分</b>,其余的牌一分没有。',
   bad:'有分的只有三种:<b>5(5分)、10(10分)、K(10分)</b>。A 再大也不算分。' },
 
-{ type:'choice',
-  task:'算一算',
-  prompt:'这三张牌一共多少分?',
-  hint:'K 和 10 都是 10 分。',
+{ type:'choice', task:'算一算',
+  prompt:'这三张牌一共多少分?', hint:'K 和 10 都算 10 分。',
   cards:[H(13),H(5),H(10)], showPt:true,
   opts:['15 分','20 分','25 分','30 分'], answer:2,
   good:'对。10 + 5 + 10 = <b>25 分</b>。',
   bad:'再数一次:K 算 <b>10</b>、5 算 <b>5</b>、10 算 <b>10</b> —— 合起来 25 分。' },
 
-{ type:'choice', badge:'新规则',
-  task:'谁收这一墩',
+{ type:'choice', badge:'新规则', task:'谁收这一墩',
   prompt:'四家各出一张牌,叫做一<span class="term">墩</span>。这一墩谁收走?',
   hint:'大家出的都是红桃 —— 只要比点数。',
   simplify:'本关:所有人手里只有红桃',
@@ -298,8 +332,7 @@ const LESSON={ qs:[
   good:'对。出的是同一门,<b>最大的那张收走这一墩</b>。',
   bad:'比点数:7 / K / 4 / 9 —— <b>K 最大</b>,东家收走。' },
 
-{ type:'choice', badge:'新规则',
-  task:'这分算谁的',
+{ type:'choice', badge:'新规则', task:'这分算谁的',
   prompt:'刚才那一墩里有 10 分,被<b>东家</b>收走了。这 10 分算谁的?',
   hint:'想想谁和东家是一队的。',
   played:[H(7),H(13),H(4),H(9)], showPt:true,
@@ -307,8 +340,7 @@ const LESSON={ qs:[
   good:'对。<b>分是算一队的,不算个人的。</b>东和西是一队,这 10 分进他们队的账。',
   bad:'80分是<b>两队</b>在打 —— 东家收的分,和他队友西家记同一本账。' },
 
-{ type:'trickpick',
-  task:'出一张牌',
+{ type:'trickpick', task:'出一张牌',
   prompt:'轮到你了(你是最后一家)。出一张<b>能收走这一墩</b>的牌。',
   hint:'先看场上最大的是哪张。',
   simplify:'本关:所有人手里只有红桃',
@@ -317,18 +349,16 @@ const LESSON={ qs:[
   good:'对!<b>♥Q 比场上最大的 ♥9 还大</b>,这一墩归你。',
   bad:'场上最大的是 <b>♥9</b>。你手里只有 <b>♥Q</b> 压得过它 —— 出小牌收不走。' },
 
-{ type:'trickpick', badge:'新技巧',
-  task:'出一张牌',
+{ type:'trickpick', badge:'新技巧', task:'出一张牌',
   prompt:'队友的 <b>♥A</b> 已经最大,谁也压不过了。你出哪张<b>最划算</b>?',
   hint:'队友赢定了 —— 那就往这一墩里放分。',
   simplify:'本关:所有人手里只有红桃',
   played:[null,H(8),H(14),H(3)], lead:1,
   hand:[H(2),H(5)], showPt:true, answer:'H50',
-  good:'漂亮。队友反正赢定了,你把 <b>♥5 的 5 分</b>递给他 —— 这 5 分就进了你们队的账。这叫<span class="term">贴分</span>。',
+  good:'漂亮。队友反正赢定了,你把 <b>♥5 的 5 分</b>递给他 —— 分就进了你们队的账。这叫<span class="term">贴分</span>。',
   bad:'队友已经赢定了。这时候出 <b>♥5(5分)</b>,分就进你们队;出 ♥2 白白浪费一次机会。' },
 
-{ type:'mini',
-  task:'连打两墩',
+{ type:'mini', task:'连打两墩',
   prompt:'自己打两墩看看。轮到你的时候,点一张牌出。',
   hint:'能压就压;压不过、又是队友最大,就把分贴进去。',
   simplify:'本关:所有人手里只有红桃',
@@ -336,38 +366,43 @@ const LESSON={ qs:[
   good:'一墩牌的规矩就这些了 —— <b>同一门里最大的收走,分算一队的。</b>' },
 ]};
 
+/* 节奏参数:关系到「最慢的人 5 分钟内能不能打完」,集中在这里调 */
+const PACE={ step:560, fly:480, review:1150 };
+
 /* ================= 运行时 ================= */
 const $=id=>document.getElementById(id);
 const LS='80fenlearn-';
+const addCls=(el,c)=>{ if(c) el.classList.add(c); };   // classList.add('') 会抛 InvalidCharacterError
 let qi=0,sel=null,selMulti=[],answered=false,wrong=0,t0=0,mini=null,hinted=false;
 
-const addCls=(el,c)=>{ if(c) el.classList.add(c); };   // classList.add('') 会抛 InvalidCharacterError
-const QUI=['top','badge','task','coach','table','hand','foot'];
+const QUI=['top','ask','board','foot'];
 function show(p){
   $('map').classList.toggle('hide',p!=='map');
   $('done').classList.toggle('hide',p!=='done');
-  QUI.forEach(id=>$(id).style.visibility = p==='q'?'visible':'hidden');
+  QUI.forEach(id=>$(id).style.visibility=p==='q'?'visible':'hidden');
 }
 
-/* ---------- 地图:蜿蜒路径 ---------- */
-const OFFS=[0,-56,-82,-56,0,56,82,56];   // 左右交替,像 Duolingo 那条蜿蜒的路
+/* ---------- 地图:一个单元 = 一「手」牌 ---------- */
+const U1=[{r:'A',n:'你和你的搭档'},{r:'2',n:'有这门必须跟'},{r:'3',n:'主牌是哪些'},{r:'4',n:'垫还是毙'}];
 function drawMap(){
   const done=+(localStorage.getItem(LS+'u1l1')||0);
-  const rows=[
-    {icon:done?'★':'🃏',cls:done?'done':'',lbl:'1 · 你和你的搭档',tip:!done,dots:done?3:0,go:start},
-    {icon:'🔒',cls:'lock',lbl:'2 · 有这门必须跟'},
-    {icon:'🔒',cls:'lock',lbl:'3 · 主牌是哪些'},
-    {icon:'🔒',cls:'lock',lbl:'4 · 垫还是毙'},
-  ];
-  $('path').innerHTML=rows.map((r,i)=>
-    `<div class="step" style="margin:${i?18:0}px 0 0;transform:translateX(${OFFS[i%OFFS.length]}px)">
-       <div>
-         <button class="node ${r.cls}" ${r.go?`id="n${i}"`:''}>${r.icon}${r.tip?'<span class="tip">开始</span>':''}</button>
-         ${r.dots?`<div class="dots">${[0,1,2].map(k=>`<i class="${k<r.dots?'on':''}"></i>`).join('')}</div>`:''}
-         <div class="lbl">${r.lbl}</div>
-       </div>
-     </div>`).join('');
-  if($('n0')) $('n0').onclick=rows[0].go;
+  const cards=U1.map((L,i)=>{
+    if(i<done) return `<div class="lnode face"><span class="r">${L.r}</span><span class="s">♥</span><span class="star">★</span></div>`;
+    if(i===done) return `<button class="lnode back now" id="n${i}"></button>`;
+    return `<div class="lnode back lock"></div>`;
+  }).join('');
+  const cur=U1[done];
+  $('map').innerHTML=
+    `<div class="unit"><small>第一部 · 会打一墩</small><b>单元 1 · 你和你的搭档</b></div>
+     <div class="fan">${cards}</div>`+
+    (cur?`<div class="nowline">${done+1} · ${cur.n}</div>
+          <div class="nowsub">翻开这张牌开始 · 约 3 分钟</div>
+          <div class="golead"><button class="btn" id="go">开始</button></div>`
+        :`<div class="nowline">这个单元打完了</div>`)+
+    `<div class="unit lock" style="margin-top:22px"><small>第一部 · 会打一墩</small><b>单元 2 · 一墩谁收</b></div>
+     <div class="locknote">打完上一个单元解锁</div>`;
+  if($('go'))$('go').onclick=start;
+  if($('n'+done))$('n'+done).onclick=start;
 }
 
 /* ---------- 出牌区 ---------- */
@@ -383,6 +418,25 @@ function trickHTML(played,lead,winner,showPt){
     `<div></div>${cell(0)}<div></div></div>`;
 }
 
+/* ---------- 出题区文案 ---------- */
+function saySetup(q){
+  setCat('idle');
+  $('bub').className='';
+  $('bub').innerHTML=q.prompt+(q.simplify?`<span class="sim">(${q.simplify})</span>`:'');
+}
+function sayFeedback(ok,text){
+  setCat(ok?'good':'bad');
+  $('bub').className=ok?'good':'bad';
+  $('bub').innerHTML=text;
+  $('verdict').textContent=ok?'答对了':'再想想';
+  $('foot').className=ok?'good':'bad';
+  $('hintBtn').style.display='none';
+  $('cta').textContent=ok?'继续':'知道了';
+  $('cta').disabled=false;
+  $('cta').className='btn'+(ok?'':' red');
+  $('cta').dataset.mode=ok?'next':'retry';
+}
+
 /* ---------- 渲染 ---------- */
 function render(){
   const q=LESSON.qs[qi];
@@ -390,10 +444,12 @@ function render(){
   $('barIn').style.width=(qi/LESSON.qs.length*100)+'%';
   $('badge').innerHTML=q.badge?`<span>${q.badge}</span>`:'';
   $('task').textContent=q.task;
-  $('bub').innerHTML=q.prompt+(q.simplify?`<br><small style="color:#777">(${q.simplify})</small>`:'');
-  $('hand').innerHTML='';$('fb').className='';
-  $('cta').textContent='检查';$('cta').disabled=true;
-  $('hintBtn').disabled=!q.hint;$('foot').style.display='';$('cta').style.display='';
+  saySetup(q);
+  $('hand').innerHTML='';$('table').innerHTML='';
+  $('foot').className='';$('verdict').textContent='';
+  $('hintBtn').style.display='';$('hintBtn').disabled=!q.hint;
+  $('cta').textContent='检查';$('cta').disabled=true;$('cta').className='btn';$('cta').dataset.mode='check';
+  $('btnRow').style.display='';
 
   if(q.type==='seat'){
     $('table').innerHTML=`<div class="seatmap">
@@ -443,48 +499,39 @@ function check(){
     ok=sel===q.answer;
     $('table').querySelectorAll('.seatbtn[data-s]').forEach(b=>{
       const s=+b.dataset.s;b.classList.remove('sel');
-      addCls(b, s===q.answer?'ok':s===sel?'no':'');
+      addCls(b,s===q.answer?'ok':s===sel?'no':'');
       b.querySelector('small').textContent=s===q.answer?'队友':'对手';});
   } else if(q.type==='multi'){
     ok=selMulti.length===q.answer.length&&q.answer.every(a=>selMulti.includes(a));
     $('table').querySelectorAll('.card').forEach(n=>{
       const isA=q.answer.includes(n.dataset.id);n.classList.remove('sel');
-      n.classList.add(isA?'ok':selMulti.includes(n.dataset.id)?'no':'dim');
+      addCls(n,isA?'ok':selMulti.includes(n.dataset.id)?'no':'dim');
       if(isA){const c=q.cards.find(x=>x.id===n.dataset.id);
               n.insertAdjacentHTML('beforeend',`<span class="pt">${pts(c)}</span>`);}});
   } else if(q.type==='choice'){
     ok=sel===q.answer;
     $('table').querySelectorAll('.opt').forEach(b=>{
       const i=+b.dataset.i;b.classList.remove('sel');
-      addCls(b, i===q.answer?'ok':i===sel?'no':'');});
+      addCls(b,i===q.answer?'ok':i===sel?'no':'');});
   } else if(q.type==='trickpick'){
     ok=sel===q.answer;
     $('hand').querySelectorAll('.card').forEach(n=>{
-      n.classList.remove('sel','hint');
-      addCls(n, n.dataset.id===q.answer?'ok':n.dataset.id===sel?'no':'');});
+      n.classList.remove('sel');
+      addCls(n,n.dataset.id===q.answer?'ok':n.dataset.id===sel?'no':'');});
   }
   answered=true;if(!ok)wrong++;
-  feedback(ok,ok?q.good:q.bad);
-}
-function feedback(ok,text){
-  $('fbTitle').textContent=ok?'答对了':'再想想';
-  $('fbText').innerHTML=text;
-  $('fbBtn').textContent=ok?'继续':'知道了';
-  $('whyBtn').style.display=ok?'none':'';
-  $('fb').className=(ok?'good':'bad')+' show';
-  $('fb').dataset.ok=ok?'1':'0';
+  sayFeedback(ok,ok?q.good:q.bad);
 }
 
-/* 错了:不扣分、不打断,就地重试同一题面 */
-$('fbBtn').onclick=()=>{
-  const ok=$('fb').dataset.ok==='1';$('fb').className='';
-  if(ok){qi++;qi>=LESSON.qs.length?finish():render();}else render();
+$('cta').onclick=()=>{
+  const m=$('cta').dataset.mode;
+  if(m==='check'){ if(!answered)check(); return; }
+  if(m==='next'){ qi++; qi>=LESSON.qs.length?finish():render(); return; }
+  render();                                   // retry:同一题面重来,不换题
 };
-$('whyBtn').onclick=()=>{ $('fbText').innerHTML=LESSON.qs[qi].bad+'<br><br>'+(LESSON.qs[qi].hint||''); };
-$('cta').onclick=()=>{ if(!answered)check(); };
 $('hintBtn').onclick=()=>{
   const q=LESSON.qs[qi];if(!q.hint||hinted)return;hinted=true;
-  $('bub').innerHTML+=`<br><small style="color:#A560E8">💡 ${q.hint}</small>`;
+  $('bub').innerHTML+=`<span class="tip">💡 ${q.hint}</span>`;
   $('hintBtn').disabled=true;
 };
 
@@ -492,12 +539,13 @@ $('hintBtn').onclick=()=>{
 function startMini(q){
   mini={hands:q.hands.map(h=>h.slice()),lead:q.lead,played:[null,null,null,null],
         turn:q.lead,score:[0,0],trick:1,busy:false};
-  $('foot').style.display='none';paintMini();
-  if(mini.turn!==0)setTimeout(aiStep,700);
+  $('btnRow').style.display='none';paintMini();
+  if(mini.turn!==0)setTimeout(aiStep,PACE.step);
 }
-function paintMini(msg){
+function paintMini(){
   const m=mini;
-  $('task').innerHTML=msg||`第 ${m.trick} 墩`;
+  $('task').textContent=`第 ${m.trick} 墩`;
+  $('bub').className='';
   $('bub').innerHTML=`你们队已经拿到 <b>${m.score[0]}</b> 分。轮到你就点一张牌出。`;
   $('table').innerHTML=trickHTML(m.played,m.lead,null,true);
   $('hand').innerHTML=m.hands[0].map(c=>cardHTML(c,'pick',true)).join('');
@@ -513,7 +561,7 @@ function playCard(seat,card){
   const full=m.played.every(Boolean);
   if(full)m.busy=true;
   paintMini();
-  setTimeout(full?endTrick:aiStep,700);
+  setTimeout(full?endTrick:aiStep,PACE.step);
 }
 function aiStep(){
   const m=mini;if(m.turn===0){paintMini();return;}
@@ -521,7 +569,7 @@ function aiStep(){
   let best=-1,bs=null;
   m.played.forEach((c,s)=>{if(c&&c.rank>best){best=c.rank;bs=s;}});
   let pick;
-  if(bs!==null&&bs%2===m.turn%2&&bs!==m.turn)              // 队友暂时最大 → 贴分
+  if(bs!==null&&bs%2===m.turn%2&&bs!==m.turn)        // 队友暂时最大 → 贴分
     pick=h.slice().sort((a,b)=>pts(b)-pts(a)||a.rank-b.rank)[0];
   else{const w=h.filter(c=>c.rank>best);pick=w.length?w[0]:h[0];}
   playCard(m.turn,pick);
@@ -533,18 +581,20 @@ function endTrick(){
   m.score[win%2===0?0:1]+=got;
   flyToWinner(win,()=>{
     $('table').innerHTML=trickHTML(m.played,m.lead,win,true);
-    $('task').innerHTML=`${nameOf(win)} 收走`;
+    $('task').textContent=`${nameOf(win)} 收走`;
+    setCat(isUs(win)?'good':'idle');
+    $('bub').className=isUs(win)?'good':'';
     $('bub').innerHTML=got?`这一墩有 <b>${got} 分</b>,${isUs(win)?'进<b>你们队</b>的账。':'被<b>对手</b>拿走了。'}`
                           :'这一墩<b>没有分</b>。';
     setTimeout(()=>{
-      if(!m.hands[0].length){          // 打完了:留着最后一墩的牌面,别清空
-        $('foot').style.display='';$('cta').style.display='none';answered=true;
-        feedback(true,LESSON.qs[qi].good+`<br><br>这两墩你们队拿到 <b>${m.score[0]} 分</b>,对手 <b>${m.score[1]} 分</b>。`);
+      if(!m.hands[0].length){        // 打完了:留着最后一墩的牌面,别清空
+        $('btnRow').style.display='';$('hintBtn').style.display='none';answered=true;
+        sayFeedback(true,LESSON.qs[qi].good+`<span class="sim">这两墩你们队拿到 ${m.score[0]} 分,对手 ${m.score[1]} 分。</span>`);
         return;
       }
       m.played=[null,null,null,null];m.lead=win;m.turn=win;m.trick++;m.busy=false;
-      paintMini();if(m.turn!==0)setTimeout(aiStep,700);
-    },1400);
+      paintMini();if(m.turn!==0)setTimeout(aiStep,PACE.step);
+    },PACE.review);
   });
 }
 /* 收墩动画:四张牌飞向赢家 —— 让「谁收走了」变成看得见的事,不是装饰 */
@@ -558,16 +608,15 @@ function flyToWinner(win,cb){
     requestAnimationFrame(()=>{
       f.style.transform=`translate(${t.left-r.left+10}px,${t.top-r.top+8}px) scale(.45)`;
       f.style.opacity='0';});
-    setTimeout(()=>f.remove(),520);
+    setTimeout(()=>f.remove(),PACE.fly+40);
   });
-  setTimeout(cb,540);
+  setTimeout(cb,PACE.fly+60);
 }
 
 /* ---------- 起止 ---------- */
-function start(){qi=0;wrong=0;t0=Date.now();$('cta').style.display='';show('q');render();}
+function start(){qi=0;wrong=0;t0=Date.now();show('q');render();}
 function finish(){
-  const n=LESSON.qs.length;
-  const sec=Math.round((Date.now()-t0)/1000);
+  const n=LESSON.qs.length,sec=Math.round((Date.now()-t0)/1000);
   $('sAcc').textContent=Math.round(n/(n+wrong)*100)+'%';
   $('sTime').textContent=sec>=60?Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0'):sec+'秒';
   localStorage.setItem(LS+'u1l1','1');
@@ -576,7 +625,7 @@ function finish(){
 $('doneBtn').onclick=()=>show('map');
 $('quit').onclick=()=>{ if(confirm('退出这一课?这次的进度不保存。'))show('map'); };
 
-drawMap();show('map');
+setCat('idle');drawMap();show('map');
 })();
 </script>
 </body>
