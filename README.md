@@ -82,7 +82,7 @@ contest/                       比赛:裁判、联赛、赛报、参赛 repo 的
 | `80fen-contest-<选手>-v1.html` | 参赛版观察页。引擎与界面同正式版(逐字节),只换了三家 AI |
 | `contest.html` | **比赛主页** —— 赛制、选手、结果、记录。数字全部来自 `contest/results/`,可核对 |
 | `contest/baseline.js` | 现版 AI 的参赛接口包装 —— 排名的标尺,也是参赛者的起点 |
-| `contest/selftest.js` | **裁判器自测** —— 36 项,含空屋隔离与护栏对故意作弊的提交是否兜得住 |
+| `contest/selftest.js` | **裁判器自测** —— 38 项,含空屋隔离与护栏对故意作弊的提交是否兜得住 |
 
 比赛相关的代码都在 `contest/`,**不进 build** —— 三份 html 一个字节都不为比赛改动。
 

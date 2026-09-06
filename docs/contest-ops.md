@@ -53,7 +53,7 @@ node contest/league.js <选手1> <选手2> ... [--seeds=30] [--jobs=N]
 选手可以是 `.js` 或目录(入口 `index.js`)。陪练(`contest/ai-baseline.js`)默认作为一名选手加进去,`--no-house` 去掉。
 
 ```bash
-node contest/selftest.js index.html      # 裁判器自测,36 项,改动裁判后必跑
+node contest/selftest.js index.html      # 裁判器自测,38 项,改动裁判后必跑
 node contest/run.js A.js B.js 120        # 单对详跑,三个口径 + 配对统计
 node contest/report.js <result.json> [rounds.ndjson.gz]   # 出赛报(Markdown)
 node contest/review.js <rounds.ndjson.gz> --all           # 逐选手复盘

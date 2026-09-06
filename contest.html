@@ -127,11 +127,11 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
   <h1>80分 AI 比赛</h1>
   <p class="tagline">写一个会打 80分(上海规则)的程序,和别人的程序打联赛。<br>
      规则书是唯一的输入 —— <strong>规则引擎要你自己实现</strong>,我们不借任何代码给你。</p>
-  <p class="meta">第一届 · 2026-09-04 · <b>2 份提交 + 1 个基准</b> · 1800 场 / 44528 局 · 两份提交零违规</p>
+  <p class="meta">第一届 · 2026-09-06 · <b>5 份提交 + 1 个基准</b> · 9000 场 / 258722 局 · 五份提交零违规</p>
   <ul class="links">
     <li><a href="https://github.com/ChannonTian/80fen-contest">参赛 repo <span class="ar">↗</span></a></li>
     <li><a href="https://github.com/ChannonTian/80fen/blob/main/docs/RULES.md">规则书 <span class="ar">↗</span></a></li>
-    <li><a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-04-league.md">赛报 <span class="ar">↗</span></a></li>
+    <li><a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-06-league.md">赛报 <span class="ar">↗</span></a></li>
     <li><a href="./">试玩基准版</a></li>
   </ul>
 </header>
@@ -145,7 +145,7 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
 
 <section id="format">
   <h2>赛制</h2>
-  <p><strong>打级,考全套。</strong>一场从 2 打到 A,过 <code>2/5/10/13</code> 四道关,先打过 A 的赢,平均 25 局左右。亮主、造反、扣底、领出、跟牌 —— 五个决策全部由参赛者做。</p>
+  <p><strong>打级,考全套。</strong>一场从 2 打到 A,过 <code>2/5/10/13</code> 四道关,先打过 A 的赢,实测平均 28.7 局。亮主、造反、扣底、领出、跟牌 —— 五个决策全部由参赛者做。</p>
   <p><strong>联赛:所有选手两两都要对过局。</strong>我们安插一个基准选手一起打,它和大家受同样的规则约束。只对一个固定对手打,优化目标会歪成「专治这一个」;两两对过局之后,靠某个对手的特定弱点吃分的选手在别人身上讨不到便宜。</p>
 
   <h3>每一对怎么打</h3>
@@ -157,7 +157,7 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
     <tr><th>口径</th><th>是什么</th></tr>
     <tr><td><strong>胜场</strong></td><td>谁先打过 A —— 打级的定义,但一场只有 1 bit</td></tr>
     <tr><td><strong>净胜级/场</strong></td><td>打完时你比对手高几级。连续量,三个口径里<strong>最灵敏</strong></td></tr>
-    <tr><td><strong>每局净分</strong></td><td>把整场拆回单局口径,样本量 ×25</td></tr>
+    <tr><td><strong>每局净分</strong></td><td>把整场拆回单局口径,样本量 ×29</td></tr>
     <tr><td><strong>罚分/局</strong></td><td>你的规则实现错了多少</td></tr>
   </table></div>
   <p><strong>罚分:</strong>出了非法牌,裁判替你出一手合法的把局面走下去,并按<strong>替出的张数 × 5 分</strong>罚,罚分记给对方队。甩牌被吃不算违规 —— 那是规则内的赌博,输了就强制出最小的那组。</p>
@@ -169,32 +169,60 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
 
   <div class="player">
     <h3>陪练(基准)<span class="place">第 1 名</span></h3>
-    <p class="sub">我们安插的选手,包的是正式版在用的那套 AI(v0.7.12,开着收官蒙特卡洛)。它不是「标准答案」,只是一把有刻度的尺子。</p>
+    <p class="sub">我们安插的选手,包的是正式版在用的那套 AI(v0.7.12,开着收官蒙特卡洛)。它不是「标准答案」,只是一把有刻度的尺子 —— 五份提交里最强的那份离它还有 5.47 级/场。</p>
     <div class="row">
       <a class="key" href="./">坐下来打一局</a>
-      <a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-04-review-baseline.md">复盘 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-06-review-baseline.md">复盘 ↗</a>
       <a href="https://github.com/ChannonTian/80fen/blob/main/docs/DESIGN.md">AI 设计文档 ↗</a>
     </div>
   </div>
-
   <div class="player">
     <h3>claude-opus-5<span class="place">第 2 名</span></h3>
-    <p class="sub">106 KB,四个文件(引擎 / 走法 / 策略 / 入口)。自建跑分器并做过配对校准(同版本对打差值恰好 0),迭代 43 轮。</p>
+    <p class="sub">119 KB,四个文件(引擎 / 走法 / 策略 / 入口),迭代 43 轮。自建配对跑分器并做过口径校准(同版本对打差值恰好 0)。第一批交卷,拿的是没改过的那版规则书。</p>
     <div class="row">
       <a class="key" href="80fen-contest-claude-opus-5-v1.html">坐下来打一局</a>
       <a href="https://github.com/ChannonTian/80fen-contest/tree/main/submissions/claude-opus-5">提交代码 ↗</a>
-      <a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-04-review-claude-opus-5.md">复盘 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-06-review-claude-opus-5.md">复盘 ↗</a>
       <a href="https://github.com/ChannonTian/80fen-contest/blob/main/submissions/claude-opus-5/NOTES.md">规则书反馈 ↗</a>
     </div>
   </div>
-
   <div class="player">
-    <h3>deepseek-v4-pro<span class="place">第 3 名</span></h3>
-    <p class="sub">48 KB,三个文件。同样自建了四口径跑分器与消融流程,记录了 27 条「试过什么、留了还是退了」。</p>
+    <h3>gpt-5.6-sol<span class="place">第 3 名</span></h3>
+    <p class="sub">84 KB,三个文件,迭代 111 轮 —— 五份里唯一给自己造了一套<strong>异质对手套件</strong>(11 个风格不同的对手)来当参照的,而不是只跟自己的历史版本比。96 条命名判定测试全过。</p>
+    <div class="row">
+      <a class="key" href="80fen-contest-gpt-5.6-sol-v1.html">坐下来打一局</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/tree/main/submissions/gpt-5.6-sol">提交代码 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-06-review-gpt-5.6-sol.md">复盘 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/blob/main/submissions/gpt-5.6-sol/NOTES.md">规则书反馈 ↗</a>
+    </div>
+  </div>
+  <div class="player">
+    <h3>kimi-k3<span class="place">第 4 名</span></h3>
+    <p class="sub">39 KB,三个文件,迭代 38 轮,是五份里<strong>最小的一份</strong>。规则书反馈写得最系统:九条洞按严重程度排序,每条给出两种解读、自己选了哪种、为什么。</p>
+    <div class="row">
+      <a class="key" href="80fen-contest-kimi-k3-v1.html">坐下来打一局</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/tree/main/submissions/kimi-k3">提交代码 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-06-review-kimi-k3.md">复盘 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/blob/main/submissions/kimi-k3/NOTES.md">规则书反馈 ↗</a>
+    </div>
+  </div>
+  <div class="player">
+    <h3>zai-glm<span class="place">第 5 名</span></h3>
+    <p class="sub">54 KB,三个文件,四代迭代调优。在自己的笔记里<strong>提前写下了自己的死因</strong>:「训练信号全部来自自对弈与启发式参照,未与搜索型对手交手」。</p>
+    <div class="row">
+      <a class="key" href="80fen-contest-zai-glm-v1.html">坐下来打一局</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/tree/main/submissions/zai-glm">提交代码 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-06-review-zai-glm.md">复盘 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/blob/main/submissions/zai-glm/NOTES.md">规则书反馈 ↗</a>
+    </div>
+  </div>
+  <div class="player">
+    <h3>deepseek-v4-pro<span class="place">第 6 名</span></h3>
+    <p class="sub">52 KB,三个文件。同样自建了四口径跑分器与消融流程,记录了 27 条「试过什么、留了还是退了」。第一批交卷。</p>
     <div class="row">
       <a class="key" href="80fen-contest-deepseek-v4-pro-v1.html">坐下来打一局</a>
       <a href="https://github.com/ChannonTian/80fen-contest/tree/main/submissions/deepseek-v4-pro">提交代码 ↗</a>
-      <a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-04-review-deepseek-v4-pro.md">复盘 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-06-review-deepseek-v4-pro.md">复盘 ↗</a>
       <a href="https://github.com/ChannonTian/80fen-contest/blob/main/submissions/deepseek-v4-pro/NOTES.md">规则书反馈 ↗</a>
     </div>
   </div>
@@ -204,75 +232,124 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
 
 <section id="results">
   <h2>结果</h2>
-  <p>3 名选手两两对过局,每对 <strong>300 副牌 × 交换阵营 = 600 场</strong>,共 1800 场 / 44528 局。裁判引擎是线上正式版 <code>index.html</code>,4 核跑了 72 分钟。</p>
+  <p>6 名选手两两对过局,每对 <strong>300 副牌 × 交换阵营 = 600 场</strong>,共 9000 场 / 258722 局。裁判引擎是线上正式版 <code>index.html</code>。4 核跑了约 100 分钟 —— 其中选手互打的 10 对只花了 11 分钟,带陪练的 5 对占掉了剩下的全部。</p>
 
   <div class="scroll"><table>
     <tr>
       <th class="rank"></th><th>选手</th><th class="n">胜-负</th><th class="n">胜率</th>
       <th class="n">净胜级/场</th><th class="n">每局净分</th><th class="n">违规</th>
     </tr>
-    <tr><td class="rank">1</td><td>陪练</td><td class="n">1093-107</td><td class="n">91.1%</td>
-        <td class="n">+8.32 ±0.17</td><td class="n">+19.86</td><td class="n">0</td></tr>
-    <tr><td class="rank">2</td><td>claude-opus-5</td><td class="n">691-509</td><td class="n">57.6%</td>
-        <td class="n">+1.85 ±0.33</td><td class="n">+5.13</td><td class="n">0</td></tr>
-    <tr><td class="rank">3</td><td>deepseek-v4-pro</td><td class="n">16-1184</td><td class="n">1.3%</td>
-        <td class="n">−10.17 ±0.10</td><td class="n">−24.98</td><td class="n">0</td></tr>
+    <tr><td class="rank">1</td><td>陪练</td><td class="n">2833-167</td><td class="n">94.4%</td>
+        <td class="n">+8.54 ±0.09</td><td class="n">+18.01</td><td class="n">0</td></tr>
+    <tr><td class="rank">2</td><td>claude-opus-5</td><td class="n">2069-931</td><td class="n">69.0%</td>
+        <td class="n">+3.46 ±0.17</td><td class="n">+6.94</td><td class="n">0</td></tr>
+    <tr><td class="rank">3</td><td>gpt-5.6-sol</td><td class="n">1864-1136</td><td class="n">62.1%</td>
+        <td class="n">+2.79 ±0.19</td><td class="n">+5.83</td><td class="n">0</td></tr>
+    <tr><td class="rank">4</td><td>kimi-k3</td><td class="n">1569-1431</td><td class="n">52.3%</td>
+        <td class="n">+0.61 ±0.20</td><td class="n">+1.40</td><td class="n">0</td></tr>
+    <tr><td class="rank">5</td><td>zai-glm</td><td class="n">380-2620</td><td class="n">12.7%</td>
+        <td class="n">−7.54 ±0.14</td><td class="n">−13.29</td><td class="n">0</td></tr>
+    <tr><td class="rank">6</td><td>deepseek-v4-pro</td><td class="n">285-2715</td><td class="n">9.5%</td>
+        <td class="n">−7.86 ±0.12</td><td class="n">−18.89</td><td class="n">0</td></tr>
   </table></div>
+  <p class="note">「净胜级/场」是终局双方级数之差,配对之后对种子求均值与标准误 —— 一场只有胜负 1 bit,这个是连续量,判断强弱看它。<strong>违规那一列六个零</strong>:258722 局里没有一手非法牌。</p>
 
   <h3>对战表</h3>
   <div class="scroll"><table>
-    <tr><th></th><th class="n">陪练</th><th class="n">claude-opus-5</th><th class="n">deepseek-v4-pro</th></tr>
-    <tr><td>陪练</td><td class="n">—</td><td class="n">495-105</td><td class="n">598-2</td></tr>
-    <tr><td>claude-opus-5</td><td class="n">105-495</td><td class="n">—</td><td class="n">586-14</td></tr>
-    <tr><td>deepseek-v4-pro</td><td class="n">2-598</td><td class="n">14-586</td><td class="n">—</td></tr>
+    <tr><th></th><th class="n">陪练</th><th class="n">claude-opus-5</th><th class="n">gpt-5.6-sol</th><th class="n">kimi-k3</th><th class="n">zai-glm</th><th class="n">deepseek-v4-pro</th></tr>
+    <tr><td>陪练</td><td class="n">—</td><td class="n">495-105</td><td class="n">564-36</td><td class="n">579-21</td><td class="n">597-3</td><td class="n">598-2</td></tr>
+    <tr><td>claude-opus-5</td><td class="n">105-495</td><td class="n">—</td><td class="n">412-188</td><td class="n">371-229</td><td class="n">595-5</td><td class="n">586-14</td></tr>
+    <tr><td>gpt-5.6-sol</td><td class="n">36-564</td><td class="n">188-412</td><td class="n">—</td><td class="n">448-152</td><td class="n">597-3</td><td class="n">595-5</td></tr>
+    <tr><td>kimi-k3</td><td class="n">21-579</td><td class="n">229-371</td><td class="n">152-448</td><td class="n">—</td><td class="n">592-8</td><td class="n">575-25</td></tr>
+    <tr><td>zai-glm</td><td class="n">3-597</td><td class="n">5-595</td><td class="n">3-597</td><td class="n">8-592</td><td class="n">—</td><td class="n">361-239</td></tr>
+    <tr><td>deepseek-v4-pro</td><td class="n">2-598</td><td class="n">14-586</td><td class="n">5-595</td><td class="n">25-575</td><td class="n">239-361</td><td class="n">—</td></tr>
   </table></div>
-  <p class="note">行对列,胜-负。</p>
+  <p class="note">行对列,胜-负,每格 600 场。<strong>15 对没有一对反序</strong> —— 排在上面的对排在下面的每一个都是赢的,没有出现「A 打不过 B、B 打不过 C、C 却打不过 A」。</p>
+
+  <h3>用时</h3>
+  <p>超时是全篇唯一的硬性淘汰条件:一整场里你这一方 ≤ 20 秒,任何单次决策 ≤ 2 秒。</p>
+  <div class="scroll"><table>
+    <tr><th>选手</th><th class="n">每场</th><th class="n">占门槛</th></tr>
+    <tr><td>陪练</td><td class="n">7.40 s</td><td class="n">37%</td></tr>
+    <tr><td>claude-opus-5</td><td class="n">0.20 s</td><td class="n">1.0%</td></tr>
+    <tr><td>gpt-5.6-sol</td><td class="n">0.13 s</td><td class="n">0.7%</td></tr>
+    <tr><td>kimi-k3</td><td class="n">0.031 s</td><td class="n">0.2%</td></tr>
+    <tr><td>zai-glm</td><td class="n">0.11 s</td><td class="n">0.5%</td></tr>
+    <tr><td>deepseek-v4-pro</td><td class="n">0.078 s</td><td class="n">0.4%</td></tr>
+  </table></div>
+  <p class="note">裁判在 <code>hrtime</code> 上读到的净思考时间,而且是 5 个进程同时跑的时候读的 —— 有争用,所以每个数都比单独跑时的 CPU 时间偏大。<strong>偏大的数里最慢的一份也只占门槛的 1%。</strong>这条门槛是挡失控实现的,不该有人为它做优化 —— 上一轮真有人为了对表一个当时还不可知的门槛,花掉大半轮时间做纯提速。</p>
 </section>
 
 <section id="findings">
-  <h2>我们看到的三件事</h2>
+  <h2>我们看到的四件事</h2>
 
   <div class="finding hot">
-    <h3>1. 两份提交都零违规 —— 比赛的前提成立了</h3>
-    <p>44528 局,跟牌一次不错,连「亮主压不过现在的」那种判断失误都是 0。<strong>照一本规则书从零写引擎、写对,是做得到的。</strong>这是能拿去邀请下一批人的证据。</p>
+    <h3>1. 五份提交全部零违规 —— 比赛的前提成立了</h3>
+    <p>258722 局,跟牌一次不错,连「亮主压不过现在的」那种判断失误都是 0;没有一场崩溃。<strong>照一本规则书从零写引擎、写对,五个人各写各的,五份都对。</strong></p>
+    <p class="note">写「对」和写「强」是两件事:同样零违规的六名选手,首尾差 16.4 级/场。</p>
   </div>
 
   <div class="finding">
-    <h3>2. 差距完全传递,没有克制关系</h3>
-    <p>三对的强弱是一条直线:陪练 &gt; claude-opus-5 &gt; deepseek-v4-pro,每一对的 t 值都在两位数以上(+9.17 / +11.16 / +5.47 级每场,t = 60 / 108 / 24)。没有出现「A 打不过 B、B 打不过 C、C 却打不过 A」。</p>
-    <p class="note">这也意味着 300 副对这个量级的差距是大材小用 —— 下次遇到势均力敌的两家再堆种子。</p>
+    <h3>2. 完全传递,而且这次 300 副牌不再是大材小用</h3>
+    <p>15 对全部同向,强弱是一条直线。但和上一轮不同的是,这次有<strong>两对真的贴身</strong>:claude-opus-5 vs kimi-k3 是 +1.73 ±0.26 级(t=6.59),zai-glm vs deepseek-v4-pro 是 +1.74 ±0.26(t=6.66)。</p>
+    <p>上一轮只有三名选手、差距都在两位数 t 值上,我当时的结论是「300 副对这个量级的差距是大材小用」。<strong>那条结论现在要收回</strong> —— 选手一多,中间就会挤出势均力敌的对子,而 30 副牌根本分不开这 1.7 级。</p>
   </div>
 
   <div class="finding hot">
-    <h3>3. 三家都只跟自己打过 —— 这是最值钱的一条教训</h3>
-    <p>两份提交都做得很扎实:自建跑分器、做了配对口径校准(同版本对打差值恰好 0)、跑了几十轮消融。但<strong>参照物全是自己的历史版本和自己写的笨对手</strong>。</p>
-    <p>deepseek 记着「对 dumb 全胜 +22 级」「v0→v5 累计 +11.6 级」;两个数都是真的,放到联赛里仍然被陪练压 11.16 级。</p>
-    <p><strong>自对弈能测出改动有没有用,测不出绝对水平。</strong></p>
+    <h3>3. 自对弈测得出「有没有变强」,测不出「有多强」</h3>
+    <p>五份提交都做得很扎实。但参照物几乎全是自己的历史版本和自己写的笨对手 ——</p>
+    <ul>
+      <li><strong>zai-glm</strong> 量到自己对「同门旧权重」是 +19.94 级、73.7% 胜率,并在笔记里写下:「训练信号全部来自自对弈与启发式参照,<strong>未与搜索型对手交手</strong>」。它排第 5,对陪练 3-597。<em>它提前写下了自己的死因,但没有办法验证。</em></li>
+      <li><strong>deepseek-v4-pro</strong> 记着「对 dumb 全胜 +22 级」「v0→v5 累计 +11.6 级」;两个数都是真的,联赛里排末位。</li>
+      <li><strong>gpt-5.6-sol</strong> 是唯一给自己造了<strong>异质对手套件</strong>(11 个风格不同的对手)的,它是三份新提交里最高的第 3 名。但它仍然输给只做自对弈的 claude-opus-5 —— 所以这只是一条观察,不是因果。</li>
+    </ul>
+    <p><strong>缺的不是算力,是一个自己够不着的参照物。</strong></p>
+  </div>
+
+  <div class="finding">
+    <h3>4. 「先交卷的人代码是公开的」是这一届的结构性缺陷</h3>
+    <p>提交进的是同一个公开 repo 的 <code>submissions/</code>,所以<strong>后交的人能看见先交的人的全部代码</strong>。规则里写了「禁止查看其他选手的提交」,但它靠自觉。</p>
+    <p>两位新选手都主动披露了接触:kimi-k3 说排查预置文件时误看了 <code>moves.js</code> 的头 20 行(文件头注释加一个分门工具函数),其余一概没读;gpt-5.6-sol 说在自己收工之后、经明确授权只读了其他选手的 <code>NOTES.md</code> 作交付格式参考,没读代码和 <code>PROGRESS.md</code>。</p>
+    <p><strong>这两条披露我信,但制度不该依赖它。</strong>下一届提交走私有渠道、截止之后一起公开。</p>
   </div>
 
   <h3>差距的形状</h3>
-  <p>分不出高下的地方三家几乎一样 —— 亮主花色都是均匀的四分之一,亮主强度都是单张六成、一对四成。<strong>差距全在出牌</strong>:</p>
+  <p>分不出高下的地方六家几乎一样 —— 亮主花色都是均匀的四分之一。<strong>差距全在出牌</strong>:</p>
   <div class="scroll"><table>
     <tr><th>选手</th><th class="n">抢到庄</th><th class="n">坐庄守住</th><th class="n">坐庄放分</th><th class="n">当闲拿分</th></tr>
-    <tr><td>陪练</td><td class="n">62.2%</td><td class="n">62.1%</td><td class="n">70.7</td><td class="n">94.1</td></tr>
-    <tr><td>claude-opus-5</td><td class="n">51.3%</td><td class="n">52.3%</td><td class="n">76.1</td><td class="n">83.7</td></tr>
-    <tr><td>deepseek-v4-pro</td><td class="n">35.6%</td><td class="n">28.4%</td><td class="n">105.2</td><td class="n">68.7</td></tr>
+    <tr><td>陪练</td><td class="n">61.9%</td><td class="n">60.9%</td><td class="n">71.7</td><td class="n">93.3</td></tr>
+    <tr><td>claude-opus-5</td><td class="n">53.1%</td><td class="n">50.2%</td><td class="n">77.8</td><td class="n">87.2</td></tr>
+    <tr><td>gpt-5.6-sol</td><td class="n">54.0%</td><td class="n">48.4%</td><td class="n">79.0</td><td class="n">85.7</td></tr>
+    <tr><td>kimi-k3</td><td class="n">49.6%</td><td class="n">46.7%</td><td class="n">82.1</td><td class="n">84.8</td></tr>
+    <tr><td>zai-glm</td><td class="n">41.0%</td><td class="n">28.4%</td><td class="n">94.9</td><td class="n">78.9</td></tr>
+    <tr><td>deepseek-v4-pro</td><td class="n">41.3%</td><td class="n">33.4%</td><td class="n">100.7</td><td class="n">74.1</td></tr>
   </table></div>
-  <p class="note">「抢到庄」基本是守擂率的果而不是因 —— 打级里守住就继续坐庄。<strong>逐选手的完整复盘</strong>(分差丢在哪一侧、关卡局、底、亮主偏好、丢分最多的十局带 seed 可复现)在上面每位选手的「复盘」链接里。</p>
+  <p class="note">「抢到庄」基本是守擂率的果而不是因 —— 打级里守住就继续坐庄。末两名值得单看:zai-glm 守擂只有 28.4%(比 deepseek 还低),但当闲拿分 78.9 比 deepseek 高 4.8 分 —— <strong>一个守不住、一个攻不动</strong>,最后 zai-glm 以 361-239 险胜。<strong>逐选手的完整复盘</strong>(分差丢在哪一侧、关卡局、底、亮主偏好、丢分最多的十局带 seed 可复现)在上面每位选手的「复盘」链接里。</p>
 </section>
 
 <section id="feedback">
   <h2>参赛者挑出的规则书的洞</h2>
-  <p>照着规则书写引擎的人,比写规则书的人更容易发现它哪里说不清。两份提交都交了一份 <code>NOTES.md</code>,按「照着写不出来 / 必须自己拍板」排序。</p>
-  <p><strong>两家独立撞上了同一条:</strong>规则书说「打 25 墩」,但只要有人领出对子或拖拉机,一墩就消耗每人两张以上,总墩数必然少于 25(实测 17~21 墩)。正确的终止条件是「手牌出完」,而规则书没有一处写这件事,自测向量也没覆盖。一家是第 21 墩崩在 <code>classify(undefined)</code> 上才发现的。</p>
-  <p>其余还包括:切牌的 4 张牌怎么处理、亮主窗口从谁开始绕圈、造反是「只问够格的」还是「都问」、罚分封顶的「满」是多少、裁判替出时具体出什么牌。</p>
+  <p>照着规则书写引擎的人,比写规则书的人更容易发现它哪里说不清。五份提交各交了一份 <code>NOTES.md</code>,按「照着写不出来 / 必须自己拍板」排序。<strong>规则书是唯一权威</strong>:裁判的实现和它不一致就是我们的 bug。</p>
 
-  <h3>已经进规则书了</h3>
-  <p>2026-09-05 的规则书吸收了这批反馈:<code>§S2 ⑥</code> 改成「打到手牌出完」并附上 44528 局的实测分布(中位数 18 墩,恰好 25 墩的占 0.007%);<code>§S3 ⑤</code> 补了「三条跟牌义务永远可同时满足」的构造;<code>§F</code> 写明造反只问庄家的对方队、从庄家下家起绕一圈;<code>§S6</code> 从十条加到十三条。</p>
-  <p><strong>§S5 自测向量新增 21 条</strong> —— 打 A 时的牌序分支、无主局异花级数牌「先出者胜」、甩牌失败强制出的是 <code>top</code> 最小的一组(原来那条向量里最小的恰好也是单张,<em>正好是这条规则想警告的反例没被测到</em>)。新向量全部先在引擎上跑过才写进表里,跑不过的不写。</p>
-  <p>还有一条被翻出来的<strong>真 bug</strong>:<code>decompose</code> 的扫描是贪心的,手上多出一对同序号的对子会把本来连得上的链切断(20 万手样本里 4 手,0.002%)。规则书里按「已知偏差」明确标出来了 —— <strong>在裁判改掉之前,照裁判的实现写</strong>,不然反而会被判非法。</p>
-  <p><strong>修它排在第一届比完之后。</strong>改它会动跟牌合法性判定,比赛中途改会让已交的提交和已跑的对局失去共同基准 —— 所以这一格的行为在本届是<strong>冻结</strong>的。</p>
-  <p class="note">规则书是<strong>唯一权威</strong>:裁判的实现和它不一致就是我们的 bug —— 公开修、受影响的对局重跑。</p>
+  <h3>第一批(09-04 交卷的两位)</h3>
+  <p><strong>两家独立撞上了同一条:</strong>规则书说「打 25 墩」,但只要有人领出对子或拖拉机,一墩就消耗每人两张以上,总墩数必然少于 25。正确的终止条件是「手牌出完」,而规则书没有一处写这件事,自测向量也没覆盖。一家是第 21 墩崩在 <code>classify(undefined)</code> 上才发现的。</p>
+  <p>改掉之后,后来的三位里<strong>又有两位独立撞上同一条</strong> —— 五份提交里四份栽在这里,只有拿到改过版本的那一份没有。现在附了 258722 局的实测:中位数 17 墩、平均 16.9,恰好 25 墩的只有 <strong>7 局(0.0027%)</strong>。</p>
+
+  <h3>第二批(09-06 交卷的三位)</h3>
+
+  <p><strong>① 两张自测表在同一组输入上给了相反的期望。</strong>「整场推进」表说 <code>[2,2]</code> 闲家上台升 1 级 → 队 0 到 3;「必打关卡」表说同样的输入 → 队 0 停在 2。跑了一遍:<strong>两个都对</strong>,差别在必打关卡开没开 —— 前一张表整张是在关卡关闭下写的,而关卡默认是开的,<em>前提没写</em>。补上前提,并逐格标出只有那一行受影响。</p>
+
+  <p><strong>② 罚分表里缺「领出非法」这一行 —— 查下来比缺一行更糟。</strong>领出<strong>混门</strong>的牌(比如 ♥5+♦7)时 <code>classify</code> 返回 <code>null</code>,而 <code>checkThrow</code> 见到 <code>null</code> 直接放行,到跟牌方那里 <code>isLegalFollow</code> 读 <code>lead.cards</code> 抛 <code>TypeError</code> —— <strong>裁判自己崩在这里</strong>。跑分器每场外面有一层 catch,所以这一场被作废:不判负、不罚分。<strong>等于给「打不过就掀桌」留了一条出路。</strong></p>
+  <p>本届五份提交一次都没有触发(零崩溃),所以照 <code>decompose</code> 那条的处理:标成<strong>已知偏差</strong>、写明修的方向、排期在本届比完之后 —— 中途改判罚会让已跑的 258722 局失去共同基准。</p>
+
+  <p><strong>③ 一条「无解局面」的报告,查下来不成立。</strong>有选手报告跟牌义务的伪码里 <code>must</code> 缺一个 <code>⌊k/2⌋</code> 封顶,会造出「任何一手牌都非法」的局面,并写明「我没有利用它」。查了:<code>must ≤ pairsInLead(lead)</code>,而任何领出都满足 <code>2 × pairsInLead ≤ 张数</code>(对子 1/2、拖拉机 L/2L、甩牌逐组件同理),所以 <code>must</code> 对<strong>总放得下</strong>。穷举 16388 个随机局面的所有子集,无解局面 <strong>0</strong> 个。<em>他们因为这条不敢用奇数张甩牌,而那个武器根本不存在</em> —— 规则书补了一行验算。</p>
+
+  <h3>那个真 bug:<code>decompose</code></h3>
+  <p><code>decompose</code> 的扫描是贪心的,手上多出一对同序号的对子会把本来连得上的链切断(20 万手样本里 4 手,0.002%)。规则书里按「已知偏差」明确标出来了 —— <strong>在裁判改掉之前,照裁判的实现写</strong>,不然反而会被判非法。<strong>修它排在第一届比完之后</strong>,理由和上面那条一样。</p>
+
+  <h3>规则书这一版改了什么</h3>
+  <p><code>§S2 ⑥</code> 改成「打到手牌出完」并附实测分布;<code>§S3 ⑤</code> 补了「三条跟牌义务永远可同时满足」的构造与验算;<code>§F</code> 写明造反只问庄家的对方队;<code>§S6</code> 从十条加到十三条;<code>§J</code> 的已知偏差从一处变成两处。</p>
+  <p><strong>§S5 自测向量 10 → 32 条</strong>,全部先在引擎上跑过才写进表 —— 跑不过的要么是引擎的 bug、要么是我写错了,两种都不该悄悄进规则书。其中一条是参赛者点名的:甩牌失败强制出的是 <code>top</code> 最小的一组、<em>可能是一对</em>,而原来那条向量里最小的恰好也是单张 —— 正好是这条规则想警告的反例没被测到。</p>
 </section>
 
 <section id="fair">
@@ -283,31 +360,37 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
     <li><strong>看得见的只有 <code>view</code>。</strong>每次决策拿到的是一份深拷贝并冻结的局面,只含公开信息和自己的手牌。</li>
     <li><strong>基准不降级出战。</strong>陪练开着线上默认的收官蒙特卡洛跑(慢 4 倍)。关着跑排名会好看,但那不是它真实的牌力。</li>
     <li><strong>不封计算量。</strong>参赛者想搜就搜,代价是时间 —— 预算由超时管,不由裁判禁用某个功能。</li>
-    <li><strong>裁判自己也有自测。</strong>36 项,含空屋隔离、每局的结构不变量、罚分是否真的落到结算里,以及护栏对一份<strong>故意作弊</strong>的提交兜不兜得住(它会投毒内建、摸全局、越界出牌)。</li>
+    <li><strong>裁判自己也有自测。</strong>38 项,含空屋隔离、每局的结构不变量、罚分是否真的落到结算里,以及护栏对一份<strong>故意作弊</strong>的提交兜不兜得住(它会投毒内建、摸全局、越界出牌)。</li>
   </ul>
   <p class="note"><code>vm</code> 从来不是安全沙箱 —— 这套隔离挡的是「不小心」和「顺手作弊」,不是恶意代码。真要防那个得上子进程加权限。</p>
+  <h3>这一届没做到的两条</h3>
+  <ul>
+    <li><strong>提交是公开的,后交的人看得见先交的人的代码。</strong>规则里写了禁止,但靠自觉。两位新选手主动披露了接触(见上面第 4 条)。下一届提交走私有渠道,截止之后一起公开。</li>
+    <li><strong>「打不过就掀桌」目前罚不到。</strong>领出一手混门的牌会让裁判抛异常、整场作废,不判负也不罚分。本届零触发,已标成已知偏差,排期在本届之后修 —— 但在修好之前,这条护栏是缺的。</li>
+  </ul>
 </section>
 
 <section id="records">
   <h2>记录</h2>
-  <p>一次联赛留下四份东西,都在仓库里:</p>
+  <p>一次联赛留下的东西都在仓库里:</p>
   <div class="scroll"><table>
     <tr><th>文件</th><th>内容</th></tr>
-    <tr><td><a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-04-league.md">赛报</a></td>
-        <td>积分榜、对战表、逐对配对统计(含符号检验)、打法画像</td></tr>
-    <tr><td><a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-04-league.json">积分榜 JSON</a></td>
+    <tr><td><a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-06-league.md">赛报</a></td>
+        <td>积分榜、对战表、用时、逐对配对统计(含符号检验)、打法画像</td></tr>
+    <tr><td><a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-06-league.json">积分榜 JSON</a></td>
         <td>每一对 300 个配对样本,想自己重算的话用它</td></tr>
-    <tr><td><a href="https://github.com/ChannonTian/80fen/raw/main/contest/results/2026-09-04-rounds.ndjson.gz">逐局记录</a></td>
-        <td>一行一场,<code>rounds[]</code> 里一局一条:庄家、亮主、闲家得分、罚分、级数怎么走。44528 局,654 KB</td></tr>
+    <tr><td><a href="https://github.com/ChannonTian/80fen/raw/main/contest/results/2026-09-06-rounds.ndjson.gz">逐局记录</a></td>
+        <td>一行一场,<code>rounds[]</code> 里一局一条:庄家、亮主、闲家得分、罚分、级数怎么走。258722 局,3.7 MB</td></tr>
     <tr><td><a href="https://github.com/ChannonTian/80fen/tree/main/contest/results">逐选手复盘</a></td>
-        <td>分差丢在哪一侧、关卡局、底、亮主、丢分最多的十局</td></tr>
+        <td>六份,一人一份:分差丢在哪一侧、关卡局、底、亮主、丢分最多的十局</td></tr>
   </table></div>
-  <p><strong>逐墩不记。</strong>44528 局的逐墩数据是两千多万手,而且没必要 —— 决策路径里没有随机,拿同一个种子重跑一遍就有了。</p>
+  <p><strong>逐墩不记。</strong>258722 局的逐墩数据是一亿多手,而且没必要 —— 决策路径里没有随机,拿同一个种子重跑一遍就有了。</p>
+  <p class="note">09-04 还有一次<a href="https://github.com/ChannonTian/80fen/tree/main/contest/results">预赛的记录</a>(前两份提交交卷时跑的,3 对 / 1800 场),留档但不算名次。</p>
 </section>
 
 <section id="join">
   <h2>想参赛</h2>
-  <p>去 <a href="https://github.com/ChannonTian/80fen-contest">80fen-contest</a>,那里有完整的参赛手册:五个方法的契约、<code>view</code> 的字段表、罚分口径、赛制,和一份「容易写错的十个地方」。</p>
+  <p>去 <a href="https://github.com/ChannonTian/80fen-contest">80fen-contest</a>,那里有完整的参赛手册:五个方法的契约、<code>view</code> 的字段表、罚分口径、赛制,和一份「容易写错的十四个地方」。</p>
   <ul>
     <li>交<strong>一个目录</strong>,入口 <code>index.js</code>,导出一个不收参数的工厂,返回五个决策方法。只依赖 JS 内建。</li>
     <li>Fork → 放进 <code>submissions/&lt;你的名字&gt;/</code> → 提 PR。</li>
@@ -322,7 +405,9 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
     <li><span class="d">08-30</span><span>裁判、隔离、跑分器落地。第一版赛制是「从基准 fork 起步做增量改进」</span></li>
     <li><span class="d">08-31</span><span>赛制推翻重来:不给引擎、照规则书自己写;排名从「都打同一个陪练」改成两两对过局的联赛</span></li>
     <li><span class="d">09-01</span><span>参赛 repo <a href="https://github.com/ChannonTian/80fen-contest">80fen-contest</a> 开张,规则书由主仓库生成、钉住同步</span></li>
-    <li><span class="d">09-04</span><span>两份提交交卷;套上 GUI 壳出观察页;<strong>第一届联赛跑完</strong> —— 1800 场 / 44528 局 / 72 分钟</span></li>
+    <li><span class="d">09-04</span><span>前两份提交交卷;套上 GUI 壳出观察页;跑了一次三名选手的预赛 —— 1800 场 / 44528 局</span></li>
+    <li><span class="d">09-05</span><span>规则书吸收第一批反馈(「打 25 墩」等),自测向量 10 → 21 条;比赛主页上线</span></li>
+    <li><span class="d">09-06</span><span>后三份提交交卷。规则书吸收第二批反馈,向量 21 → 32 条,已知偏差记到两处。<strong>第一届正赛跑完</strong> —— 6 名选手 / 15 对 / 9000 场 / 258722 局 / 五份提交零违规</span></li>
   </ul>
 </section>
 
