@@ -16,6 +16,7 @@
  *   · README / CHANGELOG 里写的版本号,必须等于对应 build 的 versionTag
  *   · contest/public/ 与参赛 repo 逐字节一致(参赛 repo 并排放着时)
  *   · 规则书 §S5 新增的那些向量,引擎跑出来必须一致
+ *   · 联赛断点续跑出来的榜与逐局记录,和一口气跑完的逐字节相同(--full)
  *   · .md 与比赛主页里指向仓库内文件的链接都得指得到东西
  *   · 未跟踪文件必须在白名单里(防 `git add -A` 把本地杂物扫进仓库)
  */
@@ -208,6 +209,15 @@ try{
 }catch(e){ na('未跟踪文件白名单', 'git 不可用'); }
 
 if(process.argv.includes('--full')){
+  /* 联赛断点续跑 —— 一届联赛几个钟头,掉一次进程就全没了,这条路径的失败是**静默**的:
+   * 记录读不出来、或者少了几十场而没人发现。放在 --full 里,晋级前跑得到。 */
+  console.log('\n\x1b[1m联赛断点续跑(--full)\x1b[0m');
+  const lr=cp.spawnSync('node',['test/league-resume.js'],{encoding:'utf8'});
+  const m=(lr.stdout||'').match(/通过 (\d+) 项,失败 (\d+) 项/);
+  if(/跳过/.test(lr.stdout||'')) na('联赛断点续跑','参赛 repo 不在旁边');
+  else if(lr.status===0&&m) ok(`联赛断点续跑 ${m[1]}/${m[1]}`);
+  else bad('联赛断点续跑', (lr.stdout||'').trim() || (lr.stderr||'').trim());
+
   console.log('\n\x1b[1m引擎自测(--full)\x1b[0m');
   const vm=require('vm');
   for(const f of [PROD,TEST,DEV]){

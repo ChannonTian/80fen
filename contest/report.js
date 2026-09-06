@@ -42,7 +42,8 @@ const pf=p=>p<=0?'<1e-16':p<1e-4?p.toExponential(1):p.toFixed(4);
 let rounds=null;
 if(pos[1] && fs.existsSync(pos[1])){
   let buf=fs.readFileSync(pos[1]);
-  if(/\.gz$/.test(pos[1])) buf=zlib.gunzipSync(buf);
+  // Z_SYNC_FLUSH:进程被杀留下的半截 gzip 成员也把能读的读出来,不整个抛
+  if(/\.gz$/.test(pos[1])) buf=zlib.gunzipSync(buf,{finishFlush:zlib.constants.Z_SYNC_FLUSH});
   rounds=buf.toString('utf8').split('\n').filter(Boolean).map(l=>JSON.parse(l));
 }
 
@@ -105,6 +106,33 @@ w(`  一场只有胜/负 1 bit,级数差是连续量,方差小得多,判断强�
 w(`- **每局净分**:把整场拆回单副口径 —— 闲家拿 total、庄家方拿 200−total,再作差取半。`);
 w(`- **违规**次数不含判断失误(如「压不过当前亮主」);**罚掉**是实际生效的罚分,不是名义值。`);
 w('');
+
+// 用时 —— 超时是全篇唯一的硬性淘汰条件,赛报里必须有个数
+{
+  const tm={};
+  for(const q of J.pairs){
+    const g=q.winA+q.winB+q.draw;
+    for(const [id,v] of [[q.a,q.vio.a],[q.b,q.vio.b]]){
+      const t=tm[id]||(tm[id]={ms:0,games:0}); t.ms+=v.ms; t.games+=g;
+    }
+  }
+  w(`## 用时`);
+  w('');
+  w(`门槛(见参赛手册):一整场里你这一方 ≤ **20 秒**,任何单次决策 ≤ **2 秒**。`);
+  w('');
+  w(`| 选手 | 每场 | 占门槛 |`);
+  w(`|---|---:|---:|`);
+  for(const r of J.table){
+    const t=tm[r.id]; if(!t||!t.games) continue;
+    const per=t.ms/1000/t.games;
+    w(`| ${r.id} | ${per<0.1?per.toFixed(3):per.toFixed(2)} s | ${(100*per/20).toFixed(1)}% |`);
+  }
+  w('');
+  w(`这里量的是裁判在 \`hrtime\` 上读到的**净思考时间**(墙钟),而且是${J.jobs?' '+J.jobs+' 个':'多个'} worker`);
+  w(`同时在跑的时候读的 —— 有争用,所以每个数都比单独跑时的 CPU 时间**偏大**。`);
+  w(`偏大的数还在门槛以下,结论就成立;要卡边界的话得单独复量。`);
+  w('');
+}
 
 // 对战表
 w(`## 对战表`);

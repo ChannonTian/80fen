@@ -94,5 +94,50 @@ console.log('\n一局的结构:打到手牌出完,不是固定 25 墩');
      E.classify([C('H',5),C('H',5)],T).cards.length, 2);
 }
 
+console.log('\n关卡开与关:同一组输入,整场推进表和必打关卡表给的是两个答案');
+{
+  const G=[2,5,10,13];
+  const sc={defendersWin:true, total:150, kittyPts:0, mult:2, defenderLevelsUp:1, declarerLevelsUp:0};
+  const lv=(gates,played)=>E.advanceMatch([2,2], 1, sc, gates, played).levels;
+  ok('关卡关 → 队 0 升到 3', lv([], [-1,-1]), [3,2]);
+  ok('关卡开、队 0 没在 2 上坐庄守住过 → 停在 2', lv(G, [-1,-1]), [2,2]);
+  ok('关卡开、played=[2,-1] → 照常升到 3', lv(G, [2,-1]), [3,2]);
+  ok('关卡开但根本不传 played → 不拦(没有记账就无从判断)', lv(G, undefined), [3,2]);
+  ok('卡住时 gateHeld 报出关卡级', E.advanceMatch([2,2],1,sc,G,[-1,-1]).gateHeld, 2);
+}
+
+console.log('\n合法跟牌永远存在 —— 对子义务不会造出无解局面');
+{
+  /* 有参赛者报告 must 缺 ⌊k/2⌋ 封顶会造出无解局面。不成立:任何领出都满足
+   * 2 × pairsInLead ≤ 张数,所以 must 对总放得下。这里就近取几个最容易出事的构造。 */
+  const sub=(a,k,st=0,cur=[],out=[])=>{ if(cur.length===k){ out.push(cur.slice()); return out; }
+    for(let i=st;i<a.length;i++){ cur.push(a[i]); sub(a,k,i+1,cur,out); cur.pop(); } return out; };
+  const has=(hand,leadCards)=>{
+    const l={suit:E.effSuit(leadCards[0],T), cards:leadCards, ...E.classify(leadCards,T)};
+    return sub(hand, leadCards.length).some(c=>E.isLegalFollow(hand,l,c,T));
+  };
+  // 本门对子多于领出能容纳的对子数 —— zai-glm 说这里无解
+  ok('领出 2 单张甩牌、本门 3 对 → 有合法跟牌',
+     has([C('H',3),C('H',3),C('H',4),C('H',4),C('H',6),C('H',6)],
+         [C('H',9),C('H',11)]), true);
+  ok('领出 1 对 + 1 单(3 张)、本门 3 对 → 有合法跟牌',
+     has([C('H',3),C('H',3),C('H',4),C('H',4),C('H',6),C('H',6)],
+         [C('H',9),C('H',9),C('H',11)]), true);
+  ok('领出三连对(6 张)、本门 4 对但连不成三连 → 有合法跟牌',
+     has([C('H',3),C('H',3),C('H',6),C('H',6),C('H',9),C('H',9),C('H',12),C('H',12)],
+         [C('H',4),C('H',4),C('H',5),C('H',5),C('H',7),C('H',7)]), true);
+}
+
+console.log('\n非法领出:当前裁判既不判罚也拦不住(§J 已知偏差之二,本届冻结)');
+{
+  const mixed=[C('H',5), C('D',7)];
+  ok('混门领出 classify 返回 null', E.classify(mixed,T), null);
+  ok('checkThrow 见 null 直接放行(这就是洞)', E.checkThrow([[],[],[],[]],0,mixed,T).ok, true);
+  let threw=false;
+  try{ E.isLegalFollow([C('H',3),C('H',4)], E.classify(mixed,T), [C('H',3)], T); }
+  catch(e){ threw=true; }
+  ok('跟牌方随后在 isLegalFollow 里抛异常 → 整场作废', threw, true);
+}
+
 console.log(`\n通过 ${pass} 项,失败 ${fail} 项\n`);
 process.exit(fail?1:0);

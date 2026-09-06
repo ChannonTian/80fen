@@ -13,6 +13,14 @@
  *                  排名和申诉靠它复盘;逐墩记录量太大,不记。
  *   --log=FILE     逐局记录的去处。以 .gz 结尾就自动压缩。
  *   --out=FILE     结果写成 JSON,默认 league-result.json
+ *   --resume       接着上次跑:断点文件里已经打完的对直接跳过
+ *   --ckpt=FILE    断点文件,默认 <out>.ckpt.ndjson
+ *
+ * 每打完一对就往断点文件追加一行 —— 一整届联赛是几个钟头,只在最后写一次的话,
+ * 中途掉一次进程就全没了。逐局记录同样一对一落盘:**每一对自成一个 gzip 成员**
+ * 追加进同一个文件(多成员是合法 gzip,gunzip 会把它们连起来)。
+ * 不用一条长 gzip 流,是因为流要 end() 才收尾 —— 进程被杀时整个文件都读不出来,
+ * 断点就白留了。
  *
  * 为什么两两都要打:只对一个固定陪练打,优化目标会歪成「专治这一个对手」。
  * 两两对过局之后,靠一个对手的弱点吃分的选手在别人身上讨不到便宜。
@@ -36,10 +44,14 @@ const KEEP=has('log-rounds')||has('log-hands');   // --log-hands 是旧名字,�
 const LOGF=opt('log','league-rounds.ndjson.gz');
 /* 逐局记录**不进** league-result.json —— 300 副 × 3 对缩进过的 JSON 是几十兆,
  * 排行榜就没法看了。分开写成一行一局的 NDJSON,.gz 结尾自动压缩。 */
-let logStream=null, logRounds=0;
-if(KEEP){
-  const raw=fs.createWriteStream(LOGF);
-  logStream=/\.gz$/.test(LOGF) ? (()=>{ const gz=zlib.createGzip(); gz.pipe(raw); return gz; })() : raw;
+const RESUME=has('resume');
+const CKPT=opt('ckpt', OUT+'.ckpt.ndjson');
+const GZ=/\.gz$/.test(LOGF);
+if(KEEP && !RESUME && fs.existsSync(LOGF)) fs.unlinkSync(LOGF);
+// 一对一落盘:攒好这一对的所有行,压成一个独立的 gzip 成员追加进去。
+function appendRounds(text){
+  if(!KEEP || !text) return;
+  fs.appendFileSync(LOGF, GZ ? zlib.gzipSync(Buffer.from(text,'utf8')) : text);
 }
 const JOBS=Math.max(1, +opt('jobs', Math.max(1, os.cpus().length-1)));
 
@@ -68,16 +80,74 @@ let done=0, next=0;
 const t0=Date.now();
 const results=[];
 
+/* 断点续跑:先把已完成的对读回来,再把它们从待跑清单里划掉。
+ * 断点行里存的就是 takeResult 收下的那个对象(去掉逐局记录),
+ * 所以吸收路径和现跑的完全一样,不存在「续跑出来的榜和一口气跑的不同」。 */
+const doneKey=new Set();
+const key=(a,b)=>a+'\u0000'+b;
+// 不是续跑就把旧断点清掉 —— 留着的话下次 --resume 会把上一届的对当成本届已完成
+if(!RESUME && fs.existsSync(CKPT)) fs.unlinkSync(CKPT);
+if(RESUME && fs.existsSync(CKPT)){
+  let cand=[];
+  for(const line of fs.readFileSync(CKPT,'utf8').split('\n')){
+    if(!line.trim()) continue;
+    let r; try{ r=JSON.parse(line); }catch(e){ continue; }   // 最后一行可能被截断
+    if(!players.some(p=>p.id===r.a) || !players.some(p=>p.id===r.b)) continue;
+    if(cand.some(x=>x.a===r.a&&x.b===r.b)) continue;
+    cand.push(r);
+  }
+  /* 逐局记录是「先写记录、后写断点」,被杀时两边可能对不齐:
+   *   记录有、断点没有 → 续跑会把这一对再打一遍,记录出现两份
+   *   断点有、记录没有 → 这一对的逐局记录永远缺一块,而且没人会发现
+   * 所以这里以**两边都有**为准,把记录按断点重写一遍,并把记录里缺的那些对
+   * 从断点里划掉、重新跑。 */
+  if(KEEP && fs.existsSync(LOGF)){
+    let txt='';
+    try{
+      const raw=fs.readFileSync(LOGF);
+      // Z_SYNC_FLUSH:最后一个 gzip 成员被截断时也把能解的都解出来,不整个抛
+      txt=GZ ? zlib.gunzipSync(raw,{finishFlush:zlib.constants.Z_SYNC_FLUSH}).toString('utf8')
+             : raw.toString('utf8');
+    }catch(e){ txt=''; }
+    const byPair=new Map();
+    for(const line of txt.split('\n')){
+      if(!line.trim()) continue;
+      let o; try{ o=JSON.parse(line); }catch(e){ continue; }
+      const k=key(o.a,o.b);
+      (byPair.get(k)||byPair.set(k,[]).get(k)).push(line);
+    }
+    /* 只有「这一对的场数对得上」才算记录完整 —— 光看有没有会把写了一半的那一对
+     * 当成好的收下,之后谁也发现不了它少了几十场。 */
+    const before=cand.length;
+    cand=cand.filter(r=>(byPair.get(key(r.a,r.b))||[]).length===r.winA+r.winB+r.draw);
+    if(cand.length<before)
+      console.log(`断点里有 ${before-cand.length} 对的逐局记录不全(场数对不上),这几对重跑`);
+    const out=cand.map(r=>byPair.get(key(r.a,r.b)).join('\n')).join('\n');
+    fs.writeFileSync(LOGF, GZ ? zlib.gzipSync(Buffer.from(out?out+'\n':'','utf8'))
+                              : (out?out+'\n':''));
+  }
+  for(const r of cand){ doneKey.add(key(r.a,r.b)); absorb(r); }
+  fs.writeFileSync(CKPT, cand.map(r=>JSON.stringify(r)).join('\n')+(cand.length?'\n':''));
+}
+const todo=pairs.filter(([i,j])=>!doneKey.has(key(players[i].id,players[j].id)));
+if(RESUME) console.log(`断点 ${CKPT}:已完成 ${doneKey.size} 对,本次跑 ${todo.length} 对\n`);
+
 function takeResult(r){
   if(r.err){ console.error(`  ! ${r.a} vs ${r.b}:${r.err}`); done++; return; }
   if(r.log && r.log.length){
-    for(const m of r.log){
-      logStream.write(JSON.stringify({a:r.a, b:r.b, seed:m.seed, aTeam:m.aTeam,
-        winner:m.winner, levels:m.levels, rounds:m.rounds})+'\n');
-      logRounds+=m.rounds.length;
-    }
+    appendRounds(r.log.map(m=>JSON.stringify({a:r.a, b:r.b, seed:m.seed, aTeam:m.aTeam,
+      winner:m.winner, levels:m.levels, rounds:m.rounds})).join('\n')+'\n');
   }
   delete r.log;
+  absorb(r);
+  fs.appendFileSync(CKPT, JSON.stringify(r)+'\n');
+  done++;
+  const el=(Date.now()-t0)/1000;
+  process.stderr.write(`\r  ${done}/${todo.length} 对  ${el.toFixed(0)}s  ` +
+    `预计还剩 ${(el/done*(todo.length-done)/60).toFixed(1)} 分钟      `);
+}
+
+function absorb(r){
   results.push(r);
   const ia=players.findIndex(p=>p.id===r.a), ib=players.findIndex(p=>p.id===r.b);
   const A=T[ia], B=T[ib];
@@ -91,40 +161,34 @@ function takeResult(r){
     for(const k in v.by) dst.vioBy[k]=(dst.vioBy[k]||0)+v.by[k]; };
   mv(A,r.vio.a); mv(B,r.vio.b);
   A.opp[r.b]=`${r.winA}-${r.winB}`; B.opp[r.a]=`${r.winB}-${r.winA}`;
-  done++;
-  const el=(Date.now()-t0)/1000;
-  process.stderr.write(`\r  ${done}/${pairs.length} 对  ${el.toFixed(0)}s  ` +
-    `预计还剩 ${(el/done*(pairs.length-done)/60).toFixed(1)} 分钟      `);
 }
 
 function feed(w){
-  if(next>=pairs.length){ w.kill(); return; }
-  const [i,j]=pairs[next++];
+  if(next>=todo.length){ w.kill(); return; }
+  const [i,j]=todo[next++];
   w.send({a:players[i], b:players[j], seeds:SEEDS, seed0:SEED0, build:BUILD,
           eg:has('eg'), keepHands:KEEP});
 }
 
 const workers=[];
-for(let k=0;k<Math.min(JOBS,pairs.length);k++){
+for(let k=0;k<Math.min(JOBS,todo.length);k++){
   const w=fork(path.join(__dirname,'pair-worker.js'));
   workers.push(w);
   w.on('message', r=>{ takeResult(r); feed(w); finish(); });
   w.on('exit', ()=>finish());
   feed(w);
 }
+if(!todo.length) setImmediate(finish);
 
 let reported=false;
 function finish(){
-  if(reported || done<pairs.length) return;
+  if(reported || done<todo.length) return;
   reported=true;
   workers.forEach(w=>{ try{ w.kill(); }catch(e){} });
   process.stderr.write('\r' + ' '.repeat(70) + '\r');
   report();
-  if(logStream) logStream.end(()=>{
-    console.log(`→ ${LOGF}(${logRounds} 局逐局记录,一行一场)\n`);
-    process.exit(0);
-  });
-  else process.exit(0);
+  if(KEEP) console.log(`→ ${LOGF}(${results.reduce((a,r)=>a+r.rounds,0)} 局逐局记录,一行一场)\n`);
+  process.exit(0);
 }
 
 function stat(a){ if(!a.length) return {m:0,se:0,n:0};
@@ -178,7 +242,8 @@ function report(){
     console.log(pad(r.id,w)+rows.map(c=>pad(r.id===c.id?'—':(r.opp[c.id]||'?'),w)).join(''));
 
   fs.writeFileSync(OUT, JSON.stringify({players:players.map(p=>p.id), seeds:SEEDS,
-    build:BUILD, table:rows.map(r=>({id:r.id,w:r.w,l:r.l,d:r.d,rate:r.rate,
+    build:BUILD, jobs:JOBS, eg:has('eg'),
+    table:rows.map(r=>({id:r.id,w:r.w,l:r.l,d:r.d,rate:r.rate,ms:r.ms,
       lvl:r.lvl,pts:r.pts,vioCount:r.vioCount,vioPts:r.vioPts,vioApplied:r.vioApplied,vioBy:r.vioBy,
       rounds:r.rounds,opp:r.opp})), pairs:results}, null, 2));
   console.log(`\n→ ${OUT}(积分榜与每一对的汇总)`);

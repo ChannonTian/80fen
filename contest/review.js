@@ -21,7 +21,8 @@ if(!pos[0]){
   process.exit(1);
 }
 let buf=fs.readFileSync(pos[0]);
-if(/\.gz$/.test(pos[0])) buf=zlib.gunzipSync(buf);
+// Z_SYNC_FLUSH:进程被杀留下的半截 gzip 成员也把能读的读出来,不整个抛
+if(/\.gz$/.test(pos[0])) buf=zlib.gunzipSync(buf,{finishFlush:zlib.constants.Z_SYNC_FLUSH});
 const MATCHES=buf.toString('utf8').split('\n').filter(Boolean).map(l=>JSON.parse(l));
 
 const ALL=[...new Set(MATCHES.flatMap(m=>[m.a,m.b]))];
