@@ -1,4 +1,4 @@
-/* 基线 AI —— 把现版(v0.7.13)的 AI 忠实包装成参赛接口。
+/* 基线 AI —— 把 build 里那份 AI 忠实包装成参赛接口。
  *
  * 它同时是三样东西:
  *   · 排名的标尺(所有人对它打同一批种子)
@@ -21,7 +21,8 @@ const thaw = v => Object.assign({}, v);
 
 function makeBaseline(AI, tag){
   return {
-    name: tag || '基线 v0.7.13',
+    // 版本号由调用方从 build 上读出来传进来(见 ai-baseline.js),这里不写死
+    name: tag || '基线',
 
     onDeal(view){
       const ctx={

@@ -50,6 +50,17 @@ console.log('realm 隔离');
   const probe=mount('contest/ai-cheater.js','probe',BUILD,false);
   ok('mount() 给非白名单的是空屋', probe.peeked===0, `peeked=${probe.peeked}`);
   ok('mount() 给白名单的是 house 屋子', typeof mount('contest/ai-baseline.js','probe2',BUILD,false).onDeal==='function');
+  /* 陪练自称的版本号必须是**它实际包的那份 build** 的。原来写死成常量,于是联赛跑
+   * index.html(v0.7.12)时它自称 v0.7.13 —— 记录上的版本号是假的。 */
+  {
+    const tag=(f)=>mount('contest/ai-baseline.js','ver',f,false).name;
+    const ver=(f)=>((require('fs').readFileSync(f,'utf8')
+      .match(/<div id="versionTag">(.*?)<\/div>/)||[])[1]||'').match(/v\d+\.\d+\.\d+/)[0];
+    ok(`陪练自称的版本 == ${BUILD} 的版本`, tag(BUILD)===`基线 ${ver(BUILD)}`, tag(BUILD));
+    const OTHER = BUILD==='index.html' ? '80fen-test.html' : 'index.html';
+    if(require('fs').existsSync(OTHER) && ver(OTHER)!==ver(BUILD))
+      ok('换一份 build,版本号跟着变', tag(OTHER)===`基线 ${ver(OTHER)}`, tag(OTHER));
+  }
 }
 
 // ---------- 2. 一场基线自对局的结构不变量 ----------
