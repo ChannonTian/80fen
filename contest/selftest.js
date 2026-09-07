@@ -53,13 +53,20 @@ console.log('realm 隔离');
   /* 陪练自称的版本号必须是**它实际包的那份 build** 的。原来写死成常量,于是联赛跑
    * index.html(v0.7.12)时它自称 v0.7.13 —— 记录上的版本号是假的。 */
   {
+    const fsx=require('fs');
     const tag=(f)=>mount('contest/ai-baseline.js','ver',f,false).name;
-    const ver=(f)=>((require('fs').readFileSync(f,'utf8')
+    const ver=(f)=>((fsx.readFileSync(f,'utf8')
       .match(/<div id="versionTag">(.*?)<\/div>/)||[])[1]||'').match(/v\d+\.\d+\.\d+/)[0];
     ok(`陪练自称的版本 == ${BUILD} 的版本`, tag(BUILD)===`基线 ${ver(BUILD)}`, tag(BUILD));
-    const OTHER = BUILD==='index.html' ? '80fen-test.html' : 'index.html';
-    if(require('fs').existsSync(OTHER) && ver(OTHER)!==ver(BUILD))
-      ok('换一份 build,版本号跟着变', tag(OTHER)===`基线 ${ver(OTHER)}`, tag(OTHER));
+    /* 换一个版本号,陪练自称的要跟着变。
+     * 原先这一条是拿**另一份 build** 当对照的,而且加了「两份版本号不同」的前提 ——
+     * 两份 build 一旦同版(同一批改动落进两版就会这样),它会**自己跳过**,
+     * 自测项数从 39 悄悄掉到 38。改成现造一份改了版本号的副本,永远跑得到。 */
+    const tmp=require('path').join(require('os').tmpdir(), `ver-probe-${process.pid}.html`);
+    fsx.writeFileSync(tmp, fsx.readFileSync(BUILD,'utf8')
+      .replace(/(<div id="versionTag">)(.*?)(<\/div>)/, '$1' + '80分 v9.9.9(版本号探针)' + '$3'));
+    try{ ok('换一个版本号,陪练自称的跟着变', tag(tmp)==='基线 v9.9.9', tag(tmp)); }
+    finally{ try{ fsx.unlinkSync(tmp); }catch(e){} }
   }
 }
 
@@ -98,7 +105,7 @@ console.log('\n护栏(对手是 contest/ai-cheater.js)');
     ok('对手一条违规都没有', r.vio[1].count===0, JSON.stringify(r.vio[1].summary()));
     const kinds=Object.keys(r.vio[0].summary());
     for(const k of ['onDeal:不是合法选项','lead:抛异常',
-                    'lead:牌不在手上','follow:不合法'])
+                    'lead:牌不在手上','lead:不成型','follow:不合法'])
       ok(`记到了「${k}」`, kinds.includes(k), `实际: ${kinds.join(' / ')}`);
     ok('整场照样分出胜负', r.winnerTeam===0||r.winnerTeam===1);
     ok('罚分记到了作弊者头上', r.vio[0].pts>0, `pts=${r.vio[0].pts}`);

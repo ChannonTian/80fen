@@ -251,7 +251,14 @@ function playRound(st){
         if(i===0){
           const ret=callAI(ai.lead, ai, [view], vio[team], 'lead');
           cards=resolveCards(ret, hands[seat], vio[team], 'lead');
-          if(!cards){
+          /* 领出也要过一遍「成不成型」。这一条原先是**没有的**:混门的领出
+           * (比如 ♥5+♦7)classify 返回 null,checkThrow 只拦「甩牌不成立」、
+           * 见到 null 直接放行,到跟牌方那里 isLegalFollow 读 lead.cards 抛 TypeError
+           * —— 裁判自己崩在这里,整场被跑分器外面那层 catch 作废,不判负也不罚分。
+           * 等于给「打不过就掀桌」留了一条出路。
+           * 口径和跟牌那条完全一致:裁判替你出,替出几张就罚几张 × 5 分。 */
+          if(!cards || !E.classify(cards, trump)){
+            if(cards) vio[team].add('lead:不成型', '');
             cards=st.fallbackLead(hands[seat], trump, rand);
             pen[team]+=vio[team].fine(cards.length);
           }

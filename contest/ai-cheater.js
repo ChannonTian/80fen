@@ -32,8 +32,19 @@ module.exports = () => {
     onRebel(){ return true; },
     discard(view){ return view.hand.slice(0, 3); },        // ⑤ 只扣 3 张
     lead(view){
-      if(++n % 3 === 0) throw new Error('故意抛');         // ⑥ 抛异常
-      return [fake()];                                    // ⑦ 出不存在的牌
+      switch(++n % 3){
+        case 0: throw new Error('故意抛');                 // ⑥ 抛异常
+        case 1: return [fake()];                           // ⑦ 出不存在的牌
+        /* ⑨ 领出混门(两张不同花色)—— 谁也吃不下的「不成型」。
+         * 这一条曾经能把整场打断:classify 给 null,checkThrow 只拦甩牌、
+         * 见 null 就放行,跟牌方的 isLegalFollow 读 lead.cards 抛 TypeError。 */
+        default: {
+          const plain=c=>c.rank!==view.trump.rank && c.rank<15;
+          const a=view.hand.find(plain);
+          const b=a && view.hand.find(c=>plain(c) && c.suit!==a.suit);
+          return b ? [a,b] : [view.hand[0]];
+        }
+      }
     },
     follow(view, plays){
       return view.hand.slice(0, plays[0].cards.length + 1); // ⑧ 张数故意多一张
