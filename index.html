@@ -319,7 +319,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.12</div>
+<div id="versionTag">80分 v0.7.14</div>
 
 <script>
 /* ============================================================
@@ -433,11 +433,27 @@ function decompose(cards, trump){
     else comps.push({type:'pair',cards:run[0],top:ordIdx(run[0][0],trump)});
     run=[];
   };
-  for(const p of pairs){
-    if(run.length && ordIdx(p[0],trump)===ordIdx(run[run.length-1][0],trump)+1) run.push(p);
-    else { flush(); run=[p]; }
+  /* 同一个 ordIdx 可能有不止一对 —— 三门副级牌对全是同一个序号,无主局的四门级数牌对
+   * 也是。它们对成链是**可替换**的,所以不能一趟扫:遇到同序号当场断链的话,
+   * **手上多出一对同序号的对子反而会把本来连得上的链切短**。主♠打2、手上
+   * ♠A♠A(11)+♥2♥2(12)+♦2♦2(12)+♠2♠2(13),一趟扫切成两个二连对,而 11→12→13
+   * 本该是一个三连对。
+   * 改成分层:同序号的第 1 对算第 0 层、第 2 对第 1 层……,一层一层地扫,
+   * 层内 ordIdx 严格递增,最长的链必然落在第 0 层。
+   * 只有一层时(绝大多数手牌)这一段和原来的一趟扫**逐字等价**。 */
+  const layer=[];
+  for(let i=0;i<pairs.length;i++)
+    layer.push(i && ordIdx(pairs[i-1][0],trump)===ordIdx(pairs[i][0],trump) ? layer[i-1]+1 : 0);
+  const nLayer=layer.length ? Math.max(...layer)+1 : 0;
+  for(let L=0;L<nLayer;L++){
+    for(let i=0;i<pairs.length;i++){
+      if(layer[i]!==L) continue;
+      const p=pairs[i];
+      if(run.length && ordIdx(p[0],trump)===ordIdx(run[run.length-1][0],trump)+1) run.push(p);
+      else { flush(); run=[p]; }
+    }
+    flush();
   }
-  flush();
   for(const s of singles) comps.push({type:'single',cards:[s],top:ordIdx(s,trump)});
   return comps;
 }

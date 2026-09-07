@@ -232,6 +232,9 @@ function playRound(st){
     buried.forEach(c=>E.removeCard(hands[declSeat], c));
 
     // ---- 出牌 ----
+    /* 逐墩记录:默认不开(见 playMatch 的 logPlays)。开着的时候每墩记
+     * 「谁赢」和四家各出了哪几张牌的 id —— 牌是按**出牌顺序**排的,第一个就是领出方。 */
+    const trickLog = opt.logPlays ? [] : null;
     const declTeam=declSeat%2, history=[];
     let leader=declSeat, defPoints=0, lastWinner=declSeat, lastLeadSize=1, tricks=0;
     const rand=E.rng(seed^0x9e3779b9);      // 只给 genFollow 兜底用
@@ -248,7 +251,14 @@ function playRound(st){
         if(i===0){
           const ret=callAI(ai.lead, ai, [view], vio[team], 'lead');
           cards=resolveCards(ret, hands[seat], vio[team], 'lead');
-          if(!cards){
+          /* 领出也要过一遍「成不成型」。这一条原先是**没有的**:混门的领出
+           * (比如 ♥5+♦7)classify 返回 null,checkThrow 只拦「甩牌不成立」、
+           * 见到 null 直接放行,到跟牌方那里 isLegalFollow 读 lead.cards 抛 TypeError
+           * —— 裁判自己崩在这里,整场被跑分器外面那层 catch 作废,不判负也不罚分。
+           * 等于给「打不过就掀桌」留了一条出路。
+           * 口径和跟牌那条完全一致:裁判替你出,替出几张就罚几张 × 5 分。 */
+          if(!cards || !E.classify(cards, trump)){
+            if(cards) vio[team].add('lead:不成型', '');
             cards=st.fallbackLead(hands[seat], trump, rand);
             pen[team]+=vio[team].fine(cards.length);
           }
@@ -270,6 +280,7 @@ function playRound(st){
       history.push(...plays);
       lastLeadSize=plays[0].cards.length;
       const res=E.resolveTrick(plays, trump);
+      if(trickLog) trickLog.push({w:res.winner, p:plays.map(x=>x.cards.map(c=>c.id))});
       leader=res.winner; lastWinner=res.winner; tricks++;
       if(res.winner%2!==declTeam) defPoints+=res.points;
       if(tricks>60) break;                    // 防死循环
@@ -290,6 +301,10 @@ function playRound(st){
       defWonLastTrick: lastWinner%2!==declTeam, lastLeadSize});
     return {sc, declSeat, declTeam, trump, declStrength: decl?decl.strength:0,
             redealCount, rawDefPoints:defPoints, tricks,
+            /* 键叫 plays 不叫 tricks —— 逐局摘要里 tricks 已经是**墩数**(一个数),
+             * 合并成超集时同名会把它覆盖掉,而且覆盖得悄无声息。 */
+            deal: trickLog ? {seed, first, kitty:kittyOrig.map(c=>c.id),
+                              buried:buried.map(c=>c.id), plays:trickLog} : null,
             penalty:[pen[0],pen[1]], penaltyApplied:applied,
             defWonLast: lastWinner%2!==declTeam, scrambleNext};
   }
@@ -298,7 +313,7 @@ function playRound(st){
 // ---------- 一场 ----------
 function playMatch(matchSeed, aiOf, o){
   const opt=Object.assign({gates:[2,5,10,13], fullRebel:'scramble',
-                           maxRounds:200, engine:null}, o);
+                           maxRounds:200, engine:null, logPlays:false}, o);
   const E=opt.engine;
   const M={levels:[E.RULES.levelStart, E.RULES.levelStart], dealer:-1, round:0,
            played:[-1,-1], past:[]};
@@ -308,7 +323,7 @@ function playMatch(matchSeed, aiOf, o){
             nextSeed:()=>((matchSeed*100003 + (counter++)*7919)>>>0),
             fallbackDiscard:opt.fallbackDiscard, fallbackLead:opt.fallbackLead};
 
-  const rounds=[];
+  const rounds=[], plays=[];
   let winnerTeam=null;
   while(M.round<opt.maxRounds){
     const r=playRound(st);
@@ -328,6 +343,12 @@ function playMatch(matchSeed, aiOf, o){
                  tricks:r.tricks, kittyPts:r.sc.kittyPts, mult:r.sc.mult,
                  defLevelsUp:r.sc.defenderLevelsUp,
                  before, after:adv.levels.slice(), redeals:r.redealCount});
+    /* 逐墩挂在**另一条**数组上,不进 history —— history 就是归档里那份逐局记录,
+     * 混进去会让已经发出去的 2026-09-06-rounds.ndjson.gz 换一个形状。
+     * 但逐墩这一条是**逐局那一条的超集**:先摊开这一局的摘要,再接上发牌和每一墩。
+     * 少了摘要,拿到逐墩记录的人不知道这局谁坐庄、主是什么,一手牌都读不懂,
+     * 还得回头按下标去跟另一个文件对齐 —— 那种对齐迟早会对错。 */
+    if(r.deal) plays.push({...rounds[rounds.length-1], ...r.deal});
     if(adv.matchOver){ winnerTeam=adv.winnerTeam; break; }
   }
   // 打满上限还没分出胜负:按级数高者算,仍平则算平
@@ -335,7 +356,7 @@ function playMatch(matchSeed, aiOf, o){
     winnerTeam = M.levels[0]>M.levels[1] ? 0 : M.levels[1]>M.levels[0] ? 1 : null;
 
   return {winnerTeam, levels:M.levels.slice(), rounds:M.round, redeals:st.redeals,
-          history:rounds, vio};
+          history:rounds, plays: opt.logPlays?plays:null, vio};
 }
 
 module.exports={playMatch, playRound, Violations, resolveCards, cpCards};

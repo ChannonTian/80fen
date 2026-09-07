@@ -12,6 +12,10 @@
  *   --log-rounds   每一局记一行,写进 --log=FILE(默认 league-rounds.ndjson.gz)。
  *                  排名和申诉靠它复盘;逐墩记录量太大,不记。
  *   --log=FILE     逐局记录的去处。以 .gz 结尾就自动压缩。
+ *   --plays=DIR    逐墩记录:每一对一个 <A>__<B>.ndjson.gz,写进 DIR。
+ *                  一行一场,rounds[] 里一局一条,含发牌种子、底牌、扣牌和每一墩的出牌。
+ *                  量是逐局记录的十几倍(一季 44 MB),排名和赛报都用不上它,
+ *                  只在要把整季对局公开出去时才开。
  *   --out=FILE     结果写成 JSON,默认 league-result.json
  *   --resume       接着上次跑:断点文件里已经打完的对直接跳过
  *   --ckpt=FILE    断点文件,默认 <out>.ckpt.ndjson
@@ -47,6 +51,8 @@ const LOGF=opt('log','league-rounds.ndjson.gz');
 const RESUME=has('resume');
 const CKPT=opt('ckpt', OUT+'.ckpt.ndjson');
 const GZ=/\.gz$/.test(LOGF);
+const PLAYS=opt('plays','');       // 逐墩记录的目录,空字符串 = 不记
+if(PLAYS) fs.mkdirSync(PLAYS,{recursive:true});
 if(KEEP && !RESUME && fs.existsSync(LOGF)) fs.unlinkSync(LOGF);
 // 一对一落盘:攒好这一对的所有行,压成一个独立的 gzip 成员追加进去。
 function appendRounds(text){
@@ -85,6 +91,18 @@ const results=[];
  * 所以吸收路径和现跑的完全一样,不存在「续跑出来的榜和一口气跑的不同」。 */
 const doneKey=new Set();
 const key=(a,b)=>a+'\u0000'+b;
+const {playsName}=require('./pair-worker.js');
+// 这一对的逐墩记录在不在、场数对不对得上。工人是先写 .part 再 rename,
+// 所以能读出来的就是完整的;这里只需要数一数行数。
+function playsOK(r){
+  if(!PLAYS) return true;
+  const f=path.join(PLAYS, playsName(r.a,r.b));
+  if(!fs.existsSync(f)) return false;
+  try{
+    const txt=zlib.gunzipSync(fs.readFileSync(f)).toString('utf8');
+    return txt.split('\n').filter(l=>l.trim()).length === r.winA+r.winB+r.draw;
+  }catch(e){ return false; }
+}
 // 不是续跑就把旧断点清掉 —— 留着的话下次 --resume 会把上一届的对当成本届已完成
 if(!RESUME && fs.existsSync(CKPT)) fs.unlinkSync(CKPT);
 if(RESUME && fs.existsSync(CKPT)){
@@ -125,6 +143,12 @@ if(RESUME && fs.existsSync(CKPT)){
     const out=cand.map(r=>byPair.get(key(r.a,r.b)).join('\n')).join('\n');
     fs.writeFileSync(LOGF, GZ ? zlib.gzipSync(Buffer.from(out?out+'\n':'','utf8'))
                               : (out?out+'\n':''));
+  }
+  {
+    const before=cand.length;
+    cand=cand.filter(playsOK);
+    if(cand.length<before)
+      console.log(`断点里有 ${before-cand.length} 对的逐墩记录缺失或不全,这几对重跑`);
   }
   for(const r of cand){ doneKey.add(key(r.a,r.b)); absorb(r); }
   fs.writeFileSync(CKPT, cand.map(r=>JSON.stringify(r)).join('\n')+(cand.length?'\n':''));
@@ -167,7 +191,7 @@ function feed(w){
   if(next>=todo.length){ w.kill(); return; }
   const [i,j]=todo[next++];
   w.send({a:players[i], b:players[j], seeds:SEEDS, seed0:SEED0, build:BUILD,
-          eg:has('eg'), keepHands:KEEP});
+          eg:has('eg'), keepHands:KEEP, keepPlays:PLAYS||null});
 }
 
 const workers=[];
@@ -187,7 +211,9 @@ function finish(){
   workers.forEach(w=>{ try{ w.kill(); }catch(e){} });
   process.stderr.write('\r' + ' '.repeat(70) + '\r');
   report();
-  if(KEEP) console.log(`→ ${LOGF}(${results.reduce((a,r)=>a+r.rounds,0)} 局逐局记录,一行一场)\n`);
+  if(KEEP) console.log(`→ ${LOGF}(${results.reduce((a,r)=>a+r.rounds,0)} 局逐局记录,一行一场)`);
+  if(PLAYS) console.log(`→ ${PLAYS}/(逐墩记录,${results.filter(r=>r.playsFile).length} 对各一个文件)`);
+  if(KEEP||PLAYS) console.log('');
   process.exit(0);
 }
 
