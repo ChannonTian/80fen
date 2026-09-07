@@ -24,10 +24,14 @@ const {mount}=require('./mount.js');
 function put(build,tag,ov){ if(build.endsWith('.js')) return mount(build,tag,BB,true);
   const r=createRealm(build,tag); if(ov) Object.assign(r.AI.AIP,JSON.parse(ov)); return r.mount('contest/ai-baseline.js'); }
 const A=put(BA,'A',process.env.OVA), B=put(BB,'B',process.env.OVB);
-let lastDecl=null; const declLog=[];
-for(const [ai,tag] of [[A,'A'],[B,'B']]){ const od=ai.onDeal.bind(ai), dc=ai.discard.bind(ai);
-  ai.onDeal=v=>{const r=od(v); if(r) lastDecl={by:tag,strength:r.strength}; return r;};
-  ai.discard=v=>{declLog.push(lastDecl); lastDecl=null; return dc(v);}; }
+/* 「主是谁亮的」直接读裁判给的 h.declBy,不要在外面钩 onDeal。
+ *
+ * 这里原来包了一层钩子记「最后一个返回了亮主的 AI」。它**每一局都记错**:裁判在发牌
+ * 过程里给每家上百次机会,而基线的 aiDeclDecide 只看分数够不够门槛、不看自己压不压得过
+ * 当前亮主,于是亮主成功的那家早早定下之后,其余几家还在一路返回、一路被软退回
+ * (vio.soft('onDeal:压不过当前亮主')),把 lastDecl 一路盖掉。实测 276/276 局记的
+ * 座位都不是真正的亮主者;队伍层面因为只剩奇偶两种可能,反而有一半"蒙对",
+ * 于是错得像噪声,看不出来。AI 返回 ≠ 裁判采纳,这件事只有裁判知道。 */
 const byDecl={};
 const FB={engine:REF.E,fallbackDiscard:(h,t)=>REF.AI.aiDiscard(h,t),fallbackLead:(h,t,rd)=>REF.AI.aiLead(h,t,rd)};
 let winA=0,winB=0,draw=0,rounds=0,msA=0,msB=0,games=0; const pairL=[],pairP=[],pairW=[]; const hold={A:[0,0],B:[0,0]}; const byRank={};
@@ -43,9 +47,10 @@ for(let s=S0+1;s<=S0+N;s++){
     let sum=0; for(const h of r.history){ const aPts=(h.declTeam===aTeam)?200-h.total:h.total; sum+=aPts-(200-aPts);
       const who=h.declTeam===aTeam?'A':'B'; hold[who][0]++; if(!h.defendersWin) hold[who][1]++;
       const pt=[5,10,13].includes(h.trumpRank)?'pt':'np'; const k=who+':'+pt; byRank[k]=byRank[k]||[0,0]; byRank[k][0]++; if(!h.defendersWin) byRank[k][1]++; }
-    r.history.forEach((h,i)=>{ const who=h.declTeam===aTeam?'A':'B'; const d=declLog[i]; const pt=[5,10,13].includes(h.trumpRank)?'pt':'np';
-      const k=who+':'+pt+':by'+(d?(d.by===who?'Self':'Opp')+d.strength:'None'); byDecl[k]=byDecl[k]||[0,0]; byDecl[k][0]++; if(!h.defendersWin) byDecl[k][1]++; });
-    declLog.length=0; lastDecl=null;
+    r.history.forEach(h=>{ const who=h.declTeam===aTeam?'A':'B'; const pt=[5,10,13].includes(h.trumpRank)?'pt':'np';
+      // Self = 主是坐庄那一方自己亮的;Opp = 闲家定的主(庄定盘里这一半接近一半)
+      const by=h.declBy<0?'None':(h.declBy%2===h.declTeam?'Self':'Opp')+h.declStrength;
+      const k=who+':'+pt+':by'+by; byDecl[k]=byDecl[k]||[0,0]; byDecl[k][0]++; if(!h.defendersWin) byDecl[k][1]++; });
     dP.push(r.history.length?sum/r.history.length:0);
   }
   if(dL.length===2){pairL.push((dL[0]+dL[1])/2);pairP.push((dP[0]+dP[1])/2);pairW.push((dW[0]+dW[1])/2);}

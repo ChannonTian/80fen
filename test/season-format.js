@@ -87,8 +87,9 @@ const F=path.join(PLAYS, files[0]);
                'penalty','defendersWin','defWonLast','tricks','kittyPts','mult','before','after',
                'redeals','seed','first','kitty','buried','plays'];
   /* defLevelsUp 只有闲家上台的局才有(FORMAT.md 里写明了「守住时没有这个字段」)——
-   * 拿第一局去要求它必然时灵时不灵,所以只把它算作「文档里有」,不要求出现。 */
-  const optional=['defLevelsUp'];
+   * 拿第一局去要求它必然时灵时不灵,所以只把它算作「文档里有」,不要求出现。
+   * declBy 是第二赛季起才有的一格,season1/ 那批记录里没有,同样只要求文档里写了。 */
+  const optional=['defLevelsUp','declBy'];
   const missing=named.filter(k=>!(k in rd0));
   ok('FORMAT.md 点名的局级字段记录里都有', missing.length===0, missing.join('、'));
   const undocumented=Object.keys(rd0).filter(k=>!named.includes(k)&&!optional.includes(k));
