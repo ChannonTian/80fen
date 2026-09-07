@@ -24,11 +24,22 @@ zcat 2026-09-04-rounds.ndjson.gz | jq -c 'select(.a=="claude-opus-5" and .seed==
 `a`/`b` 是这一对的两名选手,`aTeam` 是 a 这一场坐哪一队(0 或 1)。
 同一个 `seed` 有两条记录、`aTeam` 分别是 0 和 1 —— 那就是交换阵营的那一对。
 
-**逐墩不记。** 要看某一局怎么打的,拿同一个种子重跑一遍就有了 —— 决策路径里没有
-`Math.random`/`Date.now`,同种子必然同牌同走法:
+**逐墩默认不记** —— 一亿多手,排名、赛报、复盘一个字节都用不上。要看某一局怎么打的,
+拿同一个种子重跑一遍就有了(决策路径里没有 `Math.random`/`Date.now`,同种子必然同牌同走法):
 
 ```sh
 node contest/run.js <A> <B> <场数> --eg
+```
+
+要把**整季对局公开出去**才开 `--plays=DIR`:一对一个 `<A>__<B>.ndjson.gz`,
+是逐局记录的**严格超集**(逐局那 17 个字段一个不少,再加发牌种子、底牌、扣牌、每一墩)。
+一季 258722 局约 55 MB。第一赛季那份在参赛 repo 的
+[`season1/`](https://github.com/ChannonTian/80fen-contest/tree/main/season1),
+连同阅读器和格式说明 —— 那边是发出去的,这边不留副本。
+
+```sh
+node contest/league.js ... --log-rounds --log=<日期>-rounds.ndjson.gz --plays=<参赛repo>/seasonN/plays
+node contest/gen-season.js <日期> <参赛repo>/seasonN     # 赛报和复盘改写成发出去的那一份
 ```
 
 赛报和复盘都是**生成**的,记录改了重跑就有:

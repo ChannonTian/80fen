@@ -17,6 +17,7 @@
  *   · contest/public/ 与参赛 repo 逐字节一致(参赛 repo 并排放着时)
  *   · 规则书 §S5 新增的那些向量,引擎跑出来必须一致
  *   · 联赛断点续跑出来的榜与逐局记录,和一口气跑完的逐字节相同(--full)
+ *   · 发出去的牌谱格式(参赛 repo 的 season1/FORMAT.md、replay.js)== 裁判现在的输出(--full)
  *   · .md 与比赛主页里指向仓库内文件的链接都得指得到东西
  *   · 未跟踪文件必须在白名单里(防 `git add -A` 把本地杂物扫进仓库)
  */
@@ -34,6 +35,8 @@ const ok =(n)=>console.log(`  \x1b[32m✓\x1b[0m ${n}`);
 const bad=(n,d)=>{fail++;console.log(`  \x1b[31m✗\x1b[0m ${n}`);if(d)console.log(`      ${String(d).replace(/\n/g,'\n      ')}`);};
 const na =(n,w)=>{skip++;console.log(`  \x1b[33m–\x1b[0m ${n}  (${w})`);};
 const has=f=>fs.existsSync(f);
+// 参赛 repo,并排放着的时候才查得了它
+const CONTEST=require('path').join(__dirname,'..','..','80fen-contest');
 const read=f=>fs.readFileSync(f,'utf8');
 
 /* ---- 从一份 build 里取出它的两处身份标记 ---- */
@@ -142,7 +145,6 @@ if(has(DOC.changelog)&&M[PROD]&&M[TEST]){
  * (有人直接在 GitHub 上加了一句「禁止查看其他选手的提交」)。
  * 参赛 repo 不在这个 checkout 里就跳过 —— 只有并排放着的时候才查得了。 */
 {
-  const CONTEST=require('path').join(__dirname,'..','..','80fen-contest');
   if(has(CONTEST)){
     const files=['README.md','RULES.md','example/index.js','submissions/README.md'];
     const drift=files.filter(f=>{
@@ -151,6 +153,16 @@ if(has(DOC.changelog)&&M[PROD]&&M[TEST]){
     });
     if(!drift.length) ok(`contest/public/ == 参赛 repo(${files.length} 份)`);
     else bad('contest/public/ == 参赛 repo', '漂了:'+drift.join('、'));
+
+    /* 发出去的那一届记录也是**生成的**(contest/gen-season.js),同样会漂 ——
+     * 而且漂了之后参赛者照着一份跑不起来的说明去复盘,比手册漂了更难发现。 */
+    const S1=require('path').join(CONTEST,'season1');
+    if(has(S1)&&has('contest/results/2026-09-06-league.md')){
+      const r=cp.spawnSync('node',['contest/gen-season.js','2026-09-06',S1,'--check'],{encoding:'utf8'});
+      if(r.status===0) ok('参赛 repo 的 season1/ == contest/results/(赛报与复盘)');
+      else bad('参赛 repo 的 season1/ == contest/results/',
+               (r.stderr||'').trim() || '重新生成:node contest/gen-season.js 2026-09-06 <参赛repo>/season1');
+    }else na('参赛 repo 的 season1/', '还没发出去');
   }else na('contest/public/ == 参赛 repo', '参赛 repo 不在旁边');
 }
 
@@ -185,10 +197,16 @@ console.log('\n\x1b[1m文档链接\x1b[0m');
     // markdown 的 ](…) 和 html 的 href="…" —— 比赛主页是手写 html,只查前一种查不到它
     const hrefs=[...body.matchAll(/\]\(([^)#\s]+)[^)]*\)/g)].map(m=>m[1])
       .concat(/\.html$/.test(f) ? [...read(f).matchAll(/href="([^"]+)"/g)].map(m=>m[1]) : []);
+    /* contest/public/ 里那几份**就是参赛 repo 里的文件**,里面的相对链接是相对
+     * 参赛 repo 的根算的,不是这个 repo。season1/ 只在那边有 —— 拿这边的目录去解
+     * 必然全断。参赛 repo 并排放着就去那边解,没放着就跳过这几份。 */
+    const inPublic=f.startsWith('./contest/public/');
+    if(inPublic && !has(CONTEST)) continue;
+    const base=inPublic ? dir.replace('./contest/public', CONTEST) : dir;
     for(const href of hrefs){
       if(/^(https?:|mailto:|#|data:)/.test(href)) continue;
       n++;
-      const t=require('path').normalize(dir+'/'+href.split('#')[0].split('?')[0]);
+      const t=require('path').normalize(base+'/'+href.split('#')[0].split('?')[0]);
       if(!has(t)) broken.push(`${f} → ${href}`);
     }
   }
@@ -209,6 +227,18 @@ try{
 }catch(e){ na('未跟踪文件白名单', 'git 不可用'); }
 
 if(process.argv.includes('--full')){
+  /* 发出去的牌谱格式 —— season1/replay.js 和 FORMAT.md 是**参赛者照着读的契约**,
+   * 裁判的逐墩结构一改那边就静默读错(字段少了读到 undefined,键改了名整节消失,
+   * 而 gzip 里的 NDJSON 不会有任何一处报错)。现跑两场现渲染,对得上才算数。 */
+  console.log('\n\x1b[1m发出去的牌谱格式(--full)\x1b[0m');
+  {
+    const sf=cp.spawnSync('node',['test/season-format.js'],{encoding:'utf8'});
+    const m=(sf.stdout||'').match(/通过 (\d+) 项,失败 (\d+) 项/);
+    if(/跳过/.test(sf.stdout||'')) na('牌谱格式 == 裁判的输出','参赛 repo 不在旁边');
+    else if(sf.status===0&&m) ok(`牌谱格式 == 裁判的输出 ${m[1]}/${m[1]}`);
+    else bad('牌谱格式 == 裁判的输出', (sf.stdout||'').trim() || (sf.stderr||'').trim());
+  }
+
   /* 联赛断点续跑 —— 一届联赛几个钟头,掉一次进程就全没了,这条路径的失败是**静默**的:
    * 记录读不出来、或者少了几十场而没人发现。放在 --full 里,晋级前跑得到。 */
   console.log('\n\x1b[1m联赛断点续跑(--full)\x1b[0m');

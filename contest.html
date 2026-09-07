@@ -131,10 +131,33 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
   <ul class="links">
     <li><a href="https://github.com/ChannonTian/80fen-contest">参赛 repo <span class="ar">↗</span></a></li>
     <li><a href="https://github.com/ChannonTian/80fen/blob/main/docs/RULES.md">规则书 <span class="ar">↗</span></a></li>
+    <li><a href="https://github.com/ChannonTian/80fen-contest/tree/main/season1">第一赛季全部牌谱 <span class="ar">↗</span></a></li>
     <li><a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-06-league.md">赛报 <span class="ar">↗</span></a></li>
     <li><a href="./">试玩基准版</a></li>
   </ul>
 </header>
+
+<section id="season2">
+  <h2>第二赛季开始了</h2>
+  <div class="finding hot">
+    <h3>第一赛季的一切都公开了</h3>
+    <p>五份提交的<a href="https://github.com/ChannonTian/80fen-contest/tree/main/submissions">代码</a>、9000 场比赛的<a href="https://github.com/ChannonTian/80fen-contest/tree/main/season1">每一张牌</a>、完整结果与六份复盘。
+       <strong>258722 局,一墩不漏</strong> —— 发牌、底牌、扣底、每一墩谁出了哪几张、谁赢,全在里面。</p>
+  </div>
+  <p>比赛当时只记了逐局摘要,判断是「逐墩量太大,排名和申诉用不上」。要把整季对局公开,这份逐墩记录是<strong>重跑出来的</strong> —— 决策路径里没有随机,同种子必然同牌同走法。重跑出来的逐局记录和归档里那份<strong>逐字节比对过,9000 场全对</strong>。</p>
+  <p>不想自己解压的话,<a href="https://github.com/ChannonTian/80fen-contest/blob/main/season1/replay.js"><code>replay.js</code></a> 零依赖,一条命令把一局渲染成牌谱。格式见 <a href="https://github.com/ChannonTian/80fen-contest/blob/main/season1/FORMAT.md"><code>FORMAT.md</code></a>。</p>
+  <h3>赛程</h3>
+  <ol>
+    <li><strong>公开</strong>(现在)—— 代码、过程、结果,随便分析。</li>
+    <li><strong>交 v2</strong> —— 接口、罚分、赛制一个字没改。第一赛季的选手交改进版,新选手直接交第一版,同场竞技。<strong>截止日期另行通知。</strong></li>
+    <li><strong>再跑一次完整联赛</strong>,结果同样全部公开。</li>
+  </ol>
+  <h3>两处和上一季不同</h3>
+  <ul>
+    <li><strong>提交不再走公开 PR。</strong>上一季提交进的是公开 repo 的 <code>submissions/</code>,后交的人看得见先交的人的全部代码 —— 规则里写了禁止,但靠自觉。这一季提交私下发给主办方,<strong>截止之后一起公开</strong>。</li>
+    <li><strong>裁判的两处已知偏差会先修掉</strong>(<code>decompose</code> 的贪心断链、领出非法没有判罚)。两处都动合法性判定,修完会公告,请按新版规则书重新自查。</li>
+  </ul>
+</section>
 
 <section id="what">
   <h2>这是什么</h2>
@@ -383,8 +406,10 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
         <td>一行一场,<code>rounds[]</code> 里一局一条:庄家、亮主、闲家得分、罚分、级数怎么走。258722 局,3.7 MB</td></tr>
     <tr><td><a href="https://github.com/ChannonTian/80fen/tree/main/contest/results">逐选手复盘</a></td>
         <td>六份,一人一份:分差丢在哪一侧、关卡局、底、亮主、丢分最多的十局</td></tr>
+    <tr><td><a href="https://github.com/ChannonTian/80fen-contest/tree/main/season1">逐墩记录</a></td>
+        <td>一对一个文件:每一局的发牌、底牌、扣底、<strong>每一墩谁出了哪几张、谁赢</strong>。258722 局,15 个文件。逐局记录的严格超集</td></tr>
   </table></div>
-  <p><strong>逐墩不记。</strong>258722 局的逐墩数据是一亿多手,而且没必要 —— 决策路径里没有随机,拿同一个种子重跑一遍就有了。</p>
+  <p><strong>逐墩当时没记</strong> —— 一亿多手,而且排名和申诉都用不上。第二赛季开始时为了公开整季对局<a href="https://github.com/ChannonTian/80fen-contest/tree/main/season1">重跑了一遍</a>,重跑的逐局记录与归档逐字节相同。</p>
   <p class="note">09-04 还有一次<a href="https://github.com/ChannonTian/80fen/tree/main/contest/results">预赛的记录</a>(前两份提交交卷时跑的,3 对 / 1800 场),留档但不算名次。</p>
 </section>
 
@@ -393,7 +418,7 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
   <p>去 <a href="https://github.com/ChannonTian/80fen-contest">80fen-contest</a>,那里有完整的参赛手册:五个方法的契约、<code>view</code> 的字段表、罚分口径、赛制,和一份「容易写错的十四个地方」。</p>
   <ul>
     <li>交<strong>一个目录</strong>,入口 <code>index.js</code>,导出一个不收参数的工厂,返回五个决策方法。只依赖 JS 内建。</li>
-    <li>Fork → 放进 <code>submissions/&lt;你的名字&gt;/</code> → 提 PR。</li>
+    <li><strong>第二赛季私下投递</strong>(渠道在邀请里给你),截止之后所有提交一起公开。上一季走的公开 PR 让后交的人看得见先交的人的代码。</li>
     <li>交之前自查两条:规则书 §S5 的自测向量全过;自己跑几场完整对局,确认不抛异常。</li>
   </ul>
   <p class="note">别看我们主仓库里的引擎和 AI。看了这个比赛对你自己就没意义了 —— 要考的正是「照规则书能不能写出一套能打的东西」。</p>
@@ -408,6 +433,7 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
     <li><span class="d">09-04</span><span>前两份提交交卷;套上 GUI 壳出观察页;跑了一次三名选手的预赛 —— 1800 场 / 44528 局</span></li>
     <li><span class="d">09-05</span><span>规则书吸收第一批反馈(「打 25 墩」等),自测向量 10 → 21 条;比赛主页上线</span></li>
     <li><span class="d">09-06</span><span>后三份提交交卷。规则书吸收第二批反馈,向量 21 → 32 条,已知偏差记到两处。<strong>第一届正赛跑完</strong> —— 6 名选手 / 15 对 / 9000 场 / 258722 局 / 五份提交零违规</span></li>
+    <li><span class="d">09-07</span><span><strong>第一赛季全部公开、第二赛季开始</strong> —— 258722 局的逐墩牌谱重跑并发布(与归档逐字节比对),提交改走私有渠道</span></li>
   </ul>
 </section>
 

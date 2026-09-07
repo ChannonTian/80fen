@@ -57,7 +57,26 @@ node contest/selftest.js index.html      # 裁判器自测,38 项,改动裁判�
 node contest/run.js A.js B.js 120        # 单对详跑,三个口径 + 配对统计
 node contest/report.js <result.json> [rounds.ndjson.gz]   # 出赛报(Markdown)
 node contest/review.js <rounds.ndjson.gz> --all           # 逐选手复盘
+node contest/gen-season.js <日期> <参赛repo>/seasonN      # 把这一届打包成发出去的那一份
 ```
+
+### 逐墩记录
+
+`--plays=DIR` 才记,一对一个 `<A>__<B>.ndjson.gz`。**只在要把整季对局公开时开** ——
+排名、赛报、复盘用不上它,而一季 258722 局约 55 MB(逐局记录才 3.7 MB)。
+
+它是逐局记录的**严格超集**:逐局那 17 个字段一个不少,再加这一局的发牌种子、底牌、
+扣牌和每一墩的出牌。所以拿到 `plays/` 的人不必再去跟另一个文件按下标对齐 ——
+那种对齐迟早会对错。
+
+手牌**不记**,因为算得出来:每家出掉的 25 张就是它拿到的 25 张;庄家那家是
+「出掉的 25 + 扣掉的 8 − 底牌的 8」。参赛 repo 里的 `season1/replay.js` 每渲染一局
+就验一次「四家 25 张 + 底 8 张 = 108 张」。
+
+工人**自己落盘**、不走 IPC(一对 3.5 MB,序列化再反序列化一遍纯属白花),
+先写 `.part` 再 `rename` —— 进程半路被杀只会留下一个 `.part`,不会留下一份
+「看着完整、其实少一半」的记录骗过 `--resume`。`--resume` 会连逐墩记录一起对齐:
+断点有、逐墩缺或场数对不上的那几对,重跑。
 
 **陪练要带 `--eg`。** `run.js`/`league.js` 默认把 `AIP.egSearch` 关掉(快 4 倍),那是调参时图快用的;
 正式跑要开,因为线上 `index.html` 的默认就是 `egSearch: 1` —— 关着跑等于让我们安插的选手降级出战,
