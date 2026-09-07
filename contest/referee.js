@@ -301,6 +301,11 @@ function playRound(st){
       defWonLastTrick: lastWinner%2!==declTeam, lastLeadSize});
     return {sc, declSeat, declTeam, trump, declStrength: decl?decl.strength:0,
             redealCount, rawDefPoints:defPoints, tricks,
+          /* 主是**谁**亮的 —— 座位,不是队伍。庄定盘里庄家恒不变,所以主色有近一半是闲家
+           * 定的,这一格和 declSeat(坐庄的那家)不是一回事。外面想知道只能靠钩 onDeal,
+           * 而 AI 返回 ≠ 裁判采纳(压不过当前亮主的会被软退回),钩子必错 —— 见
+           * contest/vs-builds.js 的注释。第二赛季起的记录里才有这一格。 */
+          declBy: decl?decl.seat:-1,
             /* 键叫 plays 不叫 tricks —— 逐局摘要里 tricks 已经是**墩数**(一个数),
              * 合并成超集时同名会把它覆盖掉,而且覆盖得悄无声息。 */
             deal: trickLog ? {seed, first, kitty:kittyOrig.map(c=>c.id),
