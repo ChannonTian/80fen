@@ -13,10 +13,15 @@ const PLAN=[
  [['multi',['S90','H50','X160','C50']],['multi',['C30','S80','H80','X150','C130']],
   ['multi',['H50','D70','C90']],['card','X150'],['card','S50'],['mini',0]],
  [['play','D60'],['win',0],['play','H100'],['win',0],['mini',0]],
+ [['multi',['S70','S71']],['win',1],['set',['S100','S101']],['set',['S40','S90']],['win',0]],
+ [['multi',['H80','H81','H90','H91']],['num',0],['num',1],
+  ['set',['D40','D41','D50','D51']],['win',0]],
 ];
 /* 每课小局的应得比分 —— 由牌面推出来的,改牌面就要一起改 */
+/* 每课小局的应得比分 —— 由牌面推出来的,改牌面就要一起改。
+   第 5、6 课(对子 / 拖拉机)没有小局,写 null 跳过这一项断言。 */
 const SCORE=['你们队拿到 15 分,对手 10 分','你们队拿到 10 分,对手 0 分',
-             '你们队拿到 10 分,对手 0 分','你们队拿到 10 分,对手 0 分'];
+             '你们队拿到 10 分,对手 0 分','你们队拿到 10 分,对手 0 分',null,null];
 let bad=0;
 const b=await chromium.launch({headless:true});
 for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
@@ -35,6 +40,7 @@ for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
       else if(kind==='card') await p.click(`#table .card[data-id="${val}"]`);
       else if(kind==='multi'){ for(const id of val) await p.click(`#table .card[data-id="${id}"]`); }
       else if(kind==='play') await p.click(`#hand .card[data-id="${val}"]`);
+      else if(kind==='set'){ for(const id of val) await p.click(`#hand .card[data-id="${id}"]`); }
       else if(kind==='mini'){
         // 轮询到小局结束:该我出就点第一张能出的,顺手连点几下压测 busy 闸
         for(let t=0;t<120;t++){
@@ -55,9 +61,14 @@ for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
     if(tag==='p') await p.screenshot({path:`y-l${L+1}-end.png`});
     const fin=await p.evaluate(()=>document.getElementById('bub').textContent);
     const want=SCORE[L];
-    if(!fin.includes(want)){ errs.push(`L${L+1} 小局比分不符,期望「${want}」,实得「${fin.slice(-40)}」`); }
+    if(want&&!fin.includes(want)){ errs.push(`L${L+1} 小局比分不符,期望「${want}」,实得「${fin.slice(-40)}」`); }
     console.log(` L${L+1} ${Math.round((Date.now()-T0)/1000)}s | ${fin.slice(-30)}`);
-    await p.click('#cta'); await p.waitForTimeout(300);   // 通关页
+    // 有小局的课:最后要再点一次「继续」才通关;没小局的课,最后一题的「继续」已经通关了
+    const ctaLive=await p.evaluate(()=>{
+      const el=document.getElementById('cta');
+      return getComputedStyle(document.getElementById('foot')).visibility!=='hidden'
+             && el.offsetParent!==null;});
+    if(ctaLive){ await p.click('#cta'); await p.waitForTimeout(300); }
     await p.click('#doneBtn'); await p.waitForTimeout(300);
   }
   await p.screenshot({path:`y-${tag}-map.png`});
