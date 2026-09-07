@@ -29,6 +29,13 @@ function load(f){const b=[...fs.readFileSync(f,'utf8').matchAll(/<script>([\s\S]
   ctx.globalThis=ctx;vm.createContext(ctx);vm.runInContext(b[0],ctx);return ctx.module.exports;}
 const NEW=load(process.argv[2]||'80fen-test.html');
 const OLD=load(process.argv[3]||'index.html');
+/* 消融 / 扫参不必再复制 html 手改开关:OVN / OVO 按 JSON 覆盖新版 / 旧版的 AIP,
+ *   OVN='{"egKittyModel":0}' node test/ai-h2h.js 80fen-test.html 80fen-test.html 700
+ * 同一份文件两边、只在一边覆盖一个开关,就是那个开关的单开关消融。
+ * LEVEL=10 把两边的 levelStart 都设成 10 —— 分级(5/10/K 级牌带分)的行为要单独量。 */
+if(process.env.OVN) Object.assign(NEW.AIP,JSON.parse(process.env.OVN));
+if(process.env.OVO) Object.assign(OLD.AIP,JSON.parse(process.env.OVO));
+if(process.env.LEVEL){ NEW.RULES.levelStart=+process.env.LEVEL; OLD.RULES.levelStart=+process.env.LEVEL; }
 const E=NEW;
 
 function playRound(seed, aiOf){
@@ -49,6 +56,9 @@ function playRound(seed, aiOf){
         trump={suit:null,rank:E.RULES.levelStart};declSeat=s;break;}
     }
   }
+  // 亮主信息也进 view(裁判和界面都给;egDeclKnown 靠它把亮主者的级牌钉在他手里)
+  const curDecl=!best?null:{seat:declSeat,suit:trump.suit,
+    strength:trump.suit?best.strength:(E.jokerPairOf(hands[declSeat])||{strength:3}).strength};
   hands[declSeat].push(...kitty);
   const buried=aiOf(declSeat).aiDiscard(hands[declSeat],trump);
   buried.forEach(c=>E.removeCard(hands[declSeat],c));
@@ -59,7 +69,7 @@ function playRound(seed, aiOf){
     for(let i=0;i<4;i++){
       const seat=(leader+i)%4;
       const view={seat,hand:hands[seat],trump,declSeat,history:[...history,...plays],
-                  buriedKnown:seat===declSeat?buried:[]};
+                  buriedKnown:seat===declSeat?buried:[],curDecl};
       let cards;
       if(i===0){
         cards=aiOf(seat).aiChooseLead(view).cards;
@@ -88,7 +98,7 @@ function playRound(seed, aiOf){
 
 const N=+process.argv[4]||800;
 const S0=+(process.env.SEED0||0);          // 种子偏移:分批跑互不重叠的样本,好做多批合并
-let diff=0, n=0, sq=0, lostNew=0, lostOld=0, nNew=0, nOld=0;
+let diff=0, n=0, sq=0, lostNew=0, lostOld=0, nNew=0, nOld=0, held=0, nDecl=0;
 const paired=[];                            // 每个种子一个 D=(d₀+d₁)/2
 for(let s=S0+1;s<=S0+N;s++){
   const d2=[];
@@ -100,6 +110,7 @@ for(let s=S0+1;s<=S0+N;s++){
     const oldPts = 200-newPts;
     const d=newPts-oldPts;
     diff+=d; sq+=d*d; n++; d2.push(d);
+    nDecl++; if(!r.defendersWin) held++;
     if(r.declTeam===newTeam){ nNew++; if(r.defWonLast) lostNew++; }
     else { nOld++; if(r.defWonLast) lostOld++; }
   }
@@ -130,3 +141,4 @@ console.log(`    两版行为不同的种子 ${nz}/${P}(${(100*nz/P).toFixed(1)}
 console.log(`    其中新版更好 ${pos}/${nz}(${(100*pos/(nz||1)).toFixed(1)}%),符号检验双尾 p=${pSign<1e-4?pSign.toExponential(1):pSign.toFixed(4)}`);
 console.log(`  新版坐庄丢掉最后一墩 ${(100*lostNew/nNew).toFixed(1)}%  (${lostNew}/${nNew})`);
 console.log(`  旧版坐庄丢掉最后一墩 ${(100*lostOld/nOld).toFixed(1)}%  (${lostOld}/${nOld})`);
+console.log(`  庄家守住 ${(100*held/nDecl).toFixed(1)}%  (${held}/${nDecl})—— 两边合计,LEVEL 分级对照时看它`);
