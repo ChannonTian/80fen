@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>[测试版] 80分(上海规则)</title>
+<title>[kimi-k3] 80分 参赛版</title>
 <style>
   :root{--felt:#0f5132;--felt2:#0b3d26;--gold:#ffd75e;
         /* 牌宽是整个界面的标尺:牌面、字号、间距都跟着它缩放 */
@@ -196,7 +196,7 @@
      手指一碰就摘掉,鼠标一动就装回来(见脚本末尾 trackPointerType)。 */
   html.hasHover #hand .card:hover{transform:translateY(-6px)}
   html.hasHover #hand .card.sel:hover{transform:translateY(-14px)}
-  #versionTag{position:fixed;right:10px;bottom:4px;font-size:11px;color:rgba(255,255,255,.3);
+  #versionTag{position:fixed;right:10px;bottom:4px;font-size:12px;color:rgba(255,255,255,.62);
               pointer-events:none;z-index:1}
   /* ---- 窄屏竖屏(手机竖握):左右两栏塞不下,改上下叠,整体仍锁一屏 ---- */
   @media (max-width:820px) and (orientation:portrait){
@@ -245,13 +245,6 @@
        发完牌 dealZone 释放两行高度后才自己归位 —— 报障说的「发牌时手牌遮挡亮牌/打牌区,
        发完后才回位」就是这一条。上一轮修的是对的,只是这条残留把它盖回去了。 */
     #tabs button{padding:5px 9px}
-    /* 桌面端三区按钮统一定宽(按最长文案「亮无将(大)」量)是为了排一行齐整,
-       竖屏放不下:出牌/重选/问教练 + 托管 + 看底牌 五颗 × 6.6em 早就出界了。
-       竖屏改成按文案自适应,省下的宽度正好够托管那一颗落到牌桌上。 */
-    #controls button{min-width:0;padding:6px 10px}
-    #controls{gap:6px}
-    #mainZone{gap:6px}
-    #dealerZone{gap:6px}
   }
   /* 竖屏且机身矮(iPhone SE 一类,或桌面浏览器窄窗口):出牌区要三张牌高是硬需求,
      省不出来就只能把牌本身做小 —— 牌小一号总比记录面板被挤没了强。 */
@@ -307,8 +300,6 @@
         <button id="btnHint" style="background:#6ec9ff">问教练</button>
       </div>
       <div id="dealerZone">
-        <!-- 托管排在最左:它整个出牌阶段都在,位置不会因为「看底牌」出现与否而漂移 -->
-        <button id="btnAuto" class="minor" onclick="window.__setAuto(!(window.__G&&window.__G().auto))">托管</button>
         <button id="btnBury" class="minor">扣底</button>
         <button id="btnKitty" class="minor" onclick="window.__showKitty()">看底牌</button>
       </div>
@@ -328,7 +319,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.15(测试版)</div>
+<div id="versionTag">参赛版 <b style="color:#ffd479">kimi-k3</b> <span style="opacity:.7">· 引擎与界面同正式版,只换了三家 AI</span> <span id="vioTag" style="margin-left:8px"></span></div>
 
 <script>
 /* ============================================================
@@ -442,27 +433,11 @@ function decompose(cards, trump){
     else comps.push({type:'pair',cards:run[0],top:ordIdx(run[0][0],trump)});
     run=[];
   };
-  /* 同一个 ordIdx 可能有不止一对 —— 三门副级牌对全是同一个序号,无主局的四门级数牌对
-   * 也是。它们对成链是**可替换**的,所以不能一趟扫:遇到同序号当场断链的话,
-   * **手上多出一对同序号的对子反而会把本来连得上的链切短**。主♠打2、手上
-   * ♠A♠A(11)+♥2♥2(12)+♦2♦2(12)+♠2♠2(13),一趟扫切成两个二连对,而 11→12→13
-   * 本该是一个三连对。
-   * 改成分层:同序号的第 1 对算第 0 层、第 2 对第 1 层……,一层一层地扫,
-   * 层内 ordIdx 严格递增,最长的链必然落在第 0 层。
-   * 只有一层时(绝大多数手牌)这一段和原来的一趟扫**逐字等价**。 */
-  const layer=[];
-  for(let i=0;i<pairs.length;i++)
-    layer.push(i && ordIdx(pairs[i-1][0],trump)===ordIdx(pairs[i][0],trump) ? layer[i-1]+1 : 0);
-  const nLayer=layer.length ? Math.max(...layer)+1 : 0;
-  for(let L=0;L<nLayer;L++){
-    for(let i=0;i<pairs.length;i++){
-      if(layer[i]!==L) continue;
-      const p=pairs[i];
-      if(run.length && ordIdx(p[0],trump)===ordIdx(run[run.length-1][0],trump)+1) run.push(p);
-      else { flush(); run=[p]; }
-    }
-    flush();
+  for(const p of pairs){
+    if(run.length && ordIdx(p[0],trump)===ordIdx(run[run.length-1][0],trump)+1) run.push(p);
+    else { flush(); run=[p]; }
   }
+  flush();
   for(const s of singles) comps.push({type:'single',cards:[s],top:ordIdx(s,trump)});
   return comps;
 }
@@ -881,33 +856,6 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   egMinSamples: 20,           // 抽不满这么多就退回启发式(约束太紧,样本不可信)
   egRetries: 24,              // 单个世界的重试次数
   egMaxCands: 6,              // 候选多于这个数就不搜(预算)
-  /* 收官抽样:底牌按庄家的埋底策略抽,不再是「三家塞满之后剩下的牌」(见 sampleWorld)
-   * 配对自对弈三批 × 700 种子:**+0.78 ±0.28 / +1.41 ±0.27 / +0.96 ±0.25**,
-   * 合并 +1.05 ±0.15(t=6.9),符号检验 p=5e-4 / 6e-5 / 7e-5;
-   * 庄家丢最后一墩 33.1→30.7 / 34.9→28.1 / 36.4→32.4。
-   * 另一组独立复跑(种子 500001+ / 600001+ / 700001+,与上面三批不重叠):
-   * +1.09 ±0.26 / +1.20 ±0.28 / +1.02 ±0.26,合并 **+1.10 ±0.15(t=7.1)**,
-   * 庄家丢末墩 35.1→30.7 / 37.4→31.0 / 37.3→32.1。
-   * 只影响看不见底牌的三家 —— 庄家自己知道,他的 kittySize 是 0。
-   * 顺带查过一条:旧写法里底牌是「分不下去的牌」的泄压阀,先填满等于焊死阀门,
-   * 抽样拒绝率 2.74% → 3.26%、每次搜索到手的世界 60.0 → 59.6、退回启发式 2.74% → 2.70%
-   * —— 分不是靠「更常不搜索」挣的。 */
-  egKittyModel: 1,            // 1 = 按埋底策略抽;0 = 均匀(v0.7.14 及以前)
-  /* 分牌进底牌的相对权重,以及它为什么不算标定死
-   * 0.35 与 0.7 同一批种子 +0.78 / +0.99,差在噪声里,取中间的 0.6。
-   * 「按它抽出的底分期望 ≈ 12、和实际埋底对得上」这句话是在**收官时的未见牌池**上说的;
-   * 换成庄家自己那 33 张当池子复量(400 副),0.6 抽出 14.5 分而 aiDiscard 实际埋 11.5 分,
-   * 要对上得降到 0.45。主牌 0 张、A 0 张两项两边完全一致。分数上没差别(见上),
-   * 但别把这一格当成一个已经标定死的常数。 */
-  egKittyPtW: 0.6,            // 分牌进底牌的相对权重(1 = 和闲牌一样容易被埋)
-  /* 收官抽样:把亮主者亮出的那几张(级牌 / 王对)钉在他手里 —— 硬信息,不是推断
-   * (需要 view 带 curDecl / decl,界面、裁判、ai-h2h 都给了)。三批 × 700 种子:
-   * +0.29 ±0.19 / −0.07 ±0.17 / −0.05 ±0.17,合并 +0.05 ±0.10,只改变 16% 的种子 ——
-   * 到收官时那几张多半已经打出来了。信息是对的,分挣不到。 */
-  egDeclKnown: 0,             // 默认关
-  /* 收官精确解:抽样世界里用完全信息极小极大代替推演(见 egSolve)
-   * ≤3 / ≤4 张实测都持平。注意那个「持平」带着一个已知的坑,见 egDedupSingles 的注释。 */
-  egExact: 0,                 // 剩这么多张及以下时启用(0 = 关)
   /* 搜索结果与启发式打分的融合方式。
    * 目标函数是「我方净升几级」,量纲和分制完全不同,不能直接相加 ——
    * 用它**排序**,只有当最优候选比启发式选中的那个高出 egMargin 级时才改判。
@@ -996,25 +944,6 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   pPartnerPrior: 0.32,
   pPartnerCalc: 0,            // 记牌证据相对先验的采信比例;0 = 完全用先验(实测最优)
   blockWin: 1,                // 1=生成「盖住末家分牌」的吃法候选;0=只用最省的吃法(消融用)
-  /* 打级(级牌 5/10/K,那 8 张级牌本身带 40 / 80 分)上单独量出来的两格 */
-  trumpPtDebt: 0,             // 主牌里的分牌也记「迟早要出」的负债(level 10 自对弈 −0.56 ±0.26,关)
-  ptLevelBonus: 25,           // 分级的亮主加成;砍到 0 / 10 打级自对弈 −0.28 / −0.21 级/场,不动
-  /* 闲家亮对:把主定在自己的长门上,不再偏爱「先亮单留后路」(见 scoreDeclOption)
-   * 对 claude-opus-5 / kimi-k3 各 60 种子打级:级数差 +5.52 vs +5.67、+8.04 vs +7.97 —— 持平。
-   * 当初判「牌谱里『闲家亮对 → 庄家守不住』是选择效应」,用的是 vs-builds 的「谁亮的主」切片,
-   * 而那个切片当时**每一局都记错**(见 contest/vs-builds.js 的注释)。
-   * 结论方向不变(不上线),但那个理由要重做。 */
-  defDeclPair: 0,             // 默认关
-  defPairBonus: 10,           // 闲家亮对的加成
-  defThreshAdd: 0,            // 闲家亮主门槛的增减(负 = 更爱亮)
-  /* 跨线的即时加成:赢下这一墩就把闲家推过某条线(见 ladderCross)
-   * **默认关 —— 三档全负**:10 → −0.20 ±0.24、
-   * 20 → −0.28 ±0.31(符号 p=0.019)、30 → −0.45 ±0.35(p=0.033),各 700 种子。
-   * 另试过把 ev×pw 整个换成阶梯期望效用(正态近似余下池子的份额、底分按护底概率折进去、
-   * 跟牌侧护底 flat 项并入):**−2.47 ±0.50(t=−4.9)**,代码没留。
-   * 结论同 v0.7.5 那条:cf-line 量到的是一次性偏离,做成规则之后不值那个数;
-   * 而且 cf-line 在 index.html 上 300 局只命中 10 个跨线点,信号本身就小。 */
-  ladderCross: 0,             // 加成的强度(0 = 关)
   /* 「接过队友」的开放范围:0=关 | 1=将牌墩与断门毙分 | 2=全开 | 3/4=单支消融(见 takeOverScoped)。
    * **默认 0 —— 这是一条实测为负的改动,代码留着是因为它对应的局面确实存在。**
    * 动机是需求列表那两条:队友调王没人接、队友副花 K 暂大而我断门不毙,末家一张 A/10 全收走。
@@ -1392,7 +1321,7 @@ function declHandQuality(D, opt){
   if([5,10,13].includes(D.trumpRank)){
     let lv=opt.suit?1:1.35;
     if(!opt.suit&&iAmDefender) lv+=0.35;
-    s+=AIP.ptLevelBonus*lv; why.push(opt.suit?'级数带分':'无将局主牌里大半是分');
+    s+=25*lv; why.push(opt.suit?'级数带分':'无将局主牌里大半是分');
   }
   return {q:s, fit, why};
 }
@@ -1459,12 +1388,7 @@ function scoreDeclOption(D, opt){
   // 8. 手上有对却只亮单张:省下暴露、留着「加固」这条后路,但要担被别家一对常主反掉的风险。
   //    信心越足(fit 越高)越不愿意冒这个险 —— 于是自然形成
   //    「信心不足想试一手 → 亮单」「手牌够好 → 亮对(或先亮单再加固)」。
-  /* v0.7.15:闲家亮对。第一赛季数据:陪练坐庄、闲家(五份提交)亮的是一对时,守住率只有
-   * 53%(非分级)/ 39%(分级),而陪练自己当闲家几乎不亮对(对手坐庄的局里 22~33%),
-   * 对手坐庄却在陪练亮对时只守住 15~32%。闲家亮对是最被低估的一手:主定在自己的长门上,
-   * 庄家 8 张底牌的优势被抵掉大半,而且一对常主只有王对反得掉。 */
-  if(AIP.defDeclPair&&iAmDefender&&opt.strength===2){ s+=AIP.defPairBonus; why.push('闲家亮对,把主定在自己长门'); }
-  if(opt.hasPair&&opt.strength===1&&!(AIP.defDeclPair&&iAmDefender)){
+  if(opt.hasPair&&opt.strength===1){
     // 「留后路」这件事只在心里没底时才值钱:信心越足,那条后路越用不上
     s+=AIP.declSingleOption*(1-Math.max(0,fit));
     // 被一对常主反掉不只是丢了主色 —— 无庄盘还连庄位和那 8 张底一起丢
@@ -1502,8 +1426,7 @@ function aiDeclDecide(D){
             baseline:base, absolute:r.score};
   }).sort((a,b)=>b.score-a.score);
   // 造反的门槛比首亮高一档:打乱一个已经成立的主色,本身有摩擦成本
-  const iAmDef=D.dealerKnown&&D.dealer>=0&&D.dealer%2!==D.seat%2;
-  const th=declThreshold(D)+(D.curDecl?AIP.rebelThresholdAdd:0)+(iAmDef?AIP.defThreshAdd:0);
+  const th=declThreshold(D)+(D.curDecl?AIP.rebelThresholdAdd:0);
   const top=scored[0];
   return {...top, threshold:th, pass:top.score>=th, cands:scored.slice(0,3)};
 }
@@ -2305,7 +2228,6 @@ function futureValue(cards, X){
     if(effSuit(c,trump)==='T'){
       // 主牌稀缺:毙牌权本身值钱,拿低主去毙一墩空气是亏的
       v+=trumpHold(c,X);
-      if(!X.leading&&AIP.trumpPtDebt) v-=cardPoints(c)*AIP.trumpPtDebt;
     }else{
       const rem=unseenPointsIn(X.mem,effSuit(c,trump),trump);
       /* 「差一张就是钢板」—— 上面**只剩一张**没出的牌时,这张牌是个期权:
@@ -2562,11 +2484,6 @@ function kittyProjection(X){
   const kp=kittyPts(X);
   if(kp<=0) return 0;
   const km=kittyMultOf(X);
-  return kp*km*kittyDefP(X);
-}
-// 闲家赢下最后一墩(抠到底)的概率:收官视野外用先验 0.5,视野内按我方护底手撑到最后的概率偏
-function kittyDefP(X){
-  if(X._kpd!==undefined) return X._kpd;
   const iAmDef=!X.isDecl;
   let pDef=0.5;
   const ru=X.hand&&X.hand.length?reserveUnit(X):null;
@@ -2574,22 +2491,9 @@ function kittyDefP(X){
     const hold=reserveHold(ru,X);
     pDef=iAmDef?clamp(0.5+0.5*(hold-0.5),0,1):clamp(0.5-0.5*(hold-0.5),0,1);
   }
-  return X._kpd=pDef;
+  return kp*km*pDef;
 }
 
-/* 跨线的**即时**加成(v0.7.15)。闲家的分只增不减:这一墩赢下就把闲家推过某条线,
- * 那条线就锁死了 —— 不是「多几分」,是一整级台阶。pointWeight 的高斯包络在 gap→0 时
- * 反而回落,表达不了这件事;cf-line 实测跨线组 +0.33 级/决策,对照组 −0.08。
- * 只在**此刻**跨线时生效(用已得分,不用投影):闲家赢下跨线记正,庄家输掉被跨记负。
- * 权重按 cf-line 分线的实测比例(40 线 +0.21、80 线 +0.46、120 线 +0.64)。 */
-const LADDER_CROSS_W=[[0.5,1],[40,1],[80,2],[120,2.5],[160,2.5],[200,2.5]];
-function ladderCross(X, p, ptsWin, ptsLose){
-  if(!AIP.ladderCross) return 0;
-  const def=X.def;
-  const crossed=(lo,hi)=>{ let u=0; for(const [L,w] of LADDER_CROSS_W) if(lo<L&&hi>=L) u+=w; return u; };
-  if(!X.isDecl) return AIP.ladderCross*p*crossed(def,def+ptsWin);
-  return -AIP.ladderCross*(1-p)*crossed(def,def+ptsLose);
-}
 // 局末目标不是「攻守 80 分」这一根线,而是一排阶梯,且随局面动态改变现实目标。
 // 引擎的结算口径就是阶梯的来历(scoreRound / advanceMatch):
 //   闲家 0 分   → 庄家升 3 级        闲家 120 分 → 闲家升 1 级
@@ -2773,7 +2677,7 @@ function scorePlay(X, cards, cat, beatsCur){
   // 牌权:本队赢下这墩,下一手由我方领出(我或队友),手上的优势才有机会兑现。
   // 输掉则牌权落到对手,他去兑现他的 —— 我方看不见对手手牌,用一个保守的固定值代表。
   const tempo=(p*tempoValue(X,cards)-(1-p)*AIP.oppTempo)*AIP.tempoWeight;
-  return (CAT_K[cat]||1)*ev*(X.pw||1)+tempo-futureValue(cards,X)+ladderCross(X,p,gain,loss);
+  return (CAT_K[cat]||1)*ev*(X.pw||1)+tempo-futureValue(cards,X);
 }
 // 兼容旧接口(教练/测试仍在用)
 function scoreWinPlay(X,cards){ return scorePlay(X,cards,
@@ -3726,41 +3630,10 @@ function rolloutFollow(hand, lead, trump, plays, seat){
 function sampleWorld(ctx, rand){
   const {unseen,sizes,seats,voids,trump,kittySize,capOf}=ctx;
   for(let attempt=0;attempt<AIP.egRetries;attempt++){
-    let pool=shuffle(unseen,rand);
+    const pool=shuffle(unseen,rand);
     const hands={}, cnt={}, used={};
     seats.forEach(s=>{hands[s]=[];cnt[s]={};});
     let kitty=[], ok=true;
-    /* v0.7.15:底牌不是均匀抽的。旧版把底牌当「三家都塞满之后剩下的牌」——
-     * 剩下的恰恰是约束最少的那些,也就是主牌(副牌门有缺门约束,主门几乎没有),
-     * 于是抽出来的底牌里主牌偏多、对手手里的主牌偏少 —— 闲家搜出来的世界系统性低估
-     * 庄家方的主。而庄家埋底的策略是已知的(faceValue:绝不埋主、不埋 A、尽量不埋分),
-     * 这里就按它抽:先从「非主、非 A」的牌里挑底牌,分牌降权,再把其余的牌分给三家。 */
-    if(AIP.egKittyModel&&kittySize>0){
-      const elig=pool.filter(c=>effSuit(c,trump)!=='T'&&c.rank!==14);
-      const w=c=>cardPoints(c)?AIP.egKittyPtW:1;
-      const rest=new Set();
-      while(kitty.length<kittySize&&elig.length){
-        let tot=0; for(const c of elig) if(!rest.has(c.id)) tot+=w(c);
-        if(tot<=0) break;
-        let r=rand()*tot, pick=null;
-        for(const c of elig){ if(rest.has(c.id)) continue; r-=w(c); if(r<=0){ pick=c; break; } }
-        if(!pick) break;
-        kitty.push(pick); rest.add(pick.id);
-      }
-      pool=pool.filter(c=>!rest.has(c.id));
-    }
-    /* v0.7.15:亮主的那家手里**一定**还有他亮出来的那几张(级牌 / 王对),直到打出来为止。
-     * 这是硬信息,不是推断 —— 先把它们钉给他,再分其余的牌。 */
-    if(ctx.known&&ctx.known.length){
-      const fixed=new Set();
-      for(const k of ctx.known){
-        if(!seats.includes(k.seat)||hands[k.seat].length>=sizes[k.seat]) continue;
-        const c=pool.find(x=>!fixed.has(x.id)&&x.suit===k.suit&&x.rank===k.rank);
-        if(!c) continue;
-        fixed.add(c.id); hands[k.seat].push(c); const su=effSuit(c,trump); cnt[k.seat][su]=(cnt[k.seat][su]||0)+1;
-      }
-      pool=pool.filter(c=>!fixed.has(c.id));
-    }
     // 先把「能去的地方最少」的牌安排掉
     const order=pool.slice().sort((a,b)=>
       seats.filter(s=>!voids[s][effSuit(a,trump)]).length
@@ -3817,83 +3690,6 @@ function rolloutToEnd(st){
   return {defPoints,lastWinner,lastLeadSize};
 }
 
-/* 收官精确解(v0.7.15):牌少到一定程度时,一个抽样世界不再用推演策略打完,
- * 而是对四家做完全信息的极小极大(双明手)。目标仍是 levelUtility(根方视角),
- * 对手最小化、本队最大化,alpha-beta 剪枝。领出只取拆解后的组件(和 rolloutLead 同口径,
- * 不甩牌);跟牌枚举所有合法子集并按牌面去重。 */
-/* 单张的等价归并:完全信息下,同一门里两张牌之间若没有别家的牌、分值又相同,
- * 出哪一张结果完全一样 —— 双明手求解的标准剪枝。others = 别家手里 + 本墩已出的牌。
- *
- * ⚠️ 这条剪枝**在两副牌里不成立**,拆不拆对子有价值,而它看不见这件事。
- * 实测:手里 ♥6♥6 + ♥7,跟一张牌时归并之后**只剩「出 ♥6」**——「出 ♥7、把 ♥6♥6
- * 留成一对」被当成等价扔掉了。桥牌里只有大小次序,这里还有牌型。
- * egExact 那两批「持平」的读数里有多少是这个造成的,没有量过;
- * 要再捡起收官精确解这条线,先修它再重测。 */
-function egDedupSingles(moves, others, trump){
-  if(moves.length<2) return moves;
-  const out=[], keep=[];
-  for(const mv of moves){
-    if(mv.length!==1){ out.push(mv); continue; }
-    const c=mv[0], su=effSuit(c,trump), idx=ordIdx(c,trump), pts=cardPoints(c);
-    let dup=false;
-    for(const k of keep){
-      if(k.su!==su||k.pts!==pts) continue;
-      const lo=Math.min(k.idx,idx), hi=Math.max(k.idx,idx);
-      if(!others.some(o=>effSuit(o,trump)===su&&ordIdx(o,trump)>lo&&ordIdx(o,trump)<hi)){ dup=true; break; }
-    }
-    if(!dup){ keep.push({su,idx,pts}); out.push(mv); }
-  }
-  return out;
-}
-function egMoves(hand, lead, trump, others){
-  if(!lead){
-    const bySuit={}; hand.forEach(c=>{(bySuit[effSuit(c,trump)]=bySuit[effSuit(c,trump)]||[]).push(c);});
-    const out=[]; for(const su in bySuit) for(const comp of decompose(bySuit[su],trump)) out.push(comp.cards);
-    return others?egDedupSingles(out,others,trump):out;
-  }
-  const k=lead.cards.length, n=hand.length, out=[], seen=new Set();
-  const rec=(start,pick)=>{
-    if(pick.length===k){
-      const key=pick.map(c=>c.suit+c.rank).sort().join(',');
-      if(seen.has(key)) return; seen.add(key);
-      if(isLegalFollow(hand,lead,pick,trump)) out.push(pick.slice());
-      return;
-    }
-    for(let i=start;i<=n-(k-pick.length);i++){ pick.push(hand[i]); rec(i+1,pick); pick.pop(); }
-  };
-  rec(0,[]);
-  return others?egDedupSingles(out,others,trump):out;
-}
-function egSolve(st, alpha, beta){
-  const {hands,trump,declSeat,kitty,rootTeam}=st;
-  let plays=st.plays;
-  if(plays.length===4){
-    const res=resolveTrick(plays,trump);
-    const defPoints=st.defPoints+(res.winner%2!==declSeat%2?res.points:0);
-    if(!hands.some(h=>h.length)){
-      const sc=scoreRound({defPoints,kitty,defWonLastTrick:res.winner%2!==declSeat%2,lastLeadSize:plays[0].cards.length});
-      return levelUtility(sc,rootTeam,declSeat%2);
-    }
-    return egSolve({...st,plays:[],leader:res.winner,defPoints},alpha,beta);
-  }
-  const seat=plays.length?(plays[0].seat+plays.length)%4:st.leader;
-  const lead=plays.length?classify(plays[0].cards,trump):null;
-  const others=[]; for(let i=0;i<4;i++) if(i!==seat) for(const c of hands[i]) others.push(c);
-  for(const p of plays) for(const c of p.cards) others.push(c);
-  const moves=egMoves(hands[seat],lead,trump,others);
-  const maxing=seat%2===rootTeam;
-  let best=maxing?-1e9:1e9;
-  for(const mv of moves){
-    const gone=new Set(mv.map(c=>c.id));
-    const h2=hands.slice(); h2[seat]=hands[seat].filter(c=>!gone.has(c.id));
-    const v=egSolve({...st,hands:h2,plays:plays.concat([{seat,cards:mv}])},alpha,beta);
-    if(maxing){ if(v>best) best=v; if(best>alpha) alpha=best; }
-    else { if(v<best) best=v; if(best<beta) beta=best; }
-    if(alpha>=beta) break;
-  }
-  return best;
-}
-
 /* 折成「我方净升几级」—— 这就是真正的目标函数,阶梯与抠底倍数都在 scoreRound 里。
  *
  * 但**纯阶梯是一个阶跃函数**:两个候选差 5 分,多数样本落在同一级台阶上,
@@ -3934,20 +3730,7 @@ function endgameSearch(view, plays, cands){
   const reads=makeReads(view.history||[],trump);
   const capOf=(s,su)=>maxHoldIn(reads,mem,s,su,trump);
   const rand=rng((view.history||[]).length*7919+view.seat*31+n*17+1);
-  /* 亮主者手里钉死的牌:亮 k 张级牌 → 他手里有 k 张该门级牌(减去他已经打出的);王对同理。 */
-  const known=[];
-  const decl=view.curDecl||view.decl;
-  if(AIP.egDeclKnown&&decl&&decl.seat>=0&&decl.seat!==view.seat&&seats.includes(decl.seat)){
-    const want=decl.strength>=3?{suit:'X',rank:decl.strength===4?16:15,n:2}
-             :decl.suit?{suit:decl.suit,rank:trump.rank,n:decl.strength}:null;
-    if(want){
-      let playedByHim=0;
-      for(const pl of (view.history||[])) if(pl.seat===decl.seat) for(const c of pl.cards) if(c.suit===want.suit&&c.rank===want.rank) playedByHim++;
-      for(const pl of (plays||[])) if(pl.seat===decl.seat) for(const c of pl.cards) if(c.suit===want.suit&&c.rank===want.rank) playedByHim++;
-      for(let i=0;i<want.n-playedByHim;i++) known.push({seat:decl.seat,suit:want.suit,rank:want.rank});
-    }
-  }
-  const ctx={unseen,sizes,seats,voids,trump,kittySize,capOf,known};
+  const ctx={unseen,sizes,seats,voids,trump,kittySize,capOf};
   const myTeam=view.seat%2, declTeam=view.declSeat%2;
   const rs=roundScore(view);
   const worlds=[];
@@ -3975,10 +3758,6 @@ function endgameSearch(view, plays, cands){
                                lastLeadSize:p2[0].cards.length});
           o.u+=levelUtility(sc,myTeam,declTeam); continue;
         }
-      }
-      if(AIP.egExact&&n<=AIP.egExact){
-        o.u+=egSolve({hands,plays:pl,leader,defPoints,trump,declSeat:view.declSeat,kitty,rootTeam:myTeam},-1e9,1e9);
-        continue;
       }
       const r=rolloutToEnd({hands,plays:pl,leader,defPoints,trump,declSeat:view.declSeat,mem,rand});
       const sc=scoreRound({defPoints:r.defPoints,kitty,
@@ -4140,6 +3919,1121 @@ const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
   makeHoldRange,partnerAceRead,tiaoWangValue,
   endgameSearch,sampleWorld,rolloutToEnd,rolloutLead,rolloutFollow,levelUtility,trumpLeadPrior};
 if(typeof module!=='undefined') module.exports=ENGINE;
+</script>
+
+<script>
+/* ============================================================
+ * 参赛提交:kimi-k3
+ * engine.js + index.js + strategy.js —— 原样内联,一个字符没改。
+ * 极简 CommonJS,只认本包内的相对 require。
+ * ============================================================ */
+const __CM={}, __CC={};
+function __def(id, fn){ __CM[id]=fn; }
+// 界面块整个被 (function(){…})() 包着,适配层必须插进那个闭包里才看得见 G/visHand;
+// 而参赛代码在闭包外,所以靠 window 把 require 递进去。
+window.__contestReq=function(s){ return __req(s); };
+function __req(spec){
+  const id=String(spec).replace(/^\.\//,'').replace(/\.js$/,'');
+  if(__CC[id]) return __CC[id].exports;
+  const fn=__CM[id];
+  if(!fn) throw new Error('参赛包里没有模块 '+id);
+  const mod={exports:{}}; __CC[id]=mod;
+  fn(mod, mod.exports, __req);
+  return mod.exports;
+}
+__def("engine", function(module, exports, require){
+'use strict';
+/* 80分(上海规则)规则引擎 —— 严格照 RULES.md §S3 八个判定实现。
+ * 纯 JS:只用语言内建,无 fs/process/网络/npm。裁判环境与本文件行为一致。 */
+
+const SUITS = ['S', 'H', 'D', 'C'];
+
+/* ---------------- 牌堆与分值 ---------------- */
+
+function makeDeck() {
+  const cards = [];
+  let id = 0;
+  for (let d = 0; d < 2; d++) {
+    for (const s of SUITS)
+      for (let r = 2; r <= 14; r++) cards.push({ suit: s, rank: r, id: id++ });
+    cards.push({ suit: 'X', rank: 15, id: id++ });
+    cards.push({ suit: 'X', rank: 16, id: id++ });
+  }
+  return cards; // 108
+}
+
+function cardPoints(c) {
+  return c.rank === 5 ? 5 : (c.rank === 10 || c.rank === 13 ? 10 : 0);
+}
+
+function countPoints(cards) {
+  let s = 0;
+  for (const c of cards) s += cardPoints(c);
+  return s;
+}
+
+/* ---------------- §S3 ① effSuit ---------------- */
+
+function effSuit(c, trump) {
+  if (c.suit === 'X') return 'T';
+  if (c.rank === trump.rank) return 'T';
+  if (trump.suit && c.suit === trump.suit) return 'T';
+  return c.suit;
+}
+
+/* ---------------- §S3 ② ordIdx ---------------- */
+
+function ordIdx(c, trump) {
+  if (c.rank === 16) return 15; // 大王
+  if (c.rank === 15) return 14; // 小王
+  if (c.rank === trump.rank) {
+    if (trump.suit === null) return 13; // 无主:四门级数牌同级
+    return c.suit === trump.suit ? 13 : 12; // 正级牌 / 副级牌
+  }
+  // [2..14] 去掉 trump.rank 后的位置,0..11
+  return c.rank < trump.rank ? c.rank - 2 : c.rank - 3;
+}
+
+/* ---------------- §S3 ③ decompose ---------------- */
+
+function groupBySR(cards) {
+  const m = new Map();
+  for (const c of cards) {
+    const k = c.suit + '|' + c.rank;
+    let g = m.get(k);
+    if (!g) { g = { suit: c.suit, rank: c.rank, cards: [] }; m.set(k, g); }
+    g.cards.push(c);
+  }
+  return m;
+}
+
+function decompose(cards, trump) {
+  const groups = groupBySR(cards);
+  const pairs = [], singles = [];
+  for (const g of groups.values()) {
+    const o = ordIdx(g.cards[0], trump);
+    const nPairs = (g.cards.length / 2) | 0;
+    for (let i = 0; i < nPairs; i++)
+      pairs.push({ ord: o, cards: [g.cards[2 * i], g.cards[2 * i + 1]] });
+    if (g.cards.length % 2 === 1)
+      singles.push({ ord: o, cards: [g.cards[g.cards.length - 1]] });
+  }
+  pairs.sort((a, b) => a.ord - b.ord);
+  const comps = [];
+  let i = 0;
+  while (i < pairs.length) {
+    let j = i;
+    while (j + 1 < pairs.length && pairs[j + 1].ord === pairs[j].ord + 1) j++;
+    const run = pairs.slice(i, j + 1);
+    if (run.length >= 2) {
+      const all = [];
+      for (const p of run) { all.push(p.cards[0], p.cards[1]); }
+      comps.push({ type: 'tractor', len: run.length, cards: all, top: run[run.length - 1].ord });
+    } else {
+      comps.push({ type: 'pair', cards: run[0].cards, top: run[0].ord });
+    }
+    i = j + 1;
+  }
+  for (const s of singles) comps.push({ type: 'single', cards: s.cards, top: s.ord });
+  return comps;
+}
+
+/* ---------------- §S3 ④ classify ---------------- */
+
+function classify(cards, trump) {
+  if (!cards || cards.length === 0) return null;
+  const s0 = effSuit(cards[0], trump);
+  for (const c of cards) if (effSuit(c, trump) !== s0) return null;
+  const comps = decompose(cards, trump);
+  if (comps.length === 1) {
+    const c0 = comps[0];
+    const r = { type: c0.type, suit: s0, top: c0.top, cards, comps };
+    if (c0.type === 'tractor') r.len = c0.len;
+    return r;
+  }
+  let top = -1;
+  for (const c of comps) if (c.top > top) top = c.top;
+  return { type: 'throw', suit: s0, top, cards, comps };
+}
+
+/* 结构 = 组件类型多重集(单张 single / 对子 pair / 长度 L 拖拉机 tractorL) */
+function structKey(cl) {
+  return cl.comps
+    .map(c => (c.type === 'tractor' ? 'tractor' + c.len : c.type))
+    .sort()
+    .join(',');
+}
+
+/* 领出里的对子数:pair=1,tractor=len,throw=各组件之和 */
+function leadPairCount(cl) {
+  let n = 0;
+  for (const c of cl.comps) n += c.type === 'tractor' ? c.len : (c.type === 'pair' ? 1 : 0);
+  return n;
+}
+
+/* countPairsIn: ⌊同花同点张数/2⌋ 之和,不看是否相邻 */
+function countPairsIn(cards) {
+  const m = groupBySR(cards);
+  let n = 0;
+  for (const g of m.values()) n += (g.cards.length / 2) | 0;
+  return n;
+}
+
+/* 最长拖拉机长度(对数);没有拖拉机 → 0 */
+function longestTractor(cards, trump) {
+  const comps = decompose(cards, trump);
+  let m = 0;
+  for (const c of comps) if (c.type === 'tractor' && c.len > m) m = c.len;
+  return m;
+}
+
+/* ---------------- §S3 ⑤ isLegalFollow ---------------- */
+
+const FOLLOW_OPTS = { strictTractorFollow: true, partialTractorFollow: true };
+
+function isLegalFollow(hand, leadCl, chosen, trump, opts) {
+  opts = opts || FOLLOW_OPTS;
+  const n = leadCl.cards.length;
+  if (!chosen || chosen.length !== n) return false;
+  const seen = new Set();
+  const handIds = new Set();
+  for (const c of hand) handIds.add(c.id);
+  for (const c of chosen) {
+    if (!handIds.has(c.id)) return false;
+    if (seen.has(c.id)) return false;
+    seen.add(c.id);
+  }
+  const suitInHand = [], chosenInSuit = [];
+  for (const c of hand) if (effSuit(c, trump) === leadCl.suit) suitInHand.push(c);
+  for (const c of chosen) if (effSuit(c, trump) === leadCl.suit) chosenInSuit.push(c);
+  if (chosenInSuit.length !== Math.min(n, suitInHand.length)) return false;
+
+  const need = leadPairCount(leadCl);
+  if (need > 0) {
+    const must = Math.min(need, countPairsIn(suitInHand));
+    if (countPairsIn(chosenInSuit) < must) return false;
+  }
+  if (opts.strictTractorFollow && leadCl.type === 'tractor') {
+    const m = longestTractor(suitInHand, trump);
+    const cm = longestTractor(chosenInSuit, trump);
+    if (m >= leadCl.len && cm < leadCl.len) return false;
+    if (opts.partialTractorFollow && m >= 2 && m < leadCl.len && cm < m) return false;
+  }
+  return true;
+}
+
+/* ---------------- §S3 ⑥ resolveTrick ---------------- */
+
+function resolveTrick(plays, trump) {
+  const lead = classify(plays[0].cards, trump);
+  const leadKey = structKey(lead);
+  let best = lead, winIdx = 0;
+  for (let i = 1; i < plays.length; i++) {
+    const cl = classify(plays[i].cards, trump);
+    if (!cl) continue;
+    if (structKey(cl) !== leadKey) continue;
+    if (cl.suit === best.suit) {
+      if (cl.top > best.top) { best = cl; winIdx = i; }
+    } else if (cl.suit === 'T') {
+      best = cl; winIdx = i;
+    }
+  }
+  let points = 0;
+  for (const p of plays) points += countPoints(p.cards);
+  return { winSeat: plays[winIdx].seat, winIdx, points };
+}
+
+/* ---------------- §S3 ⑦ checkThrow ---------------- */
+
+function canBeatComp(sc, comp, trump) {
+  if (comp.type === 'single') {
+    for (const c of sc) if (ordIdx(c, trump) > comp.top) return true;
+    return false;
+  }
+  const comps = decompose(sc, trump);
+  if (comp.type === 'pair') {
+    for (const c of comps)
+      if ((c.type === 'pair' || c.type === 'tractor') && c.top > comp.top) return true;
+    return false;
+  }
+  // tractor
+  for (const c of comps)
+    if (c.type === 'tractor' && c.len >= comp.len && c.top > comp.top) return true;
+  return false;
+}
+
+function checkThrow(hands, seat, cards, trump) {
+  const lead = classify(cards, trump);
+  if (!lead || lead.type !== 'throw') return { ok: true };
+  for (const comp of lead.comps) {
+    for (let p = 0; p < hands.length; p++) {
+      if (p === seat) continue;
+      const sc = hands[p].filter(c => effSuit(c, trump) === lead.suit);
+      if (canBeatComp(sc, comp, trump)) {
+        let forced = lead.comps[0];
+        for (const c of lead.comps) if (c.top < forced.top) forced = c;
+        return { ok: false, forced };
+      }
+    }
+  }
+  return { ok: true };
+}
+
+/* ---------------- §S3 ⑧ 结算与推进 ---------------- */
+
+function scoreFromTotal(total) {
+  if (total < 80)
+    return { total, dealerHeld: true, up: total === 0 ? 3 : total < 40 ? 2 : 1 };
+  return { total, dealerHeld: false, up: Math.floor((total - 80) / 40) };
+}
+
+function scoreRound(defPoints, kittyPts, defWonLastTrick, lastLeadSize) {
+  const mult = 2 * lastLeadSize;
+  const total = defPoints + (defWonLastTrick ? kittyPts * mult : 0);
+  return scoreFromTotal(total);
+}
+
+function clampAtGate(from, to, gates) {
+  if (!gates || gates.length === 0) return to;
+  if (to <= from) return to;
+  let hit = null;
+  for (const g of gates) if (g > from && g < to && (hit === null || g < hit)) hit = g;
+  return hit !== null ? hit : to;
+}
+
+/* levels/played 传入数组,返回新状态(不改传入的)。
+ * speedRun: {on:false} 或 {on:true, ladder:[2,5,10,13,14]};速通时关卡自动失效。 */
+function advanceMatch(levels, declSeat, sc, gates, played, speedRun) {
+  const L = levels.slice();
+  const P = played ? played.slice() : [-1, -1];
+  const declTeam = declSeat % 2;
+  let team, dealer;
+  const up = sc.up;
+  if (sc.dealerHeld) {
+    P[declTeam] = Math.max(P[declTeam], L[declTeam]); // 先记账再升级
+    team = declTeam;
+    dealer = (declSeat + 2) % 4;
+  } else {
+    team = 1 - declTeam;
+    dealer = (declSeat + 1) % 4;
+  }
+  if (speedRun && speedRun.on) {
+    if (up > 0) {
+      const lad = speedRun.ladder;
+      let nxt = null;
+      for (const g of lad) if (g > L[team] && (nxt === null || g < nxt)) nxt = g;
+      L[team] = nxt !== null ? nxt : L[team] + 1;
+    }
+  } else {
+    let level = clampAtGate(L[team], L[team] + up, gates);
+    if (up > 0 && gates && gates.indexOf(L[team]) >= 0 && P[team] < L[team])
+      level = L[team]; // 卡在没打过的关卡:只换庄不升级
+    L[team] = level;
+  }
+  const over = L[0] > 14 || L[1] > 14;
+  return { levels: L, played: P, dealer, over, team, up };
+}
+
+/* ---------------- 亮主链(§F) ---------------- */
+
+/* 从一组牌得到亮主选项;无效返回 null */
+function declarationOf(cards, rank) {
+  if (!cards || cards.length === 0) return null;
+  const ids = new Set(cards.map(c => c.id));
+  if (ids.size !== cards.length) return null;
+  if (cards.length === 1) {
+    const c = cards[0];
+    if (c.suit !== 'X' && c.rank === rank) return { suit: c.suit, strength: 1 };
+    return null;
+  }
+  if (cards.length === 2) {
+    const [a, b] = cards;
+    if (a.suit !== 'X' && a.suit === b.suit && a.rank === rank && b.rank === rank)
+      return { suit: a.suit, strength: 2 };
+    if (a.rank === 15 && b.rank === 15) return { suit: null, strength: 3 };
+    if (a.rank === 16 && b.rank === 16) return { suit: null, strength: 4 };
+    return null; // 大小王混对无效
+  }
+  return null;
+}
+
+/* next 能否盖过 cur(seat 是 next 的座位)。不能反自己;加固是唯一例外。 */
+function canOverride(cur, next, seat, rebelHappened) {
+  if (!cur) return true;
+  if (seat === cur.seat) {
+    return !rebelHappened && cur.strength === 1 && next.strength === 2 && next.suit === cur.suit;
+  }
+  return next.strength > cur.strength;
+}
+
+/* 加固的前置条件(§F):必须本人亮过单张、且还没人用王对反过。
+ * 注:别家物理上不可能持有同花级数对(一张在亮主者手里),所以这条与
+ * canOverride 的强度比较在实际对局中不会冲突。 */
+function canReinforce(cur, seat, rebelHappened) {
+  return !!cur && cur.seat === seat && cur.strength === 1 && !rebelHappened;
+}
+
+/* 定主定庄(§S2 ③):返回 {declSeat, trump} */
+function settleDeclaration(dealerKnown, dealer, firstTaker, curDecl, levels) {
+  if (dealerKnown) {
+    return {
+      declSeat: dealer,
+      trump: { suit: curDecl ? curDecl.suit : null, rank: levels[dealer % 2] },
+    };
+  }
+  if (curDecl)
+    return { declSeat: curDecl.seat, trump: { suit: curDecl.suit, rank: levels[curDecl.seat % 2] } };
+  return { declSeat: firstTaker, trump: { suit: null, rank: levels[firstTaker % 2] } };
+}
+
+function trumpCount(hand, trump) {
+  let n = 0;
+  for (const c of hand) if (effSuit(c, trump) === 'T') n++;
+  return n;
+}
+
+/* 完全造反资格(§F):分 ≤ pointRebelThreshold 或主 ≤ trumpRebelThreshold */
+function canFullRebel(hand, trump, rules) {
+  const pt = rules.pointRebelThreshold, tt = rules.trumpRebelThreshold;
+  const pts = countPoints(hand);
+  const nT = trumpCount(hand, trump);
+  const byPts = pt > 0 && pts <= pt;
+  const byTrump = tt >= 0 && nT <= tt;
+  return { can: byPts || byTrump, pts, nT, byPts, byTrump };
+}
+
+/* ---------------- 构造性合法跟牌(裁判替出 / 策略候选都用) ----------------
+ * pref: {high: 取大端, keepPairs: 填充时尽量不散对子(默认 true)} */
+function findLegalFollow(hand, leadCl, trump, opts, pref) {
+  opts = opts || FOLLOW_OPTS;
+  pref = pref || {};
+  const keepPairs = pref.keepPairs !== false;
+  const n = leadCl.cards.length;
+  const suitCards = [], others = [];
+  for (const c of hand) (effSuit(c, trump) === leadCl.suit ? suitCards : others).push(c);
+  const ord = c => ordIdx(c, trump);
+  const suitLenOf = c => (pref.suitLen ? pref.suitLen.get(effSuit(c, trump)) || 0 : 0);
+  const isT = c => (effSuit(c, trump) === 'T' ? 1 : 0);
+  const cmp = pref.pointFirst
+    ? (a, b) => (cardPoints(b) - cardPoints(a)) || (ord(a) - ord(b))
+    : pref.giveLowPoints
+      ? (a, b) => ((cardPoints(b) > 0 ? 1 : 0) - (cardPoints(a) > 0 ? 1 : 0)) || (ord(a) - ord(b))
+      : pref.cheapDump
+      ? (a, b) => (cardPoints(a) - cardPoints(b))
+        || (pref.trumpLast ? isT(a) - isT(b) : 0)
+        || (pref.suitLen ? suitLenOf(a) - suitLenOf(b) : 0)
+        || (ord(a) - ord(b))
+      : (a, b) => (pref.high ? ord(b) - ord(a) : ord(a) - ord(b));
+  suitCards.sort(cmp);
+  others.sort(cmp);
+
+  if (suitCards.length <= n) {
+    const chosen = suitCards.slice();
+    for (const c of others) {
+      if (chosen.length === n) break;
+      chosen.push(c);
+    }
+    return chosen;
+  }
+
+  const needPairs = leadPairCount(leadCl);
+  const mustPairs = Math.min(needPairs, countPairsIn(suitCards));
+  let needTractor = 0;
+  if (opts.strictTractorFollow && leadCl.type === 'tractor') {
+    const m = longestTractor(suitCards, trump);
+    if (m >= leadCl.len) needTractor = leadCl.len;
+    else if (opts.partialTractorFollow && m >= 2) needTractor = m;
+  }
+
+  const groups = [];
+  for (const g of groupBySR(suitCards).values())
+    groups.push({ ord: ord(g.cards[0]), cards: g.cards, taken: 0 });
+  groups.sort(pref.pointFirst
+    ? (a, b) => (cardPoints(b.cards[0]) - cardPoints(a.cards[0])) || (a.ord - b.ord)
+    : pref.cheapDump
+      ? (a, b) => (cardPoints(a.cards[0]) - cardPoints(b.cards[0]))
+        || (pref.trumpLast ? isT(a.cards[0]) - isT(b.cards[0]) : 0)
+        || (pref.suitLen ? suitLenOf(a.cards[0]) - suitLenOf(b.cards[0]) : 0)
+        || (a.ord - b.ord)
+      : (a, b) => (pref.high ? b.ord - a.ord : a.ord - b.ord));
+  const pairGroups = groups.filter(g => g.cards.length >= 2);
+
+  const chosen = [];
+  let pairsTaken = 0;
+  const takePair = g => {
+    chosen.push(g.cards[0], g.cards[1]);
+    g.taken = 2;
+    pairsTaken++;
+  };
+
+  if (needTractor > 0) {
+    const asc = pairGroups.slice().sort((a, b) => a.ord - b.ord);
+    let i = 0, seg = null;
+    while (i < asc.length) {
+      let j = i;
+      while (j + 1 < asc.length && asc[j + 1].ord === asc[j].ord + 1) j++;
+      if (j - i + 1 >= needTractor) {
+        seg = pref.high ? asc.slice(j + 1 - needTractor, j + 1) : asc.slice(i, i + needTractor);
+        break;
+      }
+      i = j + 1;
+    }
+    for (const g of seg) takePair(g);
+  }
+  if (pairsTaken < mustPairs) {
+    for (const g of pairGroups) {
+      if (pairsTaken >= mustPairs) break;
+      if (g.taken === 0) takePair(g);
+    }
+  }
+  // 填充剩余张数:默认先填单张(不散对子),再拆对子(先各拆一张,还不够再拆另一半)
+  const singleFill = [], pairFill = [], pairSecondFill = [];
+  for (const g of groups) {
+    if (g.taken > 0) continue;
+    if (g.cards.length === 1) { singleFill.push(g.cards[0]); continue; }
+    if (keepPairs) { pairFill.push(g.cards[0]); pairSecondFill.push(g.cards[1]); }
+    else { singleFill.push(g.cards[0], g.cards[1]); }
+  }
+  for (const arr of [singleFill, pairFill, pairSecondFill])
+    for (const c of arr) {
+      if (chosen.length === n) break;
+      chosen.push(c);
+    }
+  return chosen;
+}
+
+module.exports = {
+  SUITS, makeDeck, cardPoints, countPoints,
+  effSuit, ordIdx, decompose, classify, structKey, leadPairCount,
+  countPairsIn, longestTractor,
+  isLegalFollow, FOLLOW_OPTS, resolveTrick, checkThrow, canBeatComp,
+  scoreRound, scoreFromTotal, clampAtGate, advanceMatch,
+  declarationOf, canOverride, canReinforce, settleDeclaration, trumpCount, canFullRebel,
+  findLegalFollow,
+};
+
+});
+__def("index", function(module, exports, require){
+'use strict';
+/* kimi-k3 —— 80分(上海规则)AI。入口工厂不收参数。 */
+const makeAI = require('./strategy.js');
+module.exports = () => makeAI();
+
+});
+__def("strategy", function(module, exports, require){
+'use strict';
+/* kimi-k3 策略。CFG 开关制:每个改动一个开关,默认值为当前 baseline;
+ * dev 下用 makeAI({flag:!default}) 做 A/B。所有决策只依赖 view(冻结),不跨调用留状态。 */
+
+const E = require('./engine.js');
+
+const CFG = {
+  minWin: true,         // R1 留:+20.5±0.5 级(40 seeds)。能赢时用"最小赢牌"替代"最大牌"
+  partnerPoints: true,  // R2 留:+13.4±1.2 级(40 seeds)。队友正赢时添分
+  cheapDump: true,      // R4 留:+2.15±0.96 级(40 seeds)。输墩时优先垫非分牌
+  leadV1: false,        // lead: 先副A,庄家方主强抽主 [R5 退:-6.2±1.1]
+  leadAce: false,       // lead: 只先出副A
+  leadTrumpPull: false, // lead: 只庄家方主强抽主 [R5b 量不出:+1.0±1.1]
+  leadV2: true,         // R6 留:+8.6±1.2 级(40 seeds)。领副牌拖拉机/对子(对子要 top≥J)
+  throwLead: true,      // R7 留:+9.35±1.05 级(40 seeds)。安全甩牌
+  throwRisk1: false,    // lead: 甩牌里单张组件允许至多1张天敌
+  pairLeadAny: true,    // R10 留:+5.4±1.2 级(40 seeds)。任意对子都领
+  leadLowFromLong: false, // lead: 兜底改为长门最小牌 [R12 退:-0.35±1.33]
+  declareLen: 5,        // onDeal: 单张亮主的门长阈值 [R13: 4/6 均量不出,维持5]
+  ruffMinPts: 0,        // follow: [R14 退:-3.1±1.3 @10] 毙牌不值是个伪命题,能毙就毙
+  safePoints: false,    // follow: [R15 退:-5.5±1.5] 添分不查保险
+  declareSingle: true,  // onDeal: 单张亮主开关 [R16: 关掉量不出,-0.08±1.28]
+  pairOverrideLen: 0,   // onDeal: [R17 退:几乎不改变行为,-0.08±0.30]
+  leadTrumpComps: true,   // R19 留:+4.4±1.4 级(40 seeds)。主牌对子/拖拉机也领
+  leadPartnerVoid: false, // lead: 领队友已知绝门的牌(给队友搭桥毙)
+  avoidOppVoid: false,    // lead: 兜底单张避开对手已知绝门
+  leadKnownWinners: false, // lead: [R18 退:+0.5±1.07 量不出]
+  overRuffCare: false,  // follow: 毙牌后可能被超毙且墩里分少 → 不毙
+  dumpToVoid: false,    // follow: 垫牌优先最短副门
+  trumpLast: true,      // R24 留:+2.65±1.1 级(40 seeds)。断门垫牌尽量不动主
+  dumpToVoid: false,    // follow: [R23 退:-1.1±1.1]
+  overRuffCare: false,  // follow: [R22 退:-0.8±0.5]
+  partnerPointsLow: false, // follow: [R25 退:-6.1±1.25] 添分就要往大里添
+  declareJokerND: false, // onDeal: [R27 退:几乎不触发,0±0.1]
+  declareLenND: 0,      // onDeal: [R26 退:+0.15±1.04]
+  minWinNoBreak: false, // follow: [R28 退:-0.08±0.75]
+  endgameLeadT: false,  // lead: [R29 退:-0.58±0.77 @40] 残局领最大主守底量不出
+  discardV2: true,      // R30 留:+6.7±0.74 级(150 seeds 确认)。最短副门整门优先扣
+  discardV3: false,     // 扣底:[R32 退:-2.15±1.48] discardV2 留 A 破坏绝门,负
+  discardV4: false,     // 扣底:[R33 退:+0.05±0.51 @150] 同长按门内总分,量不出
+  leadTrumpOnlyDecl: false, // lead: [R34 退:+0.48±0.65 @150] 主组件仅庄家方领,量不出
+  leadShortLate: false, // lead: [R35 退:-0.18±1.37] 残局领最短副门造绝门,噪声偏负
+  pairDeclareLen: 0,    // onDeal: [R36 退:+0.007±0.238 @150] 新亮级数对要求门长,量不出
+  tractorLenFirst: false, // lead: [R37 退:行为不同率 3%,拖拉机选择太稀有,量不到]
+  pairDeclareBest: false, // onDeal: [R38 退:行为不同率 0%,多对级数对不存在]
+  declareJoker: false,  // onDeal: 对方亮主且我方主弱(nT≤5)时用王对反无主
+  rebelNo: false,       // onRebel: 关掉恒 true(对照用)
+  discardV1: false,     // 扣底:绝门/留A/留对子评分 [R3 退:150 seeds +0.22±0.66 量不出]
+  buryPoints: false,    // 扣底:优先把分埋进底(仅 discardV1)[R3b 退:-0.3±1.2]
+};
+
+/* ---------- 小工具 ---------- */
+
+function splitSuits(hand, trump) {
+  const m = new Map();
+  for (const c of hand) {
+    const s = E.effSuit(c, trump);
+    if (!m.has(s)) m.set(s, []);
+    m.get(s).push(c);
+  }
+  for (const arr of m.values()) arr.sort((a, b) => E.ordIdx(b, trump) - E.ordIdx(a, trump));
+  return m; // 每组 ordIdx 降序
+}
+
+const ord = (c, trump) => E.ordIdx(c, trump);
+
+/* ---------- follow 候选 ---------- */
+
+function candLow(hand, leadCl, trump) {
+  return E.findLegalFollow(hand, leadCl, trump, null, {});
+}
+function candHigh(hand, leadCl, trump) {
+  return E.findLegalFollow(hand, leadCl, trump, null, { high: true });
+}
+function candPoints(hand, leadCl, trump, lowFirst) {
+  return E.findLegalFollow(hand, leadCl, trump, null, lowFirst ? { giveLowPoints: true } : { pointFirst: true });
+}
+function candDump(hand, leadCl, trump, suitLen, trumpLast) {
+  const pref = { cheapDump: true };
+  if (suitLen) pref.suitLen = suitLen;
+  if (trumpLast) pref.trumpLast = true;
+  return E.findLegalFollow(hand, leadCl, trump, null, pref);
+}
+
+// 校验:合法且真的赢
+function winsTrick(hand, leadCl, trump, plays, seat, chosen) {
+  if (!chosen) return false;
+  if (!E.isLegalFollow(hand, leadCl, chosen, trump)) return false;
+  return E.resolveTrick(plays.concat([{ seat, cards: chosen }]), trump).winSeat === seat;
+}
+
+// 最小赢牌候选(single/pair/tractor;throw 不试)
+function candMinWin(hand, leadCl, trump, plays, seat, noBreak) {
+  const bestIdx = E.resolveTrick(plays, trump).winIdx;
+  const bestCl = E.classify(plays[bestIdx].cards, trump);
+  const suitCards = hand.filter(c => E.effSuit(c, trump) === leadCl.suit);
+  const haveSuit = suitCards.length > 0;
+  const trumps = hand.filter(c => E.effSuit(c, trump) === 'T');
+  const pairKeys = new Set();
+  if (noBreak) {
+    for (const g of groupPairs(hand, trump)) pairKeys.add(g.cards[0].suit + '|' + g.cards[0].rank);
+  }
+  const brk = c => (pairKeys.has(c.suit + '|' + c.rank) ? 1 : 0);
+  const asc = (a, b) => (brk(a) - brk(b)) || (ord(a, trump) - ord(b, trump));
+
+  // 在某个牌池里找:single → 最小且 >minTop 的牌;pair/tractor → 最小且 top>minTop 的同型组件
+  const pickFrom = (pool, minTop) => {
+    if (leadCl.type === 'single') {
+      const c = pool.filter(c => ord(c, trump) > minTop).sort(asc)[0];
+      return c ? [c] : null;
+    }
+    if (leadCl.type === 'pair') {
+      const groups = groupPairs(pool, trump);
+      const g = groups.filter(g => g.top > minTop).sort((a, b) => a.top - b.top)[0];
+      return g ? g.cards : null;
+    }
+    if (leadCl.type === 'tractor') {
+      const segs = tractorSegs(pool, trump, leadCl.len);
+      const s = segs.filter(sg => sg.top > minTop).sort((a, b) => a.top - b.top)[0];
+      return s ? s.cards : null;
+    }
+    return null;
+  };
+
+  let chosen = null;
+  if (haveSuit) {
+    // 只能走本门;有人毙过( best 是主 )就赢不了
+    if (bestCl.suit === leadCl.suit) chosen = pickFrom(suitCards, bestCl.top);
+  } else {
+    // 断门:主牌路。best 是主 → 要更大的主;否则任意主
+    const minTop = bestCl.suit === 'T' ? bestCl.top : -1;
+    chosen = pickFrom(trumps, minTop);
+  }
+  return winsTrick(hand, leadCl, trump, plays, seat, chosen) ? chosen : null;
+}
+
+function groupPairs(cards, trump) {
+  const m = new Map();
+  for (const c of cards) {
+    const k = c.suit + '|' + c.rank;
+    if (!m.has(k)) m.set(k, []);
+    m.get(k).push(c);
+  }
+  const out = [];
+  for (const g of m.values())
+    if (g.length >= 2) out.push({ top: ord(g[0], trump), cards: [g[0], g[1]] });
+  return out;
+}
+
+// pool 里所有长度 len 的连续对子段
+function tractorSegs(cards, trump, len) {
+  const pairs = groupPairs(cards, trump).sort((a, b) => a.top - b.top);
+  const out = [];
+  let i = 0;
+  while (i < pairs.length) {
+    let j = i;
+    while (j + 1 < pairs.length && pairs[j + 1].top === pairs[j].top + 1) j++;
+    for (let s = i; s + len - 1 <= j; s++) {
+      const seg = pairs.slice(s, s + len);
+      const all = [];
+      for (const p of seg) all.push(p.cards[0], p.cards[1]);
+      out.push({ top: seg[seg.length - 1].top, cards: all });
+    }
+    i = j + 1;
+  }
+  return out;
+}
+
+/* ---------- onDeal ---------- */
+
+function decideDeclare(view, cfg) {
+  const rank = view.trumpRank;
+  const hand = view.hand;
+  const cur = view.curDecl;
+  const seat = view.seat;
+
+  const lvlBySuit = new Map(), suitCnt = new Map();
+  let j15 = 0, j16 = 0;
+  for (const c of hand) {
+    if (c.rank === 15) j15++;
+    if (c.rank === 16) j16++;
+    if (c.suit === 'X') continue;
+    suitCnt.set(c.suit, (suitCnt.get(c.suit) || 0) + 1);
+    if (c.rank === rank) lvlBySuit.set(c.suit, (lvlBySuit.get(c.suit) || 0) + 1);
+  }
+
+  if (cur && cur.seat === seat) {
+    if (cur.strength === 1 && !view.rebelHappened && (lvlBySuit.get(cur.suit) || 0) >= 2)
+      return { suit: cur.suit, strength: 2 };
+    return null;
+  }
+  if (cfg.declareJoker && cur) {
+    // 对方已亮:我方在其主下太弱 → 王对反无主
+    const wouldTrump = { suit: cur.suit, rank };
+    let nT = 0;
+    for (const c of hand) if (E.effSuit(c, wouldTrump) === 'T') nT++;
+    if (nT <= 5) {
+      if (j16 >= 2) return { suit: null, strength: 4 };
+      if (j15 >= 2) return { suit: null, strength: 3 };
+    }
+  }
+  if (cfg.declareJokerND && !view.dealerKnown && !cur) {
+    if (j16 >= 2) return { suit: null, strength: 4 };
+    if (j15 >= 2) return { suit: null, strength: 3 };
+  }
+  for (const [suit, n] of lvlBySuit) {
+    if (n >= 2 && (!cur || cur.strength < 2)) {
+      if (cur && (suitCnt.get(suit) || 0) < cfg.pairOverrideLen) continue;
+      if (!cur && (suitCnt.get(suit) || 0) < cfg.pairDeclareLen) continue;
+      if (cfg.pairDeclareBest) {
+        // 收集所有可亮的对子,选门最长的
+        let best = null;
+        for (const [s2, n2] of lvlBySuit) {
+          if (n2 >= 2 && (!best || (suitCnt.get(s2) || 0) > best.len))
+            best = { suit: s2, len: suitCnt.get(s2) || 0 };
+        }
+        return best ? { suit: best.suit, strength: 2 } : null;
+      }
+      return { suit, strength: 2 };
+    }
+  }
+  if (!cur && cfg.declareSingle) {
+    const minLen = (!view.dealerKnown && cfg.declareLenND) ? cfg.declareLenND : cfg.declareLen;
+    let best = null;
+    for (const [suit, n] of lvlBySuit) {
+      if (n >= 1) {
+        const len = suitCnt.get(suit) || 0;
+        if (len >= minLen && (!best || len > best.len)) best = { suit, len };
+      }
+    }
+    if (best) return { suit: best.suit, strength: 1 };
+  }
+  return null;
+}
+
+/* ---------- discard ---------- */
+
+function decideDiscard(view, cfg) {
+  const trump = view.trump;
+  const nonTrump = [], trumps = [];
+  for (const c of view.hand) (E.effSuit(c, trump) === 'T' ? trumps : nonTrump).push(c);
+  let out;
+  if (cfg.discardV3 && nonTrump.length > 8) {
+    const suitLen = new Map();
+    for (const c of nonTrump) suitLen.set(c.suit, (suitLen.get(c.suit) || 0) + 1);
+    out = nonTrump.slice().sort((a, b) =>
+      ((a.rank === 14 ? 1 : 0) - (b.rank === 14 ? 1 : 0)) ||
+      (suitLen.get(a.suit) - suitLen.get(b.suit)) ||
+      (E.cardPoints(a) - E.cardPoints(b)) ||
+      (ord(a, trump) - ord(b, trump))).slice(0, 8);
+  } else if (cfg.discardV4 && nonTrump.length > 8) {
+    const suitLen = new Map(), suitPts = new Map();
+    for (const c of nonTrump) {
+      suitLen.set(c.suit, (suitLen.get(c.suit) || 0) + 1);
+      suitPts.set(c.suit, (suitPts.get(c.suit) || 0) + E.cardPoints(c));
+    }
+    out = nonTrump.slice().sort((a, b) =>
+      (suitLen.get(a.suit) - suitLen.get(b.suit)) ||
+      (suitPts.get(a.suit) - suitPts.get(b.suit)) ||
+      (E.cardPoints(a) - E.cardPoints(b)) ||
+      (ord(a, trump) - ord(b, trump))).slice(0, 8);
+  } else if (cfg.discardV2 && nonTrump.length > 8) {
+    const suitLen = new Map();
+    for (const c of nonTrump) suitLen.set(c.suit, (suitLen.get(c.suit) || 0) + 1);
+    out = nonTrump.slice().sort((a, b) =>
+      (suitLen.get(a.suit) - suitLen.get(b.suit)) ||
+      (E.cardPoints(a) - E.cardPoints(b)) ||
+      (ord(a, trump) - ord(b, trump))).slice(0, 8);
+  } else if (cfg.discardV1 && nonTrump.length > 8) {
+    const bySuit = new Map();
+    for (const c of nonTrump) {
+      if (!bySuit.has(c.suit)) bySuit.set(c.suit, []);
+      bySuit.get(c.suit).push(c);
+    }
+    const pairKeys = new Set();
+    for (const arr of bySuit.values()) {
+      const cnt = new Map();
+      for (const c of arr) {
+        cnt.set(c.rank, (cnt.get(c.rank) || 0) + 1);
+        if (cnt.get(c.rank) === 2) pairKeys.add(c.suit + '|' + c.rank);
+      }
+    }
+    const scored = nonTrump.map(c => {
+      let s = ord(c, trump);
+      if (pairKeys.has(c.suit + '|' + c.rank)) s += 4;
+      if (bySuit.get(c.suit).length <= 3) s -= 6; // 追求绝门
+      if (c.rank === 14) s += 8;                    // 留 A
+      s += (cfg.buryPoints ? -1.0 : 0.8) * E.cardPoints(c);
+      return { c, s };
+    });
+    scored.sort((a, b) => a.s - b.s);
+    out = scored.slice(0, 8).map(x => x.c);
+  } else {
+    nonTrump.sort((a, b) => ord(a, trump) - ord(b, trump));
+    out = nonTrump.slice(0, 8);
+  }
+  trumps.sort((a, b) => ord(a, trump) - ord(b, trump));
+  let i = 0;
+  while (out.length < 8) out.push(trumps[i++]);
+  return out;
+}
+
+/* ---------- 剩余牌分析(history + 手牌 + 底牌 → 对手可能持有的牌) ---------- */
+
+const DECK_CACHE = new Map(); // trump 无关,静态 108 张
+function staticDeck() {
+  if (!DECK_CACHE.has('d')) DECK_CACHE.set('d', E.makeDeck());
+  return DECK_CACHE.get('d');
+}
+
+function oppCardsBySuit(view) {
+  const trump = view.trump;
+  const gone = new Set();
+  for (const c of view.hand) gone.add(c.id);
+  for (const p of view.history) for (const c of p.cards) gone.add(c.id);
+  for (const c of view.buriedKnown) gone.add(c.id);
+  const m = new Map();
+  for (const c of staticDeck()) {
+    if (gone.has(c.id)) continue;
+    const s = E.effSuit(c, trump);
+    if (!m.has(s)) m.set(s, []);
+    m.get(s).push(c);
+  }
+  return m;
+}
+
+// 我方某门里能安全甩出的组件集;<2 个返回 null。risk: 单张允许的天敌数
+function safeThrowComps(myCards, oppCards, trump, risk) {
+  const comps = E.decompose(myCards, trump);
+  if (comps.length < 2) return null;
+  const oppComps = E.decompose(oppCards, trump);
+  let oppPairTop = -1;
+  for (const oc of oppComps)
+    if ((oc.type === 'pair' || oc.type === 'tractor') && oc.top > oppPairTop) oppPairTop = oc.top;
+  const safe = [];
+  for (const comp of comps) {
+    if (comp.type === 'single') {
+      let beaters = 0;
+      for (const c of oppCards) if (E.ordIdx(c, trump) > comp.top) beaters++;
+      if (beaters <= (risk || 0)) safe.push(comp);
+    } else if (comp.type === 'pair') {
+      if (comp.top > oppPairTop) safe.push(comp);
+    } else {
+      const beatable = oppComps.some(oc => oc.type === 'tractor' && oc.len >= comp.len && oc.top > comp.top);
+      if (!beatable) safe.push(comp);
+    }
+  }
+  return safe.length >= 2 ? safe : null;
+}
+
+// 从 history 推断各家已知绝门(没跟出领出花色 → 绝该门)
+function knownVoids(view) {
+  const voids = [new Set(), new Set(), new Set(), new Set()];
+  const H = view.history, trump = view.trump;
+  for (let i = 0; i + 4 <= H.length; i += 4) {
+    const leadSuit = E.effSuit(H[i].cards[0], trump);
+    for (let k = 1; k < 4; k++) {
+      const p = H[i + k];
+      if (!p.cards.some(c => E.effSuit(c, trump) === leadSuit)) voids[p.seat].add(leadSuit);
+    }
+  }
+  return voids;
+}
+
+/* ---------- lead ---------- */
+
+function decideLead(view, cfg) {
+  const trump = view.trump;
+  const suits = splitSuits(view.hand, trump);
+  let opp = null;
+  const getOpp = () => (opp || (opp = oppCardsBySuit(view)));
+  if (cfg.leadV1 || cfg.leadAce) {
+    // 1. 副牌 A(优先长门里的 A)
+    let aceLead = null;
+    for (const [s, arr] of suits) {
+      if (s === 'T') continue;
+      const a = arr.find(c => c.rank === 14);
+      if (a && (!aceLead || arr.length > aceLead.len)) aceLead = { card: a, len: arr.length };
+    }
+    if (aceLead) return [aceLead.card];
+  }
+  if (cfg.leadV1 || cfg.leadTrumpPull) {
+    // 2. 庄家方主强(≥8)抽主
+    if (view.myTeam === view.declSeat % 2) {
+      const t = suits.get('T') || [];
+      if (t.length >= 8) return [t[0]];
+    }
+  }
+  if (cfg.throwLead) {
+    // 安全甩牌:每门(含主)找全无敌组件组合,选张数最多的
+    let best = null;
+    for (const [s, arr] of suits) {
+      const safe = safeThrowComps(arr, getOpp().get(s) || [], trump, cfg.throwRisk1 ? 1 : 0);
+      if (safe) {
+        const n = safe.reduce((sum, c) => sum + c.cards.length, 0);
+        if (!best || n > best.n) best = { n, safe };
+      }
+    }
+    if (best) {
+      const cards = [];
+      for (const c of best.safe) cards.push(...c.cards);
+      return cards;
+    }
+  }
+  if (cfg.leadV2) {
+    // 拖拉机 / 对子(主门组件由 leadTrumpComps 控制)
+    const comps = [];
+    for (const [s, arr] of suits) {
+      if (s === 'T' && !cfg.leadTrumpComps) continue;
+      if (s === 'T' && cfg.leadTrumpOnlyDecl && view.myTeam !== view.declSeat % 2) continue;
+      for (const comp of E.decompose(arr, trump)) comps.push(comp);
+    }
+    const tractors = comps.filter(x => x.type === 'tractor');
+    if (tractors.length) {
+      if (cfg.tractorLenFirst) tractors.sort((a, b) => b.len - a.len || b.top - a.top);
+      else tractors.sort((a, b) => b.top - a.top || b.len - a.len);
+      return tractors[0].cards.slice();
+    }
+    const pairs = comps.filter(x => x.type === 'pair' && (cfg.pairLeadAny || x.top >= 8)); // top ≥ J
+    if (pairs.length) {
+      pairs.sort((a, b) => b.top - a.top);
+      return pairs[0].cards.slice();
+    }
+  }
+  if (cfg.leadKnownWinners) {
+    // 必赢单张:我顶张 > 对手该门剩余最大
+    let best = null;
+    for (const [s, arr] of suits) {
+      if (s === 'T') continue;
+      let oppTop = -1;
+      for (const c of getOpp().get(s) || []) {
+        const o = E.ordIdx(c, trump);
+        if (o > oppTop) oppTop = o;
+      }
+      if (E.ordIdx(arr[0], trump) > oppTop && (!best || arr.length > best.len))
+        best = { card: arr[0], len: arr.length };
+    }
+    if (best) return [best.card];
+  }
+  if (cfg.leadShortLate && view.hand.length <= 6) {
+    // 残局:领最短副门的最小牌,造绝门等毙
+    let shortArr = null;
+    for (const [s, arr] of suits) {
+      if (s === 'T') continue;
+      if (arr.length <= 2 && (!shortArr || arr.length < shortArr.length)) shortArr = arr;
+    }
+    if (shortArr) return [shortArr[shortArr.length - 1]];
+  }
+  if (cfg.endgameLeadT && view.hand.length <= 2) {
+    // 残局:领最大主(没有则最大牌)守底
+    const t = suits.get('T') || [];
+    if (t.length) return [t[0]];
+    let bestC = null;
+    for (const [s, arr] of suits) {
+      if (s === 'T') continue;
+      if (!bestC || E.ordIdx(arr[0], trump) > E.ordIdx(bestC, trump)) bestC = arr[0];
+    }
+    if (bestC) return [bestC];
+  }
+  if (cfg.leadPartnerVoid) {
+    // 领队友已知绝门、且对手还持有的牌:出最小那张,让队友毙
+    const partner = (view.seat + 2) % 4;
+    const voids = knownVoids(view)[partner];
+    let best = null;
+    for (const s of voids) {
+      if (s === 'T') continue;
+      const arr = suits.get(s);
+      if (!arr || !arr.length) continue;
+      const oppN = (getOpp().get(s) || []).length;
+      if (oppN === 0) continue; // 对手也没这门,毙了白毙
+      if (!best || oppN > best.oppN) best = { card: arr[arr.length - 1], oppN };
+    }
+    if (best) return [best.card];
+  }
+  let bestArr = null;
+  for (const [s, arr] of suits) {
+    if (s === 'T') continue;
+    if (cfg.avoidOppVoid) {
+      const voids = knownVoids(view);
+      const opp1 = (view.seat + 1) % 4, opp2 = (view.seat + 3) % 4;
+      if (voids[opp1].has(s) || voids[opp2].has(s)) continue;
+    }
+    if (!bestArr || arr.length > bestArr.length) bestArr = arr;
+  }
+  if (!bestArr) { // 全被避开则退回不过滤
+    for (const [s, arr] of suits) {
+      if (s === 'T') continue;
+      if (!bestArr || arr.length > bestArr.length) bestArr = arr;
+    }
+  }
+  if (bestArr) return [cfg.leadLowFromLong ? bestArr[bestArr.length - 1] : bestArr[0]];
+  return [suits.get('T')[0]];
+}
+
+// 队友当前赢位是否保险(末家必保险;否则按剩余牌估算)
+function partnerWinSecure(view, plays) {
+  if (plays.length === 3) return true;
+  const trump = view.trump;
+  const bestIdx = E.resolveTrick(plays, trump).winIdx;
+  const cl = E.classify(plays[bestIdx].cards, trump);
+  const opp = oppCardsBySuit(view);
+  if (cl.suit === 'T') {
+    for (const c of opp.get('T') || []) if (E.ordIdx(c, trump) > cl.top) return false;
+    return true;
+  }
+  for (const c of opp.get(cl.suit) || []) if (E.ordIdx(c, trump) > cl.top) return false;
+  return (opp.get('T') || []).length === 0; // 还有主在外就可能被毙
+}
+
+/* ---------- follow ---------- */
+
+function decideFollow(view, plays, cfg) {
+  const trump = view.trump, hand = view.hand, seat = view.seat;
+  const leadCl = E.classify(plays[0].cards, trump);
+  const curWin = E.resolveTrick(plays, trump).winSeat;
+  const partner = (seat + 2) % 4;
+  const low = candLow(hand, leadCl, trump);
+
+  if (curWin === partner) {
+    if (cfg.partnerPoints && !(cfg.safePoints && !partnerWinSecure(view, plays)))
+      return candPoints(hand, leadCl, trump, cfg.partnerPointsLow);
+    return low;
+  }
+  if (cfg.minWin) {
+    const mw = candMinWin(hand, leadCl, trump, plays, seat, cfg.minWinNoBreak);
+    if (mw) {
+      const isRuff = E.effSuit(mw[0], trump) === 'T' && leadCl.suit !== 'T';
+      if (isRuff && (cfg.ruffMinPts > 0 || cfg.overRuffCare)) {
+        let pts = 0;
+        for (const p of plays) pts += E.countPoints(p.cards);
+        let skip = cfg.ruffMinPts > 0 && pts < cfg.ruffMinPts;
+        if (!skip && cfg.overRuffCare && pts < 10) {
+          // 我之后还有已知绝门的对手,且我的毙牌不是剩余最大主 → 可能被超毙
+          const voids = knownVoids(view);
+          const myTeam = seat % 2;
+          let risky = false;
+          for (let off = plays.length + 1; off < 4 && !risky; off++) {
+            const s2 = (plays[0].seat + off) % 4;
+            if (s2 % 2 !== myTeam && voids[s2].has(leadCl.suit)) risky = true;
+          }
+          if (risky) {
+            const opp = oppCardsBySuit(view);
+            let myTop = -1;
+            for (const c of mw) { const o = E.ordIdx(c, trump); if (o > myTop) myTop = o; }
+            let oppTop = -1;
+            for (const c of opp.get('T') || []) { const o = E.ordIdx(c, trump); if (o > oppTop) oppTop = o; }
+            if (myTop < oppTop) skip = true;
+          }
+        }
+        if (skip) return dumpCand(hand, leadCl, trump, low, view, cfg);
+      }
+      return mw;
+    }
+  } else {
+    const high = candHigh(hand, leadCl, trump);
+    if (winsTrick(hand, leadCl, trump, plays, seat, high)) return high;
+  }
+  return dumpCand(hand, leadCl, trump, low, view, cfg);
+}
+
+function dumpCand(hand, leadCl, trump, low, view, cfg) {
+  if (cfg.cheapDump) {
+    let suitLen = null;
+    if (cfg.dumpToVoid) {
+      suitLen = new Map();
+      for (const c of hand) {
+        const s = E.effSuit(c, trump);
+        suitLen.set(s, (suitLen.get(s) || 0) + 1);
+      }
+    }
+    return candDump(hand, leadCl, trump, suitLen, cfg.trumpLast);
+  }
+  return low;
+}
+
+/* ---------- 工厂 ---------- */
+
+module.exports = function makeAI(over) {
+  const cfg = Object.assign({}, CFG, over);
+  return {
+    name: 'kimi-k3',
+    onDeal(view) {
+      try { return decideDeclare(view, cfg); } catch (e) { return null; }
+    },
+    onRebel(view) {
+      try { return !cfg.rebelNo; } catch (e) { return false; }
+    },
+    discard(view) {
+      try {
+        const d = decideDiscard(view, cfg);
+        if (Array.isArray(d) && d.length === 8) return d;
+      } catch (e) { /* fallthrough */ }
+      return view.hand.slice(0, 8);
+    },
+    lead(view) {
+      try {
+        const c = decideLead(view, cfg);
+        if (Array.isArray(c) && c.length > 0) return c;
+      } catch (e) { /* fallthrough */ }
+      return [view.hand[0]];
+    },
+    follow(view, plays) {
+      try {
+        const c = decideFollow(view, plays, cfg);
+        if (Array.isArray(c) && c.length > 0) return c;
+      } catch (e) { /* fallthrough */ }
+      return E.findLegalFollow(view.hand, E.classify(plays[0].cards, view.trump), view.trump);
+    },
+  };
+};
+module.exports.CFG = CFG;
+
+});
 </script>
 
 <script>
@@ -5254,7 +6148,7 @@ function openSettings(){
     $('stAuto').checked=!!(G&&G.auto);
     $('stAuto').disabled=!canAuto;
     $('stAutoHint').textContent=canAuto
-      ? '本局有效,打完自动交还;托管的墩不计入教练的失误统计。牌桌上(扣底那一区)也有这颗按钮'
+      ? '本局有效,打完自动交还;托管的墩不计入教练的失误统计。牌桌上「出牌」会变成「停止托管」'
       : '(要在出牌阶段才能托管)';
     $('stHold').disabled=!!S.manualNext;
     $('stHoldHint').textContent=S.manualNext?'(手动模式下由你点「下一墩」决定)':'';
@@ -5375,7 +6269,7 @@ window.__showKitty=()=>{
 };
 
 // ---- 教练设置(全部可开关可调,默认全开) ----
-let C={on:true, gapSens:'中', strict:false, review:true, quiz:true, memShow:false};
+let C={on:false, gapSens:'中', strict:false, review:true, quiz:true, memShow:false};
 try{ Object.assign(C,JSON.parse(localStorage.getItem(LSP+'coach')||'{}')); }catch(e){}
 function saveC(){ try{ localStorage.setItem(LSP+'coach',JSON.stringify(C)); }catch(e){} }
 // 教练的「失误」门槛,单位是折算后的期望分。
@@ -5384,11 +6278,148 @@ function saveC(){ try{ localStorage.setItem(LSP+'coach',JSON.stringify(C)); }cat
 const GAP_THR={'高':6,'中':12,'低':22,'关':Infinity};
 const LEAD_GAP_SCALE=4;
 const desc=cards=>cards.map(miniName).join('+');
+
+/* ============================================================
+ * 适配层 —— 把参赛者的五个方法接到界面的调用点上。
+ *
+ * view 按比赛裁判的口径构造(深拷贝 + 冻结):参赛者看到的东西必须和联赛里
+ * 一模一样,否则这个页面就不是在展示同一个 AI。
+ * 返回值只认牌的 id,兜底与罚分口径也和裁判一致(替出几张 × 5 分)。
+ * ============================================================ */
+const CONTESTANT=(function(){
+  let ai=null, loadErr=null;
+  try{ const f=window.__contestReq('index'); ai=(typeof f==='function')?f():f; }
+  catch(e){ loadErr=e; }
+
+  const V={n:0, pts:0, by:{}, soft:0};
+  const bump=(k,fine)=>{ V.n++; V.by[k]=(V.by[k]||0)+1; if(fine) V.pts+=fine; paintVio(); };
+
+  const cpCard=c=>Object.freeze({suit:c.suit, rank:c.rank, id:c.id});
+  const cpCards=a=>Object.freeze(a.map(cpCard));
+  const cpPlays=a=>Object.freeze(a.map(p=>Object.freeze({seat:p.seat, cards:cpCards(p.cards)})));
+
+  function pub(){
+    return {
+      trumpRank: G.trumpRank, dealerKnown: G.dealerKnown, dealer: M.dealer,
+      firstTaker: G.firstTaker,
+      curDecl: G.decl?Object.freeze({seat:G.decl.seat, suit:G.decl.suit, strength:G.decl.strength}):null,
+      rebelHappened: G.rebelHappened,
+      levels: Object.freeze(M.levels.slice()), played: Object.freeze(M.played.slice()),
+      gates: Object.freeze((S.gatesOn?S.gates:[]).slice()), round: M.round,
+      kittySize: RULES.kittySize,
+    };
+  }
+  function mkView(seat, phase, extra){
+    const v=Object.assign({
+      phase, seat, myTeam:seat%2,
+      hand: cpCards(phase==='deal'?visHand(seat):G.hands[seat]),
+      trump: G.trump?Object.freeze({suit:G.trump.suit, rank:G.trump.rank}):null,
+      declSeat: G.declSeat,
+      history: cpPlays([...G.tricks.flatMap(t=>t.plays), ...G.trick]),
+      buriedKnown: seat===G.declSeat?cpCards(G.buried||[]):Object.freeze([]),
+    }, pub(), extra||{});
+    return Object.freeze(v);
+  }
+  // 只认 id —— 参赛者返回什么形状的对象都无所谓
+  function resolve(ret, hand, kind){
+    const cs=Array.isArray(ret)?ret:(ret&&Array.isArray(ret.cards)?ret.cards:null);
+    if(!cs||!cs.length){ bump(kind+':形状'); return null; }
+    const byId=new Map(hand.map(c=>[c.id,c]));
+    const out=[], used=new Set();
+    for(const c of cs){
+      const id=(c&&typeof c==='object')?c.id:c;
+      if(!byId.has(id)){ bump(kind+':牌不在手上'); return null; }
+      if(used.has(id)){ bump(kind+':重复出牌'); return null; }
+      used.add(id); out.push(byId.get(id));
+    }
+    return out;
+  }
+  const call=(m, args, kind)=>{
+    if(!ai||typeof ai[m]!=='function') return null;
+    try{ return ai[m].apply(ai, args); }
+    catch(e){ bump(kind+':抛异常'); return null; }
+  };
+
+  return {
+    name: (ai&&ai.name)||"kimi-k3",
+    loadErr, vio:V,
+
+    // 亮主/加固 —— 校验与裁判一致,不合法当作没亮(不罚分)
+    onDeal(seat){
+      const vis=visHand(seat);
+      if(!vis.length) return null;
+      const ret=call('onDeal',[mkView(seat,'deal',{trumpRank:rankOf(seat)})],'onDeal');
+      if(!ret) return null;
+      const opt={suit: ret.suit===undefined?null:ret.suit, strength: ret.strength|0};
+      const cands=[...declOptions(vis, rankOf(seat))];
+      const jp=jokerPairOf(vis); if(jp) cands.push(jp);
+      if(!cands.some(o=>o.suit===opt.suit&&o.strength===opt.strength)){
+        bump('onDeal:不是合法选项'); return null;
+      }
+      const reinforce=canReinforce2(G.decl,seat,vis,rankOf(seat),G.rebelHappened)
+                      && opt.suit===G.decl.suit && opt.strength===2;
+      if(!reinforce && !canOverride(G.decl,opt,seat)){ V.soft++; paintVio(); return null; }
+      return {opt, reinforce};
+    },
+
+    onRebel(seat, r){
+      return call('onRebel',[mkView(seat,'rebel',{
+        rebelReason:Object.freeze({pts:r.pts,nT:r.nT,byPts:r.byPts,byTrump:r.byTrump})})],'onRebel')===true;
+    },
+
+    discard(seat){
+      const ret=call('discard',[mkView(seat,'discard')],'discard');
+      let b=resolve(ret, G.hands[seat], 'discard');
+      if(b && b.length!==RULES.kittySize){ bump('discard:张数不对', 5*RULES.kittySize); b=null; }
+      else if(!b) V.pts+=5*RULES.kittySize;
+      return b || aiDiscard(G.hands[seat], G.trump);     // 兜底用原版
+    },
+
+    lead(seat){
+      const ret=call('lead',[mkView(seat,'lead',{trickNo:G.trickNo})],'lead');
+      let cs=resolve(ret, G.hands[seat], 'lead');
+      if(!cs){ cs=aiLead(G.hands[seat], G.trump, rng(G.seed+G.trickNo)); V.pts+=5*cs.length; }
+      const chk=checkThrow(G.hands, seat, cs, G.trump);
+      if(!chk.ok) cs=chk.forced;                          // 甩牌被吃:不算违规也不罚分
+      return cs;
+    },
+
+    follow(seat){
+      const lead=classify(G.trick[0].cards, G.trump);
+      const ret=call('follow',[mkView(seat,'follow',{trickNo:G.trickNo}), cpPlays(G.trick)],'follow');
+      let cs=resolve(ret, G.hands[seat], 'follow');
+      if(cs && !isLegalFollow(G.hands[seat], lead, cs, G.trump)){ bump('follow:不合法'); cs=null; }
+      if(!cs){ cs=genFollow(G.hands[seat], lead, G.trump, rng(G.seed+G.trickNo)); V.pts+=5*cs.length; }
+      return cs;
+    },
+  };
+})();
+
+/* 观察页专用的调试口。比赛裁判那边没有这东西 —— 这里挂出来是为了:
+ *   · 观察员能在控制台看 CONTESTANT.vio(违规明细)
+ *   · 自动化验证能驱动一整局(见 contest/gen-viewer.js 的验证说明)
+ */
+window.CONTESTANT=CONTESTANT;
+window.__viewer={
+  get G(){ return G; }, get M(){ return M; }, get S(){ return S; },
+  step, humanLowRebel, buryKitty, newRound,
+};
+
+// 右下角的违规计数 —— 频繁出非法牌的 AI,观察员一眼就该看见
+function paintVio(){
+  const el=document.getElementById('vioTag');
+  if(!el) return;
+  const V=CONTESTANT.vio;
+  if(!V.n&&!V.soft){ el.textContent=''; el.style.color=''; return; }
+  el.textContent='违规 '+V.n+' 次,罚 '+V.pts+' 分';
+  el.title=JSON.stringify(V.by);
+  el.style.color=V.n?'#ff8f6e':'';
+}
+
 function viewFor(seat){
   return {seat,hand:G.hands[seat],trump:G.trump,declSeat:G.declSeat,
           history:[...G.tricks.flatMap(t=>t.plays),...G.trick],
-          buriedKnown:seat===G.declSeat?G.buried:[],
-          decl:G.decl};            // 谁亮的什么主(v0.7.15:收官抽样把亮主者的级牌钉在他手里)
+          buriedKnown:seat===G.declSeat?G.buried:[]};
 }
 
 function cardHTML(c,cls=''){
@@ -5517,19 +6548,9 @@ function aiDeclThink(seat){
   };
   // 加固:当初亮单张是「信心不足先试一手」,现在牌拿多了信心是否已经够把它锁死?
   // 用同一把尺子比较「亮对」与「维持单张」的分差,而不是一律加固。
-  if(canReinforce2(G.decl,seat,vis,rankOf(seat),G.rebelHappened)){
-    const asPair=scoreDeclOption(ctx,{suit:G.decl.suit,strength:2}).score;
-    const asSingle=scoreDeclOption(ctx,{suit:G.decl.suit,strength:1,hasPair:true}).score;
-    if(asPair>asSingle&&rand()<0.9){
-      applyDecl(seat,{suit:G.decl.suit,strength:2},true); return;
-    }
-  }
-  const d=aiDeclDecide(ctx);
-  if(!d) return;
-  // 分数越过门槛越多,越果断;贴着门槛则留一点随机,避免四家行为整齐划一
-  const margin=d.score-d.threshold;
-  if(margin<0) return;
-  if(rand()<Math.min(0.95,0.45+margin/40)) applyDecl(seat,d.opt,false);
+  // 【参赛版】亮主/加固整个交给参赛者,不再掷骰子 —— 骰子留在这边,亮主策略就看不出来了
+  const r=CONTESTANT.onDeal(seat);
+  if(r) applyDecl(seat, r.opt, r.reinforce);
 }
 
 function applyDecl(seat,opt,isReinforce){
@@ -5592,10 +6613,9 @@ function humanLowRebel(yes){
   else aiLowRebel();
 }
 function aiLowRebel(){
-  const rand=rng(G.seed*17+5);
   for(let s=1;s<4;s++){
     const r=canFullRebel(G.hands[s],G.trump);
-    if(r.ok && s%2!==G.declSeat%2 && rand()<0.7){
+    if(r.ok && s%2!==G.declSeat%2 && CONTESTANT.onRebel(s,r)){
       log(`${SEAT_NAME[s]} ${r.byPts?'手牌分数不足':T('trump')+'太少'},${rebelName()}`);
       doRebel(); return;
     }
@@ -5622,7 +6642,7 @@ function afterTrumpSet(){
     G.phase='kitty'; G.selected.clear();
     setMsg(`你是庄家:选 ${RULES.kittySize} 张牌${T('bury')}`); render();
   }else{
-    G.buried=aiDiscard(G.hands[G.declSeat],G.trump);
+    G.buried=CONTESTANT.discard(G.declSeat);          // 【参赛版】
     G.buried.forEach(c=>removeCard(G.hands[G.declSeat],c));
     G.phase='play'; snapshotHands(); render();
     setMsg(`${SEAT_NAME[G.declSeat]} 是庄家`);
@@ -5667,20 +6687,9 @@ function step(){
     // 过期校验:排这一手之后局面若已被推进(换墩/别人先出了/已满),这次回调作废
     if(G.phase!=='play'||G.trickNo!==trickNoAtSchedule||G.trick.length!==posAtSchedule) return;
     if((G.leader+G.trick.length)%4!==seat) return;
-    const view=viewFor(seat);
+    // 【参赛版】三家 AI 全部换成参赛者;合法性仍由这边的引擎把关
     let cards, reason='';
-    if(G.trick.length===0){
-      const ch=aiChooseLead(view);
-      cards=ch.cards; reason=ch.reason;
-      const chk=checkThrow(G.hands,seat,cards,G.trump);
-      if(!chk.ok) cards=chk.forced;
-    }else{
-      const lead=classify(G.trick[0].cards,G.trump);
-      const ch=aiChooseFollow(view,G.trick);
-      cards=ch.cards; reason=ch.reason;
-      if(!isLegalFollow(G.hands[seat],lead,cards,G.trump))
-        cards=genFollow(G.hands[seat],lead,G.trump,rng(G.seed+G.trickNo));
-    }
+    cards = G.trick.length===0 ? CONTESTANT.lead(seat) : CONTESTANT.follow(seat);
     G.lastReasons=G.lastReasons||{}; G.lastReasons[seat]=reason;  // 教练模式(M5)复用
     playCards(seat,cards);
   },aiThinkMs());
@@ -5721,17 +6730,8 @@ function scheduleHumanAuto(){
     if(!G.auto&&!(S.autoLast&&forced)) return;        // 中途被关掉了
     let cards=forced;      // 没得选的那一手直接出,不必再劳烦 AI 算一遍
     if(!cards){
-      const view=viewFor(HUMAN);
-      if(G.trick.length===0){
-        const ch=aiChooseLead(view); cards=ch.cards;
-        const chk=checkThrow(G.hands,HUMAN,cards,G.trump);
-        if(!chk.ok) cards=chk.forced;
-      }else{
-        const lead=classify(G.trick[0].cards,G.trump);
-        const ch=aiChooseFollow(view,G.trick); cards=ch.cards;
-        if(!isLegalFollow(G.hands[HUMAN],lead,cards,G.trump))
-          cards=genFollow(G.hands[HUMAN],lead,G.trump,rng(G.seed+G.trickNo));
-      }
+      // 【参赛版】托管也用参赛者的 AI —— 想看它整场怎么打,开托管就行
+      cards = G.trick.length===0 ? CONTESTANT.lead(HUMAN) : CONTESTANT.follow(HUMAN);
       G.autoTricks++;                       // 只数「AI 真替你做了选择」的那几墩
     }
     G.selected.clear(); G.hintCards=null;
@@ -5741,7 +6741,6 @@ function scheduleHumanAuto(){
 
 /* 托管开关。它不在 S 里(不持久化),也只在出牌阶段有意义 ——
  * 扣底、亮主、低分造反这些「一局只做一次」的决定仍然归你。 */
-window.__G=()=>G;      // html 里的 inline onclick 在 IIFE 外面,取不到 G
 window.__setAuto=on=>{
   if(!G) return;
   G.auto=!!on;
@@ -5975,9 +6974,6 @@ function endRound(){
     html+=`<div style="font-size:14px">下一局 ${SEAT_NAME[M.dealer]} 坐庄,打${rankName(M.levels[M.dealer%2])}</div>`;
     html+=`<div style="margin-top:14px"><button onclick="window.__next()">下一局</button> <button class="minor" onclick="window.__review()">复盘本局</button></div>`;
   }
-  // 弹层之下的牌桌也要跟着进「已结束」态(托管按钮收起、发牌区改成「复盘中」),
-  // 否则点「复盘本局」把弹层关掉之前,底下还留着上一秒的按钮
-  render();
   document.getElementById('overlayContent').innerHTML=html;
   document.getElementById('overlay').style.display='flex';
   sndEnd();
@@ -6145,17 +7141,14 @@ function render(){
   }
 
   const myTurn=!G.ended&&G.phase==='play'&&G.trick.length<4&&(G.leader+G.trick.length)%4===HUMAN;
-  /* 托管自己占一颗按钮,落在庄家区(和扣底/看底牌同一区)—— 第一版把它塞进设置里、
-   * 让「出牌」改口成「停止托管」,开一次要点三下,实测太不方便。放到桌面上要解决的是
-   * 宽度:竖屏那一行原本按最长文案定死 min-width,五颗就挤爆了,所以竖屏改成按文案自适应
-   * (见 @media 里的 #controls button)。托管中「出牌/重选/问教练」照旧灰掉 —— 不是不能点,
-   * 是这时候本来就没有你要做的决定。 */
+  /* 托管中,「出牌」这颗按钮改成「停止托管」—— 托管时出牌/重选/问教练都用不上,
+   * 与其加第四颗按钮把底部三区挤爆(手机竖屏一行只放得下三颗),不如让这颗改口:
+   * 一下开(设置里)、一下关(这里),而且关的那一下永远在同一个位置。 */
   const auto=!!G.auto&&G.phase==='play'&&!G.ended;
-  const btnAuto=document.getElementById('btnAuto');
-  btnAuto.textContent=auto?'停止托管':'托管';
-  btnAuto.classList.toggle('minor',!auto);      // 托管中变成醒目色,一眼看得见它开着
-  btnAuto.hidden=!(G.phase==='play'&&!G.ended);
-  document.getElementById('btnPlay').disabled=auto||!myTurn;
+  const btnPlay=document.getElementById('btnPlay');
+  btnPlay.textContent=auto?'停止托管':'出牌';
+  btnPlay.classList.toggle('minor',auto);
+  btnPlay.disabled=auto?false:!myTurn;
   document.getElementById('btnClear').disabled=auto||!(G.selected.size>0);
   // 扣底:选够 8 张才可点
   const buryReady=G.phase==='kitty'&&G.selected.size===RULES.kittySize;
@@ -6165,7 +7158,7 @@ function render(){
   // 看底牌:只有你是庄家、且底牌已扣下才可点
   const canSeeKitty=G.declSeat===HUMAN&&G.buried.length>0;
   document.getElementById('btnKitty').disabled=!canSeeKitty;
-  // 扣底/看底牌本局用不上(你不坐庄)就收起来,不留灰按钮占地方(托管那颗另有显隐规则)
+  // 庄家区本局用不上(你不坐庄)就整块收起来,不留灰按钮占地方
   document.getElementById('btnBury').hidden=(G.phase!=='kitty');
   document.getElementById('btnKitty').hidden=!canSeeKitty;
   document.getElementById('btnHint').disabled=auto||!(C.on&&myTurn);
@@ -6394,7 +7387,9 @@ function sendNote(){
   renderPanel();
 }
 
-document.getElementById('btnPlay').onclick=humanPlay;
+document.getElementById('btnPlay').onclick=()=>{
+  if(G&&G.auto) window.__setAuto(false); else humanPlay();
+};
 document.getElementById('btnClear').onclick=()=>{G.selected.clear();render();};
 document.getElementById('btnBury').onclick=buryKitty;
 document.getElementById('btnHint').onclick=askCoach;

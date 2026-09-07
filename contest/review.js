@@ -21,7 +21,8 @@ if(!pos[0]){
   process.exit(1);
 }
 let buf=fs.readFileSync(pos[0]);
-if(/\.gz$/.test(pos[0])) buf=zlib.gunzipSync(buf);
+// Z_SYNC_FLUSH:进程被杀留下的半截 gzip 成员也把能读的读出来,不整个抛
+if(/\.gz$/.test(pos[0])) buf=zlib.gunzipSync(buf,{finishFlush:zlib.constants.Z_SYNC_FLUSH});
 const MATCHES=buf.toString('utf8').split('\n').filter(Boolean).map(l=>JSON.parse(l));
 
 const ALL=[...new Set(MATCHES.flatMap(m=>[m.a,m.b]))];
@@ -30,6 +31,10 @@ for(const t of targets){
   if(!ALL.includes(t)){ console.error(`✗ 记录里没有选手「${t}」。有:${ALL.join('、')}`); process.exit(1); }
 }
 
+/* 日期从记录的文件名上读(report.js 也是这么来的)。原先这里写死着 2026-09-04,
+ * 于是第一届正赛(09-06)的六份复盘全部盖着上一次预赛的日期 —— 报表自己说自己
+ * 是哪一次跑的,这句话必须跟着输入走。读不出来就不写日期,不猜。 */
+const DATE=(path.basename(pos[0]).match(/^(\d{4}-\d{2}-\d{2})/)||[])[1]||'';
 const GATES=[2,5,10,13];
 const SUIT={S:'♠',H:'♥',D:'♦',C:'♣',null:'无主'};
 const mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:0;
@@ -67,7 +72,7 @@ function review(me){
 
   w(`# 复盘 · ${me}`);
   w('');
-  w(`2026-09-04 联赛,${me} 打过的 ${MATCHES.filter(m=>m.a===me||m.b===me).length} 场 / ${rows.length} 局。`);
+  w(`${DATE?DATE+' ':''}联赛,${me} 打过的 ${MATCHES.filter(m=>m.a===me||m.b===me).length} 场 / ${rows.length} 局。`);
   w('');
   w(`所有口径都是**单副口径**:一局的分数是闲家拿到的 \`total\`(已含底翻),`);
   w(`坐庄那方的收益就是 \`200 − total\`。「净分」= 我的收益 − 对方的收益 = 2×我的收益 − 200。`);
@@ -222,7 +227,13 @@ const SLUG={'陪练':'baseline'};
 const slug=n=>SLUG[n] || n.replace(/[^A-Za-z0-9._-]+/g,'-').replace(/^-+|-+$/g,'') || 'player';
 
 const OUTDIR=path.dirname(pos[0]);
-const stamp=(path.basename(pos[0]).match(/^(\d{4}-\d{2}-\d{2})/)||[,'review'])[1];
+const stamp=DATE||'review';
+/* --all 是每名选手一份,--out 只有一个名字 —— 两个一起给的话六份会挨个覆盖同一个
+ * 文件,最后只剩最后一名选手那份,而且不报错。宁可在这里停住。 */
+if(argv.includes('--all') && opt('out',null)){
+  console.error('✗ --all 和 --out 不能一起用:--all 每名选手出一份,会全部写进同一个文件。');
+  process.exit(1);
+}
 for(const t of targets){
   const md=review(t);
   const out=opt('out', path.join(OUTDIR, `${stamp}-review-${slug(t)}.md`));

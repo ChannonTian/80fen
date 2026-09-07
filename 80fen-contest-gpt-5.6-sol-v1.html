@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>[测试版] 80分(上海规则)</title>
+<title>[gpt-5.6-sol] 80分 参赛版</title>
 <style>
   :root{--felt:#0f5132;--felt2:#0b3d26;--gold:#ffd75e;
         /* 牌宽是整个界面的标尺:牌面、字号、间距都跟着它缩放 */
@@ -196,7 +196,7 @@
      手指一碰就摘掉,鼠标一动就装回来(见脚本末尾 trackPointerType)。 */
   html.hasHover #hand .card:hover{transform:translateY(-6px)}
   html.hasHover #hand .card.sel:hover{transform:translateY(-14px)}
-  #versionTag{position:fixed;right:10px;bottom:4px;font-size:11px;color:rgba(255,255,255,.3);
+  #versionTag{position:fixed;right:10px;bottom:4px;font-size:12px;color:rgba(255,255,255,.62);
               pointer-events:none;z-index:1}
   /* ---- 窄屏竖屏(手机竖握):左右两栏塞不下,改上下叠,整体仍锁一屏 ---- */
   @media (max-width:820px) and (orientation:portrait){
@@ -245,13 +245,6 @@
        发完牌 dealZone 释放两行高度后才自己归位 —— 报障说的「发牌时手牌遮挡亮牌/打牌区,
        发完后才回位」就是这一条。上一轮修的是对的,只是这条残留把它盖回去了。 */
     #tabs button{padding:5px 9px}
-    /* 桌面端三区按钮统一定宽(按最长文案「亮无将(大)」量)是为了排一行齐整,
-       竖屏放不下:出牌/重选/问教练 + 托管 + 看底牌 五颗 × 6.6em 早就出界了。
-       竖屏改成按文案自适应,省下的宽度正好够托管那一颗落到牌桌上。 */
-    #controls button{min-width:0;padding:6px 10px}
-    #controls{gap:6px}
-    #mainZone{gap:6px}
-    #dealerZone{gap:6px}
   }
   /* 竖屏且机身矮(iPhone SE 一类,或桌面浏览器窄窗口):出牌区要三张牌高是硬需求,
      省不出来就只能把牌本身做小 —— 牌小一号总比记录面板被挤没了强。 */
@@ -307,8 +300,6 @@
         <button id="btnHint" style="background:#6ec9ff">问教练</button>
       </div>
       <div id="dealerZone">
-        <!-- 托管排在最左:它整个出牌阶段都在,位置不会因为「看底牌」出现与否而漂移 -->
-        <button id="btnAuto" class="minor" onclick="window.__setAuto(!(window.__G&&window.__G().auto))">托管</button>
         <button id="btnBury" class="minor">扣底</button>
         <button id="btnKitty" class="minor" onclick="window.__showKitty()">看底牌</button>
       </div>
@@ -328,7 +319,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.15(测试版)</div>
+<div id="versionTag">参赛版 <b style="color:#ffd479">gpt-5.6-sol</b> <span style="opacity:.7">· 引擎与界面同正式版,只换了三家 AI</span> <span id="vioTag" style="margin-left:8px"></span></div>
 
 <script>
 /* ============================================================
@@ -442,27 +433,11 @@ function decompose(cards, trump){
     else comps.push({type:'pair',cards:run[0],top:ordIdx(run[0][0],trump)});
     run=[];
   };
-  /* 同一个 ordIdx 可能有不止一对 —— 三门副级牌对全是同一个序号,无主局的四门级数牌对
-   * 也是。它们对成链是**可替换**的,所以不能一趟扫:遇到同序号当场断链的话,
-   * **手上多出一对同序号的对子反而会把本来连得上的链切短**。主♠打2、手上
-   * ♠A♠A(11)+♥2♥2(12)+♦2♦2(12)+♠2♠2(13),一趟扫切成两个二连对,而 11→12→13
-   * 本该是一个三连对。
-   * 改成分层:同序号的第 1 对算第 0 层、第 2 对第 1 层……,一层一层地扫,
-   * 层内 ordIdx 严格递增,最长的链必然落在第 0 层。
-   * 只有一层时(绝大多数手牌)这一段和原来的一趟扫**逐字等价**。 */
-  const layer=[];
-  for(let i=0;i<pairs.length;i++)
-    layer.push(i && ordIdx(pairs[i-1][0],trump)===ordIdx(pairs[i][0],trump) ? layer[i-1]+1 : 0);
-  const nLayer=layer.length ? Math.max(...layer)+1 : 0;
-  for(let L=0;L<nLayer;L++){
-    for(let i=0;i<pairs.length;i++){
-      if(layer[i]!==L) continue;
-      const p=pairs[i];
-      if(run.length && ordIdx(p[0],trump)===ordIdx(run[run.length-1][0],trump)+1) run.push(p);
-      else { flush(); run=[p]; }
-    }
-    flush();
+  for(const p of pairs){
+    if(run.length && ordIdx(p[0],trump)===ordIdx(run[run.length-1][0],trump)+1) run.push(p);
+    else { flush(); run=[p]; }
   }
+  flush();
   for(const s of singles) comps.push({type:'single',cards:[s],top:ordIdx(s,trump)});
   return comps;
 }
@@ -881,33 +856,6 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   egMinSamples: 20,           // 抽不满这么多就退回启发式(约束太紧,样本不可信)
   egRetries: 24,              // 单个世界的重试次数
   egMaxCands: 6,              // 候选多于这个数就不搜(预算)
-  /* 收官抽样:底牌按庄家的埋底策略抽,不再是「三家塞满之后剩下的牌」(见 sampleWorld)
-   * 配对自对弈三批 × 700 种子:**+0.78 ±0.28 / +1.41 ±0.27 / +0.96 ±0.25**,
-   * 合并 +1.05 ±0.15(t=6.9),符号检验 p=5e-4 / 6e-5 / 7e-5;
-   * 庄家丢最后一墩 33.1→30.7 / 34.9→28.1 / 36.4→32.4。
-   * 另一组独立复跑(种子 500001+ / 600001+ / 700001+,与上面三批不重叠):
-   * +1.09 ±0.26 / +1.20 ±0.28 / +1.02 ±0.26,合并 **+1.10 ±0.15(t=7.1)**,
-   * 庄家丢末墩 35.1→30.7 / 37.4→31.0 / 37.3→32.1。
-   * 只影响看不见底牌的三家 —— 庄家自己知道,他的 kittySize 是 0。
-   * 顺带查过一条:旧写法里底牌是「分不下去的牌」的泄压阀,先填满等于焊死阀门,
-   * 抽样拒绝率 2.74% → 3.26%、每次搜索到手的世界 60.0 → 59.6、退回启发式 2.74% → 2.70%
-   * —— 分不是靠「更常不搜索」挣的。 */
-  egKittyModel: 1,            // 1 = 按埋底策略抽;0 = 均匀(v0.7.14 及以前)
-  /* 分牌进底牌的相对权重,以及它为什么不算标定死
-   * 0.35 与 0.7 同一批种子 +0.78 / +0.99,差在噪声里,取中间的 0.6。
-   * 「按它抽出的底分期望 ≈ 12、和实际埋底对得上」这句话是在**收官时的未见牌池**上说的;
-   * 换成庄家自己那 33 张当池子复量(400 副),0.6 抽出 14.5 分而 aiDiscard 实际埋 11.5 分,
-   * 要对上得降到 0.45。主牌 0 张、A 0 张两项两边完全一致。分数上没差别(见上),
-   * 但别把这一格当成一个已经标定死的常数。 */
-  egKittyPtW: 0.6,            // 分牌进底牌的相对权重(1 = 和闲牌一样容易被埋)
-  /* 收官抽样:把亮主者亮出的那几张(级牌 / 王对)钉在他手里 —— 硬信息,不是推断
-   * (需要 view 带 curDecl / decl,界面、裁判、ai-h2h 都给了)。三批 × 700 种子:
-   * +0.29 ±0.19 / −0.07 ±0.17 / −0.05 ±0.17,合并 +0.05 ±0.10,只改变 16% 的种子 ——
-   * 到收官时那几张多半已经打出来了。信息是对的,分挣不到。 */
-  egDeclKnown: 0,             // 默认关
-  /* 收官精确解:抽样世界里用完全信息极小极大代替推演(见 egSolve)
-   * ≤3 / ≤4 张实测都持平。注意那个「持平」带着一个已知的坑,见 egDedupSingles 的注释。 */
-  egExact: 0,                 // 剩这么多张及以下时启用(0 = 关)
   /* 搜索结果与启发式打分的融合方式。
    * 目标函数是「我方净升几级」,量纲和分制完全不同,不能直接相加 ——
    * 用它**排序**,只有当最优候选比启发式选中的那个高出 egMargin 级时才改判。
@@ -996,25 +944,6 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   pPartnerPrior: 0.32,
   pPartnerCalc: 0,            // 记牌证据相对先验的采信比例;0 = 完全用先验(实测最优)
   blockWin: 1,                // 1=生成「盖住末家分牌」的吃法候选;0=只用最省的吃法(消融用)
-  /* 打级(级牌 5/10/K,那 8 张级牌本身带 40 / 80 分)上单独量出来的两格 */
-  trumpPtDebt: 0,             // 主牌里的分牌也记「迟早要出」的负债(level 10 自对弈 −0.56 ±0.26,关)
-  ptLevelBonus: 25,           // 分级的亮主加成;砍到 0 / 10 打级自对弈 −0.28 / −0.21 级/场,不动
-  /* 闲家亮对:把主定在自己的长门上,不再偏爱「先亮单留后路」(见 scoreDeclOption)
-   * 对 claude-opus-5 / kimi-k3 各 60 种子打级:级数差 +5.52 vs +5.67、+8.04 vs +7.97 —— 持平。
-   * 当初判「牌谱里『闲家亮对 → 庄家守不住』是选择效应」,用的是 vs-builds 的「谁亮的主」切片,
-   * 而那个切片当时**每一局都记错**(见 contest/vs-builds.js 的注释)。
-   * 结论方向不变(不上线),但那个理由要重做。 */
-  defDeclPair: 0,             // 默认关
-  defPairBonus: 10,           // 闲家亮对的加成
-  defThreshAdd: 0,            // 闲家亮主门槛的增减(负 = 更爱亮)
-  /* 跨线的即时加成:赢下这一墩就把闲家推过某条线(见 ladderCross)
-   * **默认关 —— 三档全负**:10 → −0.20 ±0.24、
-   * 20 → −0.28 ±0.31(符号 p=0.019)、30 → −0.45 ±0.35(p=0.033),各 700 种子。
-   * 另试过把 ev×pw 整个换成阶梯期望效用(正态近似余下池子的份额、底分按护底概率折进去、
-   * 跟牌侧护底 flat 项并入):**−2.47 ±0.50(t=−4.9)**,代码没留。
-   * 结论同 v0.7.5 那条:cf-line 量到的是一次性偏离,做成规则之后不值那个数;
-   * 而且 cf-line 在 index.html 上 300 局只命中 10 个跨线点,信号本身就小。 */
-  ladderCross: 0,             // 加成的强度(0 = 关)
   /* 「接过队友」的开放范围:0=关 | 1=将牌墩与断门毙分 | 2=全开 | 3/4=单支消融(见 takeOverScoped)。
    * **默认 0 —— 这是一条实测为负的改动,代码留着是因为它对应的局面确实存在。**
    * 动机是需求列表那两条:队友调王没人接、队友副花 K 暂大而我断门不毙,末家一张 A/10 全收走。
@@ -1392,7 +1321,7 @@ function declHandQuality(D, opt){
   if([5,10,13].includes(D.trumpRank)){
     let lv=opt.suit?1:1.35;
     if(!opt.suit&&iAmDefender) lv+=0.35;
-    s+=AIP.ptLevelBonus*lv; why.push(opt.suit?'级数带分':'无将局主牌里大半是分');
+    s+=25*lv; why.push(opt.suit?'级数带分':'无将局主牌里大半是分');
   }
   return {q:s, fit, why};
 }
@@ -1459,12 +1388,7 @@ function scoreDeclOption(D, opt){
   // 8. 手上有对却只亮单张:省下暴露、留着「加固」这条后路,但要担被别家一对常主反掉的风险。
   //    信心越足(fit 越高)越不愿意冒这个险 —— 于是自然形成
   //    「信心不足想试一手 → 亮单」「手牌够好 → 亮对(或先亮单再加固)」。
-  /* v0.7.15:闲家亮对。第一赛季数据:陪练坐庄、闲家(五份提交)亮的是一对时,守住率只有
-   * 53%(非分级)/ 39%(分级),而陪练自己当闲家几乎不亮对(对手坐庄的局里 22~33%),
-   * 对手坐庄却在陪练亮对时只守住 15~32%。闲家亮对是最被低估的一手:主定在自己的长门上,
-   * 庄家 8 张底牌的优势被抵掉大半,而且一对常主只有王对反得掉。 */
-  if(AIP.defDeclPair&&iAmDefender&&opt.strength===2){ s+=AIP.defPairBonus; why.push('闲家亮对,把主定在自己长门'); }
-  if(opt.hasPair&&opt.strength===1&&!(AIP.defDeclPair&&iAmDefender)){
+  if(opt.hasPair&&opt.strength===1){
     // 「留后路」这件事只在心里没底时才值钱:信心越足,那条后路越用不上
     s+=AIP.declSingleOption*(1-Math.max(0,fit));
     // 被一对常主反掉不只是丢了主色 —— 无庄盘还连庄位和那 8 张底一起丢
@@ -1502,8 +1426,7 @@ function aiDeclDecide(D){
             baseline:base, absolute:r.score};
   }).sort((a,b)=>b.score-a.score);
   // 造反的门槛比首亮高一档:打乱一个已经成立的主色,本身有摩擦成本
-  const iAmDef=D.dealerKnown&&D.dealer>=0&&D.dealer%2!==D.seat%2;
-  const th=declThreshold(D)+(D.curDecl?AIP.rebelThresholdAdd:0)+(iAmDef?AIP.defThreshAdd:0);
+  const th=declThreshold(D)+(D.curDecl?AIP.rebelThresholdAdd:0);
   const top=scored[0];
   return {...top, threshold:th, pass:top.score>=th, cands:scored.slice(0,3)};
 }
@@ -2305,7 +2228,6 @@ function futureValue(cards, X){
     if(effSuit(c,trump)==='T'){
       // 主牌稀缺:毙牌权本身值钱,拿低主去毙一墩空气是亏的
       v+=trumpHold(c,X);
-      if(!X.leading&&AIP.trumpPtDebt) v-=cardPoints(c)*AIP.trumpPtDebt;
     }else{
       const rem=unseenPointsIn(X.mem,effSuit(c,trump),trump);
       /* 「差一张就是钢板」—— 上面**只剩一张**没出的牌时,这张牌是个期权:
@@ -2562,11 +2484,6 @@ function kittyProjection(X){
   const kp=kittyPts(X);
   if(kp<=0) return 0;
   const km=kittyMultOf(X);
-  return kp*km*kittyDefP(X);
-}
-// 闲家赢下最后一墩(抠到底)的概率:收官视野外用先验 0.5,视野内按我方护底手撑到最后的概率偏
-function kittyDefP(X){
-  if(X._kpd!==undefined) return X._kpd;
   const iAmDef=!X.isDecl;
   let pDef=0.5;
   const ru=X.hand&&X.hand.length?reserveUnit(X):null;
@@ -2574,22 +2491,9 @@ function kittyDefP(X){
     const hold=reserveHold(ru,X);
     pDef=iAmDef?clamp(0.5+0.5*(hold-0.5),0,1):clamp(0.5-0.5*(hold-0.5),0,1);
   }
-  return X._kpd=pDef;
+  return kp*km*pDef;
 }
 
-/* 跨线的**即时**加成(v0.7.15)。闲家的分只增不减:这一墩赢下就把闲家推过某条线,
- * 那条线就锁死了 —— 不是「多几分」,是一整级台阶。pointWeight 的高斯包络在 gap→0 时
- * 反而回落,表达不了这件事;cf-line 实测跨线组 +0.33 级/决策,对照组 −0.08。
- * 只在**此刻**跨线时生效(用已得分,不用投影):闲家赢下跨线记正,庄家输掉被跨记负。
- * 权重按 cf-line 分线的实测比例(40 线 +0.21、80 线 +0.46、120 线 +0.64)。 */
-const LADDER_CROSS_W=[[0.5,1],[40,1],[80,2],[120,2.5],[160,2.5],[200,2.5]];
-function ladderCross(X, p, ptsWin, ptsLose){
-  if(!AIP.ladderCross) return 0;
-  const def=X.def;
-  const crossed=(lo,hi)=>{ let u=0; for(const [L,w] of LADDER_CROSS_W) if(lo<L&&hi>=L) u+=w; return u; };
-  if(!X.isDecl) return AIP.ladderCross*p*crossed(def,def+ptsWin);
-  return -AIP.ladderCross*(1-p)*crossed(def,def+ptsLose);
-}
 // 局末目标不是「攻守 80 分」这一根线,而是一排阶梯,且随局面动态改变现实目标。
 // 引擎的结算口径就是阶梯的来历(scoreRound / advanceMatch):
 //   闲家 0 分   → 庄家升 3 级        闲家 120 分 → 闲家升 1 级
@@ -2773,7 +2677,7 @@ function scorePlay(X, cards, cat, beatsCur){
   // 牌权:本队赢下这墩,下一手由我方领出(我或队友),手上的优势才有机会兑现。
   // 输掉则牌权落到对手,他去兑现他的 —— 我方看不见对手手牌,用一个保守的固定值代表。
   const tempo=(p*tempoValue(X,cards)-(1-p)*AIP.oppTempo)*AIP.tempoWeight;
-  return (CAT_K[cat]||1)*ev*(X.pw||1)+tempo-futureValue(cards,X)+ladderCross(X,p,gain,loss);
+  return (CAT_K[cat]||1)*ev*(X.pw||1)+tempo-futureValue(cards,X);
 }
 // 兼容旧接口(教练/测试仍在用)
 function scoreWinPlay(X,cards){ return scorePlay(X,cards,
@@ -3726,41 +3630,10 @@ function rolloutFollow(hand, lead, trump, plays, seat){
 function sampleWorld(ctx, rand){
   const {unseen,sizes,seats,voids,trump,kittySize,capOf}=ctx;
   for(let attempt=0;attempt<AIP.egRetries;attempt++){
-    let pool=shuffle(unseen,rand);
+    const pool=shuffle(unseen,rand);
     const hands={}, cnt={}, used={};
     seats.forEach(s=>{hands[s]=[];cnt[s]={};});
     let kitty=[], ok=true;
-    /* v0.7.15:底牌不是均匀抽的。旧版把底牌当「三家都塞满之后剩下的牌」——
-     * 剩下的恰恰是约束最少的那些,也就是主牌(副牌门有缺门约束,主门几乎没有),
-     * 于是抽出来的底牌里主牌偏多、对手手里的主牌偏少 —— 闲家搜出来的世界系统性低估
-     * 庄家方的主。而庄家埋底的策略是已知的(faceValue:绝不埋主、不埋 A、尽量不埋分),
-     * 这里就按它抽:先从「非主、非 A」的牌里挑底牌,分牌降权,再把其余的牌分给三家。 */
-    if(AIP.egKittyModel&&kittySize>0){
-      const elig=pool.filter(c=>effSuit(c,trump)!=='T'&&c.rank!==14);
-      const w=c=>cardPoints(c)?AIP.egKittyPtW:1;
-      const rest=new Set();
-      while(kitty.length<kittySize&&elig.length){
-        let tot=0; for(const c of elig) if(!rest.has(c.id)) tot+=w(c);
-        if(tot<=0) break;
-        let r=rand()*tot, pick=null;
-        for(const c of elig){ if(rest.has(c.id)) continue; r-=w(c); if(r<=0){ pick=c; break; } }
-        if(!pick) break;
-        kitty.push(pick); rest.add(pick.id);
-      }
-      pool=pool.filter(c=>!rest.has(c.id));
-    }
-    /* v0.7.15:亮主的那家手里**一定**还有他亮出来的那几张(级牌 / 王对),直到打出来为止。
-     * 这是硬信息,不是推断 —— 先把它们钉给他,再分其余的牌。 */
-    if(ctx.known&&ctx.known.length){
-      const fixed=new Set();
-      for(const k of ctx.known){
-        if(!seats.includes(k.seat)||hands[k.seat].length>=sizes[k.seat]) continue;
-        const c=pool.find(x=>!fixed.has(x.id)&&x.suit===k.suit&&x.rank===k.rank);
-        if(!c) continue;
-        fixed.add(c.id); hands[k.seat].push(c); const su=effSuit(c,trump); cnt[k.seat][su]=(cnt[k.seat][su]||0)+1;
-      }
-      pool=pool.filter(c=>!fixed.has(c.id));
-    }
     // 先把「能去的地方最少」的牌安排掉
     const order=pool.slice().sort((a,b)=>
       seats.filter(s=>!voids[s][effSuit(a,trump)]).length
@@ -3817,83 +3690,6 @@ function rolloutToEnd(st){
   return {defPoints,lastWinner,lastLeadSize};
 }
 
-/* 收官精确解(v0.7.15):牌少到一定程度时,一个抽样世界不再用推演策略打完,
- * 而是对四家做完全信息的极小极大(双明手)。目标仍是 levelUtility(根方视角),
- * 对手最小化、本队最大化,alpha-beta 剪枝。领出只取拆解后的组件(和 rolloutLead 同口径,
- * 不甩牌);跟牌枚举所有合法子集并按牌面去重。 */
-/* 单张的等价归并:完全信息下,同一门里两张牌之间若没有别家的牌、分值又相同,
- * 出哪一张结果完全一样 —— 双明手求解的标准剪枝。others = 别家手里 + 本墩已出的牌。
- *
- * ⚠️ 这条剪枝**在两副牌里不成立**,拆不拆对子有价值,而它看不见这件事。
- * 实测:手里 ♥6♥6 + ♥7,跟一张牌时归并之后**只剩「出 ♥6」**——「出 ♥7、把 ♥6♥6
- * 留成一对」被当成等价扔掉了。桥牌里只有大小次序,这里还有牌型。
- * egExact 那两批「持平」的读数里有多少是这个造成的,没有量过;
- * 要再捡起收官精确解这条线,先修它再重测。 */
-function egDedupSingles(moves, others, trump){
-  if(moves.length<2) return moves;
-  const out=[], keep=[];
-  for(const mv of moves){
-    if(mv.length!==1){ out.push(mv); continue; }
-    const c=mv[0], su=effSuit(c,trump), idx=ordIdx(c,trump), pts=cardPoints(c);
-    let dup=false;
-    for(const k of keep){
-      if(k.su!==su||k.pts!==pts) continue;
-      const lo=Math.min(k.idx,idx), hi=Math.max(k.idx,idx);
-      if(!others.some(o=>effSuit(o,trump)===su&&ordIdx(o,trump)>lo&&ordIdx(o,trump)<hi)){ dup=true; break; }
-    }
-    if(!dup){ keep.push({su,idx,pts}); out.push(mv); }
-  }
-  return out;
-}
-function egMoves(hand, lead, trump, others){
-  if(!lead){
-    const bySuit={}; hand.forEach(c=>{(bySuit[effSuit(c,trump)]=bySuit[effSuit(c,trump)]||[]).push(c);});
-    const out=[]; for(const su in bySuit) for(const comp of decompose(bySuit[su],trump)) out.push(comp.cards);
-    return others?egDedupSingles(out,others,trump):out;
-  }
-  const k=lead.cards.length, n=hand.length, out=[], seen=new Set();
-  const rec=(start,pick)=>{
-    if(pick.length===k){
-      const key=pick.map(c=>c.suit+c.rank).sort().join(',');
-      if(seen.has(key)) return; seen.add(key);
-      if(isLegalFollow(hand,lead,pick,trump)) out.push(pick.slice());
-      return;
-    }
-    for(let i=start;i<=n-(k-pick.length);i++){ pick.push(hand[i]); rec(i+1,pick); pick.pop(); }
-  };
-  rec(0,[]);
-  return others?egDedupSingles(out,others,trump):out;
-}
-function egSolve(st, alpha, beta){
-  const {hands,trump,declSeat,kitty,rootTeam}=st;
-  let plays=st.plays;
-  if(plays.length===4){
-    const res=resolveTrick(plays,trump);
-    const defPoints=st.defPoints+(res.winner%2!==declSeat%2?res.points:0);
-    if(!hands.some(h=>h.length)){
-      const sc=scoreRound({defPoints,kitty,defWonLastTrick:res.winner%2!==declSeat%2,lastLeadSize:plays[0].cards.length});
-      return levelUtility(sc,rootTeam,declSeat%2);
-    }
-    return egSolve({...st,plays:[],leader:res.winner,defPoints},alpha,beta);
-  }
-  const seat=plays.length?(plays[0].seat+plays.length)%4:st.leader;
-  const lead=plays.length?classify(plays[0].cards,trump):null;
-  const others=[]; for(let i=0;i<4;i++) if(i!==seat) for(const c of hands[i]) others.push(c);
-  for(const p of plays) for(const c of p.cards) others.push(c);
-  const moves=egMoves(hands[seat],lead,trump,others);
-  const maxing=seat%2===rootTeam;
-  let best=maxing?-1e9:1e9;
-  for(const mv of moves){
-    const gone=new Set(mv.map(c=>c.id));
-    const h2=hands.slice(); h2[seat]=hands[seat].filter(c=>!gone.has(c.id));
-    const v=egSolve({...st,hands:h2,plays:plays.concat([{seat,cards:mv}])},alpha,beta);
-    if(maxing){ if(v>best) best=v; if(best>alpha) alpha=best; }
-    else { if(v<best) best=v; if(best<beta) beta=best; }
-    if(alpha>=beta) break;
-  }
-  return best;
-}
-
 /* 折成「我方净升几级」—— 这就是真正的目标函数,阶梯与抠底倍数都在 scoreRound 里。
  *
  * 但**纯阶梯是一个阶跃函数**:两个候选差 5 分,多数样本落在同一级台阶上,
@@ -3934,20 +3730,7 @@ function endgameSearch(view, plays, cands){
   const reads=makeReads(view.history||[],trump);
   const capOf=(s,su)=>maxHoldIn(reads,mem,s,su,trump);
   const rand=rng((view.history||[]).length*7919+view.seat*31+n*17+1);
-  /* 亮主者手里钉死的牌:亮 k 张级牌 → 他手里有 k 张该门级牌(减去他已经打出的);王对同理。 */
-  const known=[];
-  const decl=view.curDecl||view.decl;
-  if(AIP.egDeclKnown&&decl&&decl.seat>=0&&decl.seat!==view.seat&&seats.includes(decl.seat)){
-    const want=decl.strength>=3?{suit:'X',rank:decl.strength===4?16:15,n:2}
-             :decl.suit?{suit:decl.suit,rank:trump.rank,n:decl.strength}:null;
-    if(want){
-      let playedByHim=0;
-      for(const pl of (view.history||[])) if(pl.seat===decl.seat) for(const c of pl.cards) if(c.suit===want.suit&&c.rank===want.rank) playedByHim++;
-      for(const pl of (plays||[])) if(pl.seat===decl.seat) for(const c of pl.cards) if(c.suit===want.suit&&c.rank===want.rank) playedByHim++;
-      for(let i=0;i<want.n-playedByHim;i++) known.push({seat:decl.seat,suit:want.suit,rank:want.rank});
-    }
-  }
-  const ctx={unseen,sizes,seats,voids,trump,kittySize,capOf,known};
+  const ctx={unseen,sizes,seats,voids,trump,kittySize,capOf};
   const myTeam=view.seat%2, declTeam=view.declSeat%2;
   const rs=roundScore(view);
   const worlds=[];
@@ -3975,10 +3758,6 @@ function endgameSearch(view, plays, cands){
                                lastLeadSize:p2[0].cards.length});
           o.u+=levelUtility(sc,myTeam,declTeam); continue;
         }
-      }
-      if(AIP.egExact&&n<=AIP.egExact){
-        o.u+=egSolve({hands,plays:pl,leader,defPoints,trump,declSeat:view.declSeat,kitty,rootTeam:myTeam},-1e9,1e9);
-        continue;
       }
       const r=rolloutToEnd({hands,plays:pl,leader,defPoints,trump,declSeat:view.declSeat,mem,rand});
       const sc=scoreRound({defPoints:r.defPoints,kitty,
@@ -4140,6 +3919,2182 @@ const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
   makeHoldRange,partnerAceRead,tiaoWangValue,
   endgameSearch,sampleWorld,rolloutToEnd,rolloutLead,rolloutFollow,levelUtility,trumpLeadPrior};
 if(typeof module!=='undefined') module.exports=ENGINE;
+</script>
+
+<script>
+/* ============================================================
+ * 参赛提交:gpt-5.6-sol
+ * engine.js + index.js + strategy.js —— 原样内联,一个字符没改。
+ * 极简 CommonJS,只认本包内的相对 require。
+ * ============================================================ */
+const __CM={}, __CC={};
+function __def(id, fn){ __CM[id]=fn; }
+// 界面块整个被 (function(){…})() 包着,适配层必须插进那个闭包里才看得见 G/visHand;
+// 而参赛代码在闭包外,所以靠 window 把 require 递进去。
+window.__contestReq=function(s){ return __req(s); };
+function __req(spec){
+  const id=String(spec).replace(/^\.\//,'').replace(/\.js$/,'');
+  if(__CC[id]) return __CC[id].exports;
+  const fn=__CM[id];
+  if(!fn) throw new Error('参赛包里没有模块 '+id);
+  const mod={exports:{}}; __CC[id]=mod;
+  fn(mod, mod.exports, __req);
+  return mod.exports;
+}
+__def("engine", function(module, exports, require){
+'use strict';
+
+const DEFAULT_RULES = Object.freeze({
+  levelStart: 2,
+  handSize: 25,
+  kittySize: 8,
+  strictTractorFollow: true,
+  partialTractorFollow: true,
+  pointRebelThreshold: 15,
+  trumpRebelThreshold: 3,
+  maxRedeal: 3,
+  gates: Object.freeze([2, 5, 10, 13]),
+  speedRun: false,
+  speedLadder: Object.freeze([2, 5, 10, 13, 14]),
+});
+
+const SUITS = Object.freeze(['S', 'H', 'D', 'C']);
+
+function cardPoints(card) {
+  if (card.rank === 5) return 5;
+  if (card.rank === 10 || card.rank === 13) return 10;
+  return 0;
+}
+
+function countPoints(cards) {
+  let total = 0;
+  for (const card of cards) total += cardPoints(card);
+  return total;
+}
+
+function makeDeck() {
+  const deck = [];
+  let id = 0;
+  for (let copy = 0; copy < 2; copy += 1) {
+    for (const suit of SUITS) {
+      for (let rank = 2; rank <= 14; rank += 1) {
+        deck.push({ suit, rank, id });
+        id += 1;
+      }
+    }
+    deck.push({ suit: 'X', rank: 15, id });
+    id += 1;
+    deck.push({ suit: 'X', rank: 16, id });
+    id += 1;
+  }
+  return deck;
+}
+
+function effSuit(card, trump) {
+  if (card.suit === 'X') return 'T';
+  if (card.rank === trump.rank) return 'T';
+  if (trump.suit && card.suit === trump.suit) return 'T';
+  return card.suit;
+}
+
+function ordIdx(card, trump) {
+  if (card.rank === 16) return 15;
+  if (card.rank === 15) return 14;
+  if (card.rank === trump.rank) {
+    if (trump.suit === null) return 13;
+    return card.suit === trump.suit ? 13 : 12;
+  }
+  return card.rank < trump.rank ? card.rank - 2 : card.rank - 3;
+}
+
+function groupKey(card) {
+  return `${card.suit}:${card.rank}`;
+}
+
+function componentOrder(a, b) {
+  if (a.top !== b.top) return a.top - b.top;
+  const typeOrder = { single: 0, pair: 1, tractor: 2 };
+  if (typeOrder[a.type] !== typeOrder[b.type]) {
+    return typeOrder[a.type] - typeOrder[b.type];
+  }
+  const ac = a.cards[0];
+  const bc = b.cards[0];
+  if (ac.suit !== bc.suit) return String(ac.suit).localeCompare(String(bc.suit));
+  if (ac.rank !== bc.rank) return ac.rank - bc.rank;
+  return (ac.id ?? 0) - (bc.id ?? 0);
+}
+
+function decompose(cards, trump) {
+  const groups = new Map();
+  for (const card of cards) {
+    const key = groupKey(card);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(card);
+  }
+
+  const pairs = [];
+  const singles = [];
+  for (const group of groups.values()) {
+    const sorted = group.slice().sort((a, b) => (a.id ?? 0) - (b.id ?? 0));
+    if (sorted.length >= 2) {
+      const pairCards = sorted.slice(0, 2);
+      pairs.push({
+        type: 'pair',
+        cards: pairCards,
+        top: ordIdx(pairCards[0], trump),
+      });
+      for (let i = 2; i < sorted.length; i += 1) {
+        singles.push({ type: 'single', cards: [sorted[i]], top: ordIdx(sorted[i], trump) });
+      }
+    } else {
+      singles.push({ type: 'single', cards: [sorted[0]], top: ordIdx(sorted[0], trump) });
+    }
+  }
+
+  pairs.sort(componentOrder);
+  const components = [];
+  let run = [];
+  function flushRun() {
+    if (run.length >= 2) {
+      components.push({
+        type: 'tractor',
+        len: run.length,
+        cards: run.flatMap((pair) => pair.cards),
+        top: run[run.length - 1].top,
+      });
+    } else if (run.length === 1) {
+      components.push(run[0]);
+    }
+    run = [];
+  }
+
+  for (const pair of pairs) {
+    if (run.length === 0 || pair.top - run[run.length - 1].top === 1) {
+      run.push(pair);
+    } else {
+      flushRun();
+      run.push(pair);
+    }
+  }
+  flushRun();
+  components.push(...singles);
+  components.sort(componentOrder);
+  return components;
+}
+
+function classify(cards, trump) {
+  if (!Array.isArray(cards) || cards.length === 0) return null;
+  const suit = effSuit(cards[0], trump);
+  for (let i = 1; i < cards.length; i += 1) {
+    if (effSuit(cards[i], trump) !== suit) return null;
+  }
+
+  if (cards.length === 1) {
+    return {
+      type: 'single',
+      suit,
+      top: ordIdx(cards[0], trump),
+      cards: cards.slice(),
+    };
+  }
+
+  const comps = decompose(cards, trump);
+  if (comps.length === 1) {
+    const comp = comps[0];
+    return {
+      type: comp.type,
+      suit,
+      top: comp.top,
+      cards: cards.slice(),
+      ...(comp.type === 'tractor' ? { len: comp.len } : {}),
+    };
+  }
+  return {
+    type: 'throw',
+    suit,
+    top: Math.max(...comps.map((comp) => comp.top)),
+    cards: cards.slice(),
+    comps,
+  };
+}
+
+function countPairsIn(cards) {
+  const groups = new Map();
+  for (const card of cards) {
+    const key = groupKey(card);
+    groups.set(key, (groups.get(key) || 0) + 1);
+  }
+  let count = 0;
+  for (const n of groups.values()) count += Math.floor(n / 2);
+  return count;
+}
+
+function pairNeed(play) {
+  if (!play) return 0;
+  if (play.type === 'pair') return 1;
+  if (play.type === 'tractor') return play.len;
+  if (play.type === 'throw') {
+    let total = 0;
+    for (const comp of play.comps) {
+      if (comp.type === 'pair') total += 1;
+      else if (comp.type === 'tractor') total += comp.len;
+    }
+    return total;
+  }
+  return 0;
+}
+
+function longestTractor(cards, trump) {
+  let longest = 0;
+  for (const comp of decompose(cards, trump)) {
+    if (comp.type === 'tractor' && comp.len > longest) longest = comp.len;
+  }
+  return longest;
+}
+
+function selectionIsFromHand(hand, chosen) {
+  const available = new Map();
+  for (const card of hand) available.set(card.id, (available.get(card.id) || 0) + 1);
+  const seen = new Set();
+  for (const card of chosen) {
+    if (!card || seen.has(card.id) || !available.has(card.id)) return false;
+    seen.add(card.id);
+  }
+  return true;
+}
+
+function isLegalFollow(hand, leadInput, chosen, trump, options = DEFAULT_RULES) {
+  const lead = Array.isArray(leadInput) ? classify(leadInput, trump) : leadInput;
+  if (!lead || !Array.isArray(chosen)) return false;
+  if (chosen.length !== lead.cards.length) return false;
+  if (!selectionIsFromHand(hand, chosen)) return false;
+
+  const suitInHand = hand.filter((card) => effSuit(card, trump) === lead.suit);
+  const chosenInSuit = chosen.filter((card) => effSuit(card, trump) === lead.suit);
+  if (chosenInSuit.length !== Math.min(lead.cards.length, suitInHand.length)) return false;
+
+  const need = pairNeed(lead);
+  if (need > 0) {
+    const must = Math.min(need, countPairsIn(suitInHand));
+    if (countPairsIn(chosenInSuit) < must) return false;
+  }
+
+  const strict = options.strictTractorFollow !== false;
+  const partial = options.partialTractorFollow !== false;
+  if (strict && lead.type === 'tractor') {
+    const m = longestTractor(suitInHand, trump);
+    const cm = longestTractor(chosenInSuit, trump);
+    if (m >= lead.len && cm < lead.len) return false;
+    if (partial && m >= 2 && m < lead.len && cm < m) return false;
+  }
+  return true;
+}
+
+function structureKey(play) {
+  if (!play) return null;
+  if (play.type === 'tractor') return `tractor:${play.len}`;
+  if (play.type !== 'throw') return play.type;
+  return play.comps
+    .map((comp) => (comp.type === 'tractor' ? `tractor:${comp.len}` : comp.type))
+    .sort()
+    .join('|');
+}
+
+function resolveTrick(plays, trump) {
+  if (!Array.isArray(plays) || plays.length !== 4) {
+    throw new Error('resolveTrick requires exactly four plays');
+  }
+  const lead = classify(plays[0].cards, trump);
+  if (!lead) throw new Error('lead play is not classifiable');
+  const leadStructure = structureKey(lead);
+  let best = lead;
+  let winIdx = 0;
+
+  for (let i = 1; i < plays.length; i += 1) {
+    const candidate = classify(plays[i].cards, trump);
+    if (!candidate || structureKey(candidate) !== leadStructure) continue;
+    if (candidate.suit === best.suit) {
+      if (candidate.top > best.top) {
+        best = candidate;
+        winIdx = i;
+      }
+    } else if (candidate.suit === 'T') {
+      best = candidate;
+      winIdx = i;
+    }
+  }
+
+  return {
+    winner: plays[winIdx].seat,
+    points: plays.reduce((sum, play) => sum + countPoints(play.cards), 0),
+    winIdx,
+    winningPlay: plays[winIdx],
+  };
+}
+
+function canBeatComp(sameSuitCards, comp, trump) {
+  const components = decompose(sameSuitCards, trump);
+  if (comp.type === 'single') {
+    return sameSuitCards.some((card) => ordIdx(card, trump) > comp.top);
+  }
+  if (comp.type === 'pair') {
+    return components.some((candidate) =>
+      (candidate.type === 'pair' || candidate.type === 'tractor') && candidate.top > comp.top);
+  }
+  return components.some((candidate) =>
+    candidate.type === 'tractor' && candidate.len >= comp.len && candidate.top > comp.top);
+}
+
+function checkThrow(hands, seat, cards, trump) {
+  const lead = classify(cards, trump);
+  if (!lead || lead.type !== 'throw') return { ok: true };
+  for (const comp of lead.comps) {
+    for (let player = 0; player < 4; player += 1) {
+      if (player === seat) continue;
+      const sameSuitCards = hands[player].filter((card) => effSuit(card, trump) === lead.suit);
+      if (canBeatComp(sameSuitCards, comp, trump)) {
+        let forced = lead.comps[0];
+        for (let i = 1; i < lead.comps.length; i += 1) {
+          if (lead.comps[i].top < forced.top) forced = lead.comps[i];
+        }
+        return { ok: false, forced, forcedCards: forced.cards.slice() };
+      }
+    }
+  }
+  return { ok: true };
+}
+
+function declarationOf(cards, trumpRank) {
+  if (!Array.isArray(cards)) return null;
+  if (cards.length === 1) {
+    const card = cards[0];
+    if (card.suit !== 'X' && card.rank === trumpRank) {
+      return { suit: card.suit, strength: 1 };
+    }
+    return null;
+  }
+  if (cards.length !== 2) return null;
+  const [a, b] = cards;
+  if (a.suit !== b.suit || a.rank !== b.rank) return null;
+  if (a.suit !== 'X' && a.rank === trumpRank) return { suit: a.suit, strength: 2 };
+  if (a.suit === 'X' && a.rank === 15) return { suit: null, strength: 3 };
+  if (a.suit === 'X' && a.rank === 16) return { suit: null, strength: 4 };
+  return null;
+}
+
+function cardsForDeclaration(hand, trumpRank, option) {
+  if (!option) return null;
+  let matching;
+  let needed;
+  if (option.strength === 1 || option.strength === 2) {
+    matching = hand.filter((card) => card.suit === option.suit && card.rank === trumpRank);
+    needed = option.strength;
+  } else if (option.strength === 3 || option.strength === 4) {
+    const rank = option.strength === 3 ? 15 : 16;
+    if (option.suit !== null) return null;
+    matching = hand.filter((card) => card.suit === 'X' && card.rank === rank);
+    needed = 2;
+  } else {
+    return null;
+  }
+  return matching.length >= needed ? matching.slice(0, needed) : null;
+}
+
+function canOverride(current, option, seat, rebelHappened = false) {
+  if (!option) return false;
+  if (!current) return true;
+  if (current.seat === seat) {
+    return !rebelHappened && current.strength === 1 && option.strength === 2 &&
+      current.suit === option.suit;
+  }
+  // A same-suit single -> pair is reinforcement, which only the original
+  // declarer may perform; a different suit pair remains a regular override.
+  if (current.strength === 1 && option.strength === 2 && current.suit === option.suit) {
+    return false;
+  }
+  return option.strength > current.strength;
+}
+
+function canFullRebel(hand, trump, rules = DEFAULT_RULES) {
+  const byPoints = rules.pointRebelThreshold > 0 &&
+    countPoints(hand) <= rules.pointRebelThreshold;
+  const trumpCount = hand.filter((card) => effSuit(card, trump) === 'T').length;
+  const byTrump = rules.trumpRebelThreshold >= 0 &&
+    trumpCount <= rules.trumpRebelThreshold;
+  return {
+    allowed: byPoints || byTrump,
+    pts: countPoints(hand),
+    nT: trumpCount,
+    byPts: byPoints,
+    byTrump,
+  };
+}
+
+function finalizeDeclaration({ dealerKnown, dealer, firstTaker, curDecl, levels }) {
+  const declSeat = dealerKnown ? dealer : (curDecl ? curDecl.seat : firstTaker);
+  const trumpRank = dealerKnown ? levels[dealer % 2] : levels[declSeat % 2];
+  return {
+    declSeat,
+    trump: { suit: curDecl ? curDecl.suit : null, rank: trumpRank },
+    trumpRank,
+  };
+}
+
+function scoreRound(defPoints, kitty, defWonLastTrick, lastLeadSize) {
+  const multiplier = 2 * lastLeadSize;
+  const kittyPoints = countPoints(kitty);
+  const total = defPoints + (defWonLastTrick ? kittyPoints * multiplier : 0);
+  if (total < 80) {
+    const up = total === 0 ? 3 : total < 40 ? 2 : 1;
+    return {
+      total,
+      multiplier,
+      kittyPoints,
+      declarerWon: true,
+      defendersWon: false,
+      up,
+    };
+  }
+  return {
+    total,
+    multiplier,
+    kittyPoints,
+    declarerWon: false,
+    defendersWon: true,
+    up: Math.floor((total - 80) / 40),
+  };
+}
+
+function clampAtGate(from, to, gates = DEFAULT_RULES.gates) {
+  if (to <= from || !Array.isArray(gates) || gates.length === 0) return to;
+  let hit = null;
+  for (const gate of gates) {
+    if (gate > from && gate < to && (hit === null || gate < hit)) hit = gate;
+  }
+  return hit === null ? to : hit;
+}
+
+function advanceMatch(levelsInput, declSeat, score, gates = DEFAULT_RULES.gates,
+  playedInput, options = DEFAULT_RULES) {
+  const levels = levelsInput.slice();
+  const played = playedInput ? playedInput.slice() : null;
+  const declTeam = declSeat % 2;
+  if (score.declarerWon && played) {
+    played[declTeam] = Math.max(played[declTeam], levels[declTeam]);
+  }
+
+  const team = score.declarerWon ? declTeam : 1 - declTeam;
+  const dealer = score.declarerWon ? (declSeat + 2) % 4 : (declSeat + 1) % 4;
+  const from = levels[team];
+  const up = score.up;
+  let level = from;
+
+  if (options.speedRun && up > 0) {
+    const ladder = options.speedLadder || DEFAULT_RULES.speedLadder;
+    const next = ladder.find((candidate) => candidate > from);
+    level = next === undefined ? from + 1 : next;
+  } else {
+    level = clampAtGate(from, from + up, gates);
+    if (up > 0 && played && gates.includes(from) && played[team] < from) level = from;
+  }
+  levels[team] = level;
+  const winner = levels[0] > 14 ? 0 : levels[1] > 14 ? 1 : null;
+  return { levels, played: played || playedInput, dealer, team, up, winner, finished: winner !== null };
+}
+
+function cutValue(card) {
+  const suitOrder = { D: 0, C: 1, H: 2, S: 3, X: 4 };
+  return card.rank * 5 + suitOrder[card.suit];
+}
+
+function cutForFirst(cuts) {
+  let bestSeat = 0;
+  let bestValue = cutValue(cuts[0]);
+  for (let seat = 1; seat < cuts.length; seat += 1) {
+    const value = cutValue(cuts[seat]);
+    if (value > bestValue) {
+      bestValue = value;
+      bestSeat = seat;
+    }
+  }
+  return bestSeat;
+}
+
+module.exports = {
+  DEFAULT_RULES,
+  SUITS,
+  makeDeck,
+  cardPoints,
+  countPoints,
+  effSuit,
+  ordIdx,
+  decompose,
+  classify,
+  countPairsIn,
+  pairNeed,
+  longestTractor,
+  selectionIsFromHand,
+  isLegalFollow,
+  structureKey,
+  resolveTrick,
+  canBeatComp,
+  checkThrow,
+  declarationOf,
+  cardsForDeclaration,
+  canOverride,
+  canFullRebel,
+  finalizeDeclaration,
+  scoreRound,
+  clampAtGate,
+  advanceMatch,
+  cutValue,
+  cutForFirst,
+};
+
+});
+__def("index", function(module, exports, require){
+'use strict';
+
+const { createStrategy } = require('./strategy');
+
+module.exports = () => {
+  const strategy = createStrategy();
+  return {
+    name: 'gpt-5.6-sol',
+    onDeal: strategy.onDeal,
+    onRebel: strategy.onRebel,
+    discard: strategy.discard,
+    lead: strategy.lead,
+    follow: strategy.follow,
+  };
+};
+
+});
+__def("strategy", function(module, exports, require){
+'use strict';
+
+const E = require('./engine');
+
+const FEATURES = Object.freeze({
+  smartDiscard: true,
+  discardPairPenalty: 35,
+  discardTrumpPenalty: 90,
+  protectPairsOnLead: true,
+  riskLeadPolicy: true,
+  riskLeadBase: 10,
+  riskLeadRisk: 5,
+  riskLeadLen: 7,
+  riskLeadSuitLen: -2,
+  riskLeadTop: -1,
+  riskLeadTrump: 5,
+  riskLeadPair: 5,
+  riskLeadTractor: 0,
+  riskLeadThrow: 0,
+  riskLeadDefEarlyMulti: -12,
+  riskLeadPoints: 0,
+  riskLeadKnownVoid: 0,
+  riskLeadOpponentNoTrumpVoidBonus: 0,
+  riskLeadOpponentNoTrumpVoidRole: 'all',
+  riskLeadPartnerVoid: 0,
+  riskLeadPartnerVoidSafeOnly: false,
+  riskLeadPartnerReturn: 0,
+  riskLeadSelfContinue: 0,
+  riskLeadDefMiddleMidSingle: 0,
+  riskLeadDefThresholdBonus: 0,
+  riskLeadDeclThresholdPenalty: 0,
+  riskLeadAllowSplitPairs: false,
+  riskLeadSplitPairPenalty: 10,
+  takeWhenNeeded: true,
+  feedPartnerPoints: true,
+  protectPairsOnSingleFeed: false,
+  preservePairBeforePointFeed: true,
+  preserveTractorBeforePointFeed: false,
+  cashHighSideSingles: true,
+  singleThreatOrdering: false,
+  singleThreatRole: 'all',
+  singleThreatPhase: 'all',
+  cashHighSidePairs: false,
+  preferShortSuitCash: false,
+  preferDeclarationSupport: false,
+  avoidPartnerDeclarationOverride: false,
+  avoidBigJokerDeclaration: false,
+  cashDeclarerBossPoints: true,
+  cashDeclarerBossPhase: 'all',
+  cashDefenderBossPoints: false,
+  cashDefenderBossPhase: 'all',
+  cashDefenderBossMinPoints: 0,
+  cashDefenderBossThreshold: false,
+  cashDeclarerPointThreatLimit: 0,
+  cashBossUseBuriedKnown: false,
+  cashBossKnownVoidMode: 'none',
+  cashBossPointsFirst: false,
+  cashBossShortSuitFirst: false,
+  voidOnDiscard: false,
+  discardVoidPointBudget: 0,
+  voidFiveSingletonOnDiscard: false,
+  voidFiveShortSuitOnDiscard: false,
+  strongDiscardPairProtection: false,
+  avoidSplitPairOnDiscardBoundary: false,
+  delaySingleUntil20: false,
+  delaySingleUntil8: false,
+  delaySingleUntil4: false,
+  conserveTrumpOnEmptyTrick: false,
+  conserveTrumpOnEmptyRole: 'all',
+  conserveTrumpOnEmptyPosition: 'all',
+  declarerDrawTrumpEarly: true,
+  declarerRiskComboOverDraw: false,
+  declarerDrawTrumpFive: false,
+  declarerDrawTrumpTwo: false,
+  avoidKnownOpponentVoidLead: false,
+  declarerForceKnownVoid: false,
+  takePairsWhenNeeded: true,
+  feedPartnerPairs: false,
+  takeTractorsWhenNeeded: false,
+  takeTractorsLast: false,
+  takeThrowsLast: true,
+  takeThrowsProvenThird: false,
+  takeTractorsProvenThird: false,
+  cashTractors: true,
+  leadBossSidePairs: false,
+  leadSafeBossPairsEarly: false,
+  preferSideTractors: false,
+  capTractorLengthTwo: false,
+  leadPartnerVoidSuit: false,
+  leadBestPair: true,
+  conservePairOnEmptyTrick: false,
+  declarerPreferTrumpPairs: false,
+  defenderDelayPairsEarly: true,
+  defenderAllowControlledPairsEarly: false,
+  defenderEarlyPairThreatLimit: 0,
+  declarerDelayPairsEarly: false,
+  declarerDelayPairsMiddle: false,
+  leadLongLowSingletonOverPair: false,
+  longLowSingletonRole: 'all',
+  defenderDelayPairsThree: false,
+  defenderDelayPairsEight: false,
+  preferCombosOverEarlyDraw: false,
+  defenderDuckMidSinglesEarly: false,
+  defenderDuckMidSinglesMiddle: false,
+  defenderPreferShortSuitMiddle: false,
+  defenderAvoidMidTrumpLead: false,
+  feedPartnerMultiLast: true,
+  feedPartnerMultiProvenThird: true,
+  feedPartnerThrowProvenThird: true,
+  feedPartnerBossPairThird: true,
+  feedPartnerBossThrowThird: true,
+  feedPartnerBossTractorThird: false,
+  feedPartnerTractorAlwaysThird: true,
+  feedPartnerTractorAlwaysThirdRole: 'all',
+  feedPartnerTractorMinGain: 5,
+  feedPartnerTractorAvoidKnownVoid: false,
+  feedPartnerPairOneThreatThird: false,
+  feedPartnerThrowOneThreatThird: false,
+  feedPartnerExactThrowThird: false,
+  feedPartnerThrowAlwaysThird: false,
+  feedPartnerThrowAlwaysThirdRole: 'all',
+  feedPartnerThrowMinGain: 0,
+  feedPartnerPairAlwaysThird: true,
+  cautiousPartnerFeed: false,
+  rebelOnlyBoth: false,
+  rebelRejectPts15Only: false,
+  avoidFeedKnownVoid: false,
+  avoidFeedKnownVoidRole: 'all',
+  avoidFeedKnownVoidMinPoints: 0,
+  pairThreatOrdering: false,
+  leadPointPairsFirst: false,
+  leadProvenThrow: true,
+  preferTractorOverProvenThrow: false,
+  allowKnownVoidSideThrow: true,
+  avoidDefenderKnownVoidMiddleThrow: false,
+  takeWithPointsLast: true,
+  takeWithPointsSecond: true,
+  takeWithPointsSecondRole: 'defender',
+  takeWithPointsSecondTrick: 'empty',
+  takeWithPointsSecondMinPoints: 0,
+  takeWithPointsSecondMaxPoints: 10,
+  conserveThresholdPointsLast: false,
+  takePairsWithPointsLast: false,
+  takePairsWithPointsSecond: false,
+  takePairsWithPointsSecondRole: 'defender',
+  takePairsWithPointsSecondTrick: 'empty',
+  takeThrowsWithPointsLast: true,
+  takeWithPointsProvenThird: false,
+  takeWithPointsBossThird: false,
+  preservePairBeforePointTake: false,
+  preservePairPointTakePosition: 'all',
+  protectPairsOnSecondPointTakeTie: false,
+  allowOneThreatThrow: false,
+  avoidLateSideThrow: false,
+  preferTrumpThrow: false,
+  limitThrowComponentsTwo: false,
+});
+
+function byId(a, b) {
+  return a.id - b.id;
+}
+
+function groupCards(cards) {
+  const groups = new Map();
+  for (const card of cards) {
+    const key = `${card.suit}:${card.rank}`;
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(card);
+  }
+  for (const group of groups.values()) group.sort(byId);
+  return groups;
+}
+
+function knownVoidsFromHistory(history, trump) {
+  const knownVoids = [new Set(), new Set(), new Set(), new Set()];
+  for (let i = 0; i + 3 < history.length; i += 4) {
+    const trick = history.slice(i, i + 4);
+    const led = E.classify(trick[0].cards, trump);
+    if (!led) continue;
+    for (let j = 1; j < 4; j += 1) {
+      if (trick[j].cards.every((card) => E.effSuit(card, trump) !== led.suit)) {
+        knownVoids[trick[j].seat].add(led.suit);
+      }
+    }
+  }
+  return knownVoids;
+}
+
+function pairThreatCount(card, view) {
+  const known = new Map();
+  const cards = view.hand.concat(view.history.flatMap((item) => item.cards),
+    view.buriedKnown || []);
+  for (const item of cards) {
+    const key = `${item.suit}:${item.rank}`;
+    known.set(key, (known.get(key) || 0) + 1);
+  }
+  const effectiveSuit = E.effSuit(card, view.trump);
+  const order = E.ordIdx(card, view.trump);
+  let threats = 0;
+  for (const suit of E.SUITS) {
+    for (let rank = 2; rank <= 14; rank += 1) {
+      const probe = { suit, rank };
+      if (E.effSuit(probe, view.trump) !== effectiveSuit ||
+          E.ordIdx(probe, view.trump) <= order) continue;
+      if ((known.get(`${suit}:${rank}`) || 0) === 0) threats += 1;
+    }
+  }
+  for (const rank of [15, 16]) {
+    const probe = { suit: 'X', rank };
+    if (E.effSuit(probe, view.trump) === effectiveSuit &&
+        E.ordIdx(probe, view.trump) > order &&
+        (known.get(`X:${rank}`) || 0) === 0) threats += 1;
+  }
+  return threats;
+}
+
+function unknownCardsOfSuit(view, suit) {
+  const knownIds = new Set(view.hand.map((card) => card.id));
+  for (const play of view.history) {
+    for (const card of play.cards) knownIds.add(card.id);
+  }
+  for (const card of view.buriedKnown || []) knownIds.add(card.id);
+  return E.makeDeck().filter((card) =>
+    E.effSuit(card, view.trump) === suit && !knownIds.has(card.id));
+}
+
+function componentThreatCount(unknown, comp, trump) {
+  if (comp.type === 'single') {
+    return unknown.filter((card) => E.ordIdx(card, trump) > comp.top).length;
+  }
+  if (comp.type === 'pair') {
+    return [...groupCards(unknown).values()].filter((group) =>
+      group.length >= 2 && E.ordIdx(group[0], trump) > comp.top).length;
+  }
+  return E.decompose(unknown, trump).filter((candidate) =>
+    candidate.type === 'tractor' && candidate.len >= comp.len && candidate.top > comp.top).length;
+}
+
+function singleThreatCount(card, view) {
+  const suit = E.effSuit(card, view.trump);
+  const top = E.ordIdx(card, view.trump);
+  return unknownCardsOfSuit(view, suit)
+    .filter((unknown) => E.ordIdx(unknown, view.trump) > top).length;
+}
+
+function useSingleThreatOrdering(view, features) {
+  if (!features.singleThreatOrdering) return false;
+  const role = view.myTeam === view.declSeat % 2 ? 'declarer' : 'defender';
+  const phase = view.trickNo < 5 ? 'early' : view.trickNo < 15 ? 'middle' : 'late';
+  return (features.singleThreatRole === 'all' || features.singleThreatRole === role) &&
+    (features.singleThreatPhase === 'all' || features.singleThreatPhase === phase);
+}
+
+function pointLeadThreatCount(card, view, includeBuriedKnown) {
+  const seen = view.hand.concat(view.history.flatMap((item) => item.cards),
+    includeBuriedKnown ? (view.buriedKnown || []) : []);
+  const top = E.ordIdx(card, view.trump);
+  let threats = 0;
+  for (let rank = 2; rank <= 14; rank += 1) {
+    const probe = { suit: card.suit, rank };
+    if (E.effSuit(probe, view.trump) !== card.suit ||
+        E.ordIdx(probe, view.trump) <= top) continue;
+    const known = seen.filter((item) => item.suit === card.suit && item.rank === rank).length;
+    threats += Math.max(0, 2 - known);
+  }
+  return threats;
+}
+
+function declarationOptions(hand, trumpRank) {
+  const options = [];
+  for (const suit of E.SUITS) {
+    const n = hand.filter((card) => card.suit === suit && card.rank === trumpRank).length;
+    if (n >= 1) options.push({ suit, strength: 1 });
+    if (n >= 2) options.push({ suit, strength: 2 });
+  }
+  const small = hand.filter((card) => card.suit === 'X' && card.rank === 15).length;
+  const big = hand.filter((card) => card.suit === 'X' && card.rank === 16).length;
+  if (small >= 2) options.push({ suit: null, strength: 3 });
+  if (big >= 2) options.push({ suit: null, strength: 4 });
+  return options;
+}
+
+function chooseDeclaration(view, features = FEATURES) {
+  const options = declarationOptions(view.hand, view.trumpRank)
+    .filter(() => !features.avoidPartnerDeclarationOverride || !view.curDecl ||
+      view.curDecl.seat === view.seat || view.curDecl.seat % 2 !== view.myTeam)
+    .filter((option) => !features.avoidBigJokerDeclaration || option.strength !== 4)
+    .filter((option) => !features.delaySingleUntil20 || option.strength !== 1 || view.hand.length >= 20)
+    .filter((option) => !features.delaySingleUntil8 || option.strength !== 1 || view.hand.length >= 8)
+    .filter((option) => !features.delaySingleUntil4 || option.strength !== 1 || view.hand.length >= 4)
+    .filter((option) => E.cardsForDeclaration(view.hand, view.trumpRank, option))
+    .filter((option) => E.canOverride(
+      view.curDecl,
+      option,
+      view.seat,
+      view.rebelHappened,
+    ));
+  if (options.length === 0) return null;
+  const suitSupport = (option) => option.suit === null ? 0 : view.hand.filter((card) =>
+    card.suit === option.suit && card.rank !== view.trumpRank).length;
+  options.sort((a, b) => b.strength - a.strength ||
+    (features.preferDeclarationSupport ? suitSupport(b) - suitSupport(a) : 0) ||
+    String(a.suit).localeCompare(String(b.suit)));
+  return options[0];
+}
+
+function discardCost(card, trump, groups, features) {
+  let cost = E.ordIdx(card, trump);
+  if (E.cardPoints(card)) cost += 120 + E.cardPoints(card);
+  if (E.effSuit(card, trump) === 'T') cost += features.discardTrumpPenalty;
+  if (features.smartDiscard && groups.get(`${card.suit}:${card.rank}`).length >= 2) {
+    cost += features.strongDiscardPairProtection ? 90 : features.discardPairPenalty;
+  }
+  return cost;
+}
+
+function chooseDiscard(view, features = FEATURES) {
+  const groups = groupCards(view.hand);
+  const sorted = view.hand.slice().sort((a, b) =>
+    discardCost(a, view.trump, groups, features) - discardCost(b, view.trump, groups, features) ||
+    byId(a, b));
+  const target = view.kittySize || 8;
+  if (features.discardVoidPointBudget > 0) {
+    const base = sorted.slice(0, target);
+    const sideSuits = E.SUITS.map((suit) => ({
+      suit,
+      cards: view.hand.filter((card) => E.effSuit(card, view.trump) === suit),
+    }));
+    function describe(cards) {
+      const ids = new Set(cards.map((card) => card.id));
+      let splitPairs = 0;
+      for (const group of groups.values()) {
+        if (group.length < 2) continue;
+        const buried = group.filter((card) => ids.has(card.id)).length;
+        if (buried === 1) splitPairs += 1;
+      }
+      return {
+        cards,
+        voids: sideSuits.filter((item) => item.cards.length > 0 &&
+          item.cards.every((card) => ids.has(card.id))).length,
+        points: E.countPoints(cards),
+        trumps: cards.filter((card) => E.effSuit(card, view.trump) === 'T').length,
+        splitPairs,
+        cost: cards.reduce((sum, card) => sum + discardCost(card, view.trump, groups, features), 0),
+      };
+    }
+    const baseDescription = describe(base);
+    let best = baseDescription;
+    for (let mask = 1; mask < (1 << sideSuits.length); mask += 1) {
+      const selected = [];
+      for (let i = 0; i < sideSuits.length; i += 1) {
+        if (mask & (1 << i)) selected.push(...sideSuits[i].cards);
+      }
+      if (selected.length > target || E.countPoints(selected) > features.discardVoidPointBudget) continue;
+      const ids = new Set(selected.map((card) => card.id));
+      for (const card of sorted) {
+        if (selected.length >= target) break;
+        if (!ids.has(card.id)) {
+          selected.push(card);
+          ids.add(card.id);
+        }
+      }
+      if (selected.length !== target) continue;
+      const candidate = describe(selected);
+      if (candidate.voids > best.voids ||
+          (candidate.voids === best.voids && candidate.points < best.points) ||
+          (candidate.voids === best.voids && candidate.points === best.points &&
+            candidate.trumps < best.trumps) ||
+          (candidate.voids === best.voids && candidate.points === best.points &&
+            candidate.trumps === best.trumps && candidate.splitPairs < best.splitPairs) ||
+          (candidate.voids === best.voids && candidate.points === best.points &&
+            candidate.trumps === best.trumps && candidate.splitPairs === best.splitPairs &&
+            candidate.cost < best.cost)) best = candidate;
+    }
+    if (best.voids > baseDescription.voids) return best.cards.slice();
+  }
+  if (features.voidFiveSingletonOnDiscard) {
+    const bySuit = new Map();
+    for (const card of view.hand) {
+      const suit = E.effSuit(card, view.trump);
+      if (suit === 'T') continue;
+      if (!bySuit.has(suit)) bySuit.set(suit, []);
+      bySuit.get(suit).push(card);
+    }
+    const fiveSingletons = [...bySuit.values()]
+      .filter((cards) => cards.length === 1 && E.cardPoints(cards[0]) === 5)
+      .map((cards) => cards[0])
+      .sort((a, b) => E.ordIdx(a, view.trump) - E.ordIdx(b, view.trump) || byId(a, b));
+    if (fiveSingletons.length > 0) {
+      const selected = [fiveSingletons[0]];
+      const selectedIds = new Set(selected.map((card) => card.id));
+      for (const card of sorted) {
+        if (selected.length >= target) break;
+        if (!selectedIds.has(card.id)) {
+          selected.push(card);
+          selectedIds.add(card.id);
+        }
+      }
+      return selected;
+    }
+  }
+  if (features.voidFiveShortSuitOnDiscard) {
+    const bySuit = new Map();
+    for (const card of view.hand) {
+      const suit = E.effSuit(card, view.trump);
+      if (suit === 'T') continue;
+      if (!bySuit.has(suit)) bySuit.set(suit, []);
+      bySuit.get(suit).push(card);
+    }
+    const shortSuits = [...bySuit.values()].filter((cards) =>
+      cards.length <= 2 && E.countPoints(cards) === 5)
+      .sort((a, b) => a.length - b.length ||
+        a.reduce((sum, card) => sum + E.ordIdx(card, view.trump), 0) -
+          b.reduce((sum, card) => sum + E.ordIdx(card, view.trump), 0));
+    if (shortSuits.length > 0) {
+      const selected = shortSuits[0].slice();
+      const selectedIds = new Set(selected.map((card) => card.id));
+      for (const card of sorted) {
+        if (selected.length >= target) break;
+        if (!selectedIds.has(card.id)) {
+          selected.push(card);
+          selectedIds.add(card.id);
+        }
+      }
+      return selected;
+    }
+  }
+  if (features.avoidSplitPairOnDiscardBoundary) {
+    let selected = sorted.slice(0, target);
+    while (true) {
+      const selectedIds = new Set(selected.map((card) => card.id));
+      const selectedCounts = new Map();
+      for (const card of selected) {
+        const key = `${card.suit}:${card.rank}`;
+        selectedCounts.set(key, (selectedCounts.get(key) || 0) + 1);
+      }
+      const splitCards = selected.filter((card) =>
+        groups.get(`${card.suit}:${card.rank}`).length >= 2 &&
+        selectedCounts.get(`${card.suit}:${card.rank}`) === 1 &&
+        E.cardPoints(card) === 0 && E.effSuit(card, view.trump) !== 'T');
+      const replacements = sorted.filter((card) => !selectedIds.has(card.id) &&
+        groups.get(`${card.suit}:${card.rank}`).length === 1 &&
+        E.cardPoints(card) === 0 && E.effSuit(card, view.trump) !== 'T');
+      if (splitCards.length === 0) break;
+      let best = null;
+      for (const removed of splitCards) {
+        for (const added of replacements) {
+          const delta = discardCost(added, view.trump, groups, features) -
+            discardCost(removed, view.trump, groups, features);
+          if (!best || delta < best.delta ||
+              (delta === best.delta && added.id < best.added.id)) {
+            best = { removed, added, delta };
+          }
+        }
+        const mate = sorted.find((card) => !selectedIds.has(card.id) &&
+          card.suit === removed.suit && card.rank === removed.rank);
+        if (mate) {
+          const recoverable = selected.filter((card) =>
+            groups.get(`${card.suit}:${card.rank}`).length === 1 &&
+            E.cardPoints(card) === 0 && E.effSuit(card, view.trump) !== 'T');
+          for (const recovered of recoverable) {
+            const delta = discardCost(mate, view.trump, groups, features) -
+              discardCost(recovered, view.trump, groups, features);
+            if (!best || delta < best.delta ||
+                (delta === best.delta && mate.id < best.added.id)) {
+              best = { removed: recovered, added: mate, delta };
+            }
+          }
+        }
+      }
+      if (!best) break;
+      selected = selected.filter((card) => card.id !== best.removed.id);
+      selected.push(best.added);
+    }
+    return selected;
+  }
+  if (!features.voidOnDiscard) return sorted.slice(0, target);
+
+  const bySuit = new Map();
+  for (const card of view.hand) {
+    const suit = E.effSuit(card, view.trump);
+    if (suit === 'T') continue;
+    if (!bySuit.has(suit)) bySuit.set(suit, []);
+    bySuit.get(suit).push(card);
+  }
+  const voidable = [...bySuit.values()].filter((suitCards) =>
+    suitCards.length <= target && suitCards.every((card) => E.cardPoints(card) === 0));
+  let best = [];
+  for (let mask = 1; mask < (1 << voidable.length); mask += 1) {
+    const chosen = [];
+    let voids = 0;
+    for (let i = 0; i < voidable.length; i += 1) {
+      if (mask & (1 << i)) {
+        chosen.push(...voidable[i]);
+        voids += 1;
+      }
+    }
+    if (chosen.length > target) continue;
+    if (voids > (best.voids || 0) ||
+        (voids === (best.voids || 0) && chosen.length > (best.cards || []).length)) {
+      best = { voids, cards: chosen };
+    }
+  }
+  const selected = best.cards ? best.cards.slice() : [];
+  const selectedIds = new Set(selected.map((card) => card.id));
+  for (const card of sorted) {
+    if (selected.length >= target) break;
+    if (!selectedIds.has(card.id)) {
+      selected.push(card);
+      selectedIds.add(card.id);
+    }
+  }
+  return selected;
+}
+
+function playCost(card, trump, groups, features) {
+  let cost = E.ordIdx(card, trump);
+  if (E.cardPoints(card)) cost += 40 + E.cardPoints(card);
+  if (E.effSuit(card, trump) === 'T') cost += 30;
+  if (features.protectPairsOnLead && groups.get(`${card.suit}:${card.rank}`).length >= 2) cost += 18;
+  return cost;
+}
+
+function chooseRiskLead(view, features) {
+  const baseFeatures = Object.assign({}, features, { riskLeadPolicy: false });
+  const baseCards = chooseLead(view, baseFeatures);
+  const actions = new Map();
+  function add(cards, isBase = false, splitPair = false) {
+    if (!cards || cards.length === 0) return;
+    const key = cards.map((card) => card.id).sort((a, b) => a - b).join(',');
+    if (!actions.has(key)) actions.set(key, { cards: cards.slice(), isBase, splitPair });
+    else {
+      if (isBase) actions.get(key).isBase = true;
+      if (!splitPair) actions.get(key).splitPair = false;
+    }
+  }
+  add(baseCards, true);
+  const cardGroups = groupCards(view.hand);
+  for (const group of cardGroups.values()) {
+    if (group.length === 1) add([group[0]]);
+    if (group.length >= 2) {
+      add(group.slice(0, 2));
+      if (features.riskLeadAllowSplitPairs) add([group[0]], false, true);
+    }
+  }
+  const bySuit = new Map();
+  for (const card of view.hand) {
+    const suit = E.effSuit(card, view.trump);
+    if (!bySuit.has(suit)) bySuit.set(suit, []);
+    bySuit.get(suit).push(card);
+  }
+  for (const suitCards of bySuit.values()) {
+    for (const comp of E.decompose(suitCards, view.trump)) {
+      if (comp.type === 'tractor') add(comp.cards);
+    }
+  }
+  const voids = knownVoidsFromHistory(view.history, view.trump);
+  const defenderPoints = (features.riskLeadDefThresholdBonus ||
+    features.riskLeadDeclThresholdPenalty) ? defenderPointsFromHistory(view) : 0;
+  let partnerReturnSuit = null;
+  let selfContinueSuit = null;
+  if (view.history.length >= 4) {
+    const priorLead = view.history[view.history.length - 4];
+    const priorClass = E.classify(priorLead.cards, view.trump);
+    if (priorClass) {
+      if (priorLead.seat === view.seat) selfContinueSuit = priorClass.suit;
+      else if (priorLead.seat % 2 === view.myTeam) partnerReturnSuit = priorClass.suit;
+    }
+  }
+  for (const action of actions.values()) {
+    const play = E.classify(action.cards, view.trump);
+    const unknown = unknownCardsOfSuit(view, play.suit);
+    const threats = play.type === 'throw' ? play.comps.reduce((sum, comp) =>
+      sum + componentThreatCount(unknown, comp, view.trump), 0) :
+      componentThreatCount(unknown, play, view.trump);
+    const suitLen = bySuit.get(play.suit).length;
+    const role = view.myTeam === view.declSeat % 2 ? 'declarer' : 'defender';
+    const knownVoidOpponents = play.suit === 'T' ? 0 : [1, 3].filter((offset) =>
+      voids[(view.seat + offset) % 4].has(play.suit)).length;
+    const harmlessVoidOpponents = play.suit === 'T' ? 0 : [1, 3].filter((offset) => {
+      const seatVoids = voids[(view.seat + offset) % 4];
+      return seatVoids.has(play.suit) && seatVoids.has('T');
+    }).length;
+    const partnerKnownVoid = play.suit !== 'T' &&
+      voids[(view.seat + 2) % 4].has(play.suit);
+    const actionPoints = E.countPoints(action.cards);
+    const crossesThreshold = actionPoints > 0 && scoreOutcomeKey(defenderPoints) !==
+      scoreOutcomeKey(defenderPoints + actionPoints);
+    action.play = play;
+    action.score = (action.isBase ? features.riskLeadBase : 0) -
+      features.riskLeadRisk * Math.log2(1 + threats) +
+      features.riskLeadLen * (action.cards.length - 1) +
+      features.riskLeadSuitLen * suitLen + features.riskLeadTop * play.top +
+      (play.suit === 'T' ? features.riskLeadTrump : 0) +
+      (play.type === 'pair' ? features.riskLeadPair : 0) +
+      (play.type === 'tractor' ? features.riskLeadTractor : 0) +
+      (play.type === 'throw' ? features.riskLeadThrow : 0) +
+      features.riskLeadPoints * E.countPoints(action.cards) -
+      features.riskLeadKnownVoid * knownVoidOpponents +
+      (features.riskLeadOpponentNoTrumpVoidRole === 'all' ||
+        features.riskLeadOpponentNoTrumpVoidRole === role ?
+        features.riskLeadOpponentNoTrumpVoidBonus * harmlessVoidOpponents : 0) +
+      (partnerKnownVoid && (!features.riskLeadPartnerVoidSafeOnly ||
+        knownVoidOpponents === 0) ? features.riskLeadPartnerVoid : 0) +
+      (partnerReturnSuit !== null && play.suit === partnerReturnSuit ?
+        features.riskLeadPartnerReturn : 0) +
+      (selfContinueSuit !== null && play.suit === selfContinueSuit ?
+        features.riskLeadSelfContinue : 0) +
+      (role === 'defender' && view.trickNo >= 5 && view.trickNo < 15 &&
+        play.suit !== 'T' && play.type === 'single' && play.top > 4 && play.top <= 9 ?
+        -features.riskLeadDefMiddleMidSingle : 0) +
+      (role === 'defender' && crossesThreshold ? features.riskLeadDefThresholdBonus : 0) +
+      (role === 'declarer' && crossesThreshold ? -features.riskLeadDeclThresholdPenalty : 0) +
+      (action.splitPair ? -features.riskLeadSplitPairPenalty : 0) +
+      (role === 'defender' && view.trickNo < 5 && action.cards.length > 1 ?
+        features.riskLeadDefEarlyMulti : 0);
+  }
+  return [...actions.values()].sort((a, b) => b.score - a.score ||
+    b.cards.length - a.cards.length || b.play.top - a.play.top ||
+    byId(a.cards[0], b.cards[0]))[0].cards.slice();
+}
+
+function chooseLead(view, features = FEATURES) {
+  if (features.riskLeadPolicy) return chooseRiskLead(view, features);
+  const groups = groupCards(view.hand);
+  const hasTractorForLead = E.SUITS.concat('T').some((suit) =>
+    E.decompose(view.hand.filter((card) => E.effSuit(card, view.trump) === suit), view.trump)
+      .some((comp) => comp.type === 'tractor'));
+  const drawTrumpLimit = features.declarerDrawTrumpFive ? 5 :
+    (features.declarerDrawTrumpTwo ? 2 : 3);
+  const hasPairForLead = [...groups.values()].some((group) => group.length >= 2);
+  if (features.declarerDrawTrumpEarly && view.myTeam === view.declSeat % 2 &&
+      view.trickNo < drawTrumpLimit &&
+      (!features.preferCombosOverEarlyDraw || !hasPairForLead)) {
+    const drawCards = view.hand.filter((card) =>
+      E.effSuit(card, view.trump) === 'T' && E.cardPoints(card) === 0 &&
+      groups.get(`${card.suit}:${card.rank}`).length === 1);
+    if (drawCards.length > 0) {
+      drawCards.sort((a, b) => E.ordIdx(a, view.trump) - E.ordIdx(b, view.trump) || byId(a, b));
+      if (features.declarerRiskComboOverDraw) {
+        const bySuit = new Map();
+        for (const card of view.hand) {
+          const suit = E.effSuit(card, view.trump);
+          if (!bySuit.has(suit)) bySuit.set(suit, []);
+          bySuit.get(suit).push(card);
+        }
+        const candidates = [];
+        for (const group of groups.values()) {
+          if (group.length >= 2) candidates.push(group.slice(0, 2));
+        }
+        for (const suitCards of bySuit.values()) {
+          for (const comp of E.decompose(suitCards, view.trump)) {
+            if (comp.type === 'tractor') candidates.push(comp.cards);
+          }
+        }
+        function riskScore(cards, isBase) {
+          const play = E.classify(cards, view.trump);
+          const unknown = unknownCardsOfSuit(view, play.suit);
+          const threats = componentThreatCount(unknown, play, view.trump);
+          const suitLen = bySuit.get(play.suit).length;
+          return (isBase ? 10 : 0) - 5 * Math.log2(1 + threats) +
+            7 * (cards.length - 1) - 2 * suitLen - play.top +
+            (play.suit === 'T' ? 5 : 0) + (play.type === 'pair' ? 5 : 0);
+        }
+        const baseScore = riskScore([drawCards[0]], true);
+        const better = candidates.map((cards) => ({ cards, score: riskScore(cards, false) }))
+          .filter((candidate) => candidate.score > baseScore)
+          .sort((a, b) => b.score - a.score || b.cards.length - a.cards.length ||
+            byId(a.cards[0], b.cards[0]));
+        if (better.length > 0) return better[0].cards.slice();
+      }
+      return [drawCards[0]];
+    }
+  }
+  if (features.leadProvenThrow &&
+      !(features.preferTractorOverProvenThrow && hasTractorForLead)) {
+    const bySuit = new Map();
+    for (const card of view.hand) {
+      const suit = E.effSuit(card, view.trump);
+      if (!bySuit.has(suit)) bySuit.set(suit, []);
+      bySuit.get(suit).push(card);
+    }
+    const knownVoids = knownVoidsFromHistory(view.history, view.trump);
+    const throws = [];
+    for (const [suit, suitCards] of bySuit) {
+      if (features.avoidLateSideThrow && suit !== 'T' && view.trickNo >= 15) continue;
+      const opponentKnownVoid = suit !== 'T' && [1, 3].some((offset) =>
+        knownVoids[(view.seat + offset) % 4].has(suit));
+      if (opponentKnownVoid && (!features.allowKnownVoidSideThrow ||
+          (features.avoidDefenderKnownVoidMiddleThrow &&
+            view.myTeam !== view.declSeat % 2 && view.trickNo >= 5 && view.trickNo < 15))) continue;
+      const unknown = unknownCardsOfSuit(view, suit);
+      const components = E.decompose(suitCards, view.trump);
+      const safe = components.filter((comp) => !E.canBeatComp(unknown, comp, view.trump));
+      let selected = safe.slice();
+      if (features.limitThrowComponentsTwo && selected.length > 2) {
+        selected = selected.slice().sort((a, b) => b.top - a.top).slice(0, 2);
+      }
+      if (features.allowOneThreatThrow) {
+        const nearSafe = components.filter((comp) => !safe.includes(comp) &&
+          componentThreatCount(unknown, comp, view.trump) === 1)
+          .sort((a, b) => b.top - a.top);
+        if (nearSafe.length > 0) selected.push(nearSafe[0]);
+      }
+      if (selected.length < 2) continue;
+      const cards = selected.flatMap((comp) => comp.cards);
+      const play = E.classify(cards, view.trump);
+      if (play && play.type === 'throw') throws.push(play);
+    }
+    if (throws.length > 0) {
+      throws.sort((a, b) => (features.preferTrumpThrow ?
+        ((b.suit === 'T' ? 1 : 0) - (a.suit === 'T' ? 1 : 0)) : 0) ||
+        b.cards.length - a.cards.length || b.top - a.top ||
+        byId(a.cards[0], b.cards[0]));
+      return throws[0].cards.slice();
+    }
+  }
+  const bossPhase = view.trickNo < 5 ? 'early' : view.trickNo < 15 ? 'middle' : 'late';
+  if ((features.cashDeclarerBossPoints && view.myTeam === view.declSeat % 2 &&
+       (features.cashDeclarerBossPhase === 'all' ||
+        features.cashDeclarerBossPhase === bossPhase)) ||
+      ((features.cashDefenderBossPoints || features.cashDefenderBossThreshold) &&
+        view.myTeam !== view.declSeat % 2 &&
+        (features.cashDefenderBossPhase === 'all' ||
+          features.cashDefenderBossPhase === bossPhase ||
+          (features.cashDefenderBossPhase === 'afterEarly' && view.trickNo >= 5)))) {
+    const candidates = view.hand.filter((card) =>
+      E.effSuit(card, view.trump) !== 'T' && E.cardPoints(card) > 0 &&
+      groups.get(`${card.suit}:${card.rank}`).length === 1);
+    let bosses = candidates.filter((candidate) =>
+      pointLeadThreatCount(candidate, view, features.cashBossUseBuriedKnown) <=
+        features.cashDeclarerPointThreatLimit);
+    if (view.myTeam !== view.declSeat % 2) {
+      bosses = bosses.filter((candidate) =>
+        E.cardPoints(candidate) >= features.cashDefenderBossMinPoints);
+    }
+    if (features.cashBossKnownVoidMode !== 'none') {
+      const knownVoids = knownVoidsFromHistory(view.history, view.trump);
+      bosses = bosses.filter((candidate) => {
+        const suit = E.effSuit(candidate, view.trump);
+        const nextVoid = knownVoids[(view.seat + 1) % 4].has(suit);
+        const lastVoid = knownVoids[(view.seat + 3) % 4].has(suit);
+        if (features.cashBossKnownVoidMode === 'next') return !nextVoid;
+        if (features.cashBossKnownVoidMode === 'last') return !lastVoid;
+        return !nextVoid && !lastVoid;
+      });
+    }
+    if (features.cashDefenderBossThreshold && !features.cashDefenderBossPoints &&
+        view.myTeam !== view.declSeat % 2) {
+      const currentPoints = defenderPointsFromHistory(view);
+      bosses = bosses.filter((candidate) => scoreOutcomeKey(currentPoints) !==
+        scoreOutcomeKey(currentPoints + E.cardPoints(candidate)));
+    }
+    if (bosses.length > 0) {
+      bosses.sort((a, b) =>
+        (features.cashBossPointsFirst ? E.cardPoints(b) - E.cardPoints(a) : 0) ||
+        (features.cashBossShortSuitFirst ?
+          (view.hand.filter((card) => E.effSuit(card, view.trump) ===
+            E.effSuit(a, view.trump)).length -
+           view.hand.filter((card) => E.effSuit(card, view.trump) ===
+            E.effSuit(b, view.trump)).length) : 0) ||
+        E.ordIdx(b, view.trump) - E.ordIdx(a, view.trump) || byId(a, b));
+      return [bosses[0]];
+    }
+  }
+  if (features.cashTractors) {
+    const bySuit = new Map();
+    for (const card of view.hand) {
+      const suit = E.effSuit(card, view.trump);
+      if (!bySuit.has(suit)) bySuit.set(suit, []);
+      bySuit.get(suit).push(card);
+    }
+    const tractors = [];
+    for (const suitCards of bySuit.values()) {
+      tractors.push(...E.decompose(suitCards, view.trump)
+        .filter((comp) => comp.type === 'tractor'));
+    }
+    if (tractors.length > 0) {
+      tractors.sort((a, b) =>
+        (features.preferSideTractors ?
+          ((E.effSuit(a.cards[0], view.trump) === 'T' ? 1 : 0) -
+            (E.effSuit(b.cards[0], view.trump) === 'T' ? 1 : 0)) : 0) ||
+        b.len - a.len || b.top - a.top || byId(a.cards[0], b.cards[0]));
+      const chosenTractor = tractors[0];
+      if (features.capTractorLengthTwo && chosenTractor.len > 2) {
+        return chosenTractor.cards.slice((chosenTractor.len - 2) * 2);
+      }
+      return chosenTractor.cards.slice();
+    }
+  }
+  if (features.leadBossSidePairs || (features.leadSafeBossPairsEarly && view.trickNo < 5)) {
+    const bossPairs = [...groups.values()].filter((group) => {
+      if (group.length < 2 || E.effSuit(group[0], view.trump) === 'T') return false;
+      if (features.leadSafeBossPairsEarly && !features.leadBossSidePairs &&
+          E.cardPoints(group[0]) > 0) return false;
+      const suit = group[0].suit;
+      let maxSideOrder = -1;
+      for (let rank = 2; rank <= 14; rank += 1) {
+        const probe = { suit, rank };
+        if (E.effSuit(probe, view.trump) === suit) {
+          maxSideOrder = Math.max(maxSideOrder, E.ordIdx(probe, view.trump));
+        }
+      }
+      return E.ordIdx(group[0], view.trump) === maxSideOrder;
+    });
+    if (bossPairs.length > 0) {
+      bossPairs.sort((a, b) => E.cardPoints(b[0]) - E.cardPoints(a[0]) ||
+        E.ordIdx(b[0], view.trump) - E.ordIdx(a[0], view.trump) || byId(a[0], b[0]));
+      return bossPairs[0].slice(0, 2);
+    }
+  }
+  const defenderPairDelay = features.defenderDelayPairsThree ? 3 :
+    (features.defenderDelayPairsEight ? 8 : 5);
+  if (features.leadBestPair && features.defenderDelayPairsEarly &&
+      features.defenderAllowControlledPairsEarly &&
+      view.myTeam !== view.declSeat % 2 && view.trickNo < defenderPairDelay) {
+    const controlledPairs = [...groups.values()].filter((group) => group.length >= 2 &&
+      pairThreatCount(group[0], view) <= features.defenderEarlyPairThreatLimit);
+    if (controlledPairs.length > 0) {
+      controlledPairs.sort((a, b) =>
+        E.ordIdx(b[0], view.trump) - E.ordIdx(a[0], view.trump) || byId(a[0], b[0]));
+      return controlledPairs[0].slice(0, 2);
+    }
+  }
+  if (features.leadBestPair && !(features.defenderDelayPairsEarly &&
+      view.myTeam !== view.declSeat % 2 && view.trickNo < defenderPairDelay) &&
+      !(features.declarerDelayPairsEarly && view.myTeam === view.declSeat % 2 &&
+        view.trickNo < 5) &&
+      !(features.declarerDelayPairsMiddle && view.myTeam === view.declSeat % 2 &&
+        view.trickNo >= 5 && view.trickNo < 15)) {
+    const pairs = [...groups.values()].filter((group) => group.length >= 2);
+    if (pairs.length > 0) {
+      pairs.sort((a, b) =>
+        (features.pairThreatOrdering ? pairThreatCount(a[0], view) -
+          pairThreatCount(b[0], view) : 0) ||
+        (features.leadPointPairsFirst ? E.cardPoints(b[0]) - E.cardPoints(a[0]) : 0) ||
+        (features.declarerPreferTrumpPairs && view.myTeam === view.declSeat % 2 ?
+          ((E.effSuit(b[0], view.trump) === 'T' ? 1 : 0) -
+            (E.effSuit(a[0], view.trump) === 'T' ? 1 : 0)) : 0) ||
+        E.ordIdx(b[0], view.trump) - E.ordIdx(a[0], view.trump) ||
+        byId(a[0], b[0]));
+      const role = view.myTeam === view.declSeat % 2 ? 'declarer' : 'defender';
+      if (features.leadLongLowSingletonOverPair &&
+          (features.longLowSingletonRole === 'all' ||
+            features.longLowSingletonRole === role)) {
+        const suitLengths = new Map();
+        for (const card of view.hand) {
+          const suit = E.effSuit(card, view.trump);
+          suitLengths.set(suit, (suitLengths.get(suit) || 0) + 1);
+        }
+        const pair = pairs[0];
+        const pairSuit = E.effSuit(pair[0], view.trump);
+        const pairScore = 12 - E.ordIdx(pair[0], view.trump) + suitLengths.get(pairSuit);
+        const singletons = view.hand.filter((card) =>
+          groups.get(`${card.suit}:${card.rank}`).length === 1)
+          .map((card) => ({
+            card,
+            score: suitLengths.get(E.effSuit(card, view.trump)) - E.ordIdx(card, view.trump),
+          }))
+          .sort((a, b) => b.score - a.score || byId(a.card, b.card));
+        if (singletons.length > 0 && singletons[0].score > pairScore) {
+          return [singletons[0].card];
+        }
+      }
+      return pairs[0].slice(0, 2);
+    }
+  }
+  if (features.cashHighSidePairs) {
+    const pairGroups = [...groups.values()].filter((group) =>
+      group.length >= 2 && E.effSuit(group[0], view.trump) !== 'T' &&
+      E.cardPoints(group[0]) === 0 && E.ordIdx(group[0], view.trump) >= 8);
+    if (pairGroups.length > 0) {
+      pairGroups.sort((a, b) => E.ordIdx(b[0], view.trump) - E.ordIdx(a[0], view.trump) ||
+        byId(a[0], b[0]));
+      return pairGroups[0].slice(0, 2);
+    }
+  }
+  if (features.cashHighSideSingles) {
+    let cashable = view.hand.filter((card) =>
+      E.effSuit(card, view.trump) !== 'T' && E.cardPoints(card) === 0 &&
+      groups.get(`${card.suit}:${card.rank}`).length === 1);
+    if ((features.avoidKnownOpponentVoidLead || features.declarerForceKnownVoid ||
+        features.leadPartnerVoidSuit) &&
+        cashable.length > 1) {
+      const knownVoids = knownVoidsFromHistory(view.history, view.trump);
+      if (features.leadPartnerVoidSuit) {
+        const partnerSuit = cashable.filter((card) =>
+          knownVoids[(view.seat + 2) % 4].has(E.effSuit(card, view.trump)));
+        if (partnerSuit.length > 0) cashable = partnerSuit;
+      } else if (features.declarerForceKnownVoid && view.myTeam === view.declSeat % 2) {
+        const forcing = cashable.filter((card) => {
+          const suit = E.effSuit(card, view.trump);
+          return [1, 3].some((offset) => knownVoids[(view.seat + offset) % 4].has(suit));
+        });
+        if (forcing.length > 0) cashable = forcing;
+      } else if (features.avoidKnownOpponentVoidLead) {
+        const safe = cashable.filter((card) => {
+          const suit = E.effSuit(card, view.trump);
+          return [1, 3].every((offset) => !knownVoids[(view.seat + offset) % 4].has(suit));
+        });
+        if (safe.length > 0) cashable = safe;
+      }
+    }
+    if (cashable.length > 0) {
+      const suitCounts = new Map();
+      for (const card of view.hand) {
+        const suit = E.effSuit(card, view.trump);
+        if (suit !== 'T') suitCounts.set(suit, (suitCounts.get(suit) || 0) + 1);
+      }
+      cashable.sort((a, b) =>
+        ((features.preferShortSuitCash ||
+          (features.defenderPreferShortSuitMiddle && view.myTeam !== view.declSeat % 2 &&
+            view.trickNo >= 5 && view.trickNo < 15)) ?
+          (suitCounts.get(a.suit) - suitCounts.get(b.suit)) : 0) ||
+        (useSingleThreatOrdering(view, features) ? singleThreatCount(a, view) -
+          singleThreatCount(b, view) : 0) ||
+        E.ordIdx(b, view.trump) - E.ordIdx(a, view.trump) || byId(a, b));
+      if (features.defenderDuckMidSinglesEarly && view.myTeam !== view.declSeat % 2 &&
+          view.trickNo < 5 && E.ordIdx(cashable[0], view.trump) <= 9) {
+        cashable.sort((a, b) => E.ordIdx(a, view.trump) - E.ordIdx(b, view.trump) || byId(a, b));
+      }
+      if (features.defenderDuckMidSinglesMiddle && view.myTeam !== view.declSeat % 2 &&
+          view.trickNo >= 5 && view.trickNo < 15 &&
+          E.ordIdx(cashable[0], view.trump) <= 9) {
+        cashable.sort((a, b) => E.ordIdx(a, view.trump) - E.ordIdx(b, view.trump) || byId(a, b));
+      }
+      return [cashable[0]];
+    }
+  }
+  const sorted = view.hand.slice().sort((a, b) =>
+    playCost(a, view.trump, groups, features) - playCost(b, view.trump, groups, features) ||
+    byId(a, b));
+  if (features.defenderAvoidMidTrumpLead && view.myTeam !== view.declSeat % 2 &&
+      view.trickNo >= 5 && view.trickNo < 15 &&
+      E.effSuit(sorted[0], view.trump) === 'T') {
+    const sideSingles = view.hand.filter((card) =>
+      E.effSuit(card, view.trump) !== 'T' &&
+      groups.get(`${card.suit}:${card.rank}`).length === 1)
+      .sort((a, b) => E.cardPoints(a) - E.cardPoints(b) ||
+        E.ordIdx(a, view.trump) - E.ordIdx(b, view.trump) || byId(a, b));
+    if (sideSingles.length > 0) return [sideSingles[0]];
+  }
+  return [sorted[0]];
+}
+
+function addCards(selected, selectedIds, cards) {
+  for (const card of cards) {
+    if (!selectedIds.has(card.id)) {
+      selected.push(card);
+      selectedIds.add(card.id);
+    }
+  }
+}
+
+function lowCardOrder(a, b, trump) {
+  const at = E.effSuit(a, trump) === 'T' ? 1 : 0;
+  const bt = E.effSuit(b, trump) === 'T' ? 1 : 0;
+  return E.cardPoints(a) - E.cardPoints(b) || at - bt ||
+    E.ordIdx(a, trump) - E.ordIdx(b, trump) || byId(a, b);
+}
+
+function chooseLegalFollow(hand, leadInput, trump, rules = E.DEFAULT_RULES) {
+  const lead = Array.isArray(leadInput) ? E.classify(leadInput, trump) : leadInput;
+  const n = lead.cards.length;
+  const suitCards = hand.filter((card) => E.effSuit(card, trump) === lead.suit);
+  const selected = [];
+  const selectedIds = new Set();
+
+  if (suitCards.length <= n) {
+    addCards(selected, selectedIds, suitCards);
+    const rest = hand.filter((card) => !selectedIds.has(card.id))
+      .sort((a, b) => lowCardOrder(a, b, trump));
+    addCards(selected, selectedIds, rest.slice(0, n - selected.length));
+    return selected;
+  }
+
+  if (rules.strictTractorFollow !== false && lead.type === 'tractor') {
+    const tractors = E.decompose(suitCards, trump)
+      .filter((comp) => comp.type === 'tractor')
+      .sort((a, b) => b.len - a.len || a.top - b.top);
+    const longest = tractors.length ? tractors[0].len : 0;
+    let required = 0;
+    if (longest >= lead.len) required = lead.len;
+    else if (rules.partialTractorFollow !== false && longest >= 2) required = longest;
+    if (required > 0) {
+      const source = tractors.find((comp) => comp.len >= required);
+      addCards(selected, selectedIds, source.cards.slice(0, required * 2));
+    }
+  }
+
+  const mustPairs = Math.min(E.pairNeed(lead), E.countPairsIn(suitCards));
+  const groups = [...groupCards(suitCards).values()]
+    .filter((group) => group.length >= 2)
+    .sort((a, b) => lowCardOrder(a[0], b[0], trump));
+  for (const group of groups) {
+    if (E.countPairsIn(selected) >= mustPairs) break;
+    if (selected.length + 2 <= n) addCards(selected, selectedIds, group.slice(0, 2));
+  }
+
+  const rest = suitCards.filter((card) => !selectedIds.has(card.id))
+    .sort((a, b) => lowCardOrder(a, b, trump));
+  addCards(selected, selectedIds, rest.slice(0, n - selected.length));
+
+  if (!E.isLegalFollow(hand, lead, selected, trump, rules)) {
+    // This path should be unreachable for a valid lead. Keeping a conservative
+    // fallback prevents an exception from turning a recoverable hand into a penalty.
+    return suitCards.slice(0, n);
+  }
+  return selected;
+}
+
+function chooseHighPointLegalFollow(hand, leadInput, trump, rules = E.DEFAULT_RULES) {
+  const lead = Array.isArray(leadInput) ? E.classify(leadInput, trump) : leadInput;
+  const n = lead.cards.length;
+  const suitCards = hand.filter((card) => E.effSuit(card, trump) === lead.suit);
+  const selected = [];
+  const selectedIds = new Set();
+  const highPointOrder = (a, b) => E.cardPoints(b) - E.cardPoints(a) ||
+    lowCardOrder(a, b, trump);
+
+  if (suitCards.length <= n) {
+    addCards(selected, selectedIds, suitCards);
+    const rest = hand.filter((card) => !selectedIds.has(card.id)).sort(highPointOrder);
+    addCards(selected, selectedIds, rest.slice(0, n - selected.length));
+    return selected;
+  }
+
+  if (rules.strictTractorFollow !== false && lead.type === 'tractor') {
+    const tractors = E.decompose(suitCards, trump)
+      .filter((comp) => comp.type === 'tractor');
+    const longest = tractors.reduce((value, comp) => Math.max(value, comp.len), 0);
+    let required = 0;
+    if (longest >= lead.len) required = lead.len;
+    else if (rules.partialTractorFollow !== false && longest >= 2) required = longest;
+    if (required > 0) {
+      const windows = [];
+      for (const comp of tractors) {
+        if (comp.len < required) continue;
+        for (let start = 0; start + required <= comp.len; start += 1) {
+          windows.push(comp.cards.slice(start * 2, (start + required) * 2));
+        }
+      }
+      windows.sort((a, b) => E.countPoints(b) - E.countPoints(a) ||
+        E.ordIdx(a[0], trump) - E.ordIdx(b[0], trump) || byId(a[0], b[0]));
+      if (windows.length > 0) addCards(selected, selectedIds, windows[0]);
+    }
+  }
+
+  const mustPairs = Math.min(E.pairNeed(lead), E.countPairsIn(suitCards));
+  const groups = [...groupCards(suitCards).values()]
+    .filter((group) => group.length >= 2 && !selectedIds.has(group[0].id))
+    .sort((a, b) => E.countPoints(b.slice(0, 2)) - E.countPoints(a.slice(0, 2)) ||
+      lowCardOrder(a[0], b[0], trump));
+  for (const group of groups) {
+    if (E.countPairsIn(selected) >= mustPairs) break;
+    if (selected.length + 2 <= n) addCards(selected, selectedIds, group.slice(0, 2));
+  }
+
+  const rest = suitCards.filter((card) => !selectedIds.has(card.id)).sort(highPointOrder);
+  addCards(selected, selectedIds, rest.slice(0, n - selected.length));
+  return E.isLegalFollow(hand, lead, selected, trump, rules) ? selected :
+    chooseLegalFollow(hand, lead, trump, rules);
+}
+
+function partialWinner(plays, trump) {
+  const lead = E.classify(plays[0].cards, trump);
+  if (!lead) return plays[0].seat;
+  const structure = E.structureKey(lead);
+  let best = lead;
+  let winner = plays[0].seat;
+  for (let i = 1; i < plays.length; i += 1) {
+    const candidate = E.classify(plays[i].cards, trump);
+    if (!candidate || E.structureKey(candidate) !== structure) continue;
+    if (candidate.suit === best.suit) {
+      if (candidate.top > best.top) {
+        best = candidate;
+        winner = plays[i].seat;
+      }
+    } else if (candidate.suit === 'T') {
+      best = candidate;
+      winner = plays[i].seat;
+    }
+  }
+  return winner;
+}
+
+function defenderPointsFromHistory(view) {
+  const completedLength = view.history.length - (view.history.length % 4);
+  let points = 0;
+  for (let i = 0; i < completedLength; i += 4) {
+    const trick = view.history.slice(i, i + 4);
+    const resolved = E.resolveTrick(trick, view.trump);
+    if (resolved.winner % 2 !== view.declSeat % 2) points += resolved.points;
+  }
+  return points;
+}
+
+function scoreOutcomeKey(points) {
+  const score = E.scoreRound(Math.max(0, Math.min(200, points)), [], false, 1);
+  return `${score.declarerWon ? 'D' : 'F'}:${score.up}`;
+}
+
+function useTakeWithPointsSecond(view, plays, features) {
+  if (!features.takeWithPointsSecond || plays.length !== 1) return false;
+  const role = view.myTeam === view.declSeat % 2 ? 'declarer' : 'defender';
+  const trick = E.countPoints(plays[0].cards) > 0 ? 'points' : 'empty';
+  return (features.takeWithPointsSecondRole === 'all' ||
+      features.takeWithPointsSecondRole === role) &&
+    (features.takeWithPointsSecondTrick === 'all' ||
+      features.takeWithPointsSecondTrick === trick);
+}
+
+function usePreservePairPointTake(plays, features) {
+  if (!features.preservePairBeforePointTake) return false;
+  const position = plays.length === 3 ? 'last' : plays.length === 1 ? 'second' : 'other';
+  return features.preservePairPointTakePosition === 'all' ||
+    features.preservePairPointTakePosition === position;
+}
+
+function unknownCanBeatCurrent(plays, view, allowThrow = false, allowSingle = false) {
+  const winner = partialWinner(plays, view.trump);
+  const winningPlay = plays.find((item) => item.seat === winner);
+  const winningClass = winningPlay && E.classify(winningPlay.cards, view.trump);
+  if (!winningClass || (winningClass.type !== 'pair' && winningClass.type !== 'tractor' &&
+      !(allowThrow && winningClass.type === 'throw') &&
+      !(allowSingle && winningClass.type === 'single'))) {
+    return true;
+  }
+  const knownIds = new Set(view.hand.map((card) => card.id));
+  for (const item of view.history) {
+    for (const card of item.cards) knownIds.add(card.id);
+  }
+  for (const card of view.buriedKnown || []) knownIds.add(card.id);
+  const unknown = E.makeDeck().filter((card) => !knownIds.has(card.id));
+  const components = winningClass.type === 'throw' ? winningClass.comps : [winningClass];
+  const sameSuit = unknown.filter((card) =>
+    E.effSuit(card, view.trump) === winningClass.suit);
+  if (components.some((comp) => E.canBeatComp(sameSuit, comp, view.trump))) return true;
+  if (winningClass.suit !== 'T') {
+    const trumps = unknown.filter((card) => E.effSuit(card, view.trump) === 'T');
+    if (components.some((comp) =>
+      E.canBeatComp(trumps, Object.assign({}, comp, { top: -1 }), view.trump))) return true;
+  }
+  return false;
+}
+
+function unknownSameSuitCanBeatCurrent(plays, view) {
+  const winner = partialWinner(plays, view.trump);
+  const winningPlay = plays.find((item) => item.seat === winner);
+  const winningClass = winningPlay && E.classify(winningPlay.cards, view.trump);
+  if (!winningClass) return true;
+  const unknown = unknownCardsOfSuit(view, winningClass.suit);
+  const components = winningClass.type === 'throw' ? winningClass.comps : [winningClass];
+  return components.some((comp) => E.canBeatComp(unknown, comp, view.trump));
+}
+
+function sameSuitThreatCountCurrent(plays, view) {
+  const winner = partialWinner(plays, view.trump);
+  const winningPlay = plays.find((item) => item.seat === winner);
+  const winningClass = winningPlay && E.classify(winningPlay.cards, view.trump);
+  if (!winningClass) return Infinity;
+  const unknown = unknownCardsOfSuit(view, winningClass.suit);
+  const components = winningClass.type === 'throw' ? winningClass.comps : [winningClass];
+  return components.reduce((sum, comp) =>
+    sum + componentThreatCount(unknown, comp, view.trump), 0);
+}
+
+function unknownCanBuildBeatingThrowExact(plays, view) {
+  const winner = partialWinner(plays, view.trump);
+  const winningPlay = plays.find((item) => item.seat === winner);
+  const winningClass = winningPlay && E.classify(winningPlay.cards, view.trump);
+  if (!winningClass || winningClass.type !== 'throw') return true;
+  const unknown = unknownCardsOfSuit(view, winningClass.suit);
+  const groups = [...groupCards(unknown).values()];
+  const remaining = Array(groups.length + 1).fill(0);
+  for (let i = groups.length - 1; i >= 0; i -= 1) {
+    remaining[i] = remaining[i + 1] + groups[i].length;
+  }
+  const n = winningClass.cards.length;
+  const structure = E.structureKey(winningClass);
+  let leaves = 0;
+  let found = false;
+  function visit(index, selected) {
+    if (found || selected.length > n || selected.length + remaining[index] < n) return;
+    if (selected.length === n) {
+      leaves += 1;
+      if (leaves > 12000) {
+        found = true;
+        return;
+      }
+      const candidate = E.classify(selected, view.trump);
+      if (candidate && E.structureKey(candidate) === structure &&
+          candidate.top > winningClass.top) found = true;
+      return;
+    }
+    if (index >= groups.length) return;
+    const group = groups[index];
+    if (group.length >= 2 && selected.length + 2 <= n) {
+      visit(index + 1, selected.concat(group.slice(0, 2)));
+    }
+    if (selected.length + 1 <= n) visit(index + 1, selected.concat(group[0]));
+    visit(index + 1, selected);
+  }
+  visit(0, []);
+  return found;
+}
+
+function chooseWinningThrowFollow(view, plays, preferPoints = false) {
+  const lead = E.classify(plays[0].cards, view.trump);
+  if (!lead || lead.type !== 'throw') return null;
+  const n = lead.cards.length;
+  const inSuit = view.hand.filter((card) => E.effSuit(card, view.trump) === lead.suit);
+  let source;
+  if (inSuit.length >= n) source = inSuit;
+  else if (inSuit.length === 0 && lead.suit !== 'T') {
+    source = view.hand.filter((card) => E.effSuit(card, view.trump) === 'T');
+    if (source.length < n) return null;
+  } else return null;
+
+  const groups = [...groupCards(source).values()].sort((a, b) =>
+    E.ordIdx(b[0], view.trump) - E.ordIdx(a[0], view.trump) || byId(a[0], b[0]));
+  const remaining = Array(groups.length + 1).fill(0);
+  for (let i = groups.length - 1; i >= 0; i -= 1) {
+    remaining[i] = remaining[i + 1] + groups[i].length;
+  }
+  let leaves = 0;
+  let best = null;
+  let bestCost = Infinity;
+  function visit(index, selected) {
+    if (leaves >= 12000 || selected.length > n ||
+        selected.length + remaining[index] < n) return;
+    if (selected.length === n) {
+      leaves += 1;
+      const play = E.classify(selected, view.trump);
+      if (!play || E.structureKey(play) !== E.structureKey(lead) ||
+          !E.isLegalFollow(view.hand, lead, selected, view.trump, E.DEFAULT_RULES) ||
+          partialWinner([...plays, { seat: view.seat, cards: selected }], view.trump) !==
+            view.seat) return;
+      const cost = selected.reduce((sum, card) => sum + E.ordIdx(card, view.trump) +
+        E.cardPoints(card) * (preferPoints ? -100 : 2) +
+        (E.effSuit(card, view.trump) === 'T' ? 12 : 0), 0);
+      if (cost < bestCost) {
+        bestCost = cost;
+        best = selected.slice();
+      }
+      return;
+    }
+    if (index >= groups.length) return;
+    const group = groups[index];
+    if (group.length >= 2 && selected.length + 2 <= n) {
+      visit(index + 1, selected.concat(group.slice(0, 2)));
+    }
+    if (selected.length + 1 <= n) visit(index + 1, selected.concat(group[0]));
+    visit(index + 1, selected);
+  }
+  visit(0, []);
+  return best;
+}
+
+function chooseTacticalFollow(view, plays, features = FEATURES) {
+  const lead = E.classify(plays[0].cards, view.trump);
+  const low = chooseLegalFollow(view.hand, lead, view.trump, E.DEFAULT_RULES);
+  if (!features.takeWhenNeeded) return low;
+  const winner = partialWinner(plays, view.trump);
+  if (features.feedPartnerMultiLast && lead.cards.length > 1 && plays.length === 3 &&
+      winner % 2 === view.myTeam) {
+    return chooseHighPointLegalFollow(view.hand, lead, view.trump, E.DEFAULT_RULES);
+  }
+  if (features.feedPartnerMultiProvenThird && lead.cards.length > 1 && plays.length === 2 &&
+      winner % 2 === view.myTeam &&
+      !unknownCanBeatCurrent(plays, view, features.feedPartnerThrowProvenThird)) {
+    return chooseHighPointLegalFollow(view.hand, lead, view.trump, E.DEFAULT_RULES);
+  }
+  if (features.feedPartnerBossPairThird && lead.type === 'pair' && plays.length === 2 &&
+      winner % 2 === view.myTeam && !unknownSameSuitCanBeatCurrent(plays, view)) {
+    const knownVoids = knownVoidsFromHistory(view.history, view.trump);
+    const lastSeat = (view.seat + 1) % 4;
+    if (lead.suit === 'T' || !knownVoids[lastSeat].has(lead.suit)) {
+      return chooseHighPointLegalFollow(view.hand, lead, view.trump, E.DEFAULT_RULES);
+    }
+  }
+  if (features.feedPartnerPairOneThreatThird && lead.type === 'pair' && plays.length === 2 &&
+      winner % 2 === view.myTeam && sameSuitThreatCountCurrent(plays, view) <= 1) {
+    const knownVoids = knownVoidsFromHistory(view.history, view.trump);
+    const lastSeat = (view.seat + 1) % 4;
+    if (lead.suit === 'T' || !knownVoids[lastSeat].has(lead.suit)) {
+      return chooseHighPointLegalFollow(view.hand, lead, view.trump, E.DEFAULT_RULES);
+    }
+  }
+  if (features.feedPartnerPairAlwaysThird && lead.type === 'pair' && plays.length === 2 &&
+      winner % 2 === view.myTeam) {
+    return chooseHighPointLegalFollow(view.hand, lead, view.trump, E.DEFAULT_RULES);
+  }
+  if (features.feedPartnerBossThrowThird && lead.type === 'throw' && plays.length === 2 &&
+      winner % 2 === view.myTeam && !unknownSameSuitCanBeatCurrent(plays, view)) {
+    const knownVoids = knownVoidsFromHistory(view.history, view.trump);
+    const lastSeat = (view.seat + 1) % 4;
+    if (lead.suit === 'T' || !knownVoids[lastSeat].has(lead.suit)) {
+      return chooseHighPointLegalFollow(view.hand, lead, view.trump, E.DEFAULT_RULES);
+    }
+  }
+  if (features.feedPartnerExactThrowThird && lead.type === 'throw' && plays.length === 2 &&
+      winner % 2 === view.myTeam && !unknownCanBuildBeatingThrowExact(plays, view)) {
+    const knownVoids = knownVoidsFromHistory(view.history, view.trump);
+    const lastSeat = (view.seat + 1) % 4;
+    if (lead.suit === 'T' || !knownVoids[lastSeat].has(lead.suit)) {
+      return chooseHighPointLegalFollow(view.hand, lead, view.trump, E.DEFAULT_RULES);
+    }
+  }
+  if (features.feedPartnerThrowAlwaysThird && lead.type === 'throw' && plays.length === 2 &&
+      winner % 2 === view.myTeam &&
+      (features.feedPartnerThrowAlwaysThirdRole === 'all' ||
+        features.feedPartnerThrowAlwaysThirdRole ===
+          (view.myTeam === view.declSeat % 2 ? 'declarer' : 'defender'))) {
+    const high = chooseHighPointLegalFollow(view.hand, lead, view.trump, E.DEFAULT_RULES);
+    if (E.countPoints(high) - E.countPoints(low) >= features.feedPartnerThrowMinGain) {
+      return high;
+    }
+  }
+  if (features.feedPartnerThrowOneThreatThird && lead.type === 'throw' && plays.length === 2 &&
+      winner % 2 === view.myTeam && sameSuitThreatCountCurrent(plays, view) <= 1) {
+    const knownVoids = knownVoidsFromHistory(view.history, view.trump);
+    const lastSeat = (view.seat + 1) % 4;
+    if (lead.suit === 'T' || !knownVoids[lastSeat].has(lead.suit)) {
+      return chooseHighPointLegalFollow(view.hand, lead, view.trump, E.DEFAULT_RULES);
+    }
+  }
+  if (features.feedPartnerTractorAlwaysThird && lead.type === 'tractor' &&
+      plays.length === 2 && winner % 2 === view.myTeam &&
+      (features.feedPartnerTractorAlwaysThirdRole === 'all' ||
+        features.feedPartnerTractorAlwaysThirdRole ===
+          (view.myTeam === view.declSeat % 2 ? 'declarer' : 'defender'))) {
+    const high = chooseHighPointLegalFollow(view.hand, lead, view.trump, E.DEFAULT_RULES);
+    if (E.countPoints(high) - E.countPoints(low) >= features.feedPartnerTractorMinGain) {
+      if (features.feedPartnerTractorAvoidKnownVoid && lead.suit !== 'T' &&
+          knownVoidsFromHistory(view.history, view.trump)[(view.seat + 1) % 4]
+            .has(lead.suit)) return low;
+      return high;
+    }
+  }
+  if (features.feedPartnerBossTractorThird && lead.type === 'tractor' && plays.length === 2 &&
+      winner % 2 === view.myTeam && !unknownSameSuitCanBeatCurrent(plays, view)) {
+    const knownVoids = knownVoidsFromHistory(view.history, view.trump);
+    const lastSeat = (view.seat + 1) % 4;
+    if (lead.suit === 'T' || !knownVoids[lastSeat].has(lead.suit)) {
+      return chooseHighPointLegalFollow(view.hand, lead, view.trump, E.DEFAULT_RULES);
+    }
+  }
+  if (lead.type === 'throw' && winner % 2 !== view.myTeam &&
+      ((features.takeThrowsLast && plays.length === 3) ||
+       (features.takeThrowsProvenThird && plays.length === 2))) {
+    const winningThrow = chooseWinningThrowFollow(view, plays,
+      features.takeThrowsWithPointsLast && plays.length === 3);
+    if (winningThrow && (plays.length === 3 ||
+        !unknownCanBeatCurrent([...plays, { seat: view.seat, cards: winningThrow }],
+          view, true))) return winningThrow;
+  }
+  if (features.feedPartnerPairs && lead.type === 'pair' &&
+      winner % 2 === view.myTeam) {
+    const pointPairs = [...groupCards(view.hand).values()]
+      .filter((group) => group.length >= 2 && E.cardPoints(group[0]) > 0)
+      .map((group) => group.slice(0, 2))
+      .filter((choice) => E.isLegalFollow(view.hand, lead, choice, view.trump, E.DEFAULT_RULES));
+    if (pointPairs.length > 0) {
+      pointPairs.sort((a, b) =>
+        E.countPoints(b) - E.countPoints(a) ||
+        (E.effSuit(a[0], view.trump) === 'T' ? 1 : 0) -
+          (E.effSuit(b[0], view.trump) === 'T' ? 1 : 0) ||
+        E.ordIdx(a[0], view.trump) - E.ordIdx(b[0], view.trump) || byId(a[0], b[0]));
+      return pointPairs[0];
+    }
+  }
+  if (features.takePairsWhenNeeded && lead.type === 'pair' &&
+      winner % 2 !== view.myTeam) {
+    if (features.conservePairOnEmptyTrick && plays.length < 3 &&
+        plays.every((item) => E.countPoints(item.cards) === 0)) return low;
+    const pairChoices = [...groupCards(view.hand).values()]
+      .filter((group) => group.length >= 2)
+      .map((group) => group.slice(0, 2))
+      .filter((choice) => E.isLegalFollow(view.hand, lead, choice, view.trump, E.DEFAULT_RULES))
+      .filter((choice) => partialWinner([...plays, { seat: view.seat, cards: choice }],
+        view.trump) === view.seat);
+    if (pairChoices.length > 0) {
+      const pairPointRole = view.myTeam === view.declSeat % 2 ? 'declarer' : 'defender';
+      const pairPointTrick = plays.some((item) => E.countPoints(item.cards) > 0) ?
+        'points' : 'empty';
+      const takePairPointsSecond = features.takePairsWithPointsSecond && plays.length === 1 &&
+        (features.takePairsWithPointsSecondRole === 'all' ||
+          features.takePairsWithPointsSecondRole === pairPointRole) &&
+        (features.takePairsWithPointsSecondTrick === 'all' ||
+          features.takePairsWithPointsSecondTrick === pairPointTrick);
+      pairChoices.sort((a, b) =>
+        ((features.takePairsWithPointsLast && plays.length === 3) || takePairPointsSecond ?
+          E.countPoints(b) - E.countPoints(a) : E.countPoints(a) - E.countPoints(b)) ||
+        (E.effSuit(a[0], view.trump) === 'T' ? 1 : 0) -
+          (E.effSuit(b[0], view.trump) === 'T' ? 1 : 0) ||
+        E.ordIdx(a[0], view.trump) - E.ordIdx(b[0], view.trump) || byId(a[0], b[0]));
+      return pairChoices[0];
+    }
+  }
+  if ((features.takeTractorsWhenNeeded || (features.takeTractorsLast && plays.length === 3) ||
+      (features.takeTractorsProvenThird && plays.length === 2)) &&
+      lead.type === 'tractor' &&
+      winner % 2 !== view.myTeam) {
+    const bySuit = new Map();
+    for (const card of view.hand) {
+      const suit = E.effSuit(card, view.trump);
+      if (!bySuit.has(suit)) bySuit.set(suit, []);
+      bySuit.get(suit).push(card);
+    }
+    const tractorChoices = [];
+    for (const suitCards of bySuit.values()) {
+      for (const comp of E.decompose(suitCards, view.trump)) {
+        if (comp.type !== 'tractor' || comp.len < lead.len) continue;
+        for (let start = 0; start + lead.len <= comp.len; start += 1) {
+          const choice = comp.cards.slice(start * 2, (start + lead.len) * 2);
+          if (!E.isLegalFollow(view.hand, lead, choice, view.trump, E.DEFAULT_RULES)) continue;
+          const prospective = [...plays, { seat: view.seat, cards: choice }];
+          if (partialWinner(prospective, view.trump) !== view.seat) continue;
+          if (features.takeTractorsProvenThird && plays.length === 2 &&
+              !features.takeTractorsWhenNeeded && unknownCanBeatCurrent(prospective, view)) continue;
+          tractorChoices.push(choice);
+        }
+      }
+    }
+    if (tractorChoices.length > 0) {
+      tractorChoices.sort((a, b) =>
+        E.countPoints(a) - E.countPoints(b) ||
+        (E.effSuit(a[0], view.trump) === 'T' ? 1 : 0) -
+          (E.effSuit(b[0], view.trump) === 'T' ? 1 : 0) ||
+        E.ordIdx(a[a.length - 1], view.trump) -
+          E.ordIdx(b[b.length - 1], view.trump) || byId(a[0], b[0]));
+      return tractorChoices[0];
+    }
+  }
+  if (lead.cards.length !== 1) return low;
+  const inSuit = view.hand.filter((card) => E.effSuit(card, view.trump) === lead.suit);
+  const legalPool = inSuit.length ? inSuit : view.hand;
+  if (winner % 2 === view.myTeam) {
+    if (!features.feedPartnerPoints) return low;
+    const pointCards = legalPool.filter((card) => E.cardPoints(card) > 0);
+    if (pointCards.length === 0) return low;
+    const feedRole = view.myTeam === view.declSeat % 2 ? 'declarer' : 'defender';
+    if (features.avoidFeedKnownVoid && plays.length < 3 &&
+        (features.avoidFeedKnownVoidRole === 'all' ||
+          features.avoidFeedKnownVoidRole === feedRole) &&
+        Math.max(...pointCards.map((card) => E.cardPoints(card))) >=
+          features.avoidFeedKnownVoidMinPoints) {
+      const knownVoids = knownVoidsFromHistory(view.history, view.trump);
+      const remaining = 3 - plays.length;
+      for (let offset = 1; offset <= remaining; offset += 1) {
+        const seat = (view.seat + offset) % 4;
+        if (seat % 2 !== view.myTeam && knownVoids[seat].has(lead.suit)) return low;
+      }
+    }
+    if (features.cautiousPartnerFeed && plays.length < 3) {
+      const winningPlay = plays.find((item) => item.seat === winner);
+      const winningClass = winningPlay && E.classify(winningPlay.cards, view.trump);
+      let maxOrder = lead.suit === 'T' ? 15 : -1;
+      if (lead.suit !== 'T') {
+        for (let rank = 2; rank <= 14; rank += 1) {
+          const probe = { suit: lead.suit, rank };
+          if (E.effSuit(probe, view.trump) === lead.suit) {
+            maxOrder = Math.max(maxOrder, E.ordIdx(probe, view.trump));
+          }
+        }
+      }
+      if (!winningClass || winningClass.top < maxOrder) return low;
+    }
+    const pointGroups = groupCards(view.hand);
+    const tractorFeedIds = new Set();
+    if (features.preserveTractorBeforePointFeed) {
+      const bySuit = new Map();
+      for (const card of view.hand) {
+        const suit = E.effSuit(card, view.trump);
+        if (!bySuit.has(suit)) bySuit.set(suit, []);
+        bySuit.get(suit).push(card);
+      }
+      for (const suitCards of bySuit.values()) {
+        for (const comp of E.decompose(suitCards, view.trump)) {
+          if (comp.type === 'tractor') {
+            for (const card of comp.cards) tractorFeedIds.add(card.id);
+          }
+        }
+      }
+    }
+    pointCards.sort((a, b) =>
+      (features.preservePairBeforePointFeed ?
+        ((pointGroups.get(`${a.suit}:${a.rank}`).length >= 2 ? 1 : 0) -
+          (pointGroups.get(`${b.suit}:${b.rank}`).length >= 2 ? 1 : 0)) : 0) ||
+      (features.preserveTractorBeforePointFeed ?
+        ((tractorFeedIds.has(a.id) ? 1 : 0) - (tractorFeedIds.has(b.id) ? 1 : 0)) : 0) ||
+      E.cardPoints(b) - E.cardPoints(a) ||
+      (features.protectPairsOnSingleFeed ?
+        ((pointGroups.get(`${a.suit}:${a.rank}`).length >= 2 ? 1 : 0) -
+          (pointGroups.get(`${b.suit}:${b.rank}`).length >= 2 ? 1 : 0)) : 0) ||
+      lowCardOrder(a, b, view.trump));
+    return [pointCards[0]];
+  }
+  const winners = legalPool.filter((card) =>
+    partialWinner([...plays, { seat: view.seat, cards: [card] }], view.trump) === view.seat);
+  if (winners.length === 0) return low;
+  if (features.conserveTrumpOnEmptyTrick && plays.length < 3 && lead.suit !== 'T' &&
+      plays.every((item) => E.countPoints(item.cards) === 0) &&
+      winners.every((card) => E.effSuit(card, view.trump) === 'T')) {
+    const role = view.myTeam === view.declSeat % 2 ? 'declarer' : 'defender';
+    const position = plays.length === 1 ? 'second' : 'third';
+    if ((features.conserveTrumpOnEmptyRole === 'all' ||
+        features.conserveTrumpOnEmptyRole === role) &&
+        (features.conserveTrumpOnEmptyPosition === 'all' ||
+          features.conserveTrumpOnEmptyPosition === position)) return low;
+  }
+  if (features.takeWithPointsProvenThird && plays.length === 2) {
+    const safePointWinners = winners.filter((card) => E.cardPoints(card) > 0 &&
+      !unknownCanBeatCurrent([...plays, { seat: view.seat, cards: [card] }],
+        view, false, true));
+    if (safePointWinners.length > 0) {
+      safePointWinners.sort((a, b) => E.cardPoints(b) - E.cardPoints(a) ||
+        lowCardOrder(a, b, view.trump));
+      return [safePointWinners[0]];
+    }
+  }
+  if (features.takeWithPointsBossThird && plays.length === 2) {
+    const knownVoids = knownVoidsFromHistory(view.history, view.trump);
+    const lastSeat = (view.seat + 1) % 4;
+    const bossPointWinners = winners.filter((card) => E.cardPoints(card) > 0 &&
+      !unknownSameSuitCanBeatCurrent([...plays, { seat: view.seat, cards: [card] }], view) &&
+      (lead.suit === 'T' || !knownVoids[lastSeat].has(lead.suit)));
+    if (bossPointWinners.length > 0) {
+      bossPointWinners.sort((a, b) => E.cardPoints(b) - E.cardPoints(a) ||
+        lowCardOrder(a, b, view.trump));
+      return [bossPointWinners[0]];
+    }
+  }
+  const secondPointCeiling = Math.max(...winners.map((card) => E.cardPoints(card)));
+  const takeSecondPoints = useTakeWithPointsSecond(view, plays, features) &&
+    secondPointCeiling >= features.takeWithPointsSecondMinPoints &&
+    secondPointCeiling <= features.takeWithPointsSecondMaxPoints;
+  if ((features.takeWithPointsLast && plays.length === 3) || takeSecondPoints) {
+    let targetPoints = Math.max(...winners.map((card) => E.cardPoints(card)));
+    if (usePreservePairPointTake(plays, features)) {
+      const winnerGroups = groupCards(view.hand);
+      const singletonWinners = winners.filter((card) =>
+        winnerGroups.get(`${card.suit}:${card.rank}`).length === 1);
+      if (singletonWinners.length > 0) {
+        targetPoints = Math.max(...singletonWinners.map((card) => E.cardPoints(card)));
+      }
+    }
+    if (features.conserveThresholdPointsLast && plays.length === 3 &&
+        view.myTeam !== view.declSeat % 2) {
+      const tablePoints = plays.reduce((sum, item) => sum + E.countPoints(item.cards), 0);
+      const basePoints = defenderPointsFromHistory(view) + tablePoints;
+      const targetOutcome = scoreOutcomeKey(basePoints + targetPoints);
+      const sameOutcome = winners.map((card) => E.cardPoints(card))
+        .filter((points) => scoreOutcomeKey(basePoints + points) === targetOutcome);
+      targetPoints = Math.min(...sameOutcome);
+    }
+    const winnerGroups = features.protectPairsOnSecondPointTakeTie && plays.length === 1 ?
+      groupCards(view.hand) : null;
+    winners.sort((a, b) =>
+      Math.abs(E.cardPoints(a) - targetPoints) - Math.abs(E.cardPoints(b) - targetPoints) ||
+      (winnerGroups ?
+        ((winnerGroups.get(`${a.suit}:${a.rank}`).length >= 2 ? 1 : 0) -
+          (winnerGroups.get(`${b.suit}:${b.rank}`).length >= 2 ? 1 : 0)) : 0) ||
+      lowCardOrder(a, b, view.trump));
+  } else {
+    winners.sort((a, b) => lowCardOrder(a, b, view.trump));
+  }
+  return [winners[0]];
+}
+
+function createStrategy(featureOverrides = {}) {
+  const features = Object.assign({}, FEATURES, featureOverrides);
+  return {
+    onDeal(view) {
+      return chooseDeclaration(view, features);
+    },
+    onRebel(view) {
+      if (features.rebelOnlyBoth) {
+        return Boolean(view.rebelReason && view.rebelReason.byPts && view.rebelReason.byTrump);
+      }
+      if (features.rebelRejectPts15Only && view.rebelReason && view.rebelReason.byPts &&
+          !view.rebelReason.byTrump && view.rebelReason.pts === 15) return false;
+      return true;
+    },
+    discard(view) {
+      return chooseDiscard(view, features);
+    },
+    lead(view) {
+      return chooseLead(view, features);
+    },
+    follow(view, plays) {
+      return chooseTacticalFollow(view, plays, features);
+    },
+  };
+}
+
+module.exports = {
+  FEATURES,
+  declarationOptions,
+  chooseDeclaration,
+  chooseDiscard,
+  chooseLead,
+  chooseLegalFollow,
+  chooseHighPointLegalFollow,
+  unknownCanBeatCurrent,
+  unknownSameSuitCanBeatCurrent,
+  sameSuitThreatCountCurrent,
+  unknownCanBuildBeatingThrowExact,
+  chooseWinningThrowFollow,
+  chooseTacticalFollow,
+  defenderPointsFromHistory,
+  useTakeWithPointsSecond,
+  usePreservePairPointTake,
+  knownVoidsFromHistory,
+  pairThreatCount,
+  unknownCardsOfSuit,
+  componentThreatCount,
+  singleThreatCount,
+  pointLeadThreatCount,
+  createStrategy,
+};
+
+});
 </script>
 
 <script>
@@ -5254,7 +7209,7 @@ function openSettings(){
     $('stAuto').checked=!!(G&&G.auto);
     $('stAuto').disabled=!canAuto;
     $('stAutoHint').textContent=canAuto
-      ? '本局有效,打完自动交还;托管的墩不计入教练的失误统计。牌桌上(扣底那一区)也有这颗按钮'
+      ? '本局有效,打完自动交还;托管的墩不计入教练的失误统计。牌桌上「出牌」会变成「停止托管」'
       : '(要在出牌阶段才能托管)';
     $('stHold').disabled=!!S.manualNext;
     $('stHoldHint').textContent=S.manualNext?'(手动模式下由你点「下一墩」决定)':'';
@@ -5375,7 +7330,7 @@ window.__showKitty=()=>{
 };
 
 // ---- 教练设置(全部可开关可调,默认全开) ----
-let C={on:true, gapSens:'中', strict:false, review:true, quiz:true, memShow:false};
+let C={on:false, gapSens:'中', strict:false, review:true, quiz:true, memShow:false};
 try{ Object.assign(C,JSON.parse(localStorage.getItem(LSP+'coach')||'{}')); }catch(e){}
 function saveC(){ try{ localStorage.setItem(LSP+'coach',JSON.stringify(C)); }catch(e){} }
 // 教练的「失误」门槛,单位是折算后的期望分。
@@ -5384,11 +7339,148 @@ function saveC(){ try{ localStorage.setItem(LSP+'coach',JSON.stringify(C)); }cat
 const GAP_THR={'高':6,'中':12,'低':22,'关':Infinity};
 const LEAD_GAP_SCALE=4;
 const desc=cards=>cards.map(miniName).join('+');
+
+/* ============================================================
+ * 适配层 —— 把参赛者的五个方法接到界面的调用点上。
+ *
+ * view 按比赛裁判的口径构造(深拷贝 + 冻结):参赛者看到的东西必须和联赛里
+ * 一模一样,否则这个页面就不是在展示同一个 AI。
+ * 返回值只认牌的 id,兜底与罚分口径也和裁判一致(替出几张 × 5 分)。
+ * ============================================================ */
+const CONTESTANT=(function(){
+  let ai=null, loadErr=null;
+  try{ const f=window.__contestReq('index'); ai=(typeof f==='function')?f():f; }
+  catch(e){ loadErr=e; }
+
+  const V={n:0, pts:0, by:{}, soft:0};
+  const bump=(k,fine)=>{ V.n++; V.by[k]=(V.by[k]||0)+1; if(fine) V.pts+=fine; paintVio(); };
+
+  const cpCard=c=>Object.freeze({suit:c.suit, rank:c.rank, id:c.id});
+  const cpCards=a=>Object.freeze(a.map(cpCard));
+  const cpPlays=a=>Object.freeze(a.map(p=>Object.freeze({seat:p.seat, cards:cpCards(p.cards)})));
+
+  function pub(){
+    return {
+      trumpRank: G.trumpRank, dealerKnown: G.dealerKnown, dealer: M.dealer,
+      firstTaker: G.firstTaker,
+      curDecl: G.decl?Object.freeze({seat:G.decl.seat, suit:G.decl.suit, strength:G.decl.strength}):null,
+      rebelHappened: G.rebelHappened,
+      levels: Object.freeze(M.levels.slice()), played: Object.freeze(M.played.slice()),
+      gates: Object.freeze((S.gatesOn?S.gates:[]).slice()), round: M.round,
+      kittySize: RULES.kittySize,
+    };
+  }
+  function mkView(seat, phase, extra){
+    const v=Object.assign({
+      phase, seat, myTeam:seat%2,
+      hand: cpCards(phase==='deal'?visHand(seat):G.hands[seat]),
+      trump: G.trump?Object.freeze({suit:G.trump.suit, rank:G.trump.rank}):null,
+      declSeat: G.declSeat,
+      history: cpPlays([...G.tricks.flatMap(t=>t.plays), ...G.trick]),
+      buriedKnown: seat===G.declSeat?cpCards(G.buried||[]):Object.freeze([]),
+    }, pub(), extra||{});
+    return Object.freeze(v);
+  }
+  // 只认 id —— 参赛者返回什么形状的对象都无所谓
+  function resolve(ret, hand, kind){
+    const cs=Array.isArray(ret)?ret:(ret&&Array.isArray(ret.cards)?ret.cards:null);
+    if(!cs||!cs.length){ bump(kind+':形状'); return null; }
+    const byId=new Map(hand.map(c=>[c.id,c]));
+    const out=[], used=new Set();
+    for(const c of cs){
+      const id=(c&&typeof c==='object')?c.id:c;
+      if(!byId.has(id)){ bump(kind+':牌不在手上'); return null; }
+      if(used.has(id)){ bump(kind+':重复出牌'); return null; }
+      used.add(id); out.push(byId.get(id));
+    }
+    return out;
+  }
+  const call=(m, args, kind)=>{
+    if(!ai||typeof ai[m]!=='function') return null;
+    try{ return ai[m].apply(ai, args); }
+    catch(e){ bump(kind+':抛异常'); return null; }
+  };
+
+  return {
+    name: (ai&&ai.name)||"gpt-5.6-sol",
+    loadErr, vio:V,
+
+    // 亮主/加固 —— 校验与裁判一致,不合法当作没亮(不罚分)
+    onDeal(seat){
+      const vis=visHand(seat);
+      if(!vis.length) return null;
+      const ret=call('onDeal',[mkView(seat,'deal',{trumpRank:rankOf(seat)})],'onDeal');
+      if(!ret) return null;
+      const opt={suit: ret.suit===undefined?null:ret.suit, strength: ret.strength|0};
+      const cands=[...declOptions(vis, rankOf(seat))];
+      const jp=jokerPairOf(vis); if(jp) cands.push(jp);
+      if(!cands.some(o=>o.suit===opt.suit&&o.strength===opt.strength)){
+        bump('onDeal:不是合法选项'); return null;
+      }
+      const reinforce=canReinforce2(G.decl,seat,vis,rankOf(seat),G.rebelHappened)
+                      && opt.suit===G.decl.suit && opt.strength===2;
+      if(!reinforce && !canOverride(G.decl,opt,seat)){ V.soft++; paintVio(); return null; }
+      return {opt, reinforce};
+    },
+
+    onRebel(seat, r){
+      return call('onRebel',[mkView(seat,'rebel',{
+        rebelReason:Object.freeze({pts:r.pts,nT:r.nT,byPts:r.byPts,byTrump:r.byTrump})})],'onRebel')===true;
+    },
+
+    discard(seat){
+      const ret=call('discard',[mkView(seat,'discard')],'discard');
+      let b=resolve(ret, G.hands[seat], 'discard');
+      if(b && b.length!==RULES.kittySize){ bump('discard:张数不对', 5*RULES.kittySize); b=null; }
+      else if(!b) V.pts+=5*RULES.kittySize;
+      return b || aiDiscard(G.hands[seat], G.trump);     // 兜底用原版
+    },
+
+    lead(seat){
+      const ret=call('lead',[mkView(seat,'lead',{trickNo:G.trickNo})],'lead');
+      let cs=resolve(ret, G.hands[seat], 'lead');
+      if(!cs){ cs=aiLead(G.hands[seat], G.trump, rng(G.seed+G.trickNo)); V.pts+=5*cs.length; }
+      const chk=checkThrow(G.hands, seat, cs, G.trump);
+      if(!chk.ok) cs=chk.forced;                          // 甩牌被吃:不算违规也不罚分
+      return cs;
+    },
+
+    follow(seat){
+      const lead=classify(G.trick[0].cards, G.trump);
+      const ret=call('follow',[mkView(seat,'follow',{trickNo:G.trickNo}), cpPlays(G.trick)],'follow');
+      let cs=resolve(ret, G.hands[seat], 'follow');
+      if(cs && !isLegalFollow(G.hands[seat], lead, cs, G.trump)){ bump('follow:不合法'); cs=null; }
+      if(!cs){ cs=genFollow(G.hands[seat], lead, G.trump, rng(G.seed+G.trickNo)); V.pts+=5*cs.length; }
+      return cs;
+    },
+  };
+})();
+
+/* 观察页专用的调试口。比赛裁判那边没有这东西 —— 这里挂出来是为了:
+ *   · 观察员能在控制台看 CONTESTANT.vio(违规明细)
+ *   · 自动化验证能驱动一整局(见 contest/gen-viewer.js 的验证说明)
+ */
+window.CONTESTANT=CONTESTANT;
+window.__viewer={
+  get G(){ return G; }, get M(){ return M; }, get S(){ return S; },
+  step, humanLowRebel, buryKitty, newRound,
+};
+
+// 右下角的违规计数 —— 频繁出非法牌的 AI,观察员一眼就该看见
+function paintVio(){
+  const el=document.getElementById('vioTag');
+  if(!el) return;
+  const V=CONTESTANT.vio;
+  if(!V.n&&!V.soft){ el.textContent=''; el.style.color=''; return; }
+  el.textContent='违规 '+V.n+' 次,罚 '+V.pts+' 分';
+  el.title=JSON.stringify(V.by);
+  el.style.color=V.n?'#ff8f6e':'';
+}
+
 function viewFor(seat){
   return {seat,hand:G.hands[seat],trump:G.trump,declSeat:G.declSeat,
           history:[...G.tricks.flatMap(t=>t.plays),...G.trick],
-          buriedKnown:seat===G.declSeat?G.buried:[],
-          decl:G.decl};            // 谁亮的什么主(v0.7.15:收官抽样把亮主者的级牌钉在他手里)
+          buriedKnown:seat===G.declSeat?G.buried:[]};
 }
 
 function cardHTML(c,cls=''){
@@ -5517,19 +7609,9 @@ function aiDeclThink(seat){
   };
   // 加固:当初亮单张是「信心不足先试一手」,现在牌拿多了信心是否已经够把它锁死?
   // 用同一把尺子比较「亮对」与「维持单张」的分差,而不是一律加固。
-  if(canReinforce2(G.decl,seat,vis,rankOf(seat),G.rebelHappened)){
-    const asPair=scoreDeclOption(ctx,{suit:G.decl.suit,strength:2}).score;
-    const asSingle=scoreDeclOption(ctx,{suit:G.decl.suit,strength:1,hasPair:true}).score;
-    if(asPair>asSingle&&rand()<0.9){
-      applyDecl(seat,{suit:G.decl.suit,strength:2},true); return;
-    }
-  }
-  const d=aiDeclDecide(ctx);
-  if(!d) return;
-  // 分数越过门槛越多,越果断;贴着门槛则留一点随机,避免四家行为整齐划一
-  const margin=d.score-d.threshold;
-  if(margin<0) return;
-  if(rand()<Math.min(0.95,0.45+margin/40)) applyDecl(seat,d.opt,false);
+  // 【参赛版】亮主/加固整个交给参赛者,不再掷骰子 —— 骰子留在这边,亮主策略就看不出来了
+  const r=CONTESTANT.onDeal(seat);
+  if(r) applyDecl(seat, r.opt, r.reinforce);
 }
 
 function applyDecl(seat,opt,isReinforce){
@@ -5592,10 +7674,9 @@ function humanLowRebel(yes){
   else aiLowRebel();
 }
 function aiLowRebel(){
-  const rand=rng(G.seed*17+5);
   for(let s=1;s<4;s++){
     const r=canFullRebel(G.hands[s],G.trump);
-    if(r.ok && s%2!==G.declSeat%2 && rand()<0.7){
+    if(r.ok && s%2!==G.declSeat%2 && CONTESTANT.onRebel(s,r)){
       log(`${SEAT_NAME[s]} ${r.byPts?'手牌分数不足':T('trump')+'太少'},${rebelName()}`);
       doRebel(); return;
     }
@@ -5622,7 +7703,7 @@ function afterTrumpSet(){
     G.phase='kitty'; G.selected.clear();
     setMsg(`你是庄家:选 ${RULES.kittySize} 张牌${T('bury')}`); render();
   }else{
-    G.buried=aiDiscard(G.hands[G.declSeat],G.trump);
+    G.buried=CONTESTANT.discard(G.declSeat);          // 【参赛版】
     G.buried.forEach(c=>removeCard(G.hands[G.declSeat],c));
     G.phase='play'; snapshotHands(); render();
     setMsg(`${SEAT_NAME[G.declSeat]} 是庄家`);
@@ -5667,20 +7748,9 @@ function step(){
     // 过期校验:排这一手之后局面若已被推进(换墩/别人先出了/已满),这次回调作废
     if(G.phase!=='play'||G.trickNo!==trickNoAtSchedule||G.trick.length!==posAtSchedule) return;
     if((G.leader+G.trick.length)%4!==seat) return;
-    const view=viewFor(seat);
+    // 【参赛版】三家 AI 全部换成参赛者;合法性仍由这边的引擎把关
     let cards, reason='';
-    if(G.trick.length===0){
-      const ch=aiChooseLead(view);
-      cards=ch.cards; reason=ch.reason;
-      const chk=checkThrow(G.hands,seat,cards,G.trump);
-      if(!chk.ok) cards=chk.forced;
-    }else{
-      const lead=classify(G.trick[0].cards,G.trump);
-      const ch=aiChooseFollow(view,G.trick);
-      cards=ch.cards; reason=ch.reason;
-      if(!isLegalFollow(G.hands[seat],lead,cards,G.trump))
-        cards=genFollow(G.hands[seat],lead,G.trump,rng(G.seed+G.trickNo));
-    }
+    cards = G.trick.length===0 ? CONTESTANT.lead(seat) : CONTESTANT.follow(seat);
     G.lastReasons=G.lastReasons||{}; G.lastReasons[seat]=reason;  // 教练模式(M5)复用
     playCards(seat,cards);
   },aiThinkMs());
@@ -5721,17 +7791,8 @@ function scheduleHumanAuto(){
     if(!G.auto&&!(S.autoLast&&forced)) return;        // 中途被关掉了
     let cards=forced;      // 没得选的那一手直接出,不必再劳烦 AI 算一遍
     if(!cards){
-      const view=viewFor(HUMAN);
-      if(G.trick.length===0){
-        const ch=aiChooseLead(view); cards=ch.cards;
-        const chk=checkThrow(G.hands,HUMAN,cards,G.trump);
-        if(!chk.ok) cards=chk.forced;
-      }else{
-        const lead=classify(G.trick[0].cards,G.trump);
-        const ch=aiChooseFollow(view,G.trick); cards=ch.cards;
-        if(!isLegalFollow(G.hands[HUMAN],lead,cards,G.trump))
-          cards=genFollow(G.hands[HUMAN],lead,G.trump,rng(G.seed+G.trickNo));
-      }
+      // 【参赛版】托管也用参赛者的 AI —— 想看它整场怎么打,开托管就行
+      cards = G.trick.length===0 ? CONTESTANT.lead(HUMAN) : CONTESTANT.follow(HUMAN);
       G.autoTricks++;                       // 只数「AI 真替你做了选择」的那几墩
     }
     G.selected.clear(); G.hintCards=null;
@@ -5741,7 +7802,6 @@ function scheduleHumanAuto(){
 
 /* 托管开关。它不在 S 里(不持久化),也只在出牌阶段有意义 ——
  * 扣底、亮主、低分造反这些「一局只做一次」的决定仍然归你。 */
-window.__G=()=>G;      // html 里的 inline onclick 在 IIFE 外面,取不到 G
 window.__setAuto=on=>{
   if(!G) return;
   G.auto=!!on;
@@ -5975,9 +8035,6 @@ function endRound(){
     html+=`<div style="font-size:14px">下一局 ${SEAT_NAME[M.dealer]} 坐庄,打${rankName(M.levels[M.dealer%2])}</div>`;
     html+=`<div style="margin-top:14px"><button onclick="window.__next()">下一局</button> <button class="minor" onclick="window.__review()">复盘本局</button></div>`;
   }
-  // 弹层之下的牌桌也要跟着进「已结束」态(托管按钮收起、发牌区改成「复盘中」),
-  // 否则点「复盘本局」把弹层关掉之前,底下还留着上一秒的按钮
-  render();
   document.getElementById('overlayContent').innerHTML=html;
   document.getElementById('overlay').style.display='flex';
   sndEnd();
@@ -6145,17 +8202,14 @@ function render(){
   }
 
   const myTurn=!G.ended&&G.phase==='play'&&G.trick.length<4&&(G.leader+G.trick.length)%4===HUMAN;
-  /* 托管自己占一颗按钮,落在庄家区(和扣底/看底牌同一区)—— 第一版把它塞进设置里、
-   * 让「出牌」改口成「停止托管」,开一次要点三下,实测太不方便。放到桌面上要解决的是
-   * 宽度:竖屏那一行原本按最长文案定死 min-width,五颗就挤爆了,所以竖屏改成按文案自适应
-   * (见 @media 里的 #controls button)。托管中「出牌/重选/问教练」照旧灰掉 —— 不是不能点,
-   * 是这时候本来就没有你要做的决定。 */
+  /* 托管中,「出牌」这颗按钮改成「停止托管」—— 托管时出牌/重选/问教练都用不上,
+   * 与其加第四颗按钮把底部三区挤爆(手机竖屏一行只放得下三颗),不如让这颗改口:
+   * 一下开(设置里)、一下关(这里),而且关的那一下永远在同一个位置。 */
   const auto=!!G.auto&&G.phase==='play'&&!G.ended;
-  const btnAuto=document.getElementById('btnAuto');
-  btnAuto.textContent=auto?'停止托管':'托管';
-  btnAuto.classList.toggle('minor',!auto);      // 托管中变成醒目色,一眼看得见它开着
-  btnAuto.hidden=!(G.phase==='play'&&!G.ended);
-  document.getElementById('btnPlay').disabled=auto||!myTurn;
+  const btnPlay=document.getElementById('btnPlay');
+  btnPlay.textContent=auto?'停止托管':'出牌';
+  btnPlay.classList.toggle('minor',auto);
+  btnPlay.disabled=auto?false:!myTurn;
   document.getElementById('btnClear').disabled=auto||!(G.selected.size>0);
   // 扣底:选够 8 张才可点
   const buryReady=G.phase==='kitty'&&G.selected.size===RULES.kittySize;
@@ -6165,7 +8219,7 @@ function render(){
   // 看底牌:只有你是庄家、且底牌已扣下才可点
   const canSeeKitty=G.declSeat===HUMAN&&G.buried.length>0;
   document.getElementById('btnKitty').disabled=!canSeeKitty;
-  // 扣底/看底牌本局用不上(你不坐庄)就收起来,不留灰按钮占地方(托管那颗另有显隐规则)
+  // 庄家区本局用不上(你不坐庄)就整块收起来,不留灰按钮占地方
   document.getElementById('btnBury').hidden=(G.phase!=='kitty');
   document.getElementById('btnKitty').hidden=!canSeeKitty;
   document.getElementById('btnHint').disabled=auto||!(C.on&&myTurn);
@@ -6394,7 +8448,9 @@ function sendNote(){
   renderPanel();
 }
 
-document.getElementById('btnPlay').onclick=humanPlay;
+document.getElementById('btnPlay').onclick=()=>{
+  if(G&&G.auto) window.__setAuto(false); else humanPlay();
+};
 document.getElementById('btnClear').onclick=()=>{G.selected.clear();render();};
 document.getElementById('btnBury').onclick=buryKitty;
 document.getElementById('btnHint').onclick=askCoach;

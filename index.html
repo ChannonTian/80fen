@@ -319,7 +319,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.12</div>
+<div id="versionTag">80分 v0.7.15</div>
 
 <script>
 /* ============================================================
@@ -433,11 +433,27 @@ function decompose(cards, trump){
     else comps.push({type:'pair',cards:run[0],top:ordIdx(run[0][0],trump)});
     run=[];
   };
-  for(const p of pairs){
-    if(run.length && ordIdx(p[0],trump)===ordIdx(run[run.length-1][0],trump)+1) run.push(p);
-    else { flush(); run=[p]; }
+  /* 同一个 ordIdx 可能有不止一对 —— 三门副级牌对全是同一个序号,无主局的四门级数牌对
+   * 也是。它们对成链是**可替换**的,所以不能一趟扫:遇到同序号当场断链的话,
+   * **手上多出一对同序号的对子反而会把本来连得上的链切短**。主♠打2、手上
+   * ♠A♠A(11)+♥2♥2(12)+♦2♦2(12)+♠2♠2(13),一趟扫切成两个二连对,而 11→12→13
+   * 本该是一个三连对。
+   * 改成分层:同序号的第 1 对算第 0 层、第 2 对第 1 层……,一层一层地扫,
+   * 层内 ordIdx 严格递增,最长的链必然落在第 0 层。
+   * 只有一层时(绝大多数手牌)这一段和原来的一趟扫**逐字等价**。 */
+  const layer=[];
+  for(let i=0;i<pairs.length;i++)
+    layer.push(i && ordIdx(pairs[i-1][0],trump)===ordIdx(pairs[i][0],trump) ? layer[i-1]+1 : 0);
+  const nLayer=layer.length ? Math.max(...layer)+1 : 0;
+  for(let L=0;L<nLayer;L++){
+    for(let i=0;i<pairs.length;i++){
+      if(layer[i]!==L) continue;
+      const p=pairs[i];
+      if(run.length && ordIdx(p[0],trump)===ordIdx(run[run.length-1][0],trump)+1) run.push(p);
+      else { flush(); run=[p]; }
+    }
+    flush();
   }
-  flush();
   for(const s of singles) comps.push({type:'single',cards:[s],top:ordIdx(s,trump)});
   return comps;
 }
@@ -856,6 +872,33 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   egMinSamples: 20,           // 抽不满这么多就退回启发式(约束太紧,样本不可信)
   egRetries: 24,              // 单个世界的重试次数
   egMaxCands: 6,              // 候选多于这个数就不搜(预算)
+  /* 收官抽样:底牌按庄家的埋底策略抽,不再是「三家塞满之后剩下的牌」(见 sampleWorld)
+   * 配对自对弈三批 × 700 种子:**+0.78 ±0.28 / +1.41 ±0.27 / +0.96 ±0.25**,
+   * 合并 +1.05 ±0.15(t=6.9),符号检验 p=5e-4 / 6e-5 / 7e-5;
+   * 庄家丢最后一墩 33.1→30.7 / 34.9→28.1 / 36.4→32.4。
+   * 另一组独立复跑(种子 500001+ / 600001+ / 700001+,与上面三批不重叠):
+   * +1.09 ±0.26 / +1.20 ±0.28 / +1.02 ±0.26,合并 **+1.10 ±0.15(t=7.1)**,
+   * 庄家丢末墩 35.1→30.7 / 37.4→31.0 / 37.3→32.1。
+   * 只影响看不见底牌的三家 —— 庄家自己知道,他的 kittySize 是 0。
+   * 顺带查过一条:旧写法里底牌是「分不下去的牌」的泄压阀,先填满等于焊死阀门,
+   * 抽样拒绝率 2.74% → 3.26%、每次搜索到手的世界 60.0 → 59.6、退回启发式 2.74% → 2.70%
+   * —— 分不是靠「更常不搜索」挣的。 */
+  egKittyModel: 1,            // 1 = 按埋底策略抽;0 = 均匀(v0.7.14 及以前)
+  /* 分牌进底牌的相对权重,以及它为什么不算标定死
+   * 0.35 与 0.7 同一批种子 +0.78 / +0.99,差在噪声里,取中间的 0.6。
+   * 「按它抽出的底分期望 ≈ 12、和实际埋底对得上」这句话是在**收官时的未见牌池**上说的;
+   * 换成庄家自己那 33 张当池子复量(400 副),0.6 抽出 14.5 分而 aiDiscard 实际埋 11.5 分,
+   * 要对上得降到 0.45。主牌 0 张、A 0 张两项两边完全一致。分数上没差别(见上),
+   * 但别把这一格当成一个已经标定死的常数。 */
+  egKittyPtW: 0.6,            // 分牌进底牌的相对权重(1 = 和闲牌一样容易被埋)
+  /* 收官抽样:把亮主者亮出的那几张(级牌 / 王对)钉在他手里 —— 硬信息,不是推断
+   * (需要 view 带 curDecl / decl,界面、裁判、ai-h2h 都给了)。三批 × 700 种子:
+   * +0.29 ±0.19 / −0.07 ±0.17 / −0.05 ±0.17,合并 +0.05 ±0.10,只改变 16% 的种子 ——
+   * 到收官时那几张多半已经打出来了。信息是对的,分挣不到。 */
+  egDeclKnown: 0,             // 默认关
+  /* 收官精确解:抽样世界里用完全信息极小极大代替推演(见 egSolve)
+   * ≤3 / ≤4 张实测都持平。注意那个「持平」带着一个已知的坑,见 egDedupSingles 的注释。 */
+  egExact: 0,                 // 剩这么多张及以下时启用(0 = 关)
   /* 搜索结果与启发式打分的融合方式。
    * 目标函数是「我方净升几级」,量纲和分制完全不同,不能直接相加 ——
    * 用它**排序**,只有当最优候选比启发式选中的那个高出 egMargin 级时才改判。
@@ -944,6 +987,25 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   pPartnerPrior: 0.32,
   pPartnerCalc: 0,            // 记牌证据相对先验的采信比例;0 = 完全用先验(实测最优)
   blockWin: 1,                // 1=生成「盖住末家分牌」的吃法候选;0=只用最省的吃法(消融用)
+  /* 打级(级牌 5/10/K,那 8 张级牌本身带 40 / 80 分)上单独量出来的两格 */
+  trumpPtDebt: 0,             // 主牌里的分牌也记「迟早要出」的负债(level 10 自对弈 −0.56 ±0.26,关)
+  ptLevelBonus: 25,           // 分级的亮主加成;砍到 0 / 10 打级自对弈 −0.28 / −0.21 级/场,不动
+  /* 闲家亮对:把主定在自己的长门上,不再偏爱「先亮单留后路」(见 scoreDeclOption)
+   * 对 claude-opus-5 / kimi-k3 各 60 种子打级:级数差 +5.52 vs +5.67、+8.04 vs +7.97 —— 持平。
+   * 当初判「牌谱里『闲家亮对 → 庄家守不住』是选择效应」,用的是 vs-builds 的「谁亮的主」切片,
+   * 而那个切片当时**每一局都记错**(见 contest/vs-builds.js 的注释)。
+   * 结论方向不变(不上线),但那个理由要重做。 */
+  defDeclPair: 0,             // 默认关
+  defPairBonus: 10,           // 闲家亮对的加成
+  defThreshAdd: 0,            // 闲家亮主门槛的增减(负 = 更爱亮)
+  /* 跨线的即时加成:赢下这一墩就把闲家推过某条线(见 ladderCross)
+   * **默认关 —— 三档全负**:10 → −0.20 ±0.24、
+   * 20 → −0.28 ±0.31(符号 p=0.019)、30 → −0.45 ±0.35(p=0.033),各 700 种子。
+   * 另试过把 ev×pw 整个换成阶梯期望效用(正态近似余下池子的份额、底分按护底概率折进去、
+   * 跟牌侧护底 flat 项并入):**−2.47 ±0.50(t=−4.9)**,代码没留。
+   * 结论同 v0.7.5 那条:cf-line 量到的是一次性偏离,做成规则之后不值那个数;
+   * 而且 cf-line 在 index.html 上 300 局只命中 10 个跨线点,信号本身就小。 */
+  ladderCross: 0,             // 加成的强度(0 = 关)
   /* 「接过队友」的开放范围:0=关 | 1=将牌墩与断门毙分 | 2=全开 | 3/4=单支消融(见 takeOverScoped)。
    * **默认 0 —— 这是一条实测为负的改动,代码留着是因为它对应的局面确实存在。**
    * 动机是需求列表那两条:队友调王没人接、队友副花 K 暂大而我断门不毙,末家一张 A/10 全收走。
@@ -1321,7 +1383,7 @@ function declHandQuality(D, opt){
   if([5,10,13].includes(D.trumpRank)){
     let lv=opt.suit?1:1.35;
     if(!opt.suit&&iAmDefender) lv+=0.35;
-    s+=25*lv; why.push(opt.suit?'级数带分':'无将局主牌里大半是分');
+    s+=AIP.ptLevelBonus*lv; why.push(opt.suit?'级数带分':'无将局主牌里大半是分');
   }
   return {q:s, fit, why};
 }
@@ -1388,7 +1450,12 @@ function scoreDeclOption(D, opt){
   // 8. 手上有对却只亮单张:省下暴露、留着「加固」这条后路,但要担被别家一对常主反掉的风险。
   //    信心越足(fit 越高)越不愿意冒这个险 —— 于是自然形成
   //    「信心不足想试一手 → 亮单」「手牌够好 → 亮对(或先亮单再加固)」。
-  if(opt.hasPair&&opt.strength===1){
+  /* v0.7.15:闲家亮对。第一赛季数据:陪练坐庄、闲家(五份提交)亮的是一对时,守住率只有
+   * 53%(非分级)/ 39%(分级),而陪练自己当闲家几乎不亮对(对手坐庄的局里 22~33%),
+   * 对手坐庄却在陪练亮对时只守住 15~32%。闲家亮对是最被低估的一手:主定在自己的长门上,
+   * 庄家 8 张底牌的优势被抵掉大半,而且一对常主只有王对反得掉。 */
+  if(AIP.defDeclPair&&iAmDefender&&opt.strength===2){ s+=AIP.defPairBonus; why.push('闲家亮对,把主定在自己长门'); }
+  if(opt.hasPair&&opt.strength===1&&!(AIP.defDeclPair&&iAmDefender)){
     // 「留后路」这件事只在心里没底时才值钱:信心越足,那条后路越用不上
     s+=AIP.declSingleOption*(1-Math.max(0,fit));
     // 被一对常主反掉不只是丢了主色 —— 无庄盘还连庄位和那 8 张底一起丢
@@ -1426,7 +1493,8 @@ function aiDeclDecide(D){
             baseline:base, absolute:r.score};
   }).sort((a,b)=>b.score-a.score);
   // 造反的门槛比首亮高一档:打乱一个已经成立的主色,本身有摩擦成本
-  const th=declThreshold(D)+(D.curDecl?AIP.rebelThresholdAdd:0);
+  const iAmDef=D.dealerKnown&&D.dealer>=0&&D.dealer%2!==D.seat%2;
+  const th=declThreshold(D)+(D.curDecl?AIP.rebelThresholdAdd:0)+(iAmDef?AIP.defThreshAdd:0);
   const top=scored[0];
   return {...top, threshold:th, pass:top.score>=th, cands:scored.slice(0,3)};
 }
@@ -2228,6 +2296,7 @@ function futureValue(cards, X){
     if(effSuit(c,trump)==='T'){
       // 主牌稀缺:毙牌权本身值钱,拿低主去毙一墩空气是亏的
       v+=trumpHold(c,X);
+      if(!X.leading&&AIP.trumpPtDebt) v-=cardPoints(c)*AIP.trumpPtDebt;
     }else{
       const rem=unseenPointsIn(X.mem,effSuit(c,trump),trump);
       /* 「差一张就是钢板」—— 上面**只剩一张**没出的牌时,这张牌是个期权:
@@ -2484,6 +2553,11 @@ function kittyProjection(X){
   const kp=kittyPts(X);
   if(kp<=0) return 0;
   const km=kittyMultOf(X);
+  return kp*km*kittyDefP(X);
+}
+// 闲家赢下最后一墩(抠到底)的概率:收官视野外用先验 0.5,视野内按我方护底手撑到最后的概率偏
+function kittyDefP(X){
+  if(X._kpd!==undefined) return X._kpd;
   const iAmDef=!X.isDecl;
   let pDef=0.5;
   const ru=X.hand&&X.hand.length?reserveUnit(X):null;
@@ -2491,9 +2565,22 @@ function kittyProjection(X){
     const hold=reserveHold(ru,X);
     pDef=iAmDef?clamp(0.5+0.5*(hold-0.5),0,1):clamp(0.5-0.5*(hold-0.5),0,1);
   }
-  return kp*km*pDef;
+  return X._kpd=pDef;
 }
 
+/* 跨线的**即时**加成(v0.7.15)。闲家的分只增不减:这一墩赢下就把闲家推过某条线,
+ * 那条线就锁死了 —— 不是「多几分」,是一整级台阶。pointWeight 的高斯包络在 gap→0 时
+ * 反而回落,表达不了这件事;cf-line 实测跨线组 +0.33 级/决策,对照组 −0.08。
+ * 只在**此刻**跨线时生效(用已得分,不用投影):闲家赢下跨线记正,庄家输掉被跨记负。
+ * 权重按 cf-line 分线的实测比例(40 线 +0.21、80 线 +0.46、120 线 +0.64)。 */
+const LADDER_CROSS_W=[[0.5,1],[40,1],[80,2],[120,2.5],[160,2.5],[200,2.5]];
+function ladderCross(X, p, ptsWin, ptsLose){
+  if(!AIP.ladderCross) return 0;
+  const def=X.def;
+  const crossed=(lo,hi)=>{ let u=0; for(const [L,w] of LADDER_CROSS_W) if(lo<L&&hi>=L) u+=w; return u; };
+  if(!X.isDecl) return AIP.ladderCross*p*crossed(def,def+ptsWin);
+  return -AIP.ladderCross*(1-p)*crossed(def,def+ptsLose);
+}
 // 局末目标不是「攻守 80 分」这一根线,而是一排阶梯,且随局面动态改变现实目标。
 // 引擎的结算口径就是阶梯的来历(scoreRound / advanceMatch):
 //   闲家 0 分   → 庄家升 3 级        闲家 120 分 → 闲家升 1 级
@@ -2677,7 +2764,7 @@ function scorePlay(X, cards, cat, beatsCur){
   // 牌权:本队赢下这墩,下一手由我方领出(我或队友),手上的优势才有机会兑现。
   // 输掉则牌权落到对手,他去兑现他的 —— 我方看不见对手手牌,用一个保守的固定值代表。
   const tempo=(p*tempoValue(X,cards)-(1-p)*AIP.oppTempo)*AIP.tempoWeight;
-  return (CAT_K[cat]||1)*ev*(X.pw||1)+tempo-futureValue(cards,X);
+  return (CAT_K[cat]||1)*ev*(X.pw||1)+tempo-futureValue(cards,X)+ladderCross(X,p,gain,loss);
 }
 // 兼容旧接口(教练/测试仍在用)
 function scoreWinPlay(X,cards){ return scorePlay(X,cards,
@@ -3630,10 +3717,41 @@ function rolloutFollow(hand, lead, trump, plays, seat){
 function sampleWorld(ctx, rand){
   const {unseen,sizes,seats,voids,trump,kittySize,capOf}=ctx;
   for(let attempt=0;attempt<AIP.egRetries;attempt++){
-    const pool=shuffle(unseen,rand);
+    let pool=shuffle(unseen,rand);
     const hands={}, cnt={}, used={};
     seats.forEach(s=>{hands[s]=[];cnt[s]={};});
     let kitty=[], ok=true;
+    /* v0.7.15:底牌不是均匀抽的。旧版把底牌当「三家都塞满之后剩下的牌」——
+     * 剩下的恰恰是约束最少的那些,也就是主牌(副牌门有缺门约束,主门几乎没有),
+     * 于是抽出来的底牌里主牌偏多、对手手里的主牌偏少 —— 闲家搜出来的世界系统性低估
+     * 庄家方的主。而庄家埋底的策略是已知的(faceValue:绝不埋主、不埋 A、尽量不埋分),
+     * 这里就按它抽:先从「非主、非 A」的牌里挑底牌,分牌降权,再把其余的牌分给三家。 */
+    if(AIP.egKittyModel&&kittySize>0){
+      const elig=pool.filter(c=>effSuit(c,trump)!=='T'&&c.rank!==14);
+      const w=c=>cardPoints(c)?AIP.egKittyPtW:1;
+      const rest=new Set();
+      while(kitty.length<kittySize&&elig.length){
+        let tot=0; for(const c of elig) if(!rest.has(c.id)) tot+=w(c);
+        if(tot<=0) break;
+        let r=rand()*tot, pick=null;
+        for(const c of elig){ if(rest.has(c.id)) continue; r-=w(c); if(r<=0){ pick=c; break; } }
+        if(!pick) break;
+        kitty.push(pick); rest.add(pick.id);
+      }
+      pool=pool.filter(c=>!rest.has(c.id));
+    }
+    /* v0.7.15:亮主的那家手里**一定**还有他亮出来的那几张(级牌 / 王对),直到打出来为止。
+     * 这是硬信息,不是推断 —— 先把它们钉给他,再分其余的牌。 */
+    if(ctx.known&&ctx.known.length){
+      const fixed=new Set();
+      for(const k of ctx.known){
+        if(!seats.includes(k.seat)||hands[k.seat].length>=sizes[k.seat]) continue;
+        const c=pool.find(x=>!fixed.has(x.id)&&x.suit===k.suit&&x.rank===k.rank);
+        if(!c) continue;
+        fixed.add(c.id); hands[k.seat].push(c); const su=effSuit(c,trump); cnt[k.seat][su]=(cnt[k.seat][su]||0)+1;
+      }
+      pool=pool.filter(c=>!fixed.has(c.id));
+    }
     // 先把「能去的地方最少」的牌安排掉
     const order=pool.slice().sort((a,b)=>
       seats.filter(s=>!voids[s][effSuit(a,trump)]).length
@@ -3690,6 +3808,83 @@ function rolloutToEnd(st){
   return {defPoints,lastWinner,lastLeadSize};
 }
 
+/* 收官精确解(v0.7.15):牌少到一定程度时,一个抽样世界不再用推演策略打完,
+ * 而是对四家做完全信息的极小极大(双明手)。目标仍是 levelUtility(根方视角),
+ * 对手最小化、本队最大化,alpha-beta 剪枝。领出只取拆解后的组件(和 rolloutLead 同口径,
+ * 不甩牌);跟牌枚举所有合法子集并按牌面去重。 */
+/* 单张的等价归并:完全信息下,同一门里两张牌之间若没有别家的牌、分值又相同,
+ * 出哪一张结果完全一样 —— 双明手求解的标准剪枝。others = 别家手里 + 本墩已出的牌。
+ *
+ * ⚠️ 这条剪枝**在两副牌里不成立**,拆不拆对子有价值,而它看不见这件事。
+ * 实测:手里 ♥6♥6 + ♥7,跟一张牌时归并之后**只剩「出 ♥6」**——「出 ♥7、把 ♥6♥6
+ * 留成一对」被当成等价扔掉了。桥牌里只有大小次序,这里还有牌型。
+ * egExact 那两批「持平」的读数里有多少是这个造成的,没有量过;
+ * 要再捡起收官精确解这条线,先修它再重测。 */
+function egDedupSingles(moves, others, trump){
+  if(moves.length<2) return moves;
+  const out=[], keep=[];
+  for(const mv of moves){
+    if(mv.length!==1){ out.push(mv); continue; }
+    const c=mv[0], su=effSuit(c,trump), idx=ordIdx(c,trump), pts=cardPoints(c);
+    let dup=false;
+    for(const k of keep){
+      if(k.su!==su||k.pts!==pts) continue;
+      const lo=Math.min(k.idx,idx), hi=Math.max(k.idx,idx);
+      if(!others.some(o=>effSuit(o,trump)===su&&ordIdx(o,trump)>lo&&ordIdx(o,trump)<hi)){ dup=true; break; }
+    }
+    if(!dup){ keep.push({su,idx,pts}); out.push(mv); }
+  }
+  return out;
+}
+function egMoves(hand, lead, trump, others){
+  if(!lead){
+    const bySuit={}; hand.forEach(c=>{(bySuit[effSuit(c,trump)]=bySuit[effSuit(c,trump)]||[]).push(c);});
+    const out=[]; for(const su in bySuit) for(const comp of decompose(bySuit[su],trump)) out.push(comp.cards);
+    return others?egDedupSingles(out,others,trump):out;
+  }
+  const k=lead.cards.length, n=hand.length, out=[], seen=new Set();
+  const rec=(start,pick)=>{
+    if(pick.length===k){
+      const key=pick.map(c=>c.suit+c.rank).sort().join(',');
+      if(seen.has(key)) return; seen.add(key);
+      if(isLegalFollow(hand,lead,pick,trump)) out.push(pick.slice());
+      return;
+    }
+    for(let i=start;i<=n-(k-pick.length);i++){ pick.push(hand[i]); rec(i+1,pick); pick.pop(); }
+  };
+  rec(0,[]);
+  return others?egDedupSingles(out,others,trump):out;
+}
+function egSolve(st, alpha, beta){
+  const {hands,trump,declSeat,kitty,rootTeam}=st;
+  let plays=st.plays;
+  if(plays.length===4){
+    const res=resolveTrick(plays,trump);
+    const defPoints=st.defPoints+(res.winner%2!==declSeat%2?res.points:0);
+    if(!hands.some(h=>h.length)){
+      const sc=scoreRound({defPoints,kitty,defWonLastTrick:res.winner%2!==declSeat%2,lastLeadSize:plays[0].cards.length});
+      return levelUtility(sc,rootTeam,declSeat%2);
+    }
+    return egSolve({...st,plays:[],leader:res.winner,defPoints},alpha,beta);
+  }
+  const seat=plays.length?(plays[0].seat+plays.length)%4:st.leader;
+  const lead=plays.length?classify(plays[0].cards,trump):null;
+  const others=[]; for(let i=0;i<4;i++) if(i!==seat) for(const c of hands[i]) others.push(c);
+  for(const p of plays) for(const c of p.cards) others.push(c);
+  const moves=egMoves(hands[seat],lead,trump,others);
+  const maxing=seat%2===rootTeam;
+  let best=maxing?-1e9:1e9;
+  for(const mv of moves){
+    const gone=new Set(mv.map(c=>c.id));
+    const h2=hands.slice(); h2[seat]=hands[seat].filter(c=>!gone.has(c.id));
+    const v=egSolve({...st,hands:h2,plays:plays.concat([{seat,cards:mv}])},alpha,beta);
+    if(maxing){ if(v>best) best=v; if(best>alpha) alpha=best; }
+    else { if(v<best) best=v; if(best<beta) beta=best; }
+    if(alpha>=beta) break;
+  }
+  return best;
+}
+
 /* 折成「我方净升几级」—— 这就是真正的目标函数,阶梯与抠底倍数都在 scoreRound 里。
  *
  * 但**纯阶梯是一个阶跃函数**:两个候选差 5 分,多数样本落在同一级台阶上,
@@ -3730,7 +3925,20 @@ function endgameSearch(view, plays, cands){
   const reads=makeReads(view.history||[],trump);
   const capOf=(s,su)=>maxHoldIn(reads,mem,s,su,trump);
   const rand=rng((view.history||[]).length*7919+view.seat*31+n*17+1);
-  const ctx={unseen,sizes,seats,voids,trump,kittySize,capOf};
+  /* 亮主者手里钉死的牌:亮 k 张级牌 → 他手里有 k 张该门级牌(减去他已经打出的);王对同理。 */
+  const known=[];
+  const decl=view.curDecl||view.decl;
+  if(AIP.egDeclKnown&&decl&&decl.seat>=0&&decl.seat!==view.seat&&seats.includes(decl.seat)){
+    const want=decl.strength>=3?{suit:'X',rank:decl.strength===4?16:15,n:2}
+             :decl.suit?{suit:decl.suit,rank:trump.rank,n:decl.strength}:null;
+    if(want){
+      let playedByHim=0;
+      for(const pl of (view.history||[])) if(pl.seat===decl.seat) for(const c of pl.cards) if(c.suit===want.suit&&c.rank===want.rank) playedByHim++;
+      for(const pl of (plays||[])) if(pl.seat===decl.seat) for(const c of pl.cards) if(c.suit===want.suit&&c.rank===want.rank) playedByHim++;
+      for(let i=0;i<want.n-playedByHim;i++) known.push({seat:decl.seat,suit:want.suit,rank:want.rank});
+    }
+  }
+  const ctx={unseen,sizes,seats,voids,trump,kittySize,capOf,known};
   const myTeam=view.seat%2, declTeam=view.declSeat%2;
   const rs=roundScore(view);
   const worlds=[];
@@ -3758,6 +3966,10 @@ function endgameSearch(view, plays, cands){
                                lastLeadSize:p2[0].cards.length});
           o.u+=levelUtility(sc,myTeam,declTeam); continue;
         }
+      }
+      if(AIP.egExact&&n<=AIP.egExact){
+        o.u+=egSolve({hands,plays:pl,leader,defPoints,trump,declSeat:view.declSeat,kitty,rootTeam:myTeam},-1e9,1e9);
+        continue;
       }
       const r=rolloutToEnd({hands,plays:pl,leader,defPoints,trump,declSeat:view.declSeat,mem,rand});
       const sc=scoreRound({defPoints:r.defPoints,kitty,
@@ -5166,7 +5378,8 @@ const desc=cards=>cards.map(miniName).join('+');
 function viewFor(seat){
   return {seat,hand:G.hands[seat],trump:G.trump,declSeat:G.declSeat,
           history:[...G.tricks.flatMap(t=>t.plays),...G.trick],
-          buriedKnown:seat===G.declSeat?G.buried:[]};
+          buriedKnown:seat===G.declSeat?G.buried:[],
+          decl:G.decl};            // 谁亮的什么主(v0.7.15:收官抽样把亮主者的级牌钉在他手里)
 }
 
 function cardHTML(c,cls=''){

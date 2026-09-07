@@ -124,6 +124,11 @@ function createRealm(buildFile, tag){
   const ctx=freshContext({console:con});
 
   const src=fs.readFileSync(buildFile,'utf8');
+  /* 版本号从 build 自己的身份标记上取,别写死在陪练里 ——
+   * 陪练包的是哪一份 build 的 AI,由 --build 决定,而它原来自称的版本是个常量,
+   * 换 build 就对不上了(联赛跑的是 index.html v0.7.12,它却自称 v0.7.13)。 */
+  const version=((src.match(/<div id="versionTag">(.*?)<\/div>/)||[])[1]||'')
+                  .match(/v\d+\.\d+\.\d+/) || [path.basename(buildFile)];
   const blocks=[...src.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
   vm.runInContext(blocks[0],ctx,{filename:`${path.basename(buildFile)}#block1`});
   const full=ctx.module.exports;
@@ -155,10 +160,10 @@ function createRealm(buildFile, tag){
     const mod=realmRequire(process.cwd(), file);
     const factory = typeof mod==='function' ? mod
                   : (mod && typeof mod.create==='function' ? mod.create : null);
-    return factory ? factory({E, AI:full}) : mod;
+    return factory ? factory({E, AI:full, version:version[0]}) : mod;
   }
 
-  return {E, AI:full, ctx, require:realmRequire, mount};
+  return {E, AI:full, version:version[0], ctx, require:realmRequire, mount};
 }
 
 module.exports={load, runBlock, freshContext, createRealm, guestRealm, ENGINE_API};
