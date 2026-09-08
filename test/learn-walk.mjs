@@ -6,14 +6,24 @@
    都只在真跑一遍的时候才看得见,单元测试断言不出来。 */
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 const PLAN=[
- [['seat',2],['multi',['H50','H130','H100']],['opt',2],['opt',1],['opt',1],['pick','H120'],['pick','H50'],['mini',2]],
- [['pick','H70'],['opt',0],['pick','S40'],['opt',1],['multi',['C60','C110']],['pick','H60'],['mini',2]],
- [['multi',['H50','S20','X160','C20']],['opt',1],['opt',1],['opt',1],['multi',['D20','H90','X150','H30']],['mini',2]],
- [['opt',2],['pick','H60'],['opt',1],['pick','D30'],['opt',1],['mini',2]],
+ [['seat',2],['multi',['H50','H130','H100']],['num',2],['win',1],['team',1],
+  ['play','H120'],['play','H50'],['mini',0]],
+ [['play','H70'],['multi',['H30','H130']],['multi',['S40','C90','D60']],['win',1],
+  ['play','H60'],['mini',0]],
+ [['multi',['S90','H50','X160','C50']],['multi',['C30','S80','H80','X150','C130']],
+  ['multi',['H50','D70','C90']],['card','X150'],['card','S50'],['mini',0]],
+ [['play','D60'],['win',0],['play','H100'],['win',0],['mini',0]],
+ [['multi',['S70','S71']],['win',1],['set',['S100','S101']],['set',['S40','S90']],['win',0]],
+ [['multi',['H80','H81','H90','H91']],
+  ['multi',['H50','H51','H70','H71','H80','H81']],['multi',['H70','H71','H80','H81']],
+  ['set',['D40','D41','D50','D51']],['win',0]],
+ [['multi',['S40','S41','S90']],['num',1],['throwset',['S40','S41']],['num',0],['num',1]],
 ];
 /* 每课小局的应得比分 —— 由牌面推出来的,改牌面就要一起改 */
+/* 每课小局的应得比分 —— 由牌面推出来的,改牌面就要一起改。
+   第 5、6 课(对子 / 拖拉机)没有小局,写 null 跳过这一项断言。 */
 const SCORE=['你们队拿到 15 分,对手 10 分','你们队拿到 10 分,对手 0 分',
-             '你们队拿到 15 分,对手 0 分','你们队拿到 10 分,对手 0 分'];
+             '你们队拿到 10 分,对手 0 分','你们队拿到 10 分,对手 0 分',null,null,null];
 let bad=0;
 const b=await chromium.launch({headless:true});
 for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
@@ -24,12 +34,16 @@ for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
   for(let L=0;L<PLAN.length;L++){
     const T0=Date.now();
     await p.click('#go'); await p.waitForTimeout(220);
-    if(tag==='p'&&L>0) await p.screenshot({path:`x-l${L+1}-q1.png`});
+    if(tag==='p') await p.screenshot({path:`y-l${L+1}-q1.png`});
     for(const [kind,val] of PLAN[L]){
       if(kind==='seat') await p.click(`.seatbtn[data-s="${val}"]`);
-      else if(kind==='opt') await p.click(`.opt[data-i="${val}"]`);
-      else if(kind==='multi'){ for(const id of val) await p.click(`.card[data-id="${id}"]`); }
-      else if(kind==='pick') await p.click(`#hand .card[data-id="${val}"]`);
+      else if(kind==='num') await p.click(`.opt[data-i="${val}"]`);
+      else if(kind==='win'||kind==='team') await p.click(`#table .slot[data-seat="${val}"]`);
+      else if(kind==='card') await p.click(`#table .card[data-id="${val}"]`);
+      else if(kind==='multi'){ for(const id of val) await p.click(`#table .card[data-id="${id}"]`); }
+      else if(kind==='play') await p.click(`#hand .card[data-id="${val}"]`);
+      else if(kind==='set'){ for(const id of val) await p.click(`#hand .card[data-id="${id}"]`); }
+      else if(kind==='throwset'){ for(const id of val) await p.click(`#table .pickset .card[data-id="${id}"]`); }
       else if(kind==='mini'){
         // 轮询到小局结束:该我出就点第一张能出的,顺手连点几下压测 busy 闸
         for(let t=0;t<120;t++){
@@ -47,15 +61,20 @@ for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
       if(v!=='答对了') errs.push(`L${L+1} 判成「${v}」: ${kind}=${val}`);
       await p.click('#cta'); await p.waitForTimeout(240);
     }
-    if(tag==='p') await p.screenshot({path:`x-l${L+1}-end.png`});
+    if(tag==='p') await p.screenshot({path:`y-l${L+1}-end.png`});
     const fin=await p.evaluate(()=>document.getElementById('bub').textContent);
     const want=SCORE[L];
-    if(!fin.includes(want)){ errs.push(`L${L+1} 小局比分不符,期望「${want}」,实得「${fin.slice(-40)}」`); }
+    if(want&&!fin.includes(want)){ errs.push(`L${L+1} 小局比分不符,期望「${want}」,实得「${fin.slice(-40)}」`); }
     console.log(` L${L+1} ${Math.round((Date.now()-T0)/1000)}s | ${fin.slice(-30)}`);
-    await p.click('#cta'); await p.waitForTimeout(300);   // 通关页
+    // 有小局的课:最后要再点一次「继续」才通关;没小局的课,最后一题的「继续」已经通关了
+    const ctaLive=await p.evaluate(()=>{
+      const el=document.getElementById('cta');
+      return getComputedStyle(document.getElementById('foot')).visibility!=='hidden'
+             && el.offsetParent!==null;});
+    if(ctaLive){ await p.click('#cta'); await p.waitForTimeout(300); }
     await p.click('#doneBtn'); await p.waitForTimeout(300);
   }
-  await p.screenshot({path:`x-${tag}-mapdone.png`});
+  await p.screenshot({path:`y-${tag}-map.png`});
   console.log(tag,'== errors:',errs.length?errs.join(' | '):'none');
   bad+=errs.length;
   await p.close();
