@@ -319,7 +319,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.15</div>
+<div id="versionTag">80分 v0.7.16</div>
 
 <script>
 /* ============================================================
@@ -539,17 +539,29 @@ function canBeatComp(suitCards, comp, trump){
 function checkThrow(hands, seat, cards, trump){
   const lead=classify(cards,trump);
   if(!lead||lead.type!=='throw') return {ok:true};
-  for(const comp of lead.comps){
+  /* 先把**被压住的**组件全找出来,不是找到一个就收工 —— 罚出哪一组只在这些里面挑。 */
+  const beaten=lead.comps.filter(comp=>{
     for(let p=0;p<4;p++){
       if(p===seat) continue;
       const sc=hands[p].filter(c=>effSuit(c,trump)===lead.suit);
-      if(canBeatComp(sc,comp,trump)){
-        const lowest=lead.comps.reduce((a,c)=>c.top<a.top?c:a);
-        return {ok:false, forced:lowest.cards};
-      }
+      if(canBeatComp(sc,comp,trump)) return true;
     }
-  }
-  return {ok:true};
+    return false;
+  });
+  if(!beaten.length) return {ok:true};
+  /* 罚出**被压住的那些里最小的一组**:先比张数(单张 < 对子 < 拖拉机),张数相同再比 top。
+   *
+   * 两处都曾经写错(v0.7.16 一起改口):
+   *   ① 挑选范围是「被压住的」,不是全部组件。甩 ♥3♥3 + ♥A、别家 ♥K♥K —— ♥A 是这门
+   *      最大的,没人压得住,被压的只有 ♥3♥3,那就出 ♥3♥3,不能因为「♥A 张数少」去出 ♥A。
+   *   ② 在这个范围里「最小」先比张数。甩 ♠4♠4 + ♠9、别家 ♠5♠5 + ♠K 两组都被压,
+   *      出 ♠9;旧写法只比 top 会出 ♠4♠4 —— 一对比一张单贵得多,「罚」反而罚重了,
+   *      还把一对拆散。
+   * 两个例子单看任何一个都分不出这两条,合起来才定得下来。 */
+  const size=c=>c.cards.length;
+  const lowest=beaten.reduce((a,c)=>
+    size(c)!==size(a) ? (size(c)<size(a)?c:a) : (c.top<a.top?c:a));
+  return {ok:false, forced:lowest.cards};
 }
 
 // ---- 亮主/反主/造反/加固 ----

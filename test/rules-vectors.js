@@ -93,13 +93,48 @@ console.log('\n跟牌义务');
      E.isLegalFollow(h2,ld,[h2[0],h2[1],h2[2],h2[3],h2[4],h2[5]],T), true);
 }
 
-console.log('\n甩牌:失败时强制出 top 最小的一组');
+/* 甩牌失败罚出哪一组:**在被压住的那些组件里**挑最小的一组,
+ * 「最小」先比张数(单张 < 对子 < 拖拉机),张数相同再比 top。
+ *
+ * v0.7.16 之前两处都不对:挑选范围是全部组件(不是被压住的),而且只比 top。
+ * 下面头两条正是把这两处分开来钉住的一对样本 —— 单看任何一条都定不下口径。
+ * 注意 T = 主♠打2,所以下面的 ♥ 是副门、♠ 是主门;副门的例子另设 TH = 主♥打2。 */
+console.log('\n甩牌:失败时在被压住的组件里挑最小的一组');
 {
-  const hands=[[C('H',3),C('H',3),C('H',14)], [C('H',13),C('H',13)], [], []];
-  const r=E.checkThrow(hands, 0, hands[0].slice(), T);
-  ok('甩 ♥3♥3+♥A、别家有 ♥K♥K → 不成立', r.ok, false);
-  ok('强制出的是 ♥3♥3(一对),不是张数最少的 ♥A',
-     r.forced.map(c=>c.rank).sort(), [3,3]);
+  const TH={suit:'H',rank:2};                 // 主♥ —— 这样 ♠ 是一个普通副门
+
+  // ① 只有对子被压:♥A 是这门最大的,谁也压不住 → 罚出的只能是 ♥3♥3
+  const h1=[[C('H',3),C('H',3),C('H',14)], [C('H',13),C('H',13)], [], []];
+  const r1=E.checkThrow(h1, 0, h1[0].slice(), T);
+  ok('甩 ♥3♥3+♥A、别家有 ♥K♥K → 不成立', r1.ok, false);
+  ok('只有 ♥3♥3 被压 → 强制出 ♥3♥3(♥A 没人压得住,不进候选)',
+     r1.forced.map(c=>c.rank).sort(), [3,3]);
+
+  // ② 两组都被压 → 这时才比大小,单张比对子小
+  const h2=[[C('S',4),C('S',4),C('S',9)], [C('S',5),C('S',5),C('S',13)], [], []];
+  const r2=E.checkThrow(h2, 0, h2[0].slice(), TH);
+  ok('甩 ♠4♠4+♠9、别家有 ♠5♠5+♠K → 不成立', r2.ok, false);
+  ok('两组都被压 → 强制出单张 ♠9,不是 top 更小的 ♠4♠4',
+     r2.forced.map(c=>c.rank).sort(), [9]);
+
+  // ③ 一张 ♠K 只压得住单张,压不住对子 —— 候选里只有 ♠9
+  const h3=[[C('S',4),C('S',4),C('S',9)], [C('S',13)], [], []];
+  const r3=E.checkThrow(h3, 0, h3[0].slice(), TH);
+  ok('甩 ♠4♠4+♠9、东家只有一张 ♠K → 强制出 ♠9',
+     r3.forced.map(c=>c.rank).sort(), [9]);
+
+  // ④ 张数相同 → 才比 top
+  const h4=[[C('S',4),C('S',4),C('S',9),C('S',9)], [C('S',13),C('S',13)], [], []];
+  const r4=E.checkThrow(h4, 0, h4[0].slice(), TH);
+  ok('两个对子都被 ♠K♠K 压住 → 罚出 top 小的那一对 ♠4♠4',
+     r4.forced.map(c=>c.rank).sort(), [4,4]);
+
+  // ⑤ 拖拉机 + 单张,两组都被压:单张张数最少
+  const h5=[[C('S',4),C('S',4),C('S',5),C('S',5),C('S',13)],
+            [C('S',14),C('S',6),C('S',6),C('S',7),C('S',7)], [], []];
+  const r5=E.checkThrow(h5, 0, h5[0].slice(), TH);
+  ok('甩 ♠4♠4♠5♠5 + ♠K、别家 ♠A + ♠6♠6♠7♠7 → 罚出单张 ♠K',
+     r5.forced.map(c=>c.rank).sort(), [13]);
 }
 
 console.log('\n无主局的一墩胜负');
