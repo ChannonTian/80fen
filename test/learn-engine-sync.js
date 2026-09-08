@@ -7,7 +7,7 @@
 const fs=require('fs');
 
 const NAMES=['cardPoints','countPoints','effSuit','natOrder','ordIdx','pairKey','decompose','classify','countPairsIn',
-             'maxTractorLen','pairsInLead','isLegalFollow','structSig','structMatches','resolveTrick'];
+             'maxTractorLen','pairsInLead','isLegalFollow','structSig','structMatches','resolveTrick','canBeatComp','checkThrow'];
 
 function grab(src,name){
   const i=src.indexOf('function '+name+'(');

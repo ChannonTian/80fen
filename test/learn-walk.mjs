@@ -14,14 +14,16 @@ const PLAN=[
   ['multi',['H50','D70','C90']],['card','X150'],['card','S50'],['mini',0]],
  [['play','D60'],['win',0],['play','H100'],['win',0],['mini',0]],
  [['multi',['S70','S71']],['win',1],['set',['S100','S101']],['set',['S40','S90']],['win',0]],
- [['multi',['H80','H81','H90','H91']],['num',0],['num',1],
+ [['multi',['H80','H81','H90','H91']],
+  ['multi',['H50','H51','H70','H71','H80','H81']],['multi',['H70','H71','H80','H81']],
   ['set',['D40','D41','D50','D51']],['win',0]],
+ [['multi',['S40','S41','S90']],['num',1],['throwset',['S40','S41']],['num',0],['num',1]],
 ];
 /* 每课小局的应得比分 —— 由牌面推出来的,改牌面就要一起改 */
 /* 每课小局的应得比分 —— 由牌面推出来的,改牌面就要一起改。
    第 5、6 课(对子 / 拖拉机)没有小局,写 null 跳过这一项断言。 */
 const SCORE=['你们队拿到 15 分,对手 10 分','你们队拿到 10 分,对手 0 分',
-             '你们队拿到 10 分,对手 0 分','你们队拿到 10 分,对手 0 分',null,null];
+             '你们队拿到 10 分,对手 0 分','你们队拿到 10 分,对手 0 分',null,null,null];
 let bad=0;
 const b=await chromium.launch({headless:true});
 for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
@@ -41,6 +43,7 @@ for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
       else if(kind==='multi'){ for(const id of val) await p.click(`#table .card[data-id="${id}"]`); }
       else if(kind==='play') await p.click(`#hand .card[data-id="${val}"]`);
       else if(kind==='set'){ for(const id of val) await p.click(`#hand .card[data-id="${id}"]`); }
+      else if(kind==='throwset'){ for(const id of val) await p.click(`#table .pickset .card[data-id="${id}"]`); }
       else if(kind==='mini'){
         // 轮询到小局结束:该我出就点第一张能出的,顺手连点几下压测 busy 闸
         for(let t=0;t<120;t++){

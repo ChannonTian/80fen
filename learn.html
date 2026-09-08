@@ -88,7 +88,8 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
 
 /* ==========  ③ 牌桌区 + ④ 手牌:作为一个整体居中,中间只留一点  ========== */
 #board{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;
-  justify-content:center;gap:4px;padding:2px 8px 18px}    /* 下留白把整组往上顶 */
+  justify-content:center;gap:4px;padding:2px 8px 18px;    /* 下留白把整组往上顶 */
+  overflow-y:auto;overflow-x:hidden}                      /* 兜底:内容太高就在这一块里滚,别顶到气泡上去 */
 #table{display:flex;flex-direction:column;align-items:center;gap:9px;width:100%}
 #hand{display:flex;justify-content:center;gap:8px;min-height:calc(var(--cardH) + 10px);
   align-items:flex-end}
@@ -111,9 +112,39 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
 .slot.mine .who,.slot.mate .who{color:var(--ol-tx)}
 .slot .who.win{background:var(--gd);color:var(--gd-tx);border-radius:5px;padding:2px 6px}
 .slot .ph{width:var(--cardW);height:var(--cardH);border-radius:7px;border:2px dashed #D3D0C1}
-.slot .cards{display:flex;gap:2px;justify-content:center}
-.trick.m2{--cardW:clamp(34px,10vw,50px)}       /* 一格两张 */
-.trick.m4{--cardW:clamp(23px,6.6vw,34px)}      /* 一格三四张(拖拉机) */
+/* 多张牌叠起来放 —— 和正式版出牌区(.played)同一套视觉语言:后一张压前一张 -0.5,
+   只留左半边(点数 + 花色)够认牌。我们的牌本来就只画左半边,正好接得上。
+   不叠的话一格只有牌桌 1/3 宽,四张牌得缩到 23px,牌面就读不出来了。 */
+.slot .cards{display:flex;gap:0;justify-content:center;align-items:center}
+.cards.ov .card{margin-left:calc(var(--cardW)*-.5)}
+.cards.ov .card:first-child{margin-left:0}
+/* 叠起来之后右半边被盖住,分值角标与「主」字条挪到左边那条露出来的窄边上 */
+.cards.ov .card .pt{left:2px;right:auto;top:56%;bottom:auto;font-size:calc(var(--cardW)*.2);padding:1px 3px}
+.cards.ov .card .trumpTag{left:0;right:auto;width:52%;top:30%;font-size:calc(var(--cardW)*.21);
+  padding:1px 0;border-radius:0 4px 4px 0;text-align:center}
+.trick.m2{--cardW:clamp(46px,13vw,68px)}       /* 一格两张 */
+.trick.m4{--cardW:clamp(38px,11vw,54px)}       /* 一格三四张(拖拉机、甩牌) */
+/* 明牌演示:几家的牌摊开给你看 */
+.openrow{display:flex;align-items:center;gap:9px;width:100%;max-width:340px;margin:0}
+.openrow b{flex:none;width:4.2em;font:800 12px/1.3 inherit;color:var(--tx2);text-align:right}
+.openrow.me b{color:var(--ol-tx)}
+.opencards{--cardW:clamp(33px,9.5vw,48px);--cardH:calc(var(--cardW)*1.38);
+  display:flex;gap:0;align-items:center}
+.opencards .card{margin-left:calc(var(--cardW)*-.5)}
+.opencards .card:first-child{margin-left:0}
+.opencards .card .pt{left:2px;right:auto;top:56%;bottom:auto;font-size:calc(var(--cardW)*.2);padding:1px 3px}
+.opencards .card .trumpTag{left:0;right:auto;width:52%;top:30%;font-size:calc(var(--cardW)*.21);
+  padding:1px 0;border-radius:0 4px 4px 0;text-align:center}
+/* 要点的那一行**不叠** —— 叠是给「只看不点」的展示用的。
+   叠着选牌有两处必错:点中心会点到后一张;选中抬起来又会盖住下一张的可点区。 */
+.opencards.pickset{gap:7px}
+.opencards.pickset .card{cursor:pointer;margin-left:0}
+.opencards.pickset .card .pt{left:auto;right:3px;top:auto;bottom:3px;
+  font-size:calc(var(--cardW)*.25);padding:2px 4px}
+.opencards.pickset .card .trumpTag{left:0;right:0;width:auto;top:38%;
+  font-size:calc(var(--cardW)*.2);border-radius:0}
+.opencards.pickset .card.sel{transform:translateY(-11px);
+  box-shadow:0 2px 0 rgba(0,0,0,.09),0 0 0 3px var(--bl)}
 .tcenter{grid-column:2;font:700 11px/1.35 inherit;color:var(--tx2);text-align:center}
 .pile{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:100%}
 
@@ -447,6 +478,28 @@ function resolveTrick(plays, trump){
           points:countPoints(plays.flatMap(p=>p.cards)),
           winningPlay:best};
 }
+function canBeatComp(suitCards, comp, trump){
+  if(comp.type==='single') return suitCards.some(c=>ordIdx(c,trump)>comp.top);
+  const comps=decompose(suitCards,trump);
+  if(comp.type==='pair')
+    return comps.some(c=>(c.type==='pair'||c.type==='tractor')&&c.top>comp.top);
+  return comps.some(c=>c.type==='tractor'&&c.len>=comp.len&&c.top>comp.top);
+}
+function checkThrow(hands, seat, cards, trump){
+  const lead=classify(cards,trump);
+  if(!lead||lead.type!=='throw') return {ok:true};
+  for(const comp of lead.comps){
+    for(let p=0;p<4;p++){
+      if(p===seat) continue;
+      const sc=hands[p].filter(c=>effSuit(c,trump)===lead.suit);
+      if(canBeatComp(sc,comp,trump)){
+        const lowest=lead.comps.reduce((a,c)=>c.top<a.top?c:a);
+        return {ok:false, forced:lowest.cards};
+      }
+    }
+  }
+  return {ok:true};
+}
 /* ==LEARN-ENGINE-PORT-END== */
 
 function cardName(c){ return c.suit==='X'?(c.rank===16?'大王':'小王'):SYM[c.suit]+RS(c.rank); }
@@ -687,20 +740,24 @@ const LESSONS=[
    answer:['H80','H81','H90','H91'],
    good:'对。<b>8 和 9 挨着</b>,两对连起来就是拖拉机。J 和 9 中间隔着 10,连不上。',
    bad:'拖拉机要<b>点数相邻</b>:♥8♥8 + ♥9♥9 连得上;♥J♥J 和 ♥9♥9 中间隔着 10,连不上。' },
- { type:'numpick', badge:'要紧', task:'连得上吗',
-   prompt:'打 6、黑桃主。<b>♥5♥5</b> 和 <b>♥7♥7</b> —— 这四张是拖拉机吗?',
-   hint:'这一局的 6 去哪了?',
-   cards:[H(5,0),H(5,1),H(7,0),H(7,1)], opts:['是,连得上','不是'], answer:0,
-   good:'是。<b>这一局打 6,所有的 6 都被抽去当主牌了</b> —— 红桃里 5 的下一张就是 7,所以 55 和 77 是挨着的。',
-   bad:'再想想:打 6 的时候 <b>♥6 已经不在红桃里了</b>(它是主牌)。红桃里 5 的下一张就是 7,所以这四张<b>连得上</b>。' },
- { type:'numpick', badge:'对照', task:'连得上吗', tr:{suit:'S',rank:2},
-   prompt:'<b>同样四张牌,换成打 2、黑桃主。</b>现在还是拖拉机吗?',
+ { type:'multi', badge:'要紧', task:'挑出拖拉机',
+   prompt:'打 6、黑桃主。下面这些红桃里,<b>能连成一副拖拉机的都点出来</b>。',
+   hint:'这一局的 ♥6 去哪了?',
+   cards:[H(5,0),H(5,1),H(7,0),H(7,1),H(8,0),H(8,1),H(12)],
+   answer:['H50','H51','H70','H71','H80','H81'],
+   good:'六张全是。<b>这一局打 6,所有的 6 都被抽去当主牌了</b> —— 红桃里 5 的下一张就是 7,'+
+        '所以 55 → 77 → 88 一路连下来,是一副<b>三连对</b>。',
+   bad:'再想想:打 6 的时候 <b>♥6 已经不在红桃里了</b>(它是主牌)。'+
+       '红桃里 5 的下一张就是 7,所以 <b>55 + 77 + 88 连成一副三连对</b>,六张全要。' },
+ { type:'multi', badge:'对照', task:'挑出拖拉机', tr:{suit:'S',rank:2},
+   prompt:'<b>同样这些牌,换成打 2、黑桃主。</b>现在能连成拖拉机的是哪几张?',
    hint:'这一局的 ♥6 还在红桃里。',
-   cards:[H(5,0),H(5,1),H(7,0),H(7,1)], opts:['是,连得上','不是'], answer:1,
-   good:'不是。打 2 的时候 <b>♥6 还在红桃里</b>,5 和 7 中间隔着它,连不上。'+
-        '<span class="sim">同样四张牌,是不是拖拉机,取决于这一局打几 —— 牌序是会变的。</span>',
-   bad:'打 2 的时候 ♥6 还是普通红桃,<b>5 和 7 中间隔着 6</b>,所以连不上。'+
-       '同样四张牌,上一题连得上、这一题连不上,差别只在<b>这一局打几</b>。' },
+   cards:[H(5,0),H(5,1),H(7,0),H(7,1),H(8,0),H(8,1),H(12)],
+   answer:['H70','H71','H80','H81'],
+   good:'只有 <b>77 + 88</b>。打 2 的时候 ♥6 还在红桃里,5 和 7 中间隔着它,♥5♥5 连不进来。'+
+        '<span class="sim">同样一手牌,能连出什么,取决于这一局打几 —— 牌序是会变的。</span>',
+   bad:'♥5♥5 这次连不进来了 —— 打 2 的时候 <b>♥6 还是普通红桃</b>,5 和 7 中间隔着它。'+
+       '能连的只有 <b>♥7♥7 + ♥8♥8</b>。上一题六张全连,这一题只连四张,差别只在<b>这一局打几</b>。' },
  { type:'playset', badge:'新规则', task:'跟一手牌',
    prompt:'打 6、黑桃主。东家领出<b>一副拖拉机 ♦9♦9♦10♦10</b>。你该出哪四张?',
    hint:'你手上也有一副拖拉机。',
@@ -719,9 +776,55 @@ const LESSONS=[
         '西家那四张是散牌,不参与比较。',
    bad:'你出的是<b>主牌的两连对</b>,结构和领出的一样,又是主 —— 这一墩归你。' },
 ]},
+
+{ id:'l7', rank:'7', name:'甩牌', mins:5, tr:{suit:'H',rank:11}, qs:[
+ { type:'multi', badge:'新概念', task:'能一起甩的',
+   prompt:'<b>最后一局:打 J、红桃是主。</b>轮到你领出时,可以把<b>同一门</b>的几组牌'+
+          '一起<span class="term">甩</span>出去。下面这手,<b>能一起甩的都点出来</b>。',
+   hint:'甩牌只能是同一门。',
+   cards:[S(4,0),S(4,1),S(9),D(13)], answer:['S40','S41','S90'],
+   good:'对。<b>甩牌必须同一门</b> —— ♠4♠4 和 ♠9 都是黑桃,可以一起甩出去(一对 + 一张单)。'+
+        '♦K 是方块,甩不到一起。',
+   bad:'甩牌只能甩<b>同一门</b>。三张黑桃 ♠4♠4♠9 是一手,♦K 是另一门,不能混着甩。' },
+
+ { type:'throwjudge', badge:'新规则', task:'甩得出去吗',
+   prompt:'你想把 <b>♠4♠4 + ♠9</b> 一起甩出去。三家的黑桃都摊在下面 —— <b>甩得成吗?</b>',
+   hint:'有没有人能盖过其中任何一组?',
+   hands:[[S(4,0),S(4,1),S(9)],[S(13),S(2)],[S(3)],[S(7)]], throwIds:['S40','S41','S90'],
+   opts:['甩得出去','甩不出去'], answer:1,
+   good:'甩不成。<b>只要有任何一家、能盖过你其中任何一组</b>,这一甩就不成立 —— 东家那张 <b>♠K</b> 压得过你的单张 ♠9。',
+   bad:'再看东家:他有 <b>♠K</b>,压得过你甩出去的单张 ♠9。<b>只要有一家能盖过其中一组,甩就不成立。</b>' },
+
+ { type:'forcedpick', task:'那只能出哪几张',
+   prompt:'甩牌被拦下来了。规则是:<b>只能改出其中最小的那一组</b>。点出你只能出的那几张。',
+   hint:'比的是「组」,不是单张。一对 ♠4 和一张 ♠9,哪一组更小?',
+   hands:[[S(4,0),S(4,1),S(9)],[S(13),S(2)],[S(3)],[S(7)]], throwIds:['S40','S41','S90'],
+   good:'对。甩不成的时候<b>强制改出最小的那一组</b> —— 是 <b>♠4♠4 这一对</b>,不是单张 ♠9。'+
+        '<span class="sim">按这里的规则,甩牌失败只是被强制出小,不额外罚分。</span>',
+   bad:'最小的那<b>一组</b>是 <b>♠4♠4</b>(整对一起出),不是把 ♠9 单独拿出来。' },
+
+ { type:'throwjudge', task:'这次呢',
+   prompt:'换一手:你想甩 <b>♠K♠K + ♠A</b>。三家的黑桃还是摊开的 —— <b>甩得成吗?</b>',
+   hint:'有人压得过 ♠A 吗?有人有比 ♠K 更大的对子吗?',
+   hands:[[S(13,0),S(13,1),S(14)],[S(5),S(2)],[S(3)],[S(6),S(7)]],
+   throwIds:['S130','S131','S140'],
+   opts:['甩得出去','甩不出去'], answer:0,
+   good:'甩得成。<b>♠A 没人压得过,♠K♠K 也没人有更大的对子</b> —— 三张一起收走。'+
+        '这就是甩牌的价值:一次收掉好几张,还逼对手把牌吐出来。',
+   bad:'再看一遍三家的黑桃:最大的只有 ♠7,<b>既压不过 ♠A,也凑不出比 ♠K♠K 更大的对子</b>。这一甩成立。' },
+
+ { type:'numpick', task:'甩之前先想什么',
+   prompt:'那么,<b>什么时候不该甩?</b>',
+   hint:'甩失败的代价是什么?',
+   opts:['手上牌多就甩','那门还有大牌没出现过,就先别甩','有分就甩','随时都可以甩'], answer:1,
+   good:'对。甩牌赌的是<b>这一门的大牌都已经不在别人手上</b>。'+
+        '还没数清楚就甩,被拦下来就只剩最小的那一组出去,等于白白暴露了一手牌。'+
+        '<span class="sim">所以甩牌是「记牌」的下游本事 —— 记牌那一课在下一个单元。</span>',
+   bad:'甩牌赌的是<b>这门的大牌都已经出过了</b>。没数清就甩,被拦下来只能出最小的一组,'+
+       '既没收到牌,还把手牌亮给了对手。' },
+]},
 ];
-/* 单元 1 还差最后一课,先在地图上占位 */
-const SOON=[{rank:'7',name:'甩牌'}];
+const SOON=[];
 
 const PACE={ step:560, fly:480, review:1150 };
 
@@ -754,8 +857,8 @@ function drawMap(){
     (cur?`<div class="nowline">${dn+1} · ${cur.name}</div>
           <div class="nowsub">翻开这张牌开始 · 约 ${cur.mins} 分钟</div>
           <div class="golead"><button class="btn" id="go">开始</button></div>`
-        :`<div class="nowline">前四课打完了 🎉</div>
-          <div class="nowsub">后面三课(对子 / 拖拉机 / 甩牌)还在做</div>
+        :`<div class="nowline">单元 1 全部打完了 🎉</div>
+          <div class="nowsub">七张牌都翻过来了 —— 你已经会打一墩牌了</div>
           <div class="golead"><button class="btn" id="again">从头再练一遍</button></div>`)+
     `<div class="unit lock" style="margin-top:22px"><small>第一部 · 会打一墩</small><b>单元 2 · 一局怎么打完</b></div>
      <div class="locknote">打完上一个单元解锁</div>`;
@@ -779,7 +882,7 @@ function trickHTML(played,lead,winner,showPt,opt){
     const wcls = opt.teamTag ? (isUs(s)?'us':'them') : '';
     return `<div class="slot ${cls}" data-seat="${s}">`+
       `<div class="who ${wcls} ${winner===s?'win':''}">${who}</div>`+
-      (a?`<div class="cards">${a.map(c=>cardHTML(c,'played',showPt,TR)).join('')}</div>`
+      (a?`<div class="cards${a.length>1?' ov':''}">${a.map(c=>cardHTML(c,'played',showPt,TR)).join('')}</div>`
          :'<div class="ph"></div>')+`</div>`;
   };
   const wcls=wide>=3?' m4':wide===2?' m2':'';
@@ -872,6 +975,7 @@ function render(){
     draw();
   }
   else if(q.type==='trickpick'||q.type==='playset'){ drawPlay(q); }
+  else if(q.type==='throwjudge'||q.type==='forcedpick'){ drawThrow(q); }
   else if(q.type==='mini') startMini(q);
   if(!$('hand').children.length) $('hand').style.minHeight='0';
 }
@@ -900,6 +1004,34 @@ function drawPlay(q){
     el.onclick=()=>{ if(answered)return;
       if(q.type==='playset') selMulti=selMulti.filter(id=>id!==el.dataset.id); else sel=null;
       $('cta').disabled=true; drawPlay(q); };});
+}
+
+/* 甩牌题:四家的这一门牌全摊开(明牌),成不成立交给引擎的 checkThrow 算 */
+function throwCards(q){ return q.hands[0].filter(c=>q.throwIds.includes(c.id)); }
+function throwResult(q){ return checkThrow(q.hands,0,throwCards(q),TR); }
+function drawThrow(q){
+  const pickable = q.type==='forcedpick';
+  const row=(who,cards,cls,pick)=>
+    `<div class="openrow ${cls||''}"><b>${who}</b><div class="opencards${pick?' pickset':''}">`+
+    cards.map(c=>cardHTML(c,pick&&selMulti.includes(c.id)?'sel':'',true,TR)).join('')+`</div></div>`;
+  let html = row(pickable?'只能出':'你要甩', throwCards(q), 'me', pickable);
+  for(const s2 of [1,2,3]) html += row(SEAT[s2], q.hands[s2], '');
+  if(q.type==='throwjudge')
+    html += `<div class="chips" style="margin-top:8px">${q.opts.map((o,i)=>`<button class="opt" data-i="${i}">${o}</button>`).join('')}</div>`;
+  $('table').innerHTML=html;
+  if(pickable){
+    $('table').querySelectorAll('.pickset .card').forEach(n=>n.onclick=()=>{
+      if(answered)return;
+      const i=selMulti.indexOf(n.dataset.id);
+      if(i<0){selMulti.push(n.dataset.id);n.classList.add('sel');}
+      else{selMulti.splice(i,1);n.classList.remove('sel');}
+      $('cta').disabled=!selMulti.length;});
+  }else{
+    $('table').querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
+      if(answered)return;
+      $('table').querySelectorAll('.opt').forEach(x=>x.classList.remove('sel'));
+      b.classList.add('sel');sel=+b.dataset.i;$('cta').disabled=false;});
+  }
 }
 
 /* ---------- 判分 ---------- */
@@ -937,6 +1069,20 @@ function check(){
     $('table').querySelectorAll('.slot').forEach(sl=>{
       const s=+sl.dataset.seat;
       if(hit(s))sl.classList.add('okslot'); else if(miss(s))sl.classList.add('noslot');});
+  } else if(q.type==='throwjudge'){
+    const r=throwResult(q);                       // 成不成立由引擎说了算,题里不写死
+    const want=r.ok?0:1;
+    ok=sel===want;
+    $('table').querySelectorAll('.opt').forEach(b=>{
+      const i=+b.dataset.i;b.classList.remove('sel');
+      addCls(b,i===want?'ok':i===sel?'no':'');});
+  } else if(q.type==='forcedpick'){
+    const r=throwResult(q);
+    const want=(r.forced||[]).map(c=>c.id);
+    ok = want.length===selMulti.length && want.every(id=>selMulti.includes(id));
+    $('table').querySelectorAll('.pickset .card').forEach(n=>{
+      n.classList.remove('sel');
+      addCls(n, want.includes(n.dataset.id)?'ok':selMulti.includes(n.dataset.id)?'no':'dim');});
   } else if(q.type==='playset'){
     // 合法性交给引擎的 isLegalFollow —— 「门里有对必出对、有拖必跟拖」这套判定
     // 自己重写一份必错,这正是把那一段整体搬过来的理由
