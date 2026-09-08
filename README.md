@@ -7,24 +7,38 @@
 * **[在线试玩稳定版](https://channontian.github.io/80fen/)**
 * [在线试玩测试版](https://channontian.github.io/80fen/80fen-test.html)
 * **[AI 比赛主页](https://channontian.github.io/80fen/contest.html)** —— 赛制、选手、结果、对局记录,和每份提交套上 GUI 壳的观察页
+* **[教学版](https://channontian.github.io/80fen/learn.html)** —— 游戏化的 80分 教程,手机竖屏,从零学起。单元 1「一墩牌怎么打」七课已上线
 
 ## 仓库长什么样
 
 根目录只放**部署出去的东西**和 README —— GitHub Pages 把整个仓库根目录当站点发,
 所以这几份 html 的路径就是线上的 URL,不能挪。其余按用途分开:
 
-```
-index.html                     正式版(线上 /)
-80fen-test.html                测试版
-80fen-contest-<选手>-v1.html   参赛版观察页
-contest.html                   比赛主页
+**部署出去的页面全在根目录,支撑材料按项目分文件夹** —— 三个项目(游戏本体 / AI 比赛 /
+教学版)各有一个文件夹,页面留在根上。
 
+```
+index.html                     正式版(线上 /)          ┐
+80fen-test.html                测试版                    │ 这几份 html 的路径
+contest.html                   比赛主页                  │ 就是线上 URL,
+80fen-contest-<选手>-v1.html   参赛版观察页              │ 一律不能挪
+learn.html                     教学版(线上 /learn.html) ┘
+
+—— 游戏本体 ——
 docs/                          文档
   RULES.md  DESIGN.md  SWITCHES.md  CHANGELOG.md  contest-ops.md
   notes/                       过程笔记(推演、量法、否掉的尝试、上线备忘)
-
 test/                          三份 build 的测试与体检脚本
-contest/                       比赛:裁判、联赛、赛报、参赛 repo 的内容、历次结果
+
+—— AI 比赛 ——
+contest/                       裁判、联赛、赛报、参赛 repo 的内容、历次结果
+                               (运营手册在 docs/contest-ops.md)
+
+—— 教学版 ——
+learn/
+  DESIGN.md                    设计稿:课程结构、题型库、真值来源、界面规格
+  test/walk.mjs                七课走查(竖屏两档,每题断言 + 核对小局比分)
+  test/engine-sync.js          钉住 learn.html 里那段引擎移植与 index.html 逐字相同
 ```
 
 ## 文档地图
@@ -33,6 +47,7 @@ contest/                       比赛:裁判、联赛、赛报、参赛 repo 的
 两份「照着能做出同样东西」的文档:规则交给 [`docs/RULES.md`](docs/RULES.md)(第三部分),
 产品交给 [`docs/DESIGN.md`](docs/DESIGN.md)(第一部分)。AI 比赛的运营看
 [`docs/contest-ops.md`](docs/contest-ops.md),发给参赛者的那一份在 [`contest/public/`](contest/public/)。
+教学版自成一摊,设计稿在 [`learn/DESIGN.md`](learn/DESIGN.md)。
 
 | 文档 | 写给谁 | 里面是什么 |
 |---|---|---|
@@ -40,6 +55,7 @@ contest/                       比赛:裁判、联赛、赛报、参赛 repo 的
 | **[`docs/DESIGN.md`](docs/DESIGN.md)** | 改代码的人 + 要复刻这个产品的人 | ①**产品规格**(§A–§G):九条硬约束、代码地图、数据模型、接口契约、界面规格、复刻路线图与验收清单 ②**AI 设计**(§0–§10):三阶段评分公式、每一项的来历、已知短板 ③功能总表(§11)与工程(§12) |
 | **[`docs/contest-ops.md`](docs/contest-ops.md)** | 办比赛的人(内部) | 哪些发出去哪些留着、怎么跑联赛、裁判的关键实现决定、赛制标定数据、收提交的流程 |
 | **[`contest/public/README.md`](contest/public/README.md)** | 参赛者 | 参赛手册:五个方法的契约、`view` 字段表、罚分、赛制、十个坑。**不含我们的任何代码,也不含关于我们这个 AI 的线索** |
+| **[`learn/DESIGN.md`](learn/DESIGN.md)** | 做教学版的人 | 游戏化 80分 教学的设计稿:三级真值来源(引擎判定 / 明牌穷举 / 启发式评分)、课程结构与单元表、题型库、教学性简化的登记与解除、节奏预算、界面规格。**尚未实现的部分标着** |
 | **[`docs/SWITCHES.md`](docs/SWITCHES.md)** | 调参的人 | 132 个 `AIP` 开关的登记表(脚本生成,可重跑) |
 | **[`docs/CHANGELOG.md`](docs/CHANGELOG.md)** | 想知道哪版改了什么 | 版本总表 + 每版结论 |
 | [`notes/ai-journal.md`](docs/notes/ai-journal.md) | 未来的自己 | **v0.1.0~v0.7.5** 的完整推演与实验数据(当年的 CHANGELOG 全文)。v0.7.6 起不再分家,直接写在 `docs/CHANGELOG.md` |
@@ -85,7 +101,12 @@ contest/                       比赛:裁判、联赛、赛报、参赛 repo 的
 | `contest/baseline.js` | 现版 AI 的参赛接口包装 —— 排名的标尺,也是参赛者的起点 |
 | `contest/selftest.js` | **裁判器自测** —— 39 项,含空屋隔离与护栏对故意作弊的提交是否兜得住 |
 
-比赛相关的代码都在 `contest/`,**不进 build** —— 三份 html 一个字节都不为比赛改动。
+| `learn.html` | **教学版** —— 游戏化教程,单文件零依赖,手机竖屏优先。牌型与跟牌判定从 `index.html` 逐字移植,不自己重写 |
+| `learn/test/walk.mjs` | 七课走查:竖屏两档各打一遍,每题断言判「答对了」,并核对每个小局的最终比分 |
+| `learn/test/engine-sync.js` | **钉住 `learn.html` 里那段引擎移植与 `index.html` 逐字相同**(17 个函数,正反两向查)|
+
+比赛相关的代码都在 `contest/`,教学版的在 `learn/`,**两边都不进 build** ——
+三份 html 一个字节都不为比赛或教学改动。
 
 三层流水线:本地 `80fen-dev.html`(开发版)→ GitHub `80fen-test.html`(测试版,验收后推)
 → GitHub `index.html`(正式版)。每次晋级就是把当前文件内容整份复制过去、改文件名,

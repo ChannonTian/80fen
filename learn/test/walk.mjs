@@ -1,6 +1,6 @@
 /* 教学版走查:把单元 1 的四课各打一遍,断言每题都判「答对了」,
    并核对每个小局的最终比分。竖屏两档屏幕各跑一遍。
-       node test/learn-walk.mjs
+       node learn/test/walk.mjs          # 在仓库根目录跑
    为什么要有这个:小局是「AI 自动推进 + 人也能操作」的结构,正式版没有
    这种东西 —— 过期的定时器回来再出一张牌、同一家出两张、endTrick 跑两次,
    都只在真跑一遍的时候才看得见,单元测试断言不出来。 */
@@ -25,6 +25,13 @@ const PLAN=[
 const SCORE=['你们队拿到 15 分,对手 10 分','你们队拿到 10 分,对手 0 分',
              '你们队拿到 10 分,对手 0 分','你们队拿到 10 分,对手 0 分',null,null,null];
 let bad=0;
+/* 截图默认不产出 —— 跑一次测试就往仓库根目录扔十几个 png,check-sync 的
+   未跟踪文件白名单立刻报警。要看图就加 --shots,写进 learn/test/shots/(已 gitignore)。*/
+const SHOTS=process.argv.includes('--shots');
+const SHOTDIR='learn/test/shots';
+if(SHOTS) (await import('node:fs')).mkdirSync(SHOTDIR,{recursive:true});
+const shot=async(p,name)=>{ if(SHOTS) await p.screenshot({path:`${SHOTDIR}/${name}`}); };
+
 const b=await chromium.launch({headless:true});
 for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
   const p=await b.newPage({viewport:{width:w,height:h},deviceScaleFactor:2});
@@ -34,7 +41,7 @@ for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
   for(let L=0;L<PLAN.length;L++){
     const T0=Date.now();
     await p.click('#go'); await p.waitForTimeout(220);
-    if(tag==='p') await p.screenshot({path:`y-l${L+1}-q1.png`});
+    if(tag==='p') await shot(p,`l${L+1}-q1.png`);
     for(const [kind,val] of PLAN[L]){
       if(kind==='seat') await p.click(`.seatbtn[data-s="${val}"]`);
       else if(kind==='num') await p.click(`.opt[data-i="${val}"]`);
@@ -61,7 +68,7 @@ for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
       if(v!=='答对了') errs.push(`L${L+1} 判成「${v}」: ${kind}=${val}`);
       await p.click('#cta'); await p.waitForTimeout(240);
     }
-    if(tag==='p') await p.screenshot({path:`y-l${L+1}-end.png`});
+    if(tag==='p') await shot(p,`l${L+1}-end.png`);
     const fin=await p.evaluate(()=>document.getElementById('bub').textContent);
     const want=SCORE[L];
     if(want&&!fin.includes(want)){ errs.push(`L${L+1} 小局比分不符,期望「${want}」,实得「${fin.slice(-40)}」`); }
@@ -74,7 +81,7 @@ for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
     if(ctaLive){ await p.click('#cta'); await p.waitForTimeout(300); }
     await p.click('#doneBtn'); await p.waitForTimeout(300);
   }
-  await p.screenshot({path:`y-${tag}-map.png`});
+  await shot(p,`${tag}-map.png`);
   console.log(tag,'== errors:',errs.length?errs.join(' | '):'none');
   bad+=errs.length;
   await p.close();
