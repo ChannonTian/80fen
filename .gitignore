@@ -4,3 +4,9 @@
 
 # 一次性的补丁、临时输出
 scratchpad/
+
+# 教学版走查脚本 --shots 的输出
+learn/test/shots/
+
+# 走查脚本早期版本往根目录扔的截图,别再让它们进来
+[a-z]-*.png
