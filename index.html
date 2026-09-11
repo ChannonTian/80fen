@@ -319,7 +319,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.16</div>
+<div id="versionTag">80分 v0.7.17</div>
 
 <script>
 /* ============================================================
@@ -508,10 +508,37 @@ function isLegalFollow(hand, lead, chosen, trump){
 
 // ---- 一墩胜负 ----
 function structSig(comps){ return comps.map(c=>c.type+(c.len||'')).sort().join(','); }
+/* 候选这一手够不够格和领出比大小 —— 「结构对得上」的准确含义。
+ *
+ * 口径:候选的组件可以**拆**,不能**并**。拖拉机拆得成对子和单张、对子拆得成两张单;
+ * 反过来两张单并不成一对、两个不相连的对子并不成拖拉机。于是:
+ *   · 一对主 盖得住「两张单」的甩牌 —— 毙掉撒牌最常见的形态就是这个
+ *   · 一副主拖拉机 盖得住「两个不相连的对子」
+ *   · 两张单 盖不住一对、两个不相连的对子 盖不住拖拉机(和以前一样)
+ *
+ * 旧版要求组件构成**逐字相同**(structSig 相等),于是主 ♥8♥8 去毙 ♦Q+♦J 的撒牌时,
+ * 这一手在 resolveTrick 里被整个跳过,撒牌方反而收了这一墩。
+ * 而 checkThrow 那一侧的 canBeatComp 早就认「拖拉机压对子」—— 一副引擎里两套口径。
+ *
+ * 实现:只需要把领出里的**连对段**(对子算 1 段、长度 L 的拖拉机算 L 段)装进候选的
+ * 连对段里,一段装得下几对就是它的容量;单张不用管,装完之后剩的牌必然正好够。
+ * 段数是个位数,直接回溯。 */
 function structMatches(cand, lead){
-  const a=cand.type==='throw'?cand.comps:[cand];
-  const b=lead.type==='throw'?lead.comps:[lead];
-  return structSig(a)===structSig(b);
+  if(cand.cards.length!==lead.cards.length) return false;
+  const runs=x=>(x.type==='throw'?x.comps:[x])
+    .filter(c=>c.type!=='single').map(c=>c.type==='tractor'?c.len:1).sort((a,b)=>b-a);
+  const need=runs(lead), cap=runs(cand);
+  const fit=(i)=>{
+    if(i===need.length) return true;
+    for(let j=0;j<cap.length;j++){
+      if(cap[j]<need[i]) continue;
+      cap[j]-=need[i];
+      if(fit(i+1)) return true;
+      cap[j]+=need[i];
+    }
+    return false;
+  };
+  return fit(0);
 }
 
 function resolveTrick(plays, trump){
