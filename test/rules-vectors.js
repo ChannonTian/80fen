@@ -137,6 +137,42 @@ console.log('\n甩牌:失败时在被压住的组件里挑最小的一组');
      r5.forced.map(c=>c.rank).sort(), [13]);
 }
 
+/* 一墩里「结构盖不盖得住」(§E)。候选的组件可以**拆**、不能**并**:
+ * 一对拆得成两张单,所以毙得掉「两张单」的撒牌;两张单并不成一对,所以毙不掉一对。
+ * v0.7.17 之前这里要求组件构成逐字相同 —— 主 ♥8♥8 去毙 ♦Q+♦J 的撒牌时整手被跳过,
+ * 撒牌方反而收了这一墩(§J 第 4 处已知偏差)。 */
+console.log('\n一墩:结构盖不盖得住(主 ♥ 打 5)');
+{
+  const T5={suit:'H',rank:5};
+  const cov=(leadCards,candCards)=>
+    E.structMatches(E.classify(candCards,T5), E.classify(leadCards,T5));
+  const D=(r,i)=>({suit:'D',rank:r,id:'D'+r+'_'+(i||1)});
+  const H=(r,i)=>({suit:'H',rank:r,id:'H'+r+'_'+(i||1)});
+  const PD=r=>[D(r,1),D(r,2)], PH=r=>[H(r,1),H(r,2)];
+
+  ok('甩 ♦Q+♦J(两张单)← 主 ♥8♥8(一对):一对拆得开,盖得住',
+     cov([D(12),D(11)], PH(8)), true);
+  ok('甩 ♦Q+♦J ← 主 ♥8+♥9(两张散主):盖得住',
+     cov([D(12),D(11)], [H(8),H(9)]), true);
+  ok('一对 ♦Q♦Q ← 主 ♥8+♥9:两张单并不成一对,盖不住',
+     cov(PD(12), [H(8),H(9)]), false);
+  ok('甩 ♦3♦3+♦9♦9(两个对子)← 主拖拉机 ♥7♥7♥8♥8:盖得住',
+     cov([...PD(3),...PD(9)], [...PH(7),...PH(8)]), true);
+  ok('拖拉机 ♦7♦7♦8♦8 ← 两个不相连的主对子:盖不住',
+     cov([...PD(7),...PD(8)], [...PH(3),...PH(9)]), false);
+  ok('甩 ♦Q♦Q+♦9(一对+一单)← 主 ♥8♥8+♥3:盖得住',
+     cov([...PD(12),D(9)], [...PH(8),H(3)]), true);
+  ok('甩 ♦Q♦Q+♦9 ← 三张散主:凑不出那一对,盖不住',
+     cov([...PD(12),D(9)], [H(8),H(9),H(10)]), false);
+
+  // 报修的那一墩:主♥打5,南甩 ♦Q+♦J,西出 ♥8♥8 —— 西赢
+  const r=E.resolveTrick([
+    {seat:0,cards:[D(12),D(11)]}, {seat:1,cards:PH(8)},
+    {seat:2,cards:[{suit:'C',rank:3,id:'C3'},{suit:'C',rank:4,id:'C4'}]},
+    {seat:3,cards:[{suit:'S',rank:3,id:'S3'},{suit:'S',rank:4,id:'S4'}]}], T5);
+  ok('实战整墩:南甩 ♦Q+♦J、西 ♥8♥8 → 西赢', r.winner, 1);
+}
+
 console.log('\n无主局的一墩胜负');
 ok('异花级数牌同级 → 先出的那家赢',
    E.resolveTrick(trick(C('S',2),C('H',2),C('D',2),C('C',5)), NT).winner, 0);
