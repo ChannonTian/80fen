@@ -33,6 +33,12 @@ const PLANS=[
    [['card','H50'],['num',1],['num',1],['num',1]],
    [['num',1],['mini',0]],
  ]},
+ { key:'u3', lessons:[
+   [['num',0],['num',1],['multi',['H131']],['num',1]],
+   [['num',1],['num',1],['num',1],['num',0]],
+   [['num',2],['num',1],['num',1],['num',0]],
+   [['num',1],['num',0],['num',0],['num',1]],
+ ]},
 ];
 
 /* 每课小局打完之后应该给出的结算结论 —— 由「起始分 + 这两墩抓到的分 + 底」推出来的,
@@ -41,6 +47,7 @@ const SCORE={
  u1:['一共 80 分,上台了','一共 80 分,上台了',
      '一共 120 分 —— 上台,还升 1 级','一共 160 分 —— 上台,还升 2 级',null,null,null],
  u2:[null,null,null,null,null,'一共 105 分,上台了'],
+ u3:[null,null,null,null],
 };
 
 const SHOTS=process.argv.includes('--shots');
@@ -93,7 +100,8 @@ for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
         }
         await p.click('#cta'); await p.waitForTimeout(280);
         const v=await p.evaluate(()=>document.getElementById('verdict').textContent);
-        if(v!=='答对了') errs.push(`${U.key} L${L+1} 判成「${v}」: ${kind}=${val}`);
+        // 两方案题不是对错题,判的是「这一手更好」
+        if(v!=='答对了'&&v!=='这一手更好') errs.push(`${U.key} L${L+1} 判成「${v}」: ${kind}=${val}`);
         await p.click('#cta'); await p.waitForTimeout(250);
       }
 
