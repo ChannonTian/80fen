@@ -7,12 +7,16 @@
 const fs=require('fs');
 
 const NAMES=['cardPoints','countPoints','effSuit','natOrder','ordIdx','pairKey','decompose','classify','countPairsIn',
-             'maxTractorLen','pairsInLead','isLegalFollow','structSig','structMatches','resolveTrick','canBeatComp','checkThrow'];
+             'maxTractorLen','pairsInLead','isLegalFollow','structSig','structMatches','resolveTrick','canBeatComp','checkThrow','scoreRound','declarationOf','canOverride'];
 
 function grab(src,name){
   const i=src.indexOf('function '+name+'(');
   if(i<0) throw new Error('index.html 里找不到 function '+name);
-  let j=src.indexOf('{',i), d=0, k=j;
+  // 先走完参数表再找函数体的 { —— 参数里可能有解构的大括号(scoreRound 就是),
+  // 直接找第一个 { 会从参数表开始配平,把函数体截断,而且两边截得一样、测不出来
+  let k=src.indexOf('(',i), d=0;
+  for(;;){ const ch=src[k]; if(ch==='(')d++; else if(ch===')'){d--; if(!d)break;} k++; }
+  let j=src.indexOf('{',k); d=0; k=j;
   for(;;){ const ch=src[k]; if(ch==='{')d++; else if(ch==='}'){d--; if(!d)break;} k++; }
   return src.slice(i,k+1);
 }
