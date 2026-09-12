@@ -26,18 +26,18 @@ const PLANS=[
    [['multi',['S40','S41','S90']],['num',0],['num',1],['throwset',['S90']],['win',1],['num',1]],
  ]},
  { key:'u2', lessons:[
-   [['num',2],['lad',2],['lad',3],['lad',4],['lad',0],['num',1]],
-   [['num',2],['num',1],['num',2],['num',0],['lad',4],['play','D140']],
-   [['num',1],['play','S60'],['num',1],['num',1]],
-   [['num',1],['num',0],['multi',['C30','C80','C60']],['num',1]],
-   [['card','H50'],['num',1],['num',1],['num',1]],
+   [['play','C140'],['play','C140'],['play','C140'],['lad',0]],
+   [['play','D140'],['set',['D140','D141']],['play','D80'],['num',1]],
+   [['play','S60'],['play','D40'],['num',1]],
+   [['num',1],['set',['C30','C80','C60']],['set',['D40','D70','D100','C20']]],
+   [['card','H50'],['multi',['C50','C51','X150','X151']],['card','X160']],
    [['num',1],['mini',0]],
  ]},
  { key:'u3', lessons:[
-   [['num',0],['num',1],['multi',['H131']],['num',1]],
-   [['num',1],['num',1],['num',1],['num',0]],
-   [['num',2],['num',1],['num',1],['num',0]],
-   [['num',1],['num',0],['num',0],['num',1]],
+   [['multi',['H131']],['play','H130'],['play','H30'],['num',1]],
+   [['play','H140'],['play','S40'],['num',1]],
+   [['play','S140'],['play','D140'],['num',0]],
+   [['num',1],['mini',0]],
  ]},
 ];
 
@@ -47,7 +47,7 @@ const SCORE={
  u1:['一共 80 分,上台了','一共 80 分,上台了',
      '一共 120 分 —— 上台,还升 1 级','一共 160 分 —— 上台,还升 2 级',null,null,null],
  u2:[null,null,null,null,null,'一共 105 分,上台了'],
- u3:[null,null,null,null],
+ u3:[null,null,null,'一共 90 分,上台了'],
 };
 
 const SHOTS=process.argv.includes('--shots');

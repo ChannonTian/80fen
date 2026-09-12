@@ -133,12 +133,34 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
 .cards.ov .card .pt{left:2px;right:auto;top:56%;bottom:auto;font-size:calc(var(--cardW)*.2);padding:1px 3px}
 .cards.ov .card .trumpTag{left:0;right:auto;width:52%;top:30%;font-size:calc(var(--cardW)*.21);
   padding:1px 0;border-radius:0 4px 4px 0;text-align:center}
+/* 领出题上面已经压了一条可视条,再画三个空框就把自己那张挤出屏幕了 ——
+   别人还没出牌,那三格的信息量是零,只留自己这一格。 */
+.trick.solo{grid-template-columns:1fr;padding:3px 2px}
 .trick.m2{--cardW:clamp(46px,13vw,68px)}       /* 一格两张 */
 .trick.m4{--cardW:clamp(38px,11vw,54px)}       /* 一格三四张(拖拉机、甩牌) */
 /* 明牌演示:几家的牌摊开给你看 */
 .openrow{display:flex;align-items:center;gap:9px;width:100%;max-width:340px;margin:0}
 .openrow b{flex:none;width:4.2em;font:800 12px/1.3 inherit;color:var(--tx2);text-align:right}
 .openrow.me b{color:var(--ol-tx)}
+/* 一门(或主牌)还剩多少:每格一张牌,已出的灰、我手上的绿、外面的留白。
+   数牌应该是**看**出来的 —— 摆 16 张牌看不清,写算式又回到文字题。 */
+.barrow{display:flex;align-items:center;gap:8px;width:100%;max-width:360px;margin:1px 0}
+.barrow b{flex:none;width:3.4em;font:800 12px/1.3 inherit;color:var(--tx2);text-align:right}
+/* 一门最多 26 张,窄屏上也必须排成一条 —— 折行的条不再是「一眼看出」,
+   所以格子按宽度等分收缩,不换行。 */
+.bar{display:flex;flex-wrap:nowrap;gap:2px;flex:1;min-width:0}
+.bar i{flex:1 1 0;min-width:0;max-width:11px;height:14px;border-radius:2px;display:block;
+  background:#fff;border:1px solid var(--line)}
+.bar i.out{background:#D8D5C8;border-color:#CBC7B8}      /* 已经出过 */
+.bar i.mine{background:var(--ol);border-color:var(--ol-rim)}  /* 在我手上 */
+/* 读数和图例并一行:竖屏上每省一行,牌桌就多一行 */
+.barfoot{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;
+  gap:4px 10px;margin:3px 0 1px;font:700 11px/1.3 inherit;color:var(--tx2)}
+.barfoot span{display:inline-flex;align-items:center;gap:4px}
+.barfoot i{width:9px;height:11px;border-radius:2px;border:1px solid var(--line);display:block}
+.barfoot i.out{background:#D8D5C8} .barfoot i.mine{background:var(--ol)}
+.barsum{font:700 12px/1.3 inherit;color:var(--tx2)}
+.barsum b{color:var(--rd-tx);font-size:1.15em}
 .opencards{--cardW:clamp(33px,9.5vw,48px);--cardH:calc(var(--cardW)*1.38);
   display:flex;gap:0;align-items:center}
 .opencards .card{margin-left:calc(var(--cardW)*-.5)}
@@ -168,6 +190,15 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
 .slot .who.us{color:var(--ol-tx)} .slot .who.them{color:var(--rd-tx)}
 .trickWrap{position:relative;width:100%}
 /* 只有「算多少分」这类数值题还留选项,排成两列的短牌,不占竖向 */
+.kittyBox{width:100%;max-width:340px;background:var(--felt);border-radius:16px;padding:8px 6px 10px;
+  text-align:center;font:700 12px/1.3 inherit;color:var(--tx2)}
+.kittyBox b{color:var(--rd-tx);font-size:1.1em}
+.kittyBox.ok{background:var(--ol-bg);box-shadow:inset 0 0 0 2.5px var(--ol)}
+.kittyBox.no{background:var(--rd-bg);box-shadow:inset 0 0 0 2.5px var(--rd)}
+.kittySlot{display:flex;justify-content:center;gap:5px;margin-top:6px;min-height:calc(var(--cardH)*.9)}
+.kittySlot .card{--cardW:clamp(38px,11vw,54px);--cardH:calc(var(--cardW)*1.44)}
+.kittySlot .kph{width:clamp(38px,11vw,54px);height:calc(clamp(38px,11vw,54px)*1.44);
+  border-radius:9px;border:2px dashed #CFCBB9;display:block}
 .chips{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;width:100%;max-width:340px}
 .chips .opt{text-align:center}
 .chips.l3{grid-template-columns:repeat(2,1fr);gap:7px}
@@ -890,228 +921,198 @@ const U1=[
 ]},
 ];
 
-/* ===== 单元 2 · 一局怎么打完 ===== */
+/* ===== 单元 2 · 一局怎么打完 =====
+   阶梯、抠底倍数、扣底 —— 这些最容易写成算术选择题,那样是背不住的。
+   办法:每一条线都放进一个残局里,让人**亲手**打出「过线」和「没过线」两种结果;
+   扣底则做成真正的动作(从手牌里挑 N 张扣下去),而不是二选一。 */
 const U2=[
 
-{ id:'u2l1', rank:'A', name:'分与阶梯', mins:4, tr:{suit:'C',rank:4}, qs:[
- { type:'numpick', badge:'新概念', task:'数一数',
-   prompt:'一局打完,<b>闲家方</b>(抓分的那一方)收到的这些牌 —— 一共多少分?',
-   hint:'只有 5、10、K 算分。', cards:[Cl(13),H(5),S(10),D(13),H(10)], showPt:true,
-   opts:['35 分','40 分','45 分','50 分'], answer:2,
-   good:'对。10 + 5 + 10 + 10 + 10 = <b>45 分</b>。一整副牌一共 <b>200 分</b>,'+
-        '闲家抓到多少,决定这一局怎么算。',
-   bad:'再数一次:♣K 10 分、♥5 5 分、♠10 10 分、♦K 10 分、♥10 10 分 —— 一共 45 分。' },
+{ id:'u2l1', rank:'A', name:'分与阶梯', mins:5, tr:{suit:'C',rank:4}, qs:[
+ { type:'trickpick', badge:'新规则', task:'差 5 分', score:75,
+   prompt:'<b>最后一墩。</b>你们队抓了 <b>75 分</b>,台面这一墩有 <b>5 分</b>。出哪张?',
+   hint:'抢下来是 80,抢不到是 75。这 5 分差在哪?',
+   played:[null,Cl(5),Cl(3),Cl(9)], lead:1, hand:[Cl(14),Cl(2)], showPt:true, answer:'C140',
+   good:'对!<b>♣A 抢下这 5 分,正好 80 —— 上台了。</b>'+
+        '<span class="sim">出 ♣2 就停在 75 分:差这 5 分,庄家方反而升 1 级。'+
+        '<b>80 是闲家的及格线</b>,79 和 80 是两个世界。</span>',
+   bad:'台面只有 5 分,却是决定性的 5 分:抢下来 80 <b>上台</b>,抢不到 75 <b>庄家升 1 级</b>。'+
+       '♣A 压得过 ♣9 —— 出它。' },
 
- { type:'ladder', badge:'新规则', task:'这局怎么算', defPoints:45,
-   prompt:'闲家抓到 <b>45 分</b>。这一局的结果是?',
-   hint:'没到 80 就是庄家方升级,抓得越少升得越多。',
-   good:'对。<b>40~79 分:庄家方升 1 级。</b>闲家没到 80,就没能上台。',
-   bad:'45 分没到 80 —— 闲家上不了台。<b>40~79 分,庄家方升 1 级。</b>' },
+ { type:'trickpick', badge:'再往上一档', task:'差 5 分', score:115,
+   prompt:'<b>同样的最后一墩,换个分数。</b>这次你们已经有 <b>115 分</b>。还是这 5 分 —— 出哪张?',
+   hint:'80 之后,每多 40 分多升一级。',
+   played:[null,Cl(5),Cl(3),Cl(9)], lead:1, hand:[Cl(14),Cl(2)], showPt:true, answer:'C140',
+   good:'对。<b>115 → 120,从「上台」变成「上台还升 1 级」。</b>'+
+        '<span class="sim">阶梯是 80 / 120 / 160:上台 / 升 1 级 / 升 2 级 —— '+
+        '每一档都卡在这种「差几分」的地方。</span>',
+   bad:'115 分只是上台;抢下这 5 分到 <b>120</b>,就是<b>上台再升 1 级</b>。同一张 ♣A,又一次卡在线上。' },
 
- { type:'ladder', badge:'要紧', task:'80 分呢', defPoints:80,
-   prompt:'闲家正好抓到 <b>80 分</b>。这一局的结果是?',
-   hint:'80 分换来的是什么?不是升级。',
-   good:'对。<b>80 分只是「上台」—— 换他们坐庄,但一级都不升。</b>'+
-        '这是新手最容易搞错的一条:80 不等于赢,只等于拿到了庄家的位子。',
-   bad:'<b>80 分只换庄,不升级。</b>要升级得 120 分起。这一条一定要记牢。' },
+ { type:'trickpick', badge:'另一头', task:'差 5 分', score:35,
+   prompt:'<b>再换一次。</b>这一局你们打得很差,只抓了 <b>35 分</b>。最后这 5 分要不要抢?',
+   hint:'抓得越少,庄家升得越多。',
+   played:[null,Cl(5),Cl(3),Cl(9)], lead:1, hand:[Cl(14),Cl(2)], showPt:true, answer:'C140',
+   good:'要抢。<b>35 分庄家升 2 级,40 分只升 1 级</b> —— 这 5 分替你们挡掉了一级。'+
+        '<span class="sim">阶梯的下半截是:0 分关光升 3 级 / 1~39 升 2 级 / 40~79 升 1 级。'+
+        '<b>就算上不了台,也要往上够一档。</b></span>',
+   bad:'上不了台不等于无所谓:<b>35 分庄家升 2 级,40 分只升 1 级</b>。这 5 分值一整级。' },
 
- { type:'ladder', task:'120 分呢', defPoints:120,
-   prompt:'闲家抓到 <b>120 分</b>。结果是?',
-   hint:'从 80 起,每多 40 分多升一级。',
-   good:'对。<b>从 80 起,每多 40 分升一级</b> —— 120 分就是上台再升 1 级。',
-   bad:'阶梯是 80 / 120 / 160:上台 / 上台升 1 级 / 上台升 2 级。120 分是<b>升 1 级</b>。' },
-
- { type:'ladder', task:'一分没抓到', defPoints:0,
-   prompt:'闲家<b>一分都没抓到</b>。结果是?',
-   hint:'这是最惨的一种。',
-   good:'对。一分不给叫<b>「关光」,庄家方直接升 3 级</b> —— 一局顶三局。',
-   bad:'一分没抓到叫<b>关光</b>,庄家方升 <b>3</b> 级,不是 2 级。' },
-
- { type:'numpick', task:'反过来想',
-   prompt:'那么反过来 —— 闲家<b>至少</b>要抓到多少分,才能让庄家方<b>一级都升不了</b>?',
-   hint:'看看阶梯的第一条线在哪。',
-   opts:['40 分','80 分','120 分','160 分'], answer:1,
-   good:'对,<b>80 分</b>。这就是这个游戏叫「80分」的原因 —— 80 是闲家的及格线,'+
-        '抓到它,庄家这一局就白做了。',
-   bad:'阶梯上第一条能拦住庄家的线是 <b>80 分</b>。79 分庄家还升 1 级,80 分就换庄了。' },
+ { type:'ladder', task:'整张表', defPoints:0,
+   prompt:'最后一种情况:闲家<b>一分都没抓到</b>。结果是?',
+   hint:'这是最惨的一档。',
+   good:'对。一分不给叫<b>「关光」,庄家方直接升 3 级</b> —— 一局顶三局。'+
+        '<span class="sim">整张表:0 关光升3 / 1~39 升2 / 40~79 升1 / 80 上台 / 120 升1 / 160 升2。'+
+        '刚才那三道题,就是在这张表上来回挪了三次。</span>',
+   bad:'一分没抓到叫<b>关光</b>,庄家方升 <b>3</b> 级。' },
 ]},
 
 { id:'u2l2', rank:'2', name:'底与抠底', mins:5, tr:{suit:'H',rank:9}, qs:[
- { type:'numpick', badge:'新概念', task:'底里有多少分',
-   prompt:'发完牌还剩 <b>8 张</b>扣着,叫<span class="term">底牌</span>,归庄家。这一副底里有多少分?',
-   hint:'照样只看 5、10、K。',
-   cards:[S(5),D(10),Cl(13),S(2),D(4),Cl(7),S(8),D(6)], showPt:true,
-   opts:['15 分','20 分','25 分','30 分'], answer:2,
-   good:'对,<b>25 分</b>(♠5 + ♦10 + ♣K)。这 25 分平时<b>不算给任何人</b> —— 但有一个例外。',
-   bad:'底里有分的是 ♠5(5)、♦10(10)、♣K(10),一共 <b>25 分</b>。' },
+ { type:'trickpick', badge:'新规则', task:'守最后一墩', score:60,
+   prompt:'发完牌剩 8 张扣着,叫<span class="term">底牌</span>,归庄家。'+
+          '这副底里有 <b>25 分</b> —— 平时不算给任何人,<b>但闲家赢下最后一墩就翻倍拿走</b>。'+
+          '你们 60 分。<b>这是最后一墩</b> —— 出哪张?',
+   hint:'场上最大的是 ♦Q。',
+   rows:[{who:'底牌',cards:[S(5),D(10),Cl(13),S(2)]}],
+   played:[null,D(12),D(4),D(9)], lead:1, hand:[D(14),D(2)], showPt:true, answer:'D140',
+   good:'对!<b>♦A 赢下最后一墩 —— 底里 25 分 ×2 = 50 分进账,60 + 50 = 110 分,上台。</b>'+
+        '<span class="sim">出 ♦2 就停在 60 分,庄家升 1 级。<b>同一张牌,两个结局。</b></span>',
+   bad:'场上最大的是 <b>♦Q</b>,只有 <b>♦A</b> 压得过。守不住最后一墩,底里那 25 分<b>一分也拿不到</b>。' },
 
- { type:'numpick', badge:'新规则', task:'抠底',
-   prompt:'闲家<b>赢下了最后一墩</b>,底里那 25 分归他们 —— 而且<b>翻倍</b>。'+
-          '最后一墩大家出的是<b>单张</b>,这 25 分算多少?',
-   hint:'单张是 ×2。',
-   opts:['25 分','50 分','75 分','100 分'], answer:1,
-   good:'对,<b>25 × 2 = 50 分</b>。这叫<span class="term">抠底</span> —— '+
-        '一局才 200 分,凭空多 50 分往往直接决定输赢。',
-   bad:'最后一墩出单张,底分 <b>×2</b>:25 × 2 = 50 分。' },
+ { type:'playset', badge:'倍数', task:'这次是一对', score:60,
+   prompt:'<b>同样 60 分、同样 25 分的底</b> —— 但这次最后一墩东家领出的是<b>一对</b>。'+
+          '你手上有 <b>♦A♦A</b>,跟不跟?',
+   hint:'倍数看最后一墩每人出几张。',
+   rows:[{who:'底牌',cards:[S(5),D(10),Cl(13),S(2)]}],
+   played:[null,[D(12,0),D(12,1)],[D(4,0),D(4,1)],[D(9,0),D(9,1)]], lead:1,
+   hand:[D(14,0),D(14,1),D(2,0),D(2,1)], showPt:true, answer:['D140','D141'],
+   good:'对。<b>最后一墩是对子,倍数就从 ×2 变成 ×4</b> —— 25 × 4 = <b>100 分</b>,'+
+        '60 + 100 = 160 分,上台还升 2 级。'+
+        '<span class="sim">倍数 = <b>2 × 最后一墩每人出的张数</b>:单张 ×2、对子 ×4、两连对的拖拉机 ×8。'+
+        '同样一副底,末墩的牌型能差出四倍。</span>',
+   bad:'领出的是对子,你必须跟对子 —— <b>♦A♦A</b> 是唯一压得过 ♦Q♦Q 的。'+
+       '赢下来底分是 <b>25 × 4 = 100 分</b>,不是 50。' },
 
- { type:'numpick', task:'出对子呢',
-   prompt:'同样这 25 分的底,但最后一墩大家出的是<b>一对</b>。现在算多少?',
-   hint:'倍数看最后一墩<b>每人出几张</b>。',
-   opts:['50 分','75 分','100 分','200 分'], answer:2,
-   good:'对,<b>25 × 4 = 100 分</b>。倍数 = <b>2 × 最后一墩每人出的张数</b> —— '+
-        '单张 ×2、对子 ×4、两连对的拖拉机 ×8。',
-   bad:'倍数是 <b>2 × 每人出的张数</b>:对子是两张,所以 ×4 —— 25 × 4 = 100 分。' },
+ { type:'trickpick', task:'守不住的时候', score:60,
+   prompt:'<b>还是那 25 分的底。</b>这次你手上最大的只有 ♦8 —— 压不过 ♦Q。出哪张?',
+   hint:'既然赢不了,这一墩就随便了 —— 但底会怎样?',
+   rows:[{who:'底牌',cards:[S(5),D(10),Cl(13),S(2)]}],
+   played:[null,D(12),D(4),D(9)], lead:1, hand:[D(8),D(2)], showPt:true, anyLegal:true,
+   good:'出哪张都一样 —— <b>这一墩你赢不了,底里那 25 分就一分都拿不到。</b>'+
+        '<span class="sim">抠底只有一个条件:<b>闲家赢下最后一墩</b>。守不住,底分归零,'+
+        '停在 60 分,庄家升 1 级。所以庄家整局都要留一手守最后一墩。</span>',
+   bad:'两张都压不过 ♦Q,出哪张都行 —— 重点是:<b>守不住最后一墩,底里 25 分一分不给</b>。' },
 
- { type:'numpick', task:'没赢最后一墩',
-   prompt:'这次闲家<b>没</b>赢下最后一墩。底里那 25 分算多少?',
-   hint:'抠底只有一个条件。',
-   opts:['0 分','25 分','50 分','一半'], answer:0,
-   good:'对,<b>一分也拿不到</b>。底分只有「闲家赢下最后一墩」这一种情况才算 —— '+
-        '所以庄家整局都要留一手守最后一墩。',
-   bad:'底分只有闲家<b>赢下最后一墩</b>才算,否则<b>一分都不给</b>。' },
-
- { type:'ladder', task:'合起来算', defPoints:50, wonLast:true, lastLeadSize:2,
-   kitty:[S(5),D(10),Cl(13),S(2),D(4),Cl(7),S(8),D(6)],
-   prompt:'闲家台面抓了 <b>50 分</b>,又赢下最后一墩(出的是<b>一对</b>),底里有 <b>25 分</b>。结果是?',
-   hint:'50 + 25×4 是多少?再对阶梯。',
-   good:'对。50 + 25×4 = <b>150 分</b> —— 上台,还升 1 级。'+
-        '<span class="sim">台面只抓了 50 分,离 80 还差得远;是抠底那一下把整局翻过来的。</span>',
-   bad:'底分 25 × 4 = 100,加上台面 50 分,一共 <b>150 分</b> —— 落在 120~159 这一档,上台升 1 级。' },
-
- { type:'trickpick', badge:'新技巧', task:'最后一墩', score:60,
-   prompt:'<b>最后一墩了。</b>你们队台面 60 分,还差 20 分才上台 —— 但底里有 <b>25 分</b>。'+
-          '赢下这一墩,底分翻倍就是 50 分。出哪张?',
-   hint:'场上最大的是 ♦Q,你压得过吗?',
-   played:[null,D(12),D(4),D(9)], lead:1, hand:[D(14),D(2)], answer:'D140',
-   good:'对!<b>♦A 赢下最后一墩</b> —— 底里 25 分 ×2 = 50 分进账,60 + 50 = <b>110 分,上台了。</b>'+
-        '<span class="sim">出 ♦2 的话就停在 60 分,庄家方升 1 级。同一张牌,两个结果。</span>',
-   bad:'场上最大的是 <b>♦Q</b>,只有 <b>♦A</b> 压得过。守不住最后一墩,底里那 25 分就一分拿不到。' },
+ { type:'numpick', task:'倍数怎么算',
+   prompt:'把倍数这条记死:<b>底分翻几倍,取决于什么?</b>',
+   hint:'刚才单张和对子差了两倍。',
+   opts:['底里有多少分','最后一墩每人出几张 —— 2 × 张数','闲家抓了多少分'], answer:1,
+   good:'对。<b>倍数 = 2 × 最后一墩每人出的张数</b> —— 单张 ×2、对子 ×4、两连对拖拉机 ×8。'+
+        '所以抢最后一墩的时候,<b>能用对子赢就别用单张</b>。',
+   bad:'倍数只看<b>最后一墩每人出几张</b>:单张 ×2、对子 ×4、拖拉机(两连对)×8。' },
 ]},
 
 { id:'u2l3', rank:'3', name:'断门的价值', mins:4, tr:{suit:'S',rank:12}, qs:[
- { type:'numpick', badge:'新概念', task:'断门是什么',
-   prompt:'你手上<b>一张方块都没有了</b>。下次有人领出方块,你能做什么?',
-   hint:'没有那门,限制就没了。',
-   opts:['只能垫一张废牌','可以垫,也可以用主牌毙下来','必须跳过这一墩'], answer:1,
-   good:'对。<b>断掉一门,就等于在这门上多了一次「毙」的机会</b> —— '+
-        '别人在这门上抓的分,你随时可以用一张主牌端走。',
-   bad:'断了方块之后,别人领出方块你<b>既可以垫、也可以毙</b>。这正是断门值钱的地方。' },
-
- { type:'trickpick', task:'用上断门', score:55,
-   prompt:'你早就把方块打光了。这一墩台面 <b>25 分</b> —— 抢下来就到 80。出哪张?',
-   hint:'方块你一张都没有。',
+ { type:'trickpick', badge:'新概念', task:'用上断门', score:55,
+   prompt:'你早就把方块打光了 —— <b>断门</b>。这一墩台面 <b>25 分</b>,抢下来正好 80。出哪张?',
+   hint:'方块你一张都没有,所以不受跟牌义务约束。',
    played:[null,D(13),D(10),D(3)], lead:1, hand:[S(6),Cl(4)], showPt:true, answer:'S60',
-   good:'毙掉。<b>♠6 是主牌</b>,方块再大也压不过 —— 55 + 25 = <b>80 分,上台。</b>'+
-        '这一墩就是断门换来的。',
+   good:'毙掉。<b>断掉一门,就等于在这门上多了一次「毙」的机会</b> —— '+
+        '♠6 再小也是主牌,方块再大也压不过。55 + 25 = <b>80 分,上台。</b>',
    bad:'你没有方块,手上又有主牌 <b>♠6</b> —— 毙下来,这 25 分归你们队。垫 ♣4 就白送了。' },
 
- { type:'numpick', badge:'要紧', task:'反过来防',
-   prompt:'轮到你出一张<b>垫牌</b>。你手上有 <b>♣K(10 分)</b>,但你怀疑<b>下家已经断了草花</b>。'+
-          '该把 ♣K 垫出去吗?',
-   hint:'他要是断了草花,会发生什么?',
-   opts:['该,反正是垫牌','不该 —— 他断了草花就能直接毙走这 10 分'], answer:1,
-   good:'对。<b>把分牌垫到对手可能断掉的那门上,等于亲手把分递过去。</b>'+
-        '断门是双向的 —— 你能用它收分,对手也能。',
-   bad:'他要是断了草花,你这张 ♣K 一出去他就用主牌毙掉,<b>10 分白送</b>。'+
+ { type:'trickpick', badge:'反过来防', task:'垫哪张', score:55,
+   prompt:'轮到你垫一张(领出的是红桃,你没有)。'+
+          '但记录显示 <b>下家的草花已经断了</b> —— 出哪张?',
+   hint:'你垫出去的牌,下家能不能毙走?',
+   rows:[{who:'下家草花',cards:[]}],
+   bars:[{who:'草花',total:24,out:21,mine:2,note:'下家早就断了'}],
+   played:[null,H(7),H(3),H(9)], lead:1, hand:[Cl(13),D(4)], showPt:true, answer:'D40',
+   good:'对,垫 <b>♦4</b>。<b>把分牌垫到对手断掉的那门上,等于亲手把分递过去</b> —— '+
+        '♣K 一出去,下家一张小主就端走了 10 分。'+
+        '<span class="sim">断门是双向的:你能用它收分,对手也能。</span>',
+   bad:'下家草花已经断了 —— 你垫 <b>♣K</b> 出去,他直接用主牌毙走,<b>10 分白送</b>。'+
        '垫分牌之前先想想:这门还有谁可能断了?' },
 
- { type:'numpick', task:'为什么主动断门',
-   prompt:'那么 —— 庄家为什么会<b>主动</b>把某一门打光?',
-   hint:'打光之后那门就归主牌管了。',
-   opts:['让手牌好看','为了以后能在那门上毙,把分收进自己队','为了少出牌'], answer:1,
-   good:'对。<b>主动断掉一门,是在给自己造毙的机会。</b>'+
-        '下一课会看到:庄家扣底的时候,最主要的动作就是——把某一门打光。',
+ { type:'numpick', task:'断门有什么用',
+   prompt:'那么,<b>主动</b>把某一门打光,图的是什么?',
+   hint:'打光之后那门就归你的主牌管了。',
+   opts:['手牌好看','为了以后能在那门上毙,把分收进自己队','为了少出牌'], answer:1,
+   good:'对。<b>主动断门是在给自己造毙的机会。</b>'+
+        '下一课就会看到:庄家扣底时最主要的动作,就是<b>把某一门打光</b>。',
    bad:'主动断门是为了<b>造出毙的机会</b>:那门一打光,别人再在那门上抓分,你就能用主牌端走。' },
 ]},
 
 { id:'u2l4', rank:'4', name:'扣底', mins:5, tr:{suit:'S',rank:12}, qs:[
- { type:'numpick', badge:'新规则', task:'扣底是什么',
-   prompt:'庄家把 <b>8 张底牌</b>拿进手里(变成 33 张),再从里面<b>扣 8 张</b>回去。'+
-          '扣回去的牌<b>别人看不见</b> —— 那里面的分还算数吗?',
+ { type:'numpick', badge:'新规则', task:'扣的分算吗',
+   prompt:'庄家把 8 张底牌拿进手里,再<b>扣 8 张</b>回去。扣回去的牌别人看不见 —— '+
+          '<b>那里面的分还算数吗?</b>',
    hint:'想想上一课的抠底。',
-   opts:['不算了,扣进去就等于没了','算 —— 闲家赢下最后一墩就连本带利翻倍拿走','只算一半'], answer:1,
-   good:'对,<b>算数</b>。扣进底里的分,闲家一旦守住最后一墩就<b>翻倍</b>端走。'+
-        '所以扣底最要命的一条就是:<b>别把分牌扣进去。</b>',
-   bad:'扣回去的分<b>照样算</b>。闲家赢下最后一墩,底里的分连本带利翻倍归他们 —— '+
-       '你扣 20 分进去,可能等于送出 40 分。' },
+   opts:['不算了','算 —— 闲家赢下最后一墩就连本带利翻倍拿走','只算一半'], answer:1,
+   good:'对,<b>算数,而且会翻倍</b>。你扣 10 分进去,闲家守住最后一墩就变 20 分。'+
+        '所以扣底有两个目标:<b>断掉一门</b>,而且<b>别把分留在底里</b>。',
+   bad:'扣回去的分<b>照样算</b>,闲家抠到底还会翻倍。扣 10 分进去可能等于送出 20 分。' },
 
- { type:'numpick', badge:'两方案', task:'扣哪三张',
-   prompt:'你手上方块只剩 <b>♦4 ♦7 ♦J</b>(三张小牌,没分),另外还有 <b>♦K、♣3、♣6</b>。'+
-          '要扣 3 张,两个方案 —— 哪个好?',
-   hint:'一个能断门,一个把分扣进去了。',
-   opts:['扣 ♦4 ♦7 ♦J:方块打光,一分不带','扣 ♦K ♣3 ♣6:留住小方块'], answer:0,
-   good:'对。方案一<b>一举两得</b>:方块彻底断掉(以后能毙),而且<b>一分没扣进底里</b>。'+
-        '方案二把 ♦K 的 10 分扣进底,闲家守住最后一墩就翻倍变 20 分。',
-   bad:'方案二把 <b>♦K 的 10 分扣进了底里</b> —— 闲家抠到底就是 20 分。'+
-       '方案一既断了方块、又没留分,明显更好。' },
-
- { type:'multi', task:'挑出该扣的',
-   prompt:'再来一手:要扣 <b>3 张</b>。把<b>该扣的</b>都点出来。',
-   hint:'先看哪一门只剩零星几张,再看哪几张有分。',
-   cards:[Cl(3),Cl(8),Cl(6),S(13),D(10),H(5)],
+ { type:'discard', badge:'动手扣', task:'扣哪三张', n:3,
+   prompt:'<b>你是庄家。</b>从下面这手牌里<b>扣 3 张</b>下去 —— 目标:断掉一门,而且别把分留在底里。',
+   hint:'哪一门只剩零星几张?哪几张有分?',
+   hand:[Cl(3),Cl(8),Cl(6),S(13),D(10),H(5)],
    answer:['C30','C80','C60'],
-   good:'对,扣掉三张草花 —— <b>草花就此断门</b>,而且三张都不带分。'+
+   good:'对,三张草花一起扣掉 —— <b>草花就此断门</b>,而且<b>一分没带走</b>。'+
         '♠K 是主牌不能浪费,♦10 和 ♥5 是分牌,扣进去等于送分。',
-   bad:'该扣的是三张<b>草花</b>(♣3 ♣8 ♣6):断掉一门,又一分不带。'+
-       '♦10、♥5 是分牌,♠K 是主牌 —— 这三张都不该扣。' },
+   bad:'该扣的是三张<b>草花</b>:断掉一门,又一分不带。'+
+       '♦10、♥5 是分牌(扣进去闲家抠到底会翻倍),♠K 是主牌 —— 这三张都不该扣。' },
 
- { type:'numpick', task:'扣底看两件事',
-   prompt:'那么,扣底的时候主要在权衡哪两件事?',
-   hint:'一件是"造出什么",一件是"别留下什么"。',
-   opts:['牌好不好看 / 顺不顺手','断掉一门(造毙的机会)/ 别把分留在底里','留大牌 / 留小牌'], answer:1,
-   good:'对。<b>扣底 = 用 8 张牌同时干两件事:打光一门,并且不把分留在底里。</b>'+
-        '<span class="sim">真实牌局里这两件事经常打架 —— 打光那门正好有分牌。'+
-        '怎么取舍属于牌力判断,这门课先不下结论。</span>',
-   bad:'两件事:<b>断掉一门</b>(给自己造毙的机会)、<b>别把分牌留在底里</b>(闲家抠到底会翻倍)。' },
+ { type:'discard', badge:'难一点', task:'扣哪四张', n:4,
+   prompt:'再来一手,这次扣 <b>4 张</b>。方块只剩三张,但其中一张是 <b>♦10(10 分)</b>。',
+   hint:'断门要断干净 —— 留一张方块,这门就没断。第四张扣什么?',
+   hand:[D(4),D(7),D(10),S(9),Cl(2),H(13),S(3)],
+   answer:['D40','D70','D100','C20'],
+   good:'对。<b>♦10 有分也得扣</b> —— 留下它这门就没断,断门这件事白做了;'+
+        '第四张扣 <b>♣2</b>(最没用的一张)。'+
+        '<span class="sim">这一手真实牌局里天天遇到:<b>断门和「别留分」会打架</b>。'+
+        '这里断门更值,因为方块就差这一张。怎么权衡属于牌力判断,这门课不下结论。</span>',
+   bad:'方块三张要断就得<b>全扣</b>,包括有分的 ♦10 —— 留一张这门就没断。'+
+       '第四张扣最没用的 <b>♣2</b>:♥K 是分牌,♠9 ♠3 是主牌,都比 ♣2 值钱。' },
 ]},
 
-{ id:'u2l5', rank:'5', name:'亮主与反主', mins:5, tr:null, qs:[
+{ id:'u2l5', rank:'5', name:'亮主与反主', mins:4, tr:null, qs:[
  { type:'cardpick', badge:'新概念', task:'拿哪张亮',
    prompt:'发牌的时候可以<b>亮主</b>:亮出一张<b>和当前级数相同</b>的牌,那张牌的花色就成了主。'+
-          '<b>这一局打 5</b> —— 你手上哪张能用来亮主?',
+          '<b>这一局打 5</b> —— 手上哪张能用来亮?',
    hint:'打几就用几来亮。',
    cards:[S(14),H(5),Cl(13),D(9)], answer:'H50',
-   good:'对,<b>♥5</b>。这一局打 5,亮出 ♥5 就是「红桃做主」。'+
-        '<b>只能用已经拿到手的牌亮</b> —— 这就是为什么亮主是个「越早越冒险、越晚越可能被抢先」的选择。',
-   bad:'这一局打 <b>5</b>,所以只有<b>点数是 5</b> 的牌能拿来亮主 —— 手上只有 <b>♥5</b>。' },
+   good:'对,<b>♥5</b>。打 5 就用 5 来亮,亮 ♥5 就是「红桃做主」。'+
+        '<b>只能用已经拿到手的牌亮</b> —— 所以亮主是个「越早越冒险、越晚越可能被抢先」的选择。',
+   bad:'这一局打 <b>5</b>,只有<b>点数是 5</b> 的牌能拿来亮 —— 手上只有 <b>♥5</b>。' },
 
- { type:'numpick', badge:'新规则', task:'谁能反掉',
-   prompt:'你用<b>单张 ♥5</b> 亮了红桃。别人想<b>反主</b>(把主改成别的),需要什么?',
-   hint:'反主要求强度更高,不是花色更大。',
-   opts:['任意一张更大的牌','一对级数牌、或者一对王 —— 强度必须更高','同花色的 A'], answer:1,
-   good:'对。亮主链从弱到强是:<b>单张级数牌 &lt; 一对级数牌 &lt; 小王对 &lt; 大王对</b>。'+
-        '反主只看这个强度,不看花色大小 —— 一对 ♣5 就能反掉你的单张 ♥5。',
-   bad:'反主比的是<b>强度</b>,不是牌面大小:单张级牌 &lt; 一对级牌 &lt; 小王对 &lt; 大王对。'+
-       '拿一张更大的牌是反不掉的。' },
+ { type:'multi', badge:'新规则', task:'哪些能反掉',
+   prompt:'别人用<b>单张 ♥5</b> 亮了红桃。你手上这些牌里,<b>能用来反主的都点出来</b>。',
+   hint:'反主要求强度更高:单张级牌 < 一对级牌 < 小王对 < 大王对。',
+   cards:[Cl(5,0),Cl(5,1),SJ,C('X',15,1),S(14,0),S(14,1)],
+   answer:['C50','C51','X150','X151'], noTrumpTag:true,
+   good:'对 —— <b>一对 ♣5</b>(一对级牌)和<b>一对小王</b>都反得掉。'+
+        '<b>两张 ♠A 不行</b>:反主比的是「强度」,不是牌面大不大。',
+   bad:'能反的只有<b>一对级牌</b>(♣5♣5)和<b>王对</b>(小王对)。'+
+       '♠A 再大也不是级牌,<b>强度不够</b> —— 反主比的是强度,不是点数。' },
 
- { type:'numpick', task:'王对亮出来',
-   prompt:'有人直接亮了<b>一对大王</b>。这一局的主是什么?',
+ { type:'cardpick', task:'亮出来是无主',
+   prompt:'亮主链的顶端是<b>一对大王</b>。它亮出来,这一局的主是什么?'+
+          '<b>点一下</b>那张让这一局变成「无主」的牌。',
    hint:'王没有花色。',
-   opts:['大王所属的花色','没有主花色 —— 这一局是「无主局」','庄家自己选'], answer:1,
-   good:'对。大王对是亮主链的顶端,亮出来就是<b>无主局</b> —— 没有主花色,'+
+   cards:[BJ,S(5),H(5),SJ], answer:'X160', noTrumpTag:true,
+   good:'对,<b>大王</b>。一对大王亮出来就是<b>无主局</b> —— 没有主花色,'+
         '只有<b>大小王和四门的级数牌</b>算主牌。',
-   bad:'王没有花色,所以王对亮出来是<b>无主局</b>:主牌只剩大小王 + 四门级数牌。' },
-
- { type:'numpick', task:'亮早还是亮晚',
-   prompt:'牌是一张张发的,随时能亮。<b>早亮和晚亮,差别在哪?</b>',
-   hint:'亮主要用手上已经有的牌。',
-   opts:['早亮更稳,晚亮吃亏','早亮占坑但手牌还没看全;晚亮看得清,却可能被人抢先','没差别'], answer:1,
-   good:'对。<b>这是个在信息和先手之间的权衡</b>:亮得早,你还不知道这一门后面会不会继续来牌;'+
-        '亮得晚,看得清楚了,但位子可能已经被别人占了。'+
-        '<span class="sim">该早还是该晚,是牌力判断,这门课只讲规则。</span>',
-   bad:'亮主只能用<b>已经拿到手</b>的牌 —— 所以早亮是拿信息换先手,晚亮是拿先手换信息。' },
+   bad:'王没有花色,所以<b>大王对</b>亮出来是无主局:主牌只剩大小王 + 四门的级数牌。' },
 ]},
 
 { id:'u2l6', rank:'6', name:'打完这一局', mins:5, tr:{suit:'D',rank:8}, qs:[
- { type:'numpick', badge:'收尾', task:'先看局面',
-   prompt:'<b>打 8、方块是主。你们是闲家。</b>打到现在,台面上你们抓了 <b>55 分</b>,'+
-          '底里有 <b>20 分</b>。还剩最后两墩 —— <b>要上台,至少还得做到什么?</b>',
+ { type:'numpick', badge:'收尾', task:'先算一算',
+   prompt:'<b>打 8、方块主,你们是闲家。</b>台面抓了 <b>55 分</b>,底里有 <b>20 分</b>,'+
+          '还剩最后两墩。<b>要上台,至少得做到什么?</b>',
    hint:'80 − 55 = 25。底分只有赢下最后一墩才算。',
-   opts:['再抓 25 分就行','守住最后一墩,底里 20×2 = 40 分就够翻过 80','已经够了'], answer:1,
+   opts:['再抓 25 分','守住最后一墩 —— 底里 20×2 = 40 分就够翻过 80','已经够了'], answer:1,
    good:'对。台面再抓 25 分很难,但<b>守住最后一墩</b>,底里 20 分翻倍就是 40 分 —— '+
-        '55 + 40 = <b>95 分,直接上台。</b>接下来两墩,目标就是这个。',
-   bad:'算一下:光靠台面还差 25 分;但<b>守住最后一墩</b>,底里 20 分 ×2 = 40 分,'+
-       '55 + 40 = 95,一下就过了 80。' },
+        '55 + 40 = <b>95 分,直接上台</b>。接下来两墩,目标就是这个。',
+   bad:'光靠台面还差 25 分;但<b>守住最后一墩</b>,底里 20 分 ×2 = 40 分,55 + 40 = 95,一下就过了 80。' },
 
  { type:'mini', task:'最后两墩', score:55, kitty:[S(5),D(10),H(5),S(2),D(4),Cl(7),S(8),D(6)],
    goal:'守住最后一墩,底里 20 分翻倍',
@@ -1122,166 +1123,138 @@ const U2=[
 ]},
 ];
 
-/* ===== 单元 3 · 记牌与领出 ===== */
+/* ===== 单元 3 · 记牌与领出 =====
+   这个单元教的是「数牌」,最容易写成算术题 —— 那样学不会。
+   办法:数牌只做成**看图**(剩余条)和**出牌决定**,每一课的主体都是牌桌上的一手。
+   同一手牌配两份不同的记录,答案相反 —— 让人亲手感到「数没数清楚,打法就不一样」。 */
 const U3=[
 
 { id:'u3l1', rank:'A', name:'这张还最大吗', mins:4, tr:{suit:'S',rank:6}, qs:[
- { type:'numpick', badge:'新概念', task:'还有人管得住吗',
-   prompt:'<b>两副牌,每张牌各有两张。</b>主牌里最大的是大小王 —— 四张都已经走完了。'+
-          '你手上是<b>正级 ♠6</b>。现在还有主牌压得过它吗?',
-   hint:'主牌次序:大王 > 小王 > 正级 > 副级 > 主花色其余。',
-   rows:[{who:'已出过',cards:[BJ,C('X',16,1),SJ,C('X',15,1)]},
-         {who:'你手上',cards:[S(6,0)],me:true}],
-   opts:['没有了,♠6 最大','还有,压得过'], answer:0,
-   good:'对。<b>四张王都走完了,正级 ♠6 就是全场最大的主牌</b>。'+
-        '这张牌现在打出去必定收下 —— 这就是「记牌」最直接的用处。',
-   bad:'主牌里只有大小王比正级大,而<b>四张王都已经出过了</b>。♠6 现在无人能压。' },
-
- { type:'numpick', task:'这次呢',
-   prompt:'换一个记录:只出过<b>一张大王、一张小王</b>。你手上是<b>小王</b>。还有主牌压得过它吗?',
-   hint:'两副牌 —— 每张王也是两张。',
-   rows:[{who:'已出过',cards:[BJ,SJ]},
-         {who:'你手上',cards:[C('X',15,1)],me:true}],
-   opts:['没有了','还有 —— 另一张大王还在外面'], answer:1,
-   good:'对。<b>大王有两张,只走了一张</b> —— 另一张还在别人手上,压得过你的小王。'+
-        '数牌要数到「张」,不是数到「有没有出现过」。',
-   bad:'大王一共<b>两张</b>,记录里只出过一张。还有一张在外面,你的小王现在不是最大。' },
-
- { type:'multi', task:'挑出已经最大的',
-   prompt:'红桃的大牌走成这样了。你手上这三张里,<b>现在已经是红桃最大</b>的都点出来。',
-   hint:'一张一张对:比它大的都走完了吗?',
+ { type:'multi', badge:'新概念', task:'挑出已经最大的',
+   prompt:'<b>两副牌,每张牌各有两张。</b>红桃的大牌走成了下面这样。'+
+          '你手上这三张里,<b>现在已经是红桃最大</b>的都点出来。',
+   hint:'一张一张对:比它大的,两张都走完了吗?',
    rows:[{who:'红桃出过',cards:[H(14,0),H(14,1),H(13,0),H(12,0),H(12,1)]}],
    cards:[H(13,1),H(11,0),H(10,0)], answer:['H131'],
    good:'只有 <b>♥K</b>。两张 ♥A 都走完了,♥K 只走了一张 —— 你手上这张就是现在最大的。'+
-        '♥J 上面还压着另一张 ♥K;♥Q 虽然两张都出过了,可 ♥K ♥J 都比 ♥10 大。',
-   bad:'♥A 两张都走完,所以 <b>♥K 最大</b>。但你手上的 ♥J、♥10 上面还压着'+
-       '<b>另一张没出过的 ♥K</b>,都不是最大。' },
+        '♥J、♥10 上面还压着<b>另一张没出过的 ♥K</b>。',
+   bad:'♥A 两张都走完,所以 <b>♥K 最大</b>。你手上的 ♥J、♥10 上面还压着'+
+       '<b>另一张没出过的 ♥K</b>,都不算最大。' },
 
- { type:'numpick', task:'为什么要数',
-   prompt:'那么 —— <b>知道「这张现在最大」有什么用?</b>',
-   hint:'最大意味着这一手打出去会怎样。',
-   opts:['能算出别人手上有什么','打出去必定收下这一墩,可以放心用它拿分','可以少出牌'], answer:1,
-   good:'对。<b>「现在最大」= 这一手打出去必定收下</b> —— 队友可以放心往上贴分,'+
-        '你也可以用它去领出、把牌权攥在手里。这种牌俗称<span class="term">钢板</span>。',
-   bad:'数牌数出来的是<b>确定性</b>:这张打出去一定收得下,分就稳稳进你们队的账。' },
+ { type:'trickpick', badge:'用起来', task:'出一张牌', score:60,
+   prompt:'台面这一墩有 <b>15 分</b>,抢下来正好 75。<b>先看出牌记录</b>,再决定出哪张。',
+   hint:'♥A 两张都走完了吗?',
+   rows:[{who:'红桃出过',cards:[H(14,0),H(14,1)]}],
+   played:[null,H(5),H(4),H(10)], lead:1, hand:[H(13),H(3)], showPt:true, answer:'H130',
+   good:'对。记录里<b>两张 ♥A 都走完了</b> —— 你的 ♥K 现在是红桃最大,出它必收,15 分稳稳进账。'+
+        '<span class="sim">这就是记牌的用处:它不是记着玩,是拿来决定这一手怎么打。</span>',
+   bad:'再看一眼记录:<b>♥A 两张都出过了</b>。你的 ♥K 已经是红桃最大,这一墩必收 —— 出小牌等于把 15 分让出去。' },
+
+ { type:'trickpick', badge:'换份记录', task:'出一张牌', score:60,
+   prompt:'<b>同样一手牌,换一份出牌记录。</b>这次台面一分没有。出哪张?',
+   hint:'♥A 这次走完了吗?台面有分吗?',
+   rows:[{who:'红桃出过',cards:[H(14,0)]}],
+   played:[null,H(7),H(2),H(9)], lead:1, hand:[H(13),H(3)], showPt:true, answer:'H30',
+   good:'对,出 <b>♥3</b>。这次 ♥A <b>只走了一张</b>,外面还有一张压得住你的 ♥K;'+
+        '台面又一分没有 —— 没有理由拿 ♥K 去赌。'+
+        '<span class="sim"><b>同一手牌,两份记录,两个答案。</b>差别全在你有没有数清楚。</span>',
+   bad:'记录里 ♥A <b>只出过一张</b>,外面那张随时能压死你的 ♥K。台面还一分没有,'+
+       '这一墩不值得用掉一张大牌 —— 出 ♥3。' },
+
+ { type:'numpick', task:'记牌记的是什么',
+   prompt:'那么,记牌到底在记什么?',
+   hint:'上面两题的差别在哪。',
+   opts:['记住每个人出过什么牌','记住「比我这张大的,还剩几张在外面」','记住谁赢了几墩'], answer:1,
+   good:'对。<b>记牌不是背牌,是算「我这张现在还有没有人管得住」。</b>'+
+        '答案从"有"变成"没有"的那一刻,这张牌就从"赌"变成了"稳"。',
+   bad:'要记的是<b>「比我这张大的还剩几张」</b> —— 剩 0 张,这张牌就是稳的;还剩,就是在赌。' },
 ]},
 
-{ id:'u3l2', rank:'2', name:'这门还剩几张', mins:4, tr:{suit:'S',rank:6}, qs:[
- { type:'numpick', badge:'要紧', task:'一门有几张',
-   prompt:'<b>打 6、黑桃是主。</b>红桃这一门,<b>不算主牌</b>的话一共有几张?',
-   hint:'两副牌,每个点数两张 —— 但有一个点数不在这门里了。',
-   opts:['22 张','24 张','26 张','28 张'], answer:1,
-   good:'对,<b>24 张</b>。一门 13 个点数 × 2 = 26 张,但这一局打 6,'+
-        '<b>♥6 两张被抽去当主牌了</b>,红桃只剩 12 个点数 × 2 = 24 张。',
-   bad:'别忘了 <b>♥6 是主牌</b>,不算红桃。所以是 12 个点数 × 2 = <b>24 张</b>,不是 26。' },
+{ id:'u3l2', rank:'2', name:'这门还剩几张', mins:5, tr:{suit:'S',rank:6}, qs:[
+ { type:'trickpick', badge:'新概念', task:'走不走 A', score:65,
+   prompt:'<b>打 6、黑桃主。</b>下面这条是红桃的家底 —— 一共 24 张(♥6 是主牌,不算红桃)。'+
+          '你们队 65 分,差 15 分上台。<b>轮到你领出</b>,出哪张?',
+   hint:'外面只剩 5 张红桃,分在三家手上。这门还走得通吗?',
+   bars:[{who:'红桃',total:24,out:16,mine:3,note:'分在另外三家手上'}],
+   played:[null,null,null,null], lead:0, hand:[H(14),S(4),Cl(9)], answer:'H140',
+   good:'对,<b>趁现在走 ♥A</b>。这门只剩 5 张在外面 —— <b>已经很可能有人断了红桃</b>,'+
+        '再等下去 ♥A 多半会被主牌毙走。差 15 分的时候,能兑现的分先兑现。',
+   bad:'看那条:红桃 24 张已经走了 16,<b>外面只剩 5 张分在三家手上</b>。'+
+       '门越薄,别人断门的可能越大 —— ♥A 越留越危险,现在就该走。' },
 
- { type:'numpick', task:'外面还有几张',
-   prompt:'红桃已经出过 <b>16 张</b>,你手上还有 <b>3 张</b>。别人手上一共还有几张红桃?',
-   hint:'这一门总共 24 张。',
-   opts:['3 张','5 张','7 张','8 张'], answer:1,
-   good:'对。24 − 16 − 3 = <b>5 张</b>。这 5 张分在另外三家手上 —— '+
-        '也就是说,<b>这门已经快断了</b>,再走一两轮就会有人开始毙。',
-   bad:'总共 24 张,出过 16、你手上 3,外面就剩 <b>24 − 16 − 3 = 5 张</b>。' },
+ { type:'trickpick', badge:'换个门况', task:'走不走 A', score:65,
+   prompt:'<b>同样一手牌,换一份记录。</b>这次红桃才走了 4 张。还是你领出 —— 出哪张?',
+   hint:'这门还很厚,大家都还有红桃。',
+   bars:[{who:'红桃',total:24,out:4,mine:3,note:'这门还很厚'}],
+   played:[null,null,null,null], lead:0, hand:[H(14),S(4),Cl(9)], answer:'S40',
+   good:'对,<b>这次先别急着走 ♥A</b>。外面还有 17 张红桃,谁都不可能断门 —— '+
+        '♥A 放着很安全,留到后面还能把队友喂上来的分一起收走。先出一张不值钱的 ♠4 探探路。'+
+        '<span class="sim"><b>同一张 ♥A,门厚门薄两个答案。</b></span>',
+   bad:'红桃才走了 4 张,<b>外面还有 17 张</b> —— 这门厚得很,没人断得了门,♥A 放着很安全。'+
+       '急着走它,只会把一张必收的大牌换成一墩没什么分的小墩。' },
 
- { type:'numpick', task:'走得通吗',
-   prompt:'接上题:外面只剩 <b>5 张</b>红桃,分在三家手上。你想连走两轮红桃 —— <b>最大的风险是什么?</b>',
-   hint:'有人手上一张红桃都没有,会怎样?',
-   opts:['红桃不够分','有人已经断了红桃,会直接用主牌毙走','别人会跟不上'], answer:1,
-   good:'对。<b>一门牌越走越少,别人断门的可能就越大</b> —— 断了的人不用跟,直接用主牌把你这一墩端走。'+
-        '所以副牌的大牌要<b>趁这门还厚的时候走</b>。',
-   bad:'外面只剩 5 张分在三家,<b>很可能已经有人一张都没有了</b>。他一断门,你走出去的大牌就会被主牌毙掉。' },
-
- { type:'numpick', task:'数门是为了什么',
-   prompt:'那么,数一门还剩几张,主要是为了判断什么?',
-   hint:'和上一题连起来想。',
-   opts:['这门什么时候会被人毙 —— 也就是大牌还能不能安全走','这门一共有几分','谁的牌多'], answer:0,
-   good:'对。<b>数门数的是「安全期」</b>:这门还厚,大牌走得通;走薄了,就该收手换别的门,'+
-        '或者干脆等着别人来走。',
-   bad:'数门是为了判断<b>这门的大牌还能不能安全走</b> —— 门越薄,被毙的风险越大。' },
+ { type:'numpick', task:'门薄了会怎样',
+   prompt:'一门牌越走越薄,最先出现的变化是什么?',
+   hint:'没有这门的人,能做什么?',
+   opts:['大家都跟不上了','开始有人断门 —— 他们不用跟,可以直接用主牌毙走','这门的分变多了'], answer:1,
+   good:'对。<b>门一薄,断门的人就出现了</b> —— 他们不受跟牌义务约束,'+
+        '你走出去的大牌随时会被一张小主端走。所以副牌的大牌要<b>趁门还厚的时候兑现</b>。',
+   bad:'门越薄,<b>断门的人越多</b>。断了门的人可以用主牌直接毙走你的大牌 —— 这就是"门薄了走不通"的意思。' },
 ]},
 
-{ id:'u3l3', rank:'3', name:'数主牌', mins:4, tr:{suit:'S',rank:6}, qs:[
- { type:'numpick', badge:'新概念', task:'主牌有几张',
-   prompt:'还是<b>打 6、黑桃主</b>。这一局<b>主牌一共有多少张?</b>',
-   hint:'大小王 + 四门的 6 + 整门黑桃。别忘了每张都是两份。',
-   opts:['32 张','34 张','36 张','38 张'], answer:2,
-   good:'对,<b>36 张</b>:大王 2 + 小王 2 + 正级 ♠6 两张 + 副级 ♥6♦6♣6 共 6 张 + '+
-        '黑桃其余 12 个点数 × 2 = 24 张。',
-   bad:'一项一项加:大王 2、小王 2、♠6 两张、♥6♦6♣6 共 6 张、黑桃其余 24 张 —— 一共 <b>36 张</b>。' },
+{ id:'u3l3', rank:'3', name:'数主牌', mins:5, tr:{suit:'S',rank:6}, qs:[
+ { type:'trickpick', badge:'新概念', task:'清主还是走副',
+   prompt:'<b>你是庄家方,要守住(别让闲家到 80)。</b>下面这条是主牌的家底 —— '+
+          '打 6、黑桃主,主牌一共 <b>36 张</b>(大小王 4 + 四门的 6 共 8 + 黑桃其余 24)。'+
+          '轮到你领出,出哪张?',
+   hint:'对手手上还剩几张主?再走一轮能不能拔干净?',
+   bars:[{who:'主牌',total:36,out:29,mine:5,note:'对手手上只剩 2 张'}],
+   played:[null,null,null,null], lead:0, hand:[S(14),D(14),Cl(3)], answer:'S140',
+   good:'对,<b>再走一轮主,把对手最后 2 张拔掉</b>。之后 ♦A 走出去就再没人毙得动,'+
+        '那门的分全是你的。现在先走 ♦A,正好撞在那 2 张主的枪口上。'+
+        '<span class="sim">这就叫<b>清主</b>:主牌是用来毙副牌的,把对手的主拔光,自己的副牌大牌才走得通。</span>',
+   bad:'看那条:对手手上<b>只剩 2 张主</b>,再走一轮就拔干净了。'+
+       '这时候先走 ♦A,等于把它送到那 2 张主的枪口上。' },
 
- { type:'numpick', task:'外面还有几张',
-   prompt:'主牌已经走了 <b>22 张</b>,你手上还有 <b>5 张</b>。别人手上一共还有几张主?',
-   hint:'主牌一共 36 张。',
-   opts:['7 张','9 张','11 张','14 张'], answer:1,
-   good:'对。36 − 22 − 5 = <b>9 张</b>,分在另外三家手上。'+
-        '<b>这个数是全局最有用的一个数</b> —— 它决定你的副牌大牌还能不能走。',
-   bad:'36 − 22 − 5 = <b>9 张</b>。' },
+ { type:'trickpick', badge:'换个局面', task:'清主还是走副',
+   prompt:'<b>同样一手牌,换一份记录。</b>这次主牌才走了一半。出哪张?',
+   hint:'对手手上还有 12 张主 —— 你清得动吗?',
+   bars:[{who:'主牌',total:36,out:14,mine:5,note:'对手手上还有 17 张'}],
+   played:[null,null,null,null], lead:0, hand:[S(14),D(14),Cl(3)], answer:'D140',
+   good:'对,<b>这次先走 ♦A</b>。对手手上还有十几张主,你手上只有 5 张 —— '+
+        '<b>清不动</b>。与其把主牌一张张送掉,不如趁副门还厚,先把 ♦A 这样的现成大牌兑现。'+
+        '<span class="sim"><b>清不清主,看的是对手还剩几张,不是自己有几张。</b></span>',
+   bad:'对手还有 17 张主,你只有 5 张 —— <b>清主清不动</b>,走一轮只是白送。'+
+       '这时候该趁副门还厚,先走 ♦A 把现成的分兑现。' },
 
- { type:'numpick', task:'清主是干什么',
-   prompt:'庄家常常一上来就连走主牌,叫<span class="term">清主</span>。<b>目的是什么?</b>',
-   hint:'主牌走光之后,副牌的世界会变成什么样?',
-   opts:['显得牌大','把别人手里的主牌拔光 —— 之后自己的副牌大牌就没人毙得动了','凑够张数'], answer:1,
-   good:'对。<b>主牌是用来毙副牌的;别人手上没主了,你的副牌 A、K 就走得通了。</b>'+
-        '所以数主牌数的其实是:<b>我还要清几轮,才能放心走副牌。</b>',
-   bad:'清主是为了<b>把对手手上的主牌拔光</b> —— 主一没,他们就毙不动你的副牌大牌了。' },
-
- { type:'numpick', task:'反过来',
-   prompt:'那么反过来 —— <b>抓分的一方</b>为什么也要数主牌?',
-   hint:'你手上的主牌是用来干什么的。',
-   opts:['为了知道自己还剩几次毙的机会','为了算分','为了知道谁是庄家'], answer:0,
-   good:'对。<b>你手上每一张主牌,都是一次「把对手的分端走」的机会。</b>'+
-        '数清楚还剩几张,才知道这些机会要留给哪几墩 —— 台面分越大的那墩,越该用掉一张。',
-   bad:'抓分方的主牌是<b>毙的本钱</b>:还剩几张,就还有几次机会把对手台面上的分端走。' },
+ { type:'numpick', task:'抓分方怎么数',
+   prompt:'反过来 —— <b>抓分的一方</b>为什么也要数主牌?',
+   hint:'你手上的主牌是拿来干什么的。',
+   opts:['为了知道自己还剩几次「毙」的机会','为了算分','为了知道谁是庄家'], answer:0,
+   good:'对。<b>你手上每一张主牌,都是一次把对手台面上的分端走的机会。</b>'+
+        '数清还剩几张,才知道这些机会该留给哪几墩 —— 台面分越大的那墩,越该用掉一张。',
+   bad:'抓分方的主牌是<b>毙的本钱</b>:还剩几张,就还有几次机会把对手的分端走。' },
 ]},
 
-{ id:'u3l4', rank:'4', name:'领出:没有标准答案的那部分', mins:5, tr:{suit:'S',rank:6}, qs:[
+{ id:'u3l4', rank:'4', name:'领出练习', mins:5, tr:{suit:'S',rank:6}, qs:[
  { type:'numpick', badge:'先说清楚', task:'这一课不一样',
-   prompt:'前面所有的题都有<b>唯一正确答案</b>,因为它们问的是<b>规则</b>。'+
-          '接下来这几题不一样 —— <b>为什么?</b>',
+   prompt:'前面所有的题都有<b>唯一正确答案</b>,因为问的是<b>规则</b>或者<b>数得清的事</b>。'+
+          '领出不一样 —— <b>为什么?</b>',
    hint:'领出的时候,你能看见什么、看不见什么?',
-   opts:['规则没写清楚','因为你看不见别人的牌 —— 领出是在权衡,不是在照规则办',
-         '因为教程写到这里偷懒了'], answer:1,
+   opts:['规则没写清楚','因为你看不见别人的牌 —— 领出是在权衡,不是照规则办','因为教程偷懒了'], answer:1,
    good:'对。<b>规则问题有唯一解;领出是判断题。</b>'+
-        '接下来每一道都会先告诉你<b>这一局你想要什么</b> —— 目标定了,才谈得上哪一手更好。'+
-        '<span class="sim">换一个目标,同样的牌答案可能就反过来了。这一点会在题里明说。</span>',
-   bad:'领出的时候你只看得见自己的牌和已经出过的牌,<b>看不见别人手上有什么</b>。'+
-       '所以它是权衡,不是照规则办 —— 只有把目标说清楚,才谈得上哪一手更好。' },
+        '但它不是玄学 —— 它建立在前三课那些<b>数得清楚</b>的东西上面:'+
+        '对手还剩几张主、这门还厚不厚、这一局还差多少分。'+
+        '<span class="sim">下面这个小局,每一手都由你领出。一边打一边想这三件事。</span>',
+   bad:'领出的时候你只看得见自己的牌和出过的牌,<b>看不见别人手上有什么</b>。'+
+       '所以是权衡 —— 但权衡的依据是数得清楚的:对手剩几张主、门厚不厚、还差多少分。' },
 
- { type:'numpick', badge:'两方案', task:'清主还是走副', score:30,
-   prompt:'<b>你是庄家方,要守住(闲家别到 80)。</b>你手上主牌很厚,算下来对手一共只剩 <b>2 张主</b>了,'+
-          '另外你有一张 <b>♦A</b>(这门还厚)。这一手领出什么?',
-   hint:'对手那 2 张主,现在还能干什么?',
-   opts:['再走一轮主,把对手最后 2 张主拔掉','先走 ♦A,趁这门还没人断'], answer:0,
-   good:'对。<b>先拔干净那 2 张主</b> —— 之后 ♦A 走出去就再没人毙得动,'+
-        '这门的分就全是你的了。现在走 ♦A,正好撞上那 2 张主的枪口。'+
-        '<span class="sim">要是对手手上还有 6 张主,答案就反过来了 —— 那时候清不动,'+
-        '不如趁副门还厚先把 A 兑现。</span>',
-   bad:'对手只剩 <b>2 张主</b>,再走一轮就拔干净了。这时候先走 ♦A,反而是把它送到主牌枪口上。' },
-
- { type:'numpick', badge:'两方案', task:'A 先走还是留', score:65,
-   prompt:'<b>你是抓分方,已经 65 分,还差 15 分上台。</b>你手上 <b>♥A</b>,'+
-          '记录显示红桃已经走了 <b>16 张</b>(这门一共 24 张)。这一手走不走 ♥A?',
-   hint:'外面只剩 5 张红桃,分在三家手上。',
-   opts:['走 —— 现在不走,以后更走不了','留着 —— 等队友先探一探这门'], answer:0,
-   good:'对。<b>这门已经薄了,再等只会更薄</b> —— 断门的人越来越多,♥A 越留越可能被毙。'+
-        '既然只差 15 分,能兑现的分就该马上兑现。'+
-        '<span class="sim">反过来,如果这门才走了 4 张(还很厚),留着 ♥A 等队友把分喂上来,'+
-        '往往更划算。<b>同一张牌,门的厚薄一变,答案就反过来。</b></span>',
-   bad:'红桃 24 张已经走了 16,外面只剩 5 张分在三家 —— <b>越等越可能有人断门</b>,'+
-       '♥A 拖到后面多半会被主牌毙走。差 15 分的时候,能兑现的分先兑现。' },
-
- { type:'numpick', task:'领出在想什么',
-   prompt:'把这一课收个尾:<b>领出的时候,主要在权衡哪几件事?</b>',
-   hint:'前两题各是一件事。',
-   opts:['牌大不大 / 好不好看',
-         '对手还剩几张主(还能不能毙我)/ 这门还厚不厚(大牌还走不走得通)/ 这一局还差多少分',
-         '谁先出牌'], answer:1,
-   good:'对,就这三件事。<b>前两件靠记牌算出来,第三件靠算分算出来</b> —— '+
-        '所以领出不是玄学,它建立在前三课那些能数清楚的东西上面。'+
-        '<span class="sim">真正的牌力差距,差在「同样数清楚了,谁的权衡更准」。'+
-        '那一层得靠打,教不了。</span>',
-   bad:'三件事:<b>对手还剩几张主</b>、<b>这门还厚不厚</b>、<b>这一局还差多少分</b>。'+
-       '前两件是记牌的结果,第三件是算分的结果。' },
+ { type:'mini', task:'最后两墩', score:70, goal:'你们队 70 分,再抓 10 分就上台',
+   hint:'能压就压;压不过、又是队友最大,就把分贴进去。',
+   hands:[[S(14),H(13)],[S(9),H(11)],[S(3),H(4)],[S(7),H(10)]], lead:0,
+   good:'领出只权衡三件事:<b>对手还剩几张主 / 这门还厚不厚 / 这一局还差多少分</b>。'+
+        '前两件靠记牌算出来,第三件靠算分算出来 —— 所以领出不是玄学。'+
+        '<span class="sim">真正的牌力差距,差在「同样数清楚了,谁的权衡更准」。那一层得靠打。</span>' },
 ]},
 ];
 
@@ -1369,6 +1342,9 @@ function drawMap(){
 
 /* ---------- 出牌区 ---------- */
 const asArr=x=>x?(Array.isArray(x)?x:[x]):null;
+/* 领出题上面挂了可视条的时候,别人那三格全是空的 —— 占掉大半屏高度,信息量是零。
+   只留自己这一格,自己那张牌才画得下、也画得大。 */
+const soloOpt=q=>({solo:!!(q.bars&&q.bars.length)&&(q.played||[]).every(x=>!x)});
 function trickHTML(played,lead,winner,showPt,opt){
   opt=opt||{};
   const P=played.map(asArr);
@@ -1385,7 +1361,8 @@ function trickHTML(played,lead,winner,showPt,opt){
       (a?`<div class="cards${a.length>1?' ov':''}">${a.map(c=>cardHTML(c,'played',showPt,TR)).join('')}</div>`
          :'<div class="ph"></div>')+`</div>`;
   };
-  const wcls=wide>=3?' m4':wide===2?' m2':'';
+  const wcls=(wide>=3?' m4':wide===2?' m2':'')+(opt.solo?' solo':'');
+  if(opt.solo) return `<div class="trickWrap"><div class="trick${wcls}">${cell(0)}</div></div>`;
   return `<div class="trickWrap"><div class="trick${wcls}"><div></div>${cell(2)}<div></div>`+
     `${cell(3)}<div class="tcenter">${lead!=null?SEAT[lead]+' 领出':''}</div>${cell(1)}`+
     `<div></div>${cell(0)}<div></div></div></div>`;
@@ -1393,9 +1370,21 @@ function trickHTML(played,lead,winner,showPt,opt){
 
 /* 摊开给你看的几行牌:出牌记录、明牌残局、自己手上剩什么 */
 function rowsHTML(q){
-  return (q.rows||[]).map(r=>
+  let h=(q.rows||[]).map(r=>
     `<div class="openrow ${r.me?'me':''}"><b>${r.who}</b><div class="opencards">`+
     r.cards.map(c=>cardHTML(c,'',true,TR)).join('')+`</div></div>`).join('');
+  for(const bar of (q.bars||[])){
+    const out=bar.out||0, mine=bar.mine||0, left=bar.total-out-mine;
+    const cell=(n,cls)=>Array.from({length:Math.max(0,n)},()=>`<i class="${cls}"></i>`).join('');
+    h+=`<div class="barrow"><b>${bar.who}</b><div class="bar">`+
+       cell(out,'out')+cell(mine,'mine')+cell(left,'')+`</div></div>`+
+       `<div class="barfoot"><span class="barsum">外面还有 <b>${left}</b> 张`+
+       (bar.note?` · ${bar.note}`:'')+`</span></div>`;
+  }
+  if((q.bars||[]).length)
+    h+=`<div class="barfoot"><span><i class="out"></i>已出过</span>`+
+       `<span><i class="mine"></i>你手上</span><span><i></i>还在外面</span></div>`;
+  return h;
 }
 function saySetup(q){
   setCat('idle'); $('bub').className='';
@@ -1437,7 +1426,7 @@ function render(){
   $('hand').innerHTML='';$('table').innerHTML='';$('hand').style.minHeight='';
   $('foot').className='';$('verdict').textContent='';
   $('hintBtn').style.display='';$('hintBtn').disabled=!q.hint;
-  $('cta').textContent=(q.type==='trickpick'||q.type==='playset')?'出牌':'检查';
+  $('cta').textContent=q.type==='discard'?'扣底':(q.type==='trickpick'||q.type==='playset')?'出牌':'检查';
   $('cta').disabled=true;$('cta').className='btn';$('cta').dataset.mode='check';
   $('btnRow').style.display='';
 
@@ -1499,7 +1488,7 @@ function render(){
     };
     draw();
   }
-  else if(q.type==='trickpick'||q.type==='playset'){ drawPlay(q); }
+  else if(q.type==='trickpick'||q.type==='playset'||q.type==='discard'){ drawPlay(q); }
   else if(q.type==='throwjudge'||q.type==='forcedpick'){ drawThrow(q); }
   else if(q.type==='mini') startMini(q);
   if(!$('hand').children.length) $('hand').style.minHeight='0';
@@ -1508,30 +1497,41 @@ function render(){
 
 /* 出牌题:点手牌 → 牌直接打到你的位子上,手牌里那张就不留空位了。
    playset 是它的多张版:领出几张就要挑几张(对子、拖拉机)。 */
-function need(q){ return q.type==='playset' ? asArr(q.played[q.lead]).length : 1; }
+function need(q){
+  if(q.type==='discard') return q.n;
+  return q.type==='playset' ? asArr(q.played[q.lead]).length : 1;
+}
 /* 选牌只在手牌区完成(选中的牌抬起来),点「出牌」才落到牌桌上 ——
    边点边往桌上飞,交互上像是已经出了,可是还能反悔,自相矛盾 */
 function drawPlay(q,handOnly){
   const n=need(q);
-  const picked=q.type==='playset'?selMulti:(sel?[sel]:[]);
+  const multi=(q.type==='playset'||q.type==='discard');
+  const picked=multi?selMulti:(sel?[sel]:[]);
   // 牌桌只画一次 —— 每点一张手牌就重建牌桌的话,别人已经出的牌会把 playIn 动画
   // 重放一遍(牌一直闪)。正式版 §11.3 早就写过这条,这里同样适用。
-  if(!handOnly) $('table').innerHTML=trickHTML(q.played,q.lead,null,q.showPt);
+  if(!handOnly) $('table').innerHTML=rowsHTML(q)+
+    (q.played?trickHTML(q.played,q.lead,null,q.showPt,soloOpt(q))
+             :`<div class="kittyBox">扣下去的 ${n} 张<div class="kittySlot">`+
+              picked.map(id=>cardHTML(q.hand.find(c=>c.id===id),'',true,TR)).join('')+
+              Array.from({length:Math.max(0,n-picked.length)},()=>'<i class="kph"></i>').join('')+
+              `</div></div>`);
   $('hand').innerHTML=q.hand.map(c=>cardHTML(c,'pick'+(picked.includes(c.id)?' sel':''),q.showPt,TR)).join('');
   $('hand').querySelectorAll('.card').forEach(el=>el.onclick=()=>{
     if(answered)return;
     const id=el.dataset.id;
-    if(q.type==='playset'){
+    if(multi){
       const i=selMulti.indexOf(id);
       if(i>=0) selMulti.splice(i,1);
       else if(selMulti.length<n) selMulti.push(id);
     } else sel = (sel===id?null:id);
-    const ready = q.type==='playset' ? selMulti.length===n : !!sel;
+    const ready = multi ? selMulti.length===n : !!sel;
     $('cta').disabled=!ready;
-    $('cta').textContent = ready ? (n>1?`出这 ${n} 张`:'出牌') : '出牌';
-    drawPlay(q,true);});
+    $('cta').textContent = ready ? (q.type==='discard'?`扣这 ${n} 张`:(n>1?`出这 ${n} 张`:'出牌')) : (q.type==='discard'?'扣底':'出牌');
+    drawPlay(q,multi);});
   if($('cta').dataset.mode==='check')
-    $('cta').textContent = picked.length? (n>1?`出这 ${n} 张`:'出牌') : '出牌';
+    $('cta').textContent = q.type==='discard'
+      ? (picked.length===n?`扣这 ${n} 张`:'扣底')
+      : (picked.length? (n>1?`出这 ${n} 张`:'出牌') : '出牌');
 }
 
 /* 甩牌题:四家的这一门牌全摊开(明牌),成不成立交给引擎的 checkThrow 算 */
@@ -1617,6 +1617,14 @@ function check(){
     $('table').querySelectorAll('.pickset .card').forEach(n=>{
       n.classList.remove('sel');
       addCls(n, want.includes(n.dataset.id)?'ok':selMulti.includes(n.dataset.id)?'no':'dim');});
+  } else if(q.type==='discard'){
+    ok = q.answer.length===selMulti.length && q.answer.every(a=>selMulti.includes(a));
+    const pts=countPoints(selMulti.map(id=>q.hand.find(c=>c.id===id)));
+    $('table').innerHTML=rowsHTML(q)+
+      `<div class="kittyBox ${ok?'ok':'no'}">扣下去的 ${q.n} 张 · 带走 <b>${pts} 分</b>`+
+      `<div class="kittySlot">`+selMulti.map(id=>cardHTML(q.hand.find(c=>c.id===id),'',true,TR)).join('')+`</div></div>`;
+    $('hand').innerHTML=q.hand.filter(c=>!selMulti.includes(c.id))
+      .map(c=>cardHTML(c,q.answer.includes(c.id)?'ok':'dim',true,TR)).join('');
   } else if(q.type==='playset'){
     // 合法性交给引擎的 isLegalFollow —— 「门里有对必出对、有拖必跟拖」这套判定
     // 自己重写一份必错,这正是把那一段整体搬过来的理由
@@ -1641,7 +1649,7 @@ function check(){
     ok = q.anyLegal ? isLegal : (isLegal && sel===q.answer);
     if(!isLegal&&q.illegal) msg=q.illegal;              // 违规牌:指着他手里剩的那张说
     const played=q.played.slice(); played[0]=q.hand.find(c=>c.id===sel);
-    $('table').innerHTML=trickHTML(played,q.lead,null,q.showPt);
+    $('table').innerHTML=rowsHTML(q)+trickHTML(played,q.lead,null,q.showPt,soloOpt(q));
     const mine=$('table').querySelector('.slot[data-seat="0"]');
     if(mine)mine.classList.add(ok?'okslot':'noslot');
     $('hand').innerHTML=q.hand.filter(c=>c.id!==sel)
@@ -1794,7 +1802,10 @@ function fitTable(){
   const card=t.querySelector('.card,.ph'); if(!card) return;
   const r=card.getBoundingClientRect();
   const need=t.getBoundingClientRect().height;
-  const avail=$('board').clientHeight-4;
+  // 牌桌里除了这一墩,还可能有出牌记录行、可视条、图例 —— 它们也吃 board 的高度。
+  // 只拿 board 的高度当可用空间,牌就会算得太大,把这一墩挤出屏幕。
+  const others=Math.max(0, tbl.getBoundingClientRect().height-need);
+  const avail=$('board').clientHeight-others-4;
   if(!need||need<=avail) return;
   // 牌桌里除了牌还有座位名、内边距、行距 —— 这部分不跟着牌宽缩,
   // 所以不能按比例乘,要先把它量出来,再解出放得下的牌宽。
