@@ -119,6 +119,10 @@ for(let seed=S0+1;seed<=S0+N;seed++){
   const history=[]; let leader=declSeat, defPoints=0, tricks=0,
       lastWinner=declSeat, lastLeadSize=1;
   const seedPts=[], seedLvl=[];
+  /* 「本局第几次遇到」—— v0.7.5 那条教训的判据:定点反事实量到的优势,
+   * 如果随「第几次」迅速衰减,说明它提取的是一份**一次性资源**,
+   * 做成按墩生效的规则之后聚合为零。不先看这一层就动手,是第三次踩同一个坑。 */
+  const nthOf=[0,0];
 
   while(hands.some(h=>h.length)){
     const plays=[];
@@ -163,7 +167,8 @@ for(let seed=S0+1;seed<=S0+N;seed++){
             const rem=(()=>{ let n=0; const mem=E.makeMemory(view);
               for(const k in mem.unseen){ if(mem.unseen[k]>0&&E.effSuit(E.keyToCard(k),trump)===su) n+=mem.unseen[k]; }
               return n; })();
-            rec.push({grp:broke>0?'pair':'ctrl', dp, dl, rem,
+            const nth=broke>0?++nthOf[team]:0;
+            rec.push({grp:broke>0?'pair':'ctrl', dp, dl, rem, nth,
                       pts:E.cardPoints(cards[0])>0, phase:hand.length});
             if(broke>0){ seedPts.push(dp); seedLvl.push(dl); nHit++; }
           }
@@ -213,6 +218,16 @@ for(const [k,f] of [['① 剩 ≥8 张',r=>r.rem>=8],['② 剩 4~7 张',r=>r.rem
 console.log('  拆对组按阶段(手牌张数):');
 for(const [k,f] of [['开局 ≥17',r=>r.phase>=17],['中盘 9~16',r=>r.phase>=9&&r.phase<17],
                     ['收官 ≤8',r=>r.phase<9]]){
+  const g=r=>r.grp==='pair'&&f(r);
+  if(sel(g,'dp').length) console.log(`    ${k}  分数 ${stat(sel(g,'dp'))}`);
+}
+console.log('  拆对组按「本局第几次遇到」分层(衰减得快 = 一份一次性资源,做成规则会聚合为零):');
+for(const k of [1,2,3]){
+  const g=r=>r.grp==='pair'&&(k<3?r.nth===k:r.nth>=3);
+  if(sel(g,'dp').length) console.log(`    第 ${k<3?k:'3+'} 次  分数 ${stat(sel(g,'dp'))}`);
+}
+console.log('  拆对组按「拆的是不是带分的对子」:');
+for(const [k,f] of [['带分(5/10/K)',r=>r.pts],['不带分',r=>!r.pts]]){
   const g=r=>r.grp==='pair'&&f(r);
   if(sel(g,'dp').length) console.log(`    ${k}  分数 ${stat(sel(g,'dp'))}`);
 }
