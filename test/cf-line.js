@@ -161,8 +161,11 @@ for(let seed=S0+1;seed<=S0+N;seed++){
               const rB=playOut(st,{seat,cards:[winners[0]],used:false});
               const team=seat%2;
               const dp=val(rB,team)-val(rA,team), dl=netLevels(rB,team)-netLevels(rA,team);
+              /* hl = 决策时手上还有几张 —— 用来分「收官搜索视野之内 / 之外」。
+               * 文档断言「缺陷只发生在搜索视野之外」,但这把量具自己把 egSearch 关了,
+               * 一直没法验证这句话。 */
               rec.push({grp:L!=null?'line':'ctrl', gap:L!=null?L-defPoints:null, L:L!=null?L:null,
-                        dp, dl, ptsTable});
+                        dp, dl, ptsTable, hl:hands[seat].length});
               if(L!=null){ seedPts.push(dp); seedLvl.push(dl); nCase++; }
               if(DUMP&&((L!=null&&L-defPoints<=5&&dl>=1)||(L==null&&dl<=-1))){
                 console.log('FIX '+JSON.stringify({
@@ -225,5 +228,11 @@ console.log(`  跨线组按跨的是哪条线:`);
   const g=r=>r.grp==='line'&&r.L===L;
   console.log(`    ${L} 线   分数 ${stat(sel(g,'dp'))}\n            级数 ${stat(sel(g,'dl'))}`);
 });
+console.log('  跨线组按「决策时手上还有几张」分层(egMaxCards 默认 5):');
+for(const [k,f] of [['① ≤5 张(搜索视野内)',r=>r.hl<=5],['② 6~8 张',r=>r.hl>5&&r.hl<=8],
+                    ['③ ≥9 张(视野外)',r=>r.hl>8]]){
+  const g=r=>r.grp==='line'&&f(r);
+  if(sel(g,'dl').length) console.log(`    ${k}  级数 ${stat(sel(g,'dl'))}`);
+}
 console.log(`  (总表按种子聚类,n=${nSeed}:分数 ${stat(dPts)} / 级数 ${stat(dLvl)})`);
 if(process.env.RAW) console.log('RAW '+JSON.stringify({N,S0,nCase,nSeed,dPts,dLvl,rec}));
