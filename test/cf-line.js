@@ -31,7 +31,13 @@ const b=[...fs.readFileSync(FILE,'utf8')
   .matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
 const c={module:{exports:{}},console,Math,Object,Array,Set,Map,JSON,String,Number};c.globalThis=c;
 vm.createContext(c);vm.runInContext(b[0],c);
-const E=c.module.exports; E.AIP.egSearch=0;      // 收官搜索太慢,且它自带阶梯目标,会盖住要测的东西
+const E=c.module.exports;
+/* ⚠️ 量具必须在**生产配置**下量。这三把 cf 从一开始就写着 egSearch=0(图快),
+ * 于是「≤5 张」那些决策点走的是启发式,而线上正式版走的是收官搜索 ——
+ * 量的是一条生产环境不走的代码路径。cf-line 那条「跨线 +0.33」的头号短板
+ * 就是这么来的:开着搜索重量,整体是 +0.01 ±0.09(2026-09-17,见 DESIGN §7.2)。
+ * 默认改成开;EG=0 才关,只用来快速探路,**探路的数字不许当结论**。 */
+if(process.env.EG==='0') E.AIP.egSearch=0;      // 收官搜索太慢,且它自带阶梯目标,会盖住要测的东西
 if(process.env.OV) Object.assign(E.AIP,JSON.parse(process.env.OV));
 
 /* 从某个残局(含本墩已出的牌)接着打完,forced 指定某一家的这一手打什么 */
