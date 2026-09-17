@@ -168,7 +168,13 @@ for(let seed=S0+1;seed<=S0+N;seed++){
               for(const k in mem.unseen){ if(mem.unseen[k]>0&&E.effSuit(E.keyToCard(k),trump)===su) n+=mem.unseen[k]; }
               return n; })();
             const nth=broke>0?++nthOf[team]:0;
+            /* 「第几次」是**有状态**的量,AI 算不出来。所以同时记几个**无状态**特征,
+             * 回头看能不能用它们复现第 1 次 / 第 2 次那道坎 ——
+             * 能复现就说明不必上跨手状态,换个闸门即可;不能,才是真要第 3 条。
+             *   tr 已打了几墩(= history.length/4,view 里就有)
+             *   np 此刻手上还有几个副花对子 */
             rec.push({grp:broke>0?'pair':'ctrl', dp, dl, rem, nth,
+                      tr:tricks, np:p0,
                       pts:E.cardPoints(cards[0])>0, phase:hand.length});
             if(broke>0){ seedPts.push(dp); seedLvl.push(dl); nHit++; }
           }
