@@ -68,13 +68,14 @@ function playOut(st, forced){
 const val=(r,team)=>r.declTeam===team?80-r.total:r.total-80;
 
 const N=+process.argv[3]||300;
+const S0=+(process.env.SEED0||0);      // 种子偏移:分批并行跑互不重叠的样本
 const SKIP=+(process.env.SKIP||0);
 const diffs={B:[],C:[]};                       // 配对差,分母一致
 const strat={};                                 // 分层:key → {B:[],C:[]},留原始差值好算 SE
 const add=(k,dB,dC)=>{const a=strat[k]=strat[k]||{B:[],C:[]};a.B.push(dB);a.C.push(dC);};
 let nCase=0, nSeen=0;
 
-for(let seed=1;seed<=N;seed++){
+for(let seed=S0+1;seed<=S0+N;seed++){
   const {first}=E.cutForFirst(seed);
   const {hands,kitty}=E.dealRound(seed,first);
   let best=null,declSeat=-1;
