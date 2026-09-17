@@ -1047,6 +1047,9 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * ⚠️ 闸门是从这批数据里挑出来的,所以验收必须换全新种子,见 CHANGELOG。 */
   pairHoldMaxTricks: 3,       // 已打过的墩数超过它就不给
   pairHoldMinPairs: 3,        // 手上副花对子少于它就不给
+  /* 毙牌保留价的权重(见 ruffReserve)。**默认 0 —— 第一步,还在量。**
+   * 毙的代价 = ruffReserveW × max(0, reserve − 本墩台面分)。 */
+  ruffReserveW: 0,
   /* 打级(级牌 5/10/K,那 8 张级牌本身带 40 / 80 分)上单独量出来的两格 */
   trumpPtDebt: 0,             // 主牌里的分牌也记「迟早要出」的负债(level 10 自对弈 −0.56 ±0.26,关)
   ptLevelBonus: 25,           // 分级的亮主加成;砍到 0 / 10 打级自对弈 −0.28 / −0.21 级/场,不动
@@ -2399,6 +2402,12 @@ function futureValue(cards, X){
       if(!X.leading) v-=cardPoints(c)*0.30;
     }
   }
+  /* 毙这一墩的代价 = 放弃「未来最好的那一次毙牌机会」(默认 0,见 ruffReserve)。
+   * 记在 flat 里不乘 phaseK:reserve 自己已经按剩余墩数算过了,再乘一次是重复折现。 */
+  if(AIP.ruffReserveW&&!X.leading&&X.lead&&X.lead.suit!=='T'
+     &&cards.some(c=>effSuit(c,trump)==='T')){
+    flat+=AIP.ruffReserveW*Math.max(0, ruffReserve(X)-(X.ptsTable||0));
+  }
   return v*ph+flat;
 }
 
@@ -2833,6 +2842,51 @@ function pairUnit(X){
     if(key>bestKey){ bestKey=key; best={cards:cs, ids:new Set(cs.map(c=>c.id)), rem}; }
   }
   return X._pu=best;
+}
+
+/* 毙牌的**保留价** —— §7 那条「给资源定保留价,而不是给这一墩定价」的第一步。
+ * **默认关**(`ruffReserveW: 0`)。
+ *
+ * 四次失败指向同一件事:按墩生效的规则表达不了「我还需要留几张」
+ * (v0.7.5 毙牌 +1.32/+2.11 → 聚合零;v0.7.15 跨线 +0.33 → 三档全负;
+ *  v0.7.18 对子两轮 +1.04 → +0.13 → −0.05)。所以不再给这一墩定价,改问:
+ *
+ *   reserve(X) = E[未来还剩的毙牌机会里,**最好的那一次**值多少分]
+ *   毙的代价   = max(0, reserve − 本墩台面分)
+ *
+ * 三个输入都从记牌算,不搜索:
+ *   n   还剩几次机会 = min(手上主牌数, 剩余墩数 × 领出落在我断门那几门的概率)
+ *   μ   每次值多少   = 未见副牌的平均分 × 3(另外三家各出一张)
+ *   最好的那一次 ≈ μ × (1 + ln n),n 次抽样极大值的粗近似
+ * 收官护底是这组机会里**最贵的一次**(底分 × 抠底倍数),并进来取大 ——
+ * 如果这条式子成立,endKittyWeight / reserveUnit / reserveMarginal 迟早被它吸收掉。 */
+function ruffReserve(X){
+  if(X._rr!==undefined) return X._rr;
+  const {mem,trump,hand}=X;
+  if(!mem||!mem.unseen||!hand||hand.length<=1) return X._rr=0;
+  const R=hand.length;
+  const nT=hand.filter(c=>effSuit(c,trump)==='T').length;
+  if(nT<=0) return X._rr=0;
+  const mine={};                                   // 我手上还有哪些副门
+  for(const c of hand){ const su=effSuit(c,trump); if(su!=='T') mine[su]=1; }
+  let sideCards=0, sidePts=0, voidUnseen=0, unseenAll=0;
+  for(const k in mem.unseen){
+    const n=mem.unseen[k]; if(n<=0) continue;
+    unseenAll+=n;
+    const c=keyToCard(k), su=effSuit(c,trump);
+    if(su==='T') continue;
+    sideCards+=n; sidePts+=cardPoints(c)*n;
+    if(!mine[su]) voidUnseen+=n;                   // 落在我断门的那几门上
+  }
+  if(sideCards<=0||unseenAll<=0||voidUnseen<=0) return X._rr=0;
+  const n=Math.min(nT, R*(voidUnseen/unseenAll)); // 还剩几次机会
+  const mu=(sidePts/sideCards)*3;                 // 每次机会台面上大约有多少分
+  const best=n>0?mu*(1+Math.log(Math.max(1,n))):0;
+  // 收官护底:这组机会里最贵的一次
+  const hz=endHorizonOf(X);
+  const near=R<=hz?Math.pow(Math.max(0,1-(R-1)/Math.max(1,hz)),AIP.endNearGamma||1):0;
+  const guard=near>0?kittyPts(X)*kittyMultOf(X)*near:0;
+  return X._rr=Math.max(best,guard);
 }
 
 function reserveUnit(X){

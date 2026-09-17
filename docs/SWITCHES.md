@@ -287,6 +287,12 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `pairHoldMaxTricks` | `3` | 已打过的墩数超过它就不给 |
 | `pairHoldMinPairs` | `3` | 手上副花对子少于它就不给 |
 
+### 毙牌保留价的权重(见 ruffReserve)。**默认 0 —— 第一步,还在量。**
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `ruffReserveW` | `0` | — |
+
 ### 打级(级牌 5/10/K,那 8 张级牌本身带 40 / 80 分)上单独量出来的两格
 
 | 参数 | 默认 | 说明 |
