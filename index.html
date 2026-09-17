@@ -1035,7 +1035,18 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * 也就是说**保住一个对子一局只值一次**,和护底那条教训一模一样 ——
    * 所以价值只发给 pairUnit 选出的那一对,不是发给每一对。 */
   pairHold: 0,
-  pairHoldMinLen: 17,         // 手牌少于这么多张就不给(实测中盘起信号消失)
+  /* 闸门改成两个**无状态**条件(v0.7.18 第二轮)。
+   * 第一轮拿「手牌张数 ≥17」近似「本局第 1 次」,自对弈只有 +0.13 ±0.08。
+   * 回头拿 cf-pair 记下的无状态特征查:单看「已打几墩」复现不了那道坎
+   * (0~1 墩 +1.95、2~3 墩 −0.01、8+ 墩 +1.54,不单调),单看「手上几对」也不行
+   * (1/2/3/4+ = +0.93 / +0.16 / +2.67 / +1.64)。**两个一起才行**:
+   *   tr≤3 且 np≥3  → **+2.22 ±0.86**(t=2.6,占全部命中点的 21%)
+   *   其余           → +0.73 ±0.41
+   * 而且在这个闸门**内部**,「本局第几次」不再分得开(第 1 次 +1.98 / 第 2 次 +4.02)——
+   * 也就是说那道坎被这两个无状态量吸收掉了,不必上跨手状态。
+   * ⚠️ 闸门是从这批数据里挑出来的,所以验收必须换全新种子,见 CHANGELOG。 */
+  pairHoldMaxTricks: 3,       // 已打过的墩数超过它就不给
+  pairHoldMinPairs: 3,        // 手上副花对子少于它就不给
   /* 打级(级牌 5/10/K,那 8 张级牌本身带 40 / 80 分)上单独量出来的两格 */
   trumpPtDebt: 0,             // 主牌里的分牌也记「迟早要出」的负债(level 10 自对弈 −0.56 ±0.26,关)
   ptLevelBonus: 25,           // 分级的亮主加成;砍到 0 / 10 打级自对弈 −0.28 / −0.21 级/场,不动
@@ -2344,7 +2355,8 @@ function futureValue(cards, X){
   /* 跟牌时把 pairUnit 那一对拆开的代价(默认 0,见 AIP.pairHold 那段的实测)。
    * 只在**跟牌**侧生效 —— 领出时牌型由我定,对子不会被迫拆散,那是笔记第 1 条
    * 「有牌权时领出保型」的另一半;只罚「恰好出了其中一张」,整对打出去不算拆。 */
-  if(AIP.pairHold&&!X.leading&&X.hand&&X.hand.length>=AIP.pairHoldMinLen){
+  if(AIP.pairHold&&!X.leading&&X.hand&&X.trPlayed!==undefined
+     &&X.trPlayed<=AIP.pairHoldMaxTricks&&sidePairCount(X)>=AIP.pairHoldMinPairs){
     const pu=pairUnit(X);
     if(pu&&cards.filter(c=>pu.ids.has(c.id)).length===1) v+=AIP.pairHold;
   }
@@ -2716,6 +2728,8 @@ function followCtx(view, plays){
   const holdRange=makeHoldRange(reads,mem,trump,view.hand.length);
   const X={shareDenom,trump,lead,cur,partnerWinning,isLast,ptsTable,mem,voids,hand:view.hand,
            remainingOpp,partnerRemaining,partnerSeat,oppAfterPartner,oppRuffRisk,curBoss,isDecl,reads,pVoidOf,oppVoidP,
+           // 已打完几墩 —— view.history 里就有,不是新信息(pairHold 的闸门要用)
+           trPlayed:Math.floor((view.history||[]).length/4),
            holdRange,buriedKnown:view.buriedKnown,phase:phaseOf(view.hand.length)};
   // 队友「暂大」不是「稳大」:确定性由记牌算出,不再是拍脑袋的常数
   X.certainty=isLast?1:pSurvive(X,cur.cl,remainingOpp);
@@ -2788,6 +2802,18 @@ function reserveHold(u, X){
  * +1.80 ±0.51,第 2 次 −0.40,第 3+ 次 −3.06 —— 一局只值一次。
  * 所以这里和 reserveUnit 一样只选**一个**:这门在外还剩得最多的那一对
  * (别人还领得出这门,这一对才有机会成型),同门再按序号高的优先。 */
+// 手上还有几个**副花**对子(主门对子另有 trumpHold 那条线,不算在内)
+function sidePairCount(X){
+  if(X._spc!==undefined) return X._spc;
+  const by={};
+  for(const c of (X.hand||[])){
+    if(effSuit(c,X.trump)==='T') continue;
+    const k=c.suit+'_'+c.rank; by[k]=(by[k]||0)+1;
+  }
+  let n=0; for(const k in by) n+=Math.floor(by[k]/2);
+  return X._spc=n;
+}
+
 function pairUnit(X){
   if(X._pu!==undefined) return X._pu;
   const trump=X.trump, by={};
