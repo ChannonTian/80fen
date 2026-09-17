@@ -1035,6 +1035,16 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   pPartnerPrior: 0.32,
   pPartnerCalc: 0,            // 记牌证据相对先验的采信比例;0 = 完全用先验(实测最优)
   blockWin: 1,                // 1=生成「盖住末家分牌」的吃法候选;0=只用最省的吃法(消融用)
+  /* 跟牌时拆掉一个副花对子的代价(见 pairUnit / futureValue)。**默认 0,还在量。**
+   * `test/cf-pair.js` 2800 副定点反事实:跟牌时 AI 拆了副花对子、改成不拆的最省牌,
+   * 分数 **+1.04 ±0.37**(t=2.8)、级数 +0.05 ±0.02;而**对照组**(没拆对子、同样换成
+   * 最便宜的牌)是 **−2.59 ±0.27**(t=−9.4)—— 两组符号相反,所以这不是「垫牌整体随意」。
+   * 分层把范围收得很紧:开局(≥17 张)**第 1 次** +1.80 ±0.51(t=3.5),
+   * 同样在开局的第 2 次 −0.40、第 3+ 次 −3.06;中盘第 1 次 −0.26。
+   * 也就是说**保住一个对子一局只值一次**,和护底那条教训一模一样 ——
+   * 所以价值只发给 pairUnit 选出的那一对,不是发给每一对。 */
+  pairHold: 0,
+  pairHoldMinLen: 17,         // 手牌少于这么多张就不给(实测中盘起信号消失)
   /* 打级(级牌 5/10/K,那 8 张级牌本身带 40 / 80 分)上单独量出来的两格 */
   trumpPtDebt: 0,             // 主牌里的分牌也记「迟早要出」的负债(level 10 自对弈 −0.56 ±0.26,关)
   ptLevelBonus: 25,           // 分级的亮主加成;砍到 0 / 10 打级自对弈 −0.28 / −0.21 级/场,不动
@@ -2340,6 +2350,13 @@ function futureValue(cards, X){
   // 实测那样会让王对的 Future 膨胀到 60+,收官该兑现的时候也兑现不出来。
   if(bj>=2) v+=AIP.jokerPairHold+(X.isDecl?AIP.jokerPairDecl:0);
   if(sj>=2) v+=(AIP.jokerPairHold+(X.isDecl?AIP.jokerPairDecl:0))*0.7;
+  /* 跟牌时把 pairUnit 那一对拆开的代价(默认 0,见 AIP.pairHold 那段的实测)。
+   * 只在**跟牌**侧生效 —— 领出时牌型由我定,对子不会被迫拆散,那是笔记第 1 条
+   * 「有牌权时领出保型」的另一半;只罚「恰好出了其中一张」,整对打出去不算拆。 */
+  if(AIP.pairHold&&!X.leading&&X.hand&&X.hand.length>=AIP.pairHoldMinLen){
+    const pu=pairUnit(X);
+    if(pu&&cards.filter(c=>pu.ids.has(c.id)).length===1) v+=AIP.pairHold;
+  }
   for(const c of cards){
     if(effSuit(c,trump)==='T'){
       // 主牌稀缺:毙牌权本身值钱,拿低主去毙一墩空气是亏的
@@ -2775,6 +2792,32 @@ function reserveHold(u, X){
   // 两个对手各有一次机会毙掉它;再打一个折,表示「副牌护底还得先拿到倒数第二墩的牌权」
   return Math.pow(1-pv*q,2)*AIP.sideReserveDamp;
 }
+/* 「值得保住的那一对」—— 和 reserveUnit 同一条教训:价值发给**每一个**单元,
+ * 它们就互相锁死,谁也不肯先动。cf-pair 量出来的形状也一样:开局第 1 次拆对
+ * +1.80 ±0.51,第 2 次 −0.40,第 3+ 次 −3.06 —— 一局只值一次。
+ * 所以这里和 reserveUnit 一样只选**一个**:这门在外还剩得最多的那一对
+ * (别人还领得出这门,这一对才有机会成型),同门再按序号高的优先。 */
+function pairUnit(X){
+  if(X._pu!==undefined) return X._pu;
+  const trump=X.trump, by={};
+  for(const c of (X.hand||[])){
+    if(effSuit(c,trump)==='T') continue;
+    const k=c.suit+'_'+c.rank; (by[k]=by[k]||[]).push(c);
+  }
+  let best=null, bestKey=-1;
+  for(const k in by){
+    if(by[k].length<2) continue;
+    const cs=[by[k][0],by[k][1]], su=effSuit(cs[0],trump);
+    let rem=0;
+    if(X.mem&&X.mem.unseen) for(const uk in X.mem.unseen){
+      if(X.mem.unseen[uk]>0&&effSuit(keyToCard(uk),trump)===su) rem+=X.mem.unseen[uk];
+    }
+    const key=rem*100+ordIdx(cs[0],trump);
+    if(key>bestKey){ bestKey=key; best={cards:cs, ids:new Set(cs.map(c=>c.id)), rem}; }
+  }
+  return X._pu=best;
+}
+
 function reserveUnit(X){
   if(X._ru!==undefined) return X._ru;
   const us=bossUnits(X);
