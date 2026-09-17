@@ -56,11 +56,12 @@ function playOut(st, forced){
 const val=(r,team)=>r.declTeam===team?80-r.total:r.total-80;
 
 const N=+process.argv[3]||300;
+const S0=+(process.env.SEED0||0);      // 种子偏移:分批并行跑互不重叠的样本
 const SKIP=+(process.env.SKIP||0);
 let nCase=0; const acc={A:0,B:0,C:0}, win={B:0,C:0};
 const diffs={B:[],C:[]};
 const byUnits={};
-for(let seed=1;seed<=N;seed++){
+for(let seed=S0+1;seed<=S0+N;seed++){
   const {first}=E.cutForFirst(seed);
   const {hands,kitty}=E.dealRound(seed,first);
   let best=null,declSeat=-1;
