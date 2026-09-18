@@ -137,7 +137,8 @@ for(let seed=S0+1;seed<=S0+N;seed++){
                   buriedKnown:seat===declSeat?buried:[]};
       let cards;
       if(i===0){
-        cards=E.aiChooseLead(view).cards;
+        const ch0=E.aiChooseLead(view);
+        cards=ch0.cards;
         const chk=E.checkThrow(hands,seat,cards,trump); if(!chk.ok)cards=chk.forced;
 
         // ---------- 判据 ----------
@@ -180,7 +181,11 @@ for(let seed=S0+1;seed<=S0+N;seed++){
                 voids:[...new Set(hand.map(x=>E.effSuit(x,trump)))].length,  // 还剩几门
                 tr:tricks,
                 phase:hand.length,
-                gap:E.coachScoreLead(view,cards)-sB
+                gap:E.coachScoreLead(view,cards)-sB,
+                /* AI 自己给这一手写的**理由**。领出的打分器分成十几条动机
+                 * (吊主清场 / 小牌探路 / 走钢板 / 打队友断门 …),
+                 * 按理由分层就能看出**哪一条动机定价错了** —— 比按类别分格细一层。 */
+                rsn:(ch0.reason||'').replace(/[::].*$/,'').slice(0,24)
               });
               nHit++; hitsThisDeal++;
             }
