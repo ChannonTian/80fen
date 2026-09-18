@@ -25,6 +25,9 @@
  *   跟小 不吃,本门跟一张(带不带分再按 pw 分)
  * 「贴」的好坏完全取决于队友是不是暂大 —— 所以每一格再按 pw(队友暂大)拆开看。
  *
+ * SAME=1 换第二个口径:B 改成「和 A **同类**、但不是 A」里打分最高的那张 ——
+ * 扫的是「类选对了、类里挑错了牌」(毙用哪张主、垫哪张废牌)。
+ *
  * ⚠️ 生产配置:不关 egSearch。EG=0 才关,只用来快速探路,探路的数字不许当结论。
  */
 const fs=require('fs'),vm=require('vm');
@@ -92,6 +95,10 @@ const N=+process.argv[3]||400;
 const S0=+(process.env.SEED0||0);
 const PROB=+(process.env.PROB||10);    // 每 PROB 个合格决策点抽 1 个
 const MAXH=+(process.env.MAXH||3);     // 每副最多抽几个(免得少数几副牌主导样本)
+/* SAME=1:改扫**同一类内部**的排序 —— B 换成「和 A 同类、但不是 A」里打分最高的那张。
+ * 默认那一版比的是「该打哪一类」,看不见「类选对了、类里挑错了牌」
+ * (毙用哪张主、垫哪张废牌)。两个口径要分开跑,不能混在一张表里。 */
+const SAME=process.env.SAME==='1';
 
 /* 这一张牌在本墩里扮演什么角色 */
 function catOf(x, X, leadSuit, trump){
@@ -152,7 +159,7 @@ for(let seed=S0+1;seed<=S0+N;seed++){
           for(const x of hand){
             if(x.id===cards[0].id) continue;
             if(!E.isLegalFollow(hand,lead,[x],trump)) continue;
-            if(catOf(x,X,lead.suit,trump)===cA) continue;
+            if((catOf(x,X,lead.suit,trump)===cA)!==SAME) continue;
             const s=E.coachScoreFollow(view,plays,[x]);
             if(s>sB){ sB=s; B=x; }
           }
@@ -204,7 +211,8 @@ const stat=a=>{
   return `${m>=0?'+':''}${m.toFixed(2)} ±${se.toFixed(2)} (t=${se?(m/se).toFixed(2):'—'}) 正/负/平 ${pos}/${neg}/${a.length-pos-neg} n=${a.length}`;
 };
 const sel=(f,k)=>rec.filter(f).map(r=>r[k]);
-console.log(`${FILE} —— ${N} 局(自 ${S0+1} 起):合格决策点 ${nElig} 个,抽了 ${nHit} 个(分布在 ${nSeed} 副)`);
+console.log(`${FILE} —— ${N} 局(自 ${S0+1} 起,${SAME?'同类内部排序':'该打哪一类'}):`
+  +`合格决策点 ${nElig} 个,抽了 ${nHit} 个(分布在 ${nSeed} 副)`);
 if(!rec.length){ console.log('  (一个都没命中)'); process.exit(0); }
 console.log(`  总表(所有格一起,应当接近 0 —— 若整体显著为正,先怀疑量具而不是 AI):`);
 console.log(`    分数 ${stat(rec.map(r=>r.dp))}`);
