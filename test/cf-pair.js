@@ -31,7 +31,12 @@ const b=[...fs.readFileSync(FILE,'utf8')
   .matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
 const c={module:{exports:{}},console,Math,Object,Array,Set,Map,JSON,String,Number};c.globalThis=c;
 vm.createContext(c);vm.runInContext(b[0],c);
-const E=c.module.exports; E.AIP.egSearch=0;      // 收官搜索太慢,且它自带阶梯目标,会盖住要测的东西
+const E=c.module.exports;
+/* ⚠️ 量具必须在**生产配置**下量。这一把和另外三把 cf 一样,原来硬写着 egSearch=0(图快),
+ * 于是「手上 ≤5 张」那些决策点量的是一条线上根本不走的代码路径 —— 详见
+ * docs/notes/measurement.md「量具必须在生产配置下量」。默认改成开;EG=0 才关,
+ * 只用来快速探路,**探路的数字不许当结论**。 */
+if(process.env.EG==='0') E.AIP.egSearch=0;
 if(process.env.OV) Object.assign(E.AIP,JSON.parse(process.env.OV));
 
 /* 从某个残局(含本墩已出的牌)接着打完,forced 指定某一家的这一手打什么 */

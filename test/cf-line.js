@@ -31,7 +31,13 @@ const b=[...fs.readFileSync(FILE,'utf8')
   .matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
 const c={module:{exports:{}},console,Math,Object,Array,Set,Map,JSON,String,Number};c.globalThis=c;
 vm.createContext(c);vm.runInContext(b[0],c);
-const E=c.module.exports; E.AIP.egSearch=0;      // 收官搜索太慢,且它自带阶梯目标,会盖住要测的东西
+const E=c.module.exports;
+/* ⚠️ 量具必须在**生产配置**下量。这三把 cf 从一开始就写着 egSearch=0(图快),
+ * 于是「≤5 张」那些决策点走的是启发式,而线上正式版走的是收官搜索 ——
+ * 量的是一条生产环境不走的代码路径。cf-line 那条「跨线 +0.33」的头号短板
+ * 就是这么来的:开着搜索重量,整体是 +0.01 ±0.09(2026-09-17,见 DESIGN §7.2)。
+ * 默认改成开;EG=0 才关,只用来快速探路,**探路的数字不许当结论**。 */
+if(process.env.EG==='0') E.AIP.egSearch=0;      // 收官搜索太慢,且它自带阶梯目标,会盖住要测的东西
 if(process.env.OV) Object.assign(E.AIP,JSON.parse(process.env.OV));
 
 /* 从某个残局(含本墩已出的牌)接着打完,forced 指定某一家的这一手打什么 */
@@ -161,8 +167,11 @@ for(let seed=S0+1;seed<=S0+N;seed++){
               const rB=playOut(st,{seat,cards:[winners[0]],used:false});
               const team=seat%2;
               const dp=val(rB,team)-val(rA,team), dl=netLevels(rB,team)-netLevels(rA,team);
+              /* hl = 决策时手上还有几张 —— 用来分「收官搜索视野之内 / 之外」。
+               * 文档断言「缺陷只发生在搜索视野之外」,但这把量具自己把 egSearch 关了,
+               * 一直没法验证这句话。 */
               rec.push({grp:L!=null?'line':'ctrl', gap:L!=null?L-defPoints:null, L:L!=null?L:null,
-                        dp, dl, ptsTable});
+                        dp, dl, ptsTable, hl:hands[seat].length});
               if(L!=null){ seedPts.push(dp); seedLvl.push(dl); nCase++; }
               if(DUMP&&((L!=null&&L-defPoints<=5&&dl>=1)||(L==null&&dl<=-1))){
                 console.log('FIX '+JSON.stringify({
@@ -225,5 +234,11 @@ console.log(`  跨线组按跨的是哪条线:`);
   const g=r=>r.grp==='line'&&r.L===L;
   console.log(`    ${L} 线   分数 ${stat(sel(g,'dp'))}\n            级数 ${stat(sel(g,'dl'))}`);
 });
+console.log('  跨线组按「决策时手上还有几张」分层(egMaxCards 默认 5):');
+for(const [k,f] of [['① ≤5 张(搜索视野内)',r=>r.hl<=5],['② 6~8 张',r=>r.hl>5&&r.hl<=8],
+                    ['③ ≥9 张(视野外)',r=>r.hl>8]]){
+  const g=r=>r.grp==='line'&&f(r);
+  if(sel(g,'dl').length) console.log(`    ${k}  级数 ${stat(sel(g,'dl'))}`);
+}
 console.log(`  (总表按种子聚类,n=${nSeed}:分数 ${stat(dPts)} / 级数 ${stat(dLvl)})`);
 if(process.env.RAW) console.log('RAW '+JSON.stringify({N,S0,nCase,nSeed,dPts,dLvl,rec}));

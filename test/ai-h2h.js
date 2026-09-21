@@ -100,8 +100,27 @@ const N=+process.argv[4]||800;
 const S0=+(process.env.SEED0||0);          // 种子偏移:分批跑互不重叠的样本,好做多批合并
 let diff=0, n=0, sq=0, lostNew=0, lostOld=0, nNew=0, nOld=0, held=0, nDecl=0;
 const paired=[];                            // 每个种子一个 D=(d₀+d₁)/2
+/* 级数口径(v0.7.19 加)—— **这才是游戏真正的目标函数**。
+ *
+ * 在这之前 ai-h2h 只报净胜分。可打级赛真正在意的是「升不升、跳不跳、会不会被跳」:
+ *   · 闲家赢下来(上台)本身记 1 级,再按 scoreRound 的台阶加;
+ *   · 庄家守住:total<40 升 2 级,total===0 升 3 级(剃光),否则 1 级。
+ * 也就是说 40 分和 79 分在级数上**完全一样**,而 79 和 80 差一整级还外加上台 ——
+ * 分数口径把这两种情形看成「差 39 分」和「差 1 分」,正好反了。
+ *
+ * 后果:**过去所有「打平」的结论都是在分数口径下做的。** 一个改动完全可能
+ * 分数打平、级数不平(cf-line 那条就是分数亏、级数赚)。所以两个口径都要报。 */
+const pairedLv=[];
+let jumpNew=0, jumpOld=0;                   // 本局升 ≥2 级(跳级)的次数
+/* 这一副里「新版这一队」净升几级 − 「旧版那一队」净升几级 */
+function netLv(r, team){
+  const defUp=r.defendersWin?1+(r.defenderLevelsUp||0):0;   // 闲家赢:上台记 1,再加台阶
+  const decUp=r.defendersWin?0:(r.declarerLevelsUp||0);
+  const iAmDecl=team===r.declTeam;
+  return {mine:iAmDecl?decUp:defUp, theirs:iAmDecl?defUp:decUp};
+}
 for(let s=S0+1;s<=S0+N;s++){
-  const d2=[];
+  const d2=[], d2lv=[];
   for(const newTeam of [0,1]){
     const aiOf=seat=>seat%2===newTeam?NEW:OLD;
     let r; try{ r=playRound(s,aiOf); }catch(e){ continue; }
@@ -110,12 +129,17 @@ for(let s=S0+1;s<=S0+N;s++){
     const oldPts = 200-newPts;
     const d=newPts-oldPts;
     diff+=d; sq+=d*d; n++; d2.push(d);
+    const lv=netLv(r,newTeam);
+    d2lv.push(lv.mine-lv.theirs);
+    if(lv.mine>=2) jumpNew++;
+    if(lv.theirs>=2) jumpOld++;
     nDecl++; if(!r.defendersWin) held++;
     if(r.declTeam===newTeam){ nNew++; if(r.defWonLast) lostNew++; }
     else { nOld++; if(r.defWonLast) lostOld++; }
   }
   // 只有两副都跑完才配得成对;半副废掉的种子进不了配对口径(但仍留在逐副口径里)
   if(d2.length===2) paired.push((d2[0]+d2[1])/2);
+  if(d2lv.length===2) pairedLv.push((d2lv[0]+d2lv[1])/2);
 }
 const mean=diff/n, sd=Math.sqrt(sq/n-mean*mean), se=sd/Math.sqrt(n);
 const P=paired.length;
@@ -139,6 +163,20 @@ console.log(`    逐副口径(旧)     SE ${(se/2).toFixed(2)}, t=${(mean/se).to
             `—— 把同一副牌的两半当独立样本,SE 高估 ${seP?(se/seP).toFixed(1):'∞'} 倍`);
 console.log(`    两版行为不同的种子 ${nz}/${P}(${(100*nz/P).toFixed(1)}%)—— 其余种子 D 恒为 0,不贡献信息`);
 console.log(`    其中新版更好 ${pos}/${nz}(${(100*pos/(nz||1)).toFixed(1)}%),符号检验双尾 p=${pSign<1e-4?pSign.toExponential(1):pSign.toFixed(4)}`);
+/* ---- 级数口径 ---- */
+const PL=pairedLv.length;
+const mL=pairedLv.reduce((a,x)=>a+x,0)/PL;
+const sdL=Math.sqrt(pairedLv.reduce((a,x)=>a+(x-mL)*(x-mL),0)/PL);
+const seL=sdL/Math.sqrt(PL);
+const nzL=pairedLv.filter(x=>x!==0), posL=nzL.filter(x=>x>0).length;
+const zL=nzL.length?(Math.abs(posL-nzL.length/2)-0.5)/Math.sqrt(nzL.length/4):0;
+const pL=nzL.length?2*(1-(x=>{const t=1/(1+0.2316419*x),d=Math.exp(-x*x/2)/Math.sqrt(2*Math.PI);
+  return 1-d*t*(0.319381530+t*(-0.356563782+t*(1.781477937+t*(-1.821255978+t*1.330274429))));})(zL)):1;
+console.log(`  新版净升 ${(mL/2)>=0?'+':''}${(mL/2).toFixed(3)} 级/局  (SE ${(seL/2).toFixed(3)}, t=${seL?(mL/seL).toFixed(2):'—'})  [配对口径]`
+  +`  ← **游戏真正的目标函数**`);
+console.log(`    级数上两版不同的种子 ${nzL.length}/${PL}(${(100*nzL.length/PL).toFixed(1)}%),`
+  +`其中新版更好 ${posL}/${nzL.length},符号检验双尾 p=${pL<1e-4?pL.toExponential(1):pL.toFixed(4)}`);
+console.log(`    跳级(本局升 ≥2 级)  新版 ${jumpNew} 次 / 旧版 ${jumpOld} 次  —— 差 ${jumpNew-jumpOld>=0?'+':''}${jumpNew-jumpOld}`);
 console.log(`  新版坐庄丢掉最后一墩 ${(100*lostNew/nNew).toFixed(1)}%  (${lostNew}/${nNew})`);
 console.log(`  旧版坐庄丢掉最后一墩 ${(100*lostOld/nOld).toFixed(1)}%  (${lostOld}/${nOld})`);
 console.log(`  庄家守住 ${(100*held/nDecl).toFixed(1)}%  (${held}/${nDecl})—— 两边合计,LEVEL 分级对照时看它`);
