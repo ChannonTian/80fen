@@ -832,6 +832,12 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   ruffGuardBonus: -25,
   ruffGuardMinPts: 10,       // 台面分下限(0 = 不设闸)。空气墩上这条规则挣不到钱
   ruffGuardEnd: 1,           // 收官阶段也允许(0 = 只在中盘)
+  /* 「下家断门」用概率口径的门槛。0 = 只认**硬断门**(他已经当众垫过别的门),
+   * 这是 v0.7.20 之前的唯一口径。>0 时,后手对手在这门的 `pVoidOf` 超过它也算数。
+   * 起因:`audit-scenarios` 量到「明明有更大的主却用小主去毙、而后手对手 pVoid>0.5」
+   * 每局 2.38 次(400 副,生产配置),55% 这一墩最后被对手赢走 ——
+   * 而这道闸门在其中绝大多数没开,因为对手只是**算得出来**断门,还没**露**出来。 */
+  ruffGuardVoidP: 0,
   /* 对手的「肯不肯花」模型(见 oppSpendCeil)。0 = 退回只按持有分布定门槛。 */
   oppSpendModel: 1,
   oppSpendGain: 1,           // 台面分在他眼里的权重
@@ -3082,9 +3088,17 @@ function aiChooseFollow(view, plays){
        * 大主提前花掉,收官没保底手段了。这是 §8 那条张力的第四次现身。
        * 所以只在**收官之前**、且**台面确实有分**时才考虑毙高一档:
        * 收官阶段那张大主的价值就是守最后一墩本身,拿它去躲一次盖毙是亏的。 */
+      /* v0.7.20:闸门原来**只认硬断门**(`X.voids` —— 他已经当众垫过别的门)。
+       * 可报障和 `audit-scenarios` 说的都是「已知**或高概率**下家断门」:
+       * 400 副生产配置下「明明有更大的主却用小主去毙、而后手对手 pVoid>0.5」
+       * 每局 **2.38** 次、55% 这一墩被对手赢走 —— 而这道闸门在其中绝大多数根本没开,
+       * 因为对手还没**露**出断门,只是**算得出来**多半断门。
+       * `ruffGuardVoidP` 打开概率口径:0 = 只认硬断门(v0.7.20 之前的行为)。 */
+      const guardVoid=X.remainingOpp.some(s=>
+        (X.voids[s]&&X.voids[s][lead.suit])
+        ||(AIP.ruffGuardVoidP>0&&X.pVoidOf&&X.pVoidOf(s,lead.suit)>AIP.ruffGuardVoidP));
       if(AIP.ruffGuard&&isRuff&&(AIP.ruffGuardEnd||X.phase!=='end')
-         &&X.ptsTable>=AIP.ruffGuardMinPts
-         &&X.remainingOpp.some(s=>X.voids[s]&&X.voids[s][lead.suit])){
+         &&X.ptsTable>=AIP.ruffGuardMinPts&&guardVoid){
         // 他大约摸到几张主 —— 与 pSurvive 的 kOf 同一口径(含断门的条件概率)
         const trOut=unseenBeats(X.mem,{suit:'T',top:-1,type:'single'},trump).total;
         const share=trOut/(X.shareDenom||AIP.handShare);
