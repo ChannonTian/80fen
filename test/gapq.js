@@ -63,6 +63,8 @@ function show(rec,label){
   console.log(`\n${label}`);
   console.log(`  **Spearman ρ(gap 秩 vs dp 秩)= ${sp.rho>=0?'+':''}${sp.rho.toFixed(3)} ±${sp.se.toFixed(3)} `
     +`(t=${(sp.rho/sp.se).toFixed(1)}, n=${sp.n})**  ← 主口径,越负越说明分数的幅度有意义`);
+  console.log('  分层 ρ(横比两把量具时看这一栏,不要看全体):');
+  byStratum(rec);
   console.log(`  四分位(只看形状,单档 SE≈${(1/Math.sqrt(n/4)*20).toFixed(1)},别拿单档当判据)`
     +`  切点:${[.25,.5,.75].map(x=>srt[Math.round(x*n)].gap.toFixed(1)).join(' / ')}`);
   for(let i=0;i<4;i++){
@@ -70,6 +72,22 @@ function show(rec,label){
     console.log(`  Q${i+1}(gap ${g[0].gap.toFixed(1)}~${g[g.length-1].gap.toFixed(1)})  ${stat(g.map(r=>r.dp))}`);
   }
 }
+/* 分层看 ρ。**横比两把量具之前必须先分层** —— 跟牌样本里混着末手,
+ * 那时这一墩基本已成定局,ρ 天然更容易显著;拿含末手的跟牌 ρ 去和领出比,
+ * 比出来的一半是「还剩几张牌没落」,不是「打分器准不准」。
+ * 实测:跟牌全体 −0.150,去掉末手 −0.095,领出 −0.025。 */
+function byStratum(rec){
+  const lay=[['末手(第4家)',r=>r.last===true],['第2、3家',r=>r.last===false],
+             ['收官 手≤8',r=>r.phase<9],['中盘 手9~16',r=>r.phase>=9&&r.phase<17],
+             ['开局 手≥17',r=>r.phase>=17]];
+  for(const [k,f] of lay){
+    const g=rec.filter(r=>{try{return f(r);}catch(e){return false;}});
+    const sp=spearman(g);
+    if(sp&&sp.n>=100)
+      console.log(`    ${k.padEnd(16)} ρ = ${sp.rho>=0?'+':''}${sp.rho.toFixed(3)} ±${sp.se.toFixed(3)} (t=${(sp.rho/sp.se).toFixed(1)}) n=${sp.n}`);
+  }
+}
+
 /* 用 `--` 分组,可以一次横比两把量具 */
 const groups=[[]];
 for(const a of process.argv.slice(2)){ if(a==='--') groups.push([]); else groups[groups.length-1].push(a); }

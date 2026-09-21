@@ -178,6 +178,11 @@ for(let seed=S0+1;seed<=S0+N;seed++){
                 dl:netLevels(rB,team)-netLevels(rA,team),
                 pw:!!X.partnerWinning,          // 队友此刻暂大
                 last:i===3,                     // 我坐末手(信息最全)
+                /* 座次本身也要记:横比领出和跟牌两把量具时,
+                 * 「决策之后还有几张牌没落」是个必须扣掉的混淆
+                 * (领出剩 3 张,第 2 家剩 2 张,第 3 家剩 1 张,末手剩 0 张)。
+                 * 只记 last 分不出第 2 家和第 3 家 —— 那一层当时没排干净。 */
+                seat:i,
                 decl:team===declTeam,           // 我是庄家方
                 tab:X.ptsTable||0,              // 本墩台面分
                 tr:tricks,                      // 已打了几墩
