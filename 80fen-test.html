@@ -4665,21 +4665,17 @@ function runTests(E){
     const ch=E.aiChooseFollow(view,plays);
     ok('用最省的牌吃(Q不动A)', ch.cards.length===1&&ch.cards[0].rank===12);
   }
-  /* 第 2 家、队友坐末手、手上握着这门的 A 和 Q → **不抢**,让末手的队友处理。
+  /* 【这里原本想再锁一条「第 2 家、队友坐末手 → 不越位抢」，v0.7.19 撤掉了。】
    *
-   * 这是 `pPartnerCalc: 1`(v0.7.19)带来的行为改变,单独锁一条。
-   * 局面:对手领 H10(10 分),我坐第 2 家,手上 HQ/HA —— 既然 A 在我这儿,
-   * **队友不可能有 A**,而他坐末手,能看着第 3 家再决定。
-   * 旧版(`pPartnerCalc: 0`)完全不看记牌证据、只用先验 0.32,所以一律抢;
-   * 打开之后它算得出「队友大概率接得住」,于是省下 Q。
-   * 这正是手写笔记 A 第 3 条那一类(见 DESIGN §7.6)。 */
-  {
-    const plays=[{seat:1,cards:[C('H',10)]}];
-    const view={seat:2,hand:[C('H',12),C('H',14),C('H',3),C('D',4)],trump:T,history:plays,buriedKnown:[]};
-    const ch=E.aiChooseFollow(view,plays);
-    ok('第2家、队友坐末手且 A 在我手上 → 不越位抢,留着大牌',
-       ch.cards.length===1&&ch.cards[0].rank===3);
-  }
+   * 撤掉的理由值得留着，因为它是这个测试文件里一类反复出现的坑:
+   * 那条断言依托的局面是 `hand` 只有 4 张、`history` 只有本墩一张 ——
+   * 按手牌长度它是残局,按记牌却"还有 103 张没露面",**自相矛盾**。
+   * `shareDenom` 于是算出「每家手上约 13 张」,`pPartnerTakes` 得到 0.631,
+   * AI 就不抢了。算法没错,错的是喂给它的局面。
+   *
+   * **构造跟牌断言时,手牌张数和 history 必须对得上**,否则量的是一个
+   * 现实中不存在的记牌状态。上面那条「用最省的牌吃」不受影响 ——
+   * 它比的是 Q 和 A 谁更省(1.4 vs −31.0),两个值都与 `pPartnerCalc` 无关。 */
   // 跟牌:队友稳赢且自己最后一手 → 贴分(出H10而非H4)
   {
     const plays=[{seat:1,cards:[C('H',5)]},{seat:2,cards:[C('H',14)]},{seat:3,cards:[C('H',3)]}];
