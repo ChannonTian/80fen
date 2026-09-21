@@ -12,15 +12,31 @@
  * 也就是说:省下来的那张大主,后面并没有真的用上 —— 那这次省就是纯亏。
  * 这一点只有打完整局才看得出来,正是反事实该干的活。
  *
- * 判据:
+ * ⚠️ **第一版的判据是错的,量到的 0 不作数。**
+ *
+ * 第一版只要求「我毙了、而且手上还有更大的主」—— 2669 个命中里
+ * 「手上更大的主平均还有 6.8 张」,绝大多数是**怎么挑都无所谓**的局面。
+ * 产品方说的是一个**有结构**的情形:
+ *
+ *   > 毙的那张**低于已知未出的带分主**(主 5 / 主 10 / 主 K),
+ *   > 于是后手对手一张带分主**连分带牌权**一起端走。
+ *
+ * 那一小撮被淹在一大堆无所谓的局面里,信号稀释成 0。**分层没分对,等于没量。**
+ *
+ * 判据(现在):
  *   · 领出非主、领一张,我跟一张**主牌**(= 毙),且**我不是末手**;
- *   · 我手上**还有更大的主**(否则没得选)。
+ *   · 在外**还有带分的主牌**(未见的 主5/主10/主K),**而且它压得过我这一张**;
+ *   · 我手上有牌能压过那张带分主(否则没得选)。
  *
  * 支路(都打完整局):
- *   A 现状        AI 实际毙的那张
- *   C 最大的主    手上最大的那张主(最不可能被盖毙)
- *   S 大一档的主  比 AI 那张大一档的最小主 ——「本来该再大一点」
- *   D 不毙        最便宜的合法垫牌
+ *   A 现状      AI 实际毙的那张
+ *   G 毙过分主  能压过**在外最大那张带分主**的最小一张 —— 这正是 `ruffGuardFollow` 的口径
+ *   C 最大的主  手上最大的那张主
+ *   D 不毙      最便宜的合法垫牌
+ *
+ * 另记**省下来的那张大主后来怎么样了**(产品方第二问):
+ * 它是赢了墩、还是撞死在更大/同大的主上、还是根本没出手。
+ * `futureValue` 给它记了一笔未来价值,这笔账到底兑不兑现,从来没量过。
  *
  * ⚠️ 生产配置,不关 egSearch。
  */
@@ -128,16 +144,23 @@ for(let seed=S0+1;seed<=S0+N;seed++){
            &&E.effSuit(cards[0],trump)==='T'&&hitsThisDeal<MAXH){
           const hand=hands[seat];
           const X=E.followCtx(view,plays);
-          const myTop=(E.classify(cards,trump)||{top:-1}).top;
-          const trumps=hand.filter(x=>E.effSuit(x,trump)==='T')
-            .sort((a2,b2)=>(E.classify([a2],trump)||{top:0}).top-(E.classify([b2],trump)||{top:0}).top);
-          const bigger=trumps.filter(x=>(E.classify([x],trump)||{top:-1}).top>myTop);
-          if(bigger.length){
-            /* S = **比 AI 那张大一档的最小主**(「本来该再大一点」)。
-             * 第一版把 S 定义成「大过未见主牌最大值的最小一张」—— 早期未见里总有大王,
-             * 于是 S 每次都退化成最大那张、和 C 读数完全一样(76/76)。
-             * 换成一步之遥这条,才和 C 真正分得开。 */
-            const safe=bigger[0];
+          const topOf=x=>(E.classify([x],trump)||{top:-1}).top;
+          const myTop=topOf(cards[0]);
+          const trumps=hand.filter(x=>E.effSuit(x,trump)==='T').sort((a2,b2)=>topOf(a2)-topOf(b2));
+          /* 在外还没露面的**带分主**里最大的那张(从我自己的记牌算,不是上帝视角) */
+          let ptTop=-1, ptCnt=0;
+          for(const k in X.mem.unseen){
+            if(X.mem.unseen[k]<=0) continue;
+            const card=E.keyToCard(k);
+            if(E.effSuit(card,trump)!=='T'||E.cardPoints(card)<=0) continue;
+            ptCnt+=X.mem.unseen[k];
+            const t=topOf(card); if(t>ptTop) ptTop=t;
+          }
+          // 命中 = 我这张毙牌**压不过**在外最大的带分主,而我手上有牌压得过
+          const guard=trumps.find(x=>topOf(x)>ptTop);
+          if(ptTop>myTop&&guard){
+            const bigger=trumps.filter(x=>topOf(x)>myTop);
+            const safe=guard;                    // G:压过在外最大带分主的最小一张
             const Cc=trumps[trumps.length-1];
             const D=hand.filter(x=>E.effSuit(x,trump)!=='T'
                                  &&E.isLegalFollow(hand,lead,[x],trump))
@@ -150,6 +173,9 @@ for(let seed=S0+1;seed<=S0+N;seed++){
             const rA=run(cards), rC=run([Cc]), rS=run([safe]), rD=D?run([D]):null;
             rec.push({
               seat:i, pts:X.ptsTable||0, nBig:bigger.length,
+              ptCnt,                               // 在外还有几张带分主
+              gap:ptTop-myTop,                     // 我这张离那张带分主差多远
+              guardIsA:guard.id===cards[0].id,
 
               dpC:rC.p-rA.p, dlC:rC.l-rA.l,
               dpS:rS.p-rA.p, dlS:rS.l-rA.l,
@@ -181,12 +207,12 @@ const stat=a=>{a=a.filter(x=>x!==null&&x!==undefined); if(!a.length) return 'n=0
   const p=a.filter(x=>x>0).length,n=a.filter(x=>x<0).length,nz=p+n;
   const z=nz?(p-n)/Math.sqrt(nz):0, pv=nz?2*(1-0.5*(1+erf(Math.abs(z)/Math.SQRT2))):1;
   return `${m>=0?'+':''}${m.toFixed(3)} ±${se.toFixed(3)} (t=${se?(m/se).toFixed(1):'—'}) ${p}/${n} 符号p=${pv.toFixed(4)} n=${a.length}`;};
-console.log(`${FILE} —— ${N} 局(自 ${S0+1} 起):毙牌且手上还有更大的主,命中 ${nHit}(${nSeed} 副)`);
+console.log(`${FILE} —— ${N} 局(自 ${S0+1} 起):毙牌、且毙得低于在外最大带分主、且手上压得过它 —— 命中 ${nHit}(${nSeed} 副)`);
 if(!rec.length){ console.log('  (没命中)'); process.exit(0); }
 console.log(`  其中 AI 挑的恰好是「最小的安全主」的:${rec.filter(r=>r.safeIsA).length}/${rec.length}`);
 const show=(lbl,f)=>{const g=rec.filter(f); if(g.length<20) return;
   console.log(`  ${lbl}  n=${g.length}`);
-  for(const [k,dp,dl] of [['S 大一档的主 ','dpS','dlS'],['C 最大的主   ','dpC','dlC'],['D 不  毙    ','dpD','dlD']]){
+  for(const [k,dp,dl] of [['G 毙过分主  ','dpS','dlS'],['C 最大的主   ','dpC','dlC'],['D 不  毙    ','dpD','dlD']]){
     console.log(`    ${k} − A  级 ${stat(g.map(r=>r[dl]))}`);
     console.log(`                分 ${stat(g.map(r=>r[dp]))}`);}};
 show('【全部】', ()=>true);
