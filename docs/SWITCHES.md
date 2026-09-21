@@ -271,7 +271,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | 参数 | 默认 | 说明 |
 |---|---|---|
 | `pPartnerPrior` | `0.32` | — |
-| `pPartnerCalc` | `0` | 记牌证据相对先验的采信比例;0 = 完全用先验(实测最优) |
+| `pPartnerCalc` | `1` | 记牌证据相对先验的采信比例;0 = 完全用先验(v0.7.19 之前的默认) |
 | `blockWin` | `1` | 1=生成「盖住末家分牌」的吃法候选;0=只用最省的吃法(消融用) |
 
 ### 跟牌时拆掉一个副花对子的代价(见 pairUnit / futureValue)。**默认 0,还在量。**
