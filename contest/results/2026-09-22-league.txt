@@ -5,4 +5,4 @@
 
 断点 /tmp/claude-0/-home-user-80fen/d11a7d81-7810-580f-845f-a2c274adde28/scratchpad/s2/league.ckpt.ndjson:已完成 0 对,本次跑 6 对
 
-  1/6 对  4212s  预计还剩 351.0 分钟      
+  1/6 对  4212s  预计还剩 351.0 分钟        2/6 对  7297s  预计还剩 243.2 分钟      
