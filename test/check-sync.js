@@ -17,7 +17,7 @@
  *   · contest/public/ 与参赛 repo 逐字节一致(参赛 repo 并排放着时)
  *   · 规则书 §S5 新增的那些向量,引擎跑出来必须一致
  *   · 联赛断点续跑出来的榜与逐局记录,和一口气跑完的逐字节相同(--full)
- *   · 发出去的牌谱格式(参赛 repo 的 season1/FORMAT.md、replay.js)== 裁判现在的输出(--full)
+ *   · 发出去的牌谱格式(参赛 repo 根的 FORMAT.md、replay.js)== 裁判现在的输出(--full)
  *   · .md 与比赛主页里指向仓库内文件的链接都得指得到东西
  *   · 未跟踪文件必须在白名单里(防 `git add -A` 把本地杂物扫进仓库)
  */
@@ -35,6 +35,9 @@ const ok =(n)=>console.log(`  \x1b[32m✓\x1b[0m ${n}`);
 const bad=(n,d)=>{fail++;console.log(`  \x1b[31m✗\x1b[0m ${n}`);if(d)console.log(`      ${String(d).replace(/\n/g,'\n      ')}`);};
 const na =(n,w)=>{skip++;console.log(`  \x1b[33m–\x1b[0m ${n}  (${w})`);};
 const has=f=>fs.existsSync(f);
+// 历次联赛:赛季目录名 → 跑的日期。发出去的那一份是 gen-season.js 生成的,会漂。
+const SEASONS=[['season1','2026-09-06'], ['season2','2026-09-22']];
+
 // 参赛 repo,并排放着的时候才查得了它
 const CONTEST=require('path').join(__dirname,'..','..','80fen-contest');
 const read=f=>fs.readFileSync(f,'utf8');
@@ -156,13 +159,16 @@ if(has(DOC.changelog)&&M[PROD]&&M[TEST]){
 
     /* 发出去的那一届记录也是**生成的**(contest/gen-season.js),同样会漂 ——
      * 而且漂了之后参赛者照着一份跑不起来的说明去复盘,比手册漂了更难发现。 */
-    const S1=require('path').join(CONTEST,'season1');
-    if(has(S1)&&has('contest/results/2026-09-06-league.md')){
-      const r=cp.spawnSync('node',['contest/gen-season.js','2026-09-06',S1,'--check'],{encoding:'utf8'});
-      if(r.status===0) ok('参赛 repo 的 season1/ == contest/results/(赛报与复盘)');
-      else bad('参赛 repo 的 season1/ == contest/results/',
-               (r.stderr||'').trim() || '重新生成:node contest/gen-season.js 2026-09-06 <参赛repo>/season1');
-    }else na('参赛 repo 的 season1/', '还没发出去');
+    /* 一季一格。加新的一季就在这张表上加一行 —— 忘了加就等于这一季没人盯着。 */
+    for(const [season, date] of SEASONS){
+      const dir=require('path').join(CONTEST, season);
+      if(has(dir)&&has(`contest/results/${date}-league.md`)){
+        const r=cp.spawnSync('node',['contest/gen-season.js',date,dir,'--check'],{encoding:'utf8'});
+        if(r.status===0) ok(`参赛 repo 的 ${season}/ == contest/results/(赛报与复盘)`);
+        else bad(`参赛 repo 的 ${season}/ == contest/results/`,
+                 (r.stderr||'').trim() || `重新生成:node contest/gen-season.js ${date} <参赛repo>/${season}`);
+      }else na(`参赛 repo 的 ${season}/`, '还没发出去');
+    }
   }else na('contest/public/ == 参赛 repo', '参赛 repo 不在旁边');
 }
 
@@ -227,7 +233,7 @@ try{
 }catch(e){ na('未跟踪文件白名单', 'git 不可用'); }
 
 if(process.argv.includes('--full')){
-  /* 发出去的牌谱格式 —— season1/replay.js 和 FORMAT.md 是**参赛者照着读的契约**,
+  /* 发出去的牌谱格式 —— 仓库根的 replay.js 和 FORMAT.md 是**参赛者照着读的契约**,
    * 裁判的逐墩结构一改那边就静默读错(字段少了读到 undefined,键改了名整节消失,
    * 而 gzip 里的 NDJSON 不会有任何一处报错)。现跑两场现渲染,对得上才算数。 */
   console.log('\n\x1b[1m发出去的牌谱格式(--full)\x1b[0m');

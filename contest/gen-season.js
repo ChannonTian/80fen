@@ -26,6 +26,10 @@ if(!DATE||!DST){
   process.exit(1);
 }
 const SRC=path.join(__dirname,'results');
+/* 赛季目录名从目标路径推 —— 生成出来的赛报和复盘里带着「怎么复盘某一局」的命令,
+ * 写死 `season1` 的话,第二赛季的文档会让人去跑上一季的路径。
+ * 阅读器和格式说明在**仓库根**,两季共用一份(复制一份迟早会漂)。 */
+const SEASON=path.basename(path.resolve(DST));
 
 /* 一处改写:from 必须**恰好出现一次**。出现 0 次或 2 次都停下来报错 ——
  * 那说明上游的 report.js / review.js 改了措辞,这里得跟着改,而不是默默少改一处。 */
@@ -61,23 +65,23 @@ const RECORDS_TO=`## 记录文件
 | \`plays/\` | **逐墩记录**,一对一个文件:发牌、底牌、扣底、每一墩谁出了哪几张、谁赢 |
 | \`reviews/\` | 逐选手复盘 |
 
-复盘某一局 —— [\`replay.js\`](replay.js) 直接渲染成牌谱:
+复盘某一局 —— [\`replay.js\`](../replay.js) 直接渲染成牌谱:
 
 \`\`\`sh
-node season1/replay.js season1/plays/<A>__<B>.ndjson.gz 7 --hands
+node replay.js ${SEASON}/plays/<A>__<B>.ndjson.gz 7 --hands
 \`\`\`
 
-自己解也行,格式见 [\`FORMAT.md\`](FORMAT.md):
+自己解也行,格式见 [\`FORMAT.md\`](../FORMAT.md):
 
 \`\`\`sh
-zcat season1/plays/<A>__<B>.ndjson.gz | jq -c 'select(.seed==7)'
+zcat ${SEASON}/plays/<A>__<B>.ndjson.gz | jq -c 'select(.seed==7)'
 \`\`\`
 `;
 
 // 复盘:结尾那条重跑命令
 const REVIEW_EDITS=[
   ['```sh\n# 复现某一局(第一个数是 seed,跑够那么多种子才会走到它)\nnode contest/run.js <我的目录> <对手目录> <seed> --eg\n```',
-   '```sh\n# 看某一局怎么打的\nnode season1/replay.js season1/plays/<A>__<B>.ndjson.gz <seed> --round=<no> --hands\n```',
+   '```sh\n# 看某一局怎么打的\nnode replay.js '+SEASON+'/plays/<A>__<B>.ndjson.gz <seed> --round=<no> --hands\n```',
    '重跑命令换成牌谱阅读器'],
 ];
 

@@ -314,12 +314,15 @@ html=html.replace(ANCHOR, shim + '\n' + ANCHOR);
  * 部署之后正式版和几个参赛版在同一个域名下会共享 localStorage,设置、语言、
  * 尤其是**笔记**串在一起,观察员对两个 AI 的记录就混成一摊。规则在正式版里,
  * 这里只核对文件名能被它认出来 —— 认不出就会掉回正式版的键名,悄悄串台。 */
-const LS=`80fen-c-${name}-`;
+
 if(!/^80fen-contest-.+-v\d+\.html$/.test(path.basename(OUT))){
   console.error(`✗ 文件名 ${path.basename(OUT)} 不符合 80fen-contest-<选手>-v<数字>.html —— ` +
                 `正式版的 LSP 认不出它,localStorage 会和正式版串在一起`);
   process.exit(2);
 }
+// 前缀**照文件名推**,和正式版 LSP 用同一条规则 —— 照 `name` 拼会在同一选手的
+// 两份观察页(如 <选手>-v1 与 <选手>-s2-v1)上印出同一个前缀,而实际上它们是分开的。
+const LS='80fen-c-'+path.basename(OUT).match(/^80fen-contest-(.+)-v\d+\.html$/)[1]+'-';
 if(!html.includes("const LSP=")){
   console.error('✗ 正式版里找不到 LSP —— localStorage 前缀换写法了?'); process.exit(2);
 }

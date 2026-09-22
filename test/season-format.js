@@ -2,7 +2,7 @@
  *
  *   node test/season-format.js
  *
- * `season1/FORMAT.md` 和 `season1/replay.js` 是**发出去的契约** —— 参赛者照着它读牌谱。
+ * 仓库根的 `FORMAT.md` 和 `replay.js` 是**发出去的契约**(两季共用一份) —— 参赛者照着它读牌谱。
  * 裁判这边 `playRound` 的逐墩结构一改,那边就静默读错:字段少了会读到 undefined,
  * 键改了名会整节消失,而 gzip 里的 NDJSON 不会有任何一处报错。
  *
@@ -18,7 +18,7 @@ const fs=require('fs'), path=require('path'), cp=require('child_process'), zlib=
 
 const ROOT=path.join(__dirname,'..');
 const CONTEST=path.join(ROOT,'..','80fen-contest');
-const REPLAY=path.join(CONTEST,'season1','replay.js');
+const REPLAY=path.join(CONTEST,'replay.js');
 const SUB=path.join(CONTEST,'submissions');
 
 if(!fs.existsSync(REPLAY)||!fs.existsSync(SUB)){
@@ -80,7 +80,7 @@ const F=path.join(PLAYS, files[0]);
 {
   const one=zlib.gunzipSync(fs.readFileSync(F),{finishFlush:zlib.constants.Z_SYNC_FLUSH})
     .toString('utf8').split('\n').filter(Boolean).map(JSON.parse)[0];
-  const doc=fs.readFileSync(path.join(CONTEST,'season1','FORMAT.md'),'utf8');
+  const doc=fs.readFileSync(path.join(CONTEST,'FORMAT.md'),'utf8');
   const rd0=one.rounds[0];
   // FORMAT.md 的字段表里用 `反引号` 圈出来的那些局级字段
   const named=['no','declSeat','declTeam','trump','trumpRank','declStrength','rawTotal','total',
