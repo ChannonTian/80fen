@@ -1,0 +1,7 @@
+
+联赛:4 名选手,6 对,每对 300 副牌 × 交换阵营
+选手:deepseek-v4-pro、gpt-6-astra、zai-glm、陪练
+并行 4 进程,引擎 index.html
+
+断点 /tmp/claude-0/-home-user-80fen/d11a7d81-7810-580f-845f-a2c274adde28/scratchpad/s2/league.ckpt.ndjson:已完成 0 对,本次跑 6 对
+
