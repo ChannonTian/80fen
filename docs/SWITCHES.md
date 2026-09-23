@@ -163,6 +163,18 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `egRetries` | `24` | 单个世界的重试次数 |
 | `egMaxCands` | `6` | 候选多于这个数就不搜(预算) |
 
+### 搜得更深时样本数按深度递减:samples = max(egMinSamples, egSamples − egSamplesBy×(n−5))。
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `egSamplesBy` | `0` | — |
+
+### 抽样按软断门概率加权:一张牌落到某家的权重 = 空位 × (1 − pVoid)^egVoidW。
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `egVoidW` | `0` | — |
+
 ### 收官抽样:底牌按庄家的埋底策略抽,不再是「三家塞满之后剩下的牌」(见 sampleWorld)
 
 | 参数 | 默认 | 说明 |

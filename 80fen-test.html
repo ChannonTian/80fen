@@ -920,6 +920,14 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   egMinSamples: 20,           // 抽不满这么多就退回启发式(约束太紧,样本不可信)
   egRetries: 24,              // 单个世界的重试次数
   egMaxCands: 6,              // 候选多于这个数就不搜(预算)
+  /* 搜得更深时样本数按深度递减:samples = max(egMinSamples, egSamples − egSamplesBy×(n−5))。
+   * 来自第二赛季 zai-glm 的提交(fork 我们的 v0.7.14,Apache-2.0):egMaxCards 8 + 这一项。
+   * 0 = 不递减(旧行为)。 */
+  egSamplesBy: 0,
+  /* 抽样按软断门概率加权:一张牌落到某家的权重 = 空位 × (1 − pVoid)^egVoidW。
+   * 旧版只用硬缺门(voids)排除、其余按空位均匀 —— 「多半没这门」的那家照样分到这门的牌。
+   * 同样来自 zai-glm(他们 κ=2)。0 = 不加权(旧行为)。 */
+  egVoidW: 0,
   /* 收官抽样:底牌按庄家的埋底策略抽,不再是「三家塞满之后剩下的牌」(见 sampleWorld)
    * 配对自对弈三批 × 700 种子:**+0.78 ±0.28 / +1.41 ±0.27 / +0.96 ±0.25**,
    * 合并 +1.05 ±0.15(t=6.9),符号检验 p=5e-4 / 6e-5 / 7e-5;
@@ -3899,7 +3907,7 @@ function rolloutFollow(hand, lead, trump, plays, seat){
  * 约束:各家张数(已出过牌的那几家少一张)、硬缺门、maxHoldIn 的上界。
  * 用「最受限的牌先安排」的贪心 + 有界重试,抽不出就返回 null。 */
 function sampleWorld(ctx, rand){
-  const {unseen,sizes,seats,voids,trump,kittySize,capOf}=ctx;
+  const {unseen,sizes,seats,voids,trump,kittySize,capOf,pVoidOf}=ctx;
   for(let attempt=0;attempt<AIP.egRetries;attempt++){
     let pool=shuffle(unseen,rand);
     const hands={}, cnt={}, used={};
@@ -3948,8 +3956,12 @@ function sampleWorld(ctx, rand){
         if(kitty.length<kittySize){ kitty.push(c); continue; }
         ok=false; break;
       }
-      // 按剩余空位加权,避免最后一家被塞满
-      let tot=0; const w=cand.map(s=>{const x=sizes[s]-hands[s].length; tot+=x; return x;});
+      // 按剩余空位加权,避免最后一家被塞满;egVoidW 时再乘「他还有这门」的概率
+      let tot=0; const w=cand.map(s=>{let x=sizes[s]-hands[s].length;
+        if(pVoidOf) x*=Math.pow(Math.max(0,1-pVoidOf(s,su)),AIP.egVoidW);
+        tot+=x; return x;});
+      // 全被压成 0(几家都「几乎肯定」没这门,可硬约束又只允许他们)就退回按空位
+      if(tot<=0){ tot=0; cand.forEach((s,i)=>{ w[i]=sizes[s]-hands[s].length; tot+=w[i]; }); }
       let r=rand()*tot, pick=cand[0];
       for(let i=0;i<cand.length;i++){ r-=w[i]; if(r<=0){ pick=cand[i]; break; } }
       hands[pick].push(c); cnt[pick][su]=(cnt[pick][su]||0)+1;
@@ -4108,6 +4120,7 @@ function endgameSearch(view, plays, cands){
   const voids=makeVoids(view.history||[],trump);
   const reads=makeReads(view.history||[],trump);
   const capOf=(s,su)=>maxHoldIn(reads,mem,s,su,trump);
+  const pVoidOf=AIP.egVoidW>0?makeVoidProb(reads,mem,trump,n):null;
   const rand=rng((view.history||[]).length*7919+view.seat*31+n*17+1);
   /* 亮主者手里钉死的牌:亮 k 张级牌 → 他手里有 k 张该门级牌(减去他已经打出的);王对同理。 */
   const known=[];
@@ -4122,11 +4135,12 @@ function endgameSearch(view, plays, cands){
       for(let i=0;i<want.n-playedByHim;i++) known.push({seat:decl.seat,suit:want.suit,rank:want.rank});
     }
   }
-  const ctx={unseen,sizes,seats,voids,trump,kittySize,capOf,known};
+  const ctx={unseen,sizes,seats,voids,trump,kittySize,capOf,known,pVoidOf};
   const myTeam=view.seat%2, declTeam=view.declSeat%2;
   const rs=roundScore(view);
   const worlds=[];
-  for(let i=0;i<AIP.egSamples;i++){
+  const nSamp=AIP.egSamplesBy>0&&n>5?Math.max(AIP.egMinSamples,AIP.egSamples-AIP.egSamplesBy*(n-5)):AIP.egSamples;
+  for(let i=0;i<nSamp;i++){
     const w=sampleWorld(ctx,rand);
     if(w) worlds.push(w);
   }
