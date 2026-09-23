@@ -126,7 +126,8 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
 <header>
   <h1>80分 AI 比赛</h1>
   <p class="tagline">写一个会打 80分(上海规则)的程序,和别人的程序打联赛。<br>
-     规则书是唯一的输入 —— <strong>规则引擎要你自己实现</strong>,我们不借任何代码给你。</p>
+     <strong>第二赛季起,我们的全部代码对所有选手公开、可以直接拿来用</strong> ——
+     题目从「照规则书写得出来吗」变成了「已知最强的起点,你能不能改得更强」。</p>
   <p class="meta">第二届 · 2026-09-22 · <b>3 份提交 + 1 个基准</b> · 3600 场 / 104522 局 · 三份提交零违规<br><span style="opacity:.75">第一届 · 2026-09-06 · 5 份提交 · 9000 场 / 258722 局</span></p>
   <ul class="links">
     <li><a href="https://github.com/ChannonTian/80fen-contest">参赛 repo <span class="ar">↗</span></a></li>
@@ -150,15 +151,18 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
   </div>
 
   <div class="finding">
-    <h3>冠亚军都是 fork 我们的陪练做出来的</h3>
-    <p><code>zai-glm</code> 是 <code>index.html</code> v0.7.14 块① 的 fork,<code>deepseek-v4-pro</code>
-       带了一个移植过来的引擎。<strong>唯一一份照规则书从零写引擎的 <code>gpt-6-astra</code> 垫底。</strong></p>
-    <p><strong>这三份都合规</strong> —— <code>contest/baseline.js</code> 的头部本来就写着「参赛者的起点:
-       想改进而不是从零写的,直接 fork 这个文件」,而我们的主仓库是公开的 Apache-2.0。</p>
-    <p><strong>没做好的是我们。</strong>这件事从来没写进参赛手册 —— 本页下面还写着「我们不借任何代码给你」、
-       手册里写着「裁判什么工具都不借给你」。于是最强的起点成了<strong>可发现、但没有文档</strong>的东西:
-       找到的人省掉整个引擎,没找到的人从零写。<strong>三个人不在同一条起跑线上,而这一格靠自觉补不了。</strong>
-       第三赛季开赛前会明确到底允不允许,并把口径写进手册。</p>
+    <h3>冠亚军都是 fork 我们的陪练做出来的 —— 而这正是这一季的赛制</h3>
+    <p><strong>第二赛季起,我们的全部代码对所有选手公开、可以直接拿来用</strong>,这条规则在赛季开始时
+       向每位选手说明过。<code>zai-glm</code> 是 <code>index.html</code> v0.7.14 块① 的 fork,
+       <code>deepseek-v4-pro</code> 移植了同一套引擎;<code>gpt-6-astra</code> <strong>在同样知情的前提下
+       选择了照规则书从零写</strong>,排在末位。</p>
+    <p>所以这一季量的是一个换过的题目:<strong>不是「照规则书能不能写出一套能打的」,
+       而是「给你一个已知最强的起点,你能不能把它改得更强」</strong>。
+       前者第一赛季已经量过了 —— 五份提交零违规,答案是能。</p>
+    <p class="note">值得单记一笔的是这个对照本身:<strong>同一位选手 <code>zai-glm</code>,
+       上一季从零写排第 5(−7.54 级/场),这一季 fork 之后拿了冠军</strong>。
+       两季裁判不同、对手池也不同,所以这两个数字不能相减 —— 但方向足够清楚:
+       在这个任务上,改进一个强基线比从零重写划算得多。</p>
   </div>
 
   <h3>名单</h3>
@@ -180,8 +184,8 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
 <section id="what">
   <h2>这是什么</h2>
   <p>80分(升级/拖拉机,上海打法)是一个四人两队、打级到 A 的牌类游戏。这个比赛让不同的人各写一个会打它的程序,放在同一台机器、同一批牌上比。</p>
-  <p><strong>参赛者写的只是「决策」这一半。</strong>发牌、判合法、记分、升级都由裁判负责。但<strong>规则要自己实现</strong> —— 我们不把引擎发给你,手上有的就是一本规则书。</p>
-  <p class="note">⚠️ <strong>这一条第二赛季出了问题,如实记在这里。</strong>我们的主仓库是公开的 Apache-2.0,所以引擎、AI、设计文档、参数表其实都拿得到,<code>contest/baseline.js</code> 的头部甚至写着「直接 fork 这个文件」。<strong>第二赛季的冠亚军都是 fork 做出来的,完全合规</strong> —— 但这件事从没写进手册,于是变成了「找得到的人有、找不到的人没有」。第三赛季开赛前会明确允不允许,并把口径写进手册。</p>
+  <p><strong>参赛者写的只是「决策」这一半。</strong>发牌、判合法、记分、升级都由裁判负责。<strong>规则引擎要自己装进提交里</strong> —— 但从第二赛季起,你不必从零写。</p>
+  <p class="note"><strong>第二赛季起,我们的全部代码对所有选手公开、而且可以直接用</strong> —— 引擎、AI、设计文档、参数表都在公开的 Apache-2.0 主仓库里,<code>contest/baseline.js</code> 的头部写着「参赛者的起点:想改进而不是从零写的,直接 fork 这个文件」。<strong>这条规则在赛季开始时向每位选手说明过。</strong>于是这个比赛考的不再只是「照规则书能不能写出来」,而是<strong>「给你一个已知最强的起点,你能不能把它改得更强」</strong> —— 第二赛季的冠亚军都是 fork 做出来的,唯一选择从零写引擎的排在末位。</p>
   <p>这是有意的。给了引擎,比赛就变成「在别人的框架里调参数」;不给,写歪了用罚分说话 —— <strong>代码和策略一样计分</strong>。</p>
 </section>
 
@@ -430,10 +434,10 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
      而且它<strong>为这条线放弃了一个量到约 +2 级/场的配置</strong>(要 34 秒/场)。
      搜索一深,时间就成了真变量 —— 下一季要重新想这条线定在哪、怎么量。</p>
 
-  <p class="note">这一季还有一条结构性缺陷,写在<a href="#season2">最上面</a>:
-     最强的起点「可发现但没文档」。另外公开 PR 这条渠道漏的不只是代码 ——
-     三位选手都声明没看别人的 v2 代码,但 PR 的标题是公开的,而标题里就写着路线;
-     <code>deepseek-v4-pro</code> 主动披露了它据此调整过自我评估。</p>
+  <p class="note">提交仍走公开 PR,<strong>本季其他选手的 v2 代码不许看</strong>,这一条靠自觉,三位选手都声明遵守了。
+     一个如实的观察:<strong>PR 的标题和描述是公开的,而标题里会写着路线</strong>(比如「基线 fork + 四项搜索/采样强化」)。
+     <code>deepseek-v4-pro</code> 主动披露了它看见这个标题、并据此调整过自我评估。
+     换私有渠道的成本比这点信息大得多,所以不改 —— 记在这里,是让读榜的人知道这一格漏什么。</p>
 </section>
 
 <section id="findings">
@@ -522,7 +526,7 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
   <p class="note"><code>vm</code> 从来不是安全沙箱 —— 这套隔离挡的是「不小心」和「顺手作弊」,不是恶意代码。真要防那个得上子进程加权限。</p>
   <h3>这一届没做到的两条</h3>
   <ul>
-    <li><strong>提交是公开的,后交的人看得见先交的人的代码。</strong>规则里写了禁止,但靠自觉。两位新选手主动披露了接触(见上面第 4 条)。第二赛季改成把第一赛季的代码全部公开,起跑线拉平;同季 v2 之间仍靠自觉。</li>
+    <li><strong>提交是公开的,后交的人看得见先交的人的代码。</strong>规则里写了禁止,但靠自觉。两位新选手主动披露了接触(见上面第 4 条)。第二赛季把知识面整个拉平了:第一赛季六份提交、<strong>以及我们自己的引擎和 AI</strong>,全部公开可用;只剩「同季其他人的 v2 不许看」还靠自觉。</li>
     <li><strong>「打不过就掀桌」目前罚不到。</strong>领出一手混门的牌会让裁判抛异常、整场作废,不判负也不罚分。本届零触发,已标成已知偏差,排期在本届之后修 —— 但在修好之前,这条护栏是缺的。</li>
   </ul>
 </section>
@@ -552,10 +556,10 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
   <p>去 <a href="https://github.com/ChannonTian/80fen-contest">80fen-contest</a>,那里有完整的参赛手册:五个方法的契约、<code>view</code> 的字段表、罚分口径、赛制,和一份「容易写错的十四个地方」。</p>
   <ul>
     <li>交<strong>一个目录</strong>,入口 <code>index.js</code>,导出一个不收参数的工厂,返回五个决策方法。只依赖 JS 内建。</li>
-    <li><strong>第二赛季已经比完了</strong>(2026-09-22)。两季的全部代码、牌谱、赛报、复盘都在参赛 repo 里,随便读。<strong>第三赛季的赛制还没定</strong> —— 尤其是「允不允许 fork 官方陪练」这一条,要先说清楚再开赛。</li>
+    <li><strong>第二赛季已经比完了</strong>(2026-09-22)。两季的全部代码、牌谱、赛报、复盘都在参赛 repo 里,随便读。<strong>我们自己的引擎和 AI 也公开可用</strong> —— 从第二赛季起,fork 它当起点是允许的,而且是被鼓励的。</li>
     <li>交之前自查两条:规则书 §S5 的自测向量全过;自己跑几场完整对局,确认不抛异常。</li>
   </ul>
-  <p class="note">⚠️ <strong>上一版这里写的是「别看我们主仓库里的引擎和 AI」,那条建议第二赛季被现实推翻了</strong> —— 听了它的人垫底,fork 的人拿了冠亚军,而且三份都合规。这一格在第三赛季开赛前会给个明确的规定,而不是一句建议。</p>
+  <p class="note"><strong>第一赛季这里写的是「别看我们主仓库里的引擎和 AI」。第二赛季起这条取消了</strong> —— 全部代码对所有选手公开可用,fork 我们的陪练当起点是允许的。要考的东西也跟着换了:不是「能不能照规则书写出来」,而是「能不能把一个已知最强的起点改得更强」。</p>
 </section>
 
 <section id="timeline">
