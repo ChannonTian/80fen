@@ -152,7 +152,12 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | 参数 | 默认 | 说明 |
 |---|---|---|
 | `egSearch` | `1` | 总开关 |
-| `egMaxCards` | `5` | 剩几张牌起用搜索(状态空间要足够小) |
+
+### 剩几张牌起用搜索。v0.7.0~v0.7.19 是 5;那时扫过「60 样本 + 从 6 张起搜」更差
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `egMaxCards` | `8` | — |
 
 ### 每次决策抽多少个世界。扫参(配对差,相对 eg 关闭,350 种子 × 交换阵营):
 
@@ -167,7 +172,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `egSamplesBy` | `0` | — |
+| `egSamplesBy` | `8` | 8 张时 36 个世界、5 张及以下仍是 60 |
 
 ### 抽样按软断门概率加权:一张牌落到某家的权重 = 空位 × (1 − pVoid)^egVoidW。
 
@@ -290,7 +295,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `partnerRuffDump` | `0` | — |
+| `partnerRuffDump` | `1` | — |
 | `partnerRuffDumpPV` | `0.5` | 「队友高概率断这门」的门槛,与 audit-scenarios 同一个数 |
 
 ### 跟牌时拆掉一个副花对子的代价(见 pairUnit / futureValue)。**默认 0,还在量。**
