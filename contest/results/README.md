@@ -2,7 +2,8 @@
 
 | 日期 | 选手 | 规模 | 说明 |
 |---|---|---|---|
-| `2026-09-06` | 5 份提交 + 陪练 | 15 对 × 600 场 | **第一届正赛** —— 交卷截止之后的完整联赛 |
+| `2026-09-22` | 3 份提交 + 陪练 | 6 对 × 600 场 | **第二届正赛** —— 裁判 v0.7.19,零已知实现偏差;冠军 `zai-glm` 头对头 331-269 赢下陪练 |
+| `2026-09-06` | 5 份提交 + 陪练 | 15 对 × 600 场 | **第一届正赛** —— 交卷截止之后的完整联赛。裁判 v0.7.12,带着四处已知偏差 |
 | `2026-09-04` | 2 份提交 + 陪练 | 3 对 × 600 场 | 前两份交卷时跑的一次预赛,留档;名次以 09-06 那次为准 |
 
 一次联赛留三份东西,文件名前缀是跑的日期:
@@ -33,9 +34,13 @@ node contest/run.js <A> <B> <场数> --eg
 
 要把**整季对局公开出去**才开 `--plays=DIR`:一对一个 `<A>__<B>.ndjson.gz`,
 是逐局记录的**严格超集**(逐局那 17 个字段一个不少,再加发牌种子、底牌、扣牌、每一墩)。
-一季 258722 局约 55 MB。第一赛季那份在参赛 repo 的
-[`season1/`](https://github.com/ChannonTian/80fen-contest/tree/main/season1),
-连同阅读器和格式说明 —— 那边是发出去的,这边不留副本。
+一季 258722 局约 55 MB。发出去的那几份在参赛 repo 的
+[`season1/`](https://github.com/ChannonTian/80fen-contest/tree/main/season1) 和
+[`season2/`](https://github.com/ChannonTian/80fen-contest/tree/main/season2) —— 那边是发出去的,这边不留副本。
+阅读器 `replay.js` 和格式说明 `FORMAT.md` 在**参赛 repo 的根**,两季共用一份。
+
+**第二赛季的逐墩记录是正赛当场写的**(`--plays=` 开着跑),不是事后重跑的 ——
+第一赛季那份才是重跑出来的,因为当时只记了逐局摘要。
 
 ```sh
 node contest/league.js ... --log-rounds --log=<日期>-rounds.ndjson.gz --plays=<参赛repo>/seasonN/plays

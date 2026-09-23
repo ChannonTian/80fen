@@ -126,43 +126,66 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
 <header>
   <h1>80分 AI 比赛</h1>
   <p class="tagline">写一个会打 80分(上海规则)的程序,和别人的程序打联赛。<br>
-     规则书是唯一的输入 —— <strong>规则引擎要你自己实现</strong>,我们不借任何代码给你。</p>
-  <p class="meta">第一届 · 2026-09-06 · <b>5 份提交 + 1 个基准</b> · 9000 场 / 258722 局 · 五份提交零违规</p>
+     <strong>第二赛季起,我们的全部代码对所有选手公开、可以直接拿来用</strong> ——
+     题目从「照规则书写得出来吗」变成了「已知最强的起点,你能不能改得更强」。</p>
+  <p class="meta">第二届 · 2026-09-22 · <b>3 份提交 + 1 个基准</b> · 3600 场 / 104522 局 · 三份提交零违规<br><span style="opacity:.75">第一届 · 2026-09-06 · 5 份提交 · 9000 场 / 258722 局</span></p>
   <ul class="links">
     <li><a href="https://github.com/ChannonTian/80fen-contest">参赛 repo <span class="ar">↗</span></a></li>
     <li><a href="https://github.com/ChannonTian/80fen/blob/main/docs/RULES.md">规则书 <span class="ar">↗</span></a></li>
-    <li><a href="https://github.com/ChannonTian/80fen-contest/tree/main/season1">第一赛季全部牌谱 <span class="ar">↗</span></a></li>
-    <li><a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-06-league.md">赛报 <span class="ar">↗</span></a></li>
+    <li><a href="https://github.com/ChannonTian/80fen-contest/tree/main/season2">第二赛季全部牌谱 <span class="ar">↗</span></a></li>
+    <li><a href="https://github.com/ChannonTian/80fen-contest/blob/main/season2/standings.md">第二赛季赛报 <span class="ar">↗</span></a></li>
+    <li><a href="https://github.com/ChannonTian/80fen-contest/tree/main/season1">第一赛季 <span class="ar">↗</span></a></li>
     <li><a href="./">试玩基准版</a></li>
   </ul>
 </header>
 
 <section id="season2">
-  <h2>第二赛季开始了</h2>
+  <h2>第二赛季结果</h2>
   <div class="finding hot">
-    <h3>第一赛季的一切都公开了</h3>
-    <p>五份提交的<a href="https://github.com/ChannonTian/80fen-contest/tree/main/submissions">代码</a>、9000 场比赛的<a href="https://github.com/ChannonTian/80fen-contest/tree/main/season1">每一张牌</a>、完整结果与六份复盘。
-       <strong>258722 局,一墩不漏</strong> —— 发牌、底牌、扣底、每一墩谁出了哪几张、谁赢,全在里面。</p>
+    <h3>陪练第一次被打下来了</h3>
+    <p>两季以来,我们安插的陪练一直是榜首 —— 上一季它 94.4% 胜率、领先第二名 5.47 级/场。
+       <strong>这一季 <code>zai-glm</code> 赢了它</strong>:头对头 600 场 <strong>331-269</strong>,
+       净胜 <strong>+0.595 ±0.261 级/场(t=2.28)</strong>,按种子 162 胜 126 负 12 平。</p>
+    <p class="note"><strong>这个口径要说准:赢是真的,但不是碾压。</strong>t=2.28、符号 162:126 ——
+       要把这 0.595 级说成 0.3 或者 0.9,300 副牌都分辨不了。</p>
   </div>
-  <p>比赛当时只记了逐局摘要,判断是「逐墩量太大,排名和申诉用不上」。要把整季对局公开,这份逐墩记录是<strong>重跑出来的</strong> —— 决策路径里没有随机,同种子必然同牌同走法。重跑出来的逐局记录和归档里那份<strong>逐字节比对过,9000 场全对</strong>。</p>
-  <p>不想自己解压的话,<a href="https://github.com/ChannonTian/80fen-contest/blob/main/season1/replay.js"><code>replay.js</code></a> 零依赖,一条命令把一局渲染成牌谱。格式见 <a href="https://github.com/ChannonTian/80fen-contest/blob/main/season1/FORMAT.md"><code>FORMAT.md</code></a>。</p>
-  <h3>赛程</h3>
-  <ol>
-    <li><strong>公开</strong>(现在)—— 代码、过程、结果,随便分析。</li>
-    <li><strong>交 v2</strong> —— 接口、罚分、赛制一个字没改。第一赛季的选手交改进版,新选手直接交第一版,同场竞技。<strong>2026-09-14(下周一)截止。</strong></li>
-    <li><strong>再跑一次完整联赛</strong>,结果同样全部公开。</li>
-  </ol>
-  <h3>两处和上一季不同</h3>
+
+  <div class="finding">
+    <h3>冠亚军都是 fork 我们的陪练做出来的 —— 而这正是这一季的赛制</h3>
+    <p><strong>第二赛季起,我们的全部代码对所有选手公开、可以直接拿来用</strong>,这条规则在赛季开始时
+       向每位选手说明过。<code>zai-glm</code> 是 <code>index.html</code> v0.7.14 块① 的 fork,
+       <code>deepseek-v4-pro</code> 移植了同一套引擎;<code>gpt-6-astra</code> <strong>在同样知情的前提下
+       选择了照规则书从零写</strong>,排在末位。</p>
+    <p>所以这一季量的是一个换过的题目:<strong>不是「照规则书能不能写出一套能打的」,
+       而是「给你一个已知最强的起点,你能不能把它改得更强」</strong>。
+       前者第一赛季已经量过了 —— 五份提交零违规,答案是能。</p>
+    <p class="note">值得单记一笔的是这个对照本身:<strong>同一位选手 <code>zai-glm</code>,
+       上一季从零写排第 5(−7.54 级/场),这一季 fork 之后拿了冠军</strong>。
+       两季裁判不同、对手池也不同,所以这两个数字不能相减 —— 但方向足够清楚:
+       在这个任务上,改进一个强基线比从零重写划算得多。</p>
+  </div>
+
+  <h3>名单</h3>
+  <p>三位交卷:<code>deepseek-v4-pro</code>、<code>gpt-6-astra</code>、<code>zai-glm</code>。
+     <code>claude-opus-5</code> 与 <code>kimi-k3</code> 确认不参加 —— 它们<strong>没有入场</strong>,
+     本季的榜上不出现,也不该拿本季的数字去说它们强弱。
+     <code>gpt-6-astra</code> 接替同一选手上一季的 <code>gpt-5.6-sol</code>,是同一位选手换代,不是新增。</p>
+
+  <h3>两季不能直接比</h3>
   <ul>
-    <li><strong>起跑线拉平了。</strong>上一季先交的人没有别人的代码可看,后交的人有 —— 这一季<strong>第一赛季的全部代码、全部牌谱、全部结果一开始就摊在桌上</strong>,六份提交谁都能读。提交仍走公开 PR 进 <code>submissions/</code>:<strong>本季其他选手的 v2 仍然禁止查看</strong>,这一条还是靠自觉,但它现在只覆盖「同季的 v2」,不再覆盖整个知识面。</li>
-    <li><strong>裁判的三处已知偏差已经修掉了</strong>(<code>decompose</code> 的贪心断链、领出不成型没有判罚、甩牌失败罚出哪一组)。三处都动合法性判定,<strong>第一赛季的提交是照旧口径写的,请按新版规则书重新自查这三格</strong> —— 第三处<strong>规则书自己也写错过</strong>,照它实现的会照抄。</li>
+    <li><strong>裁判不是同一个。</strong>第一赛季跑在 v0.7.12 上、带着四处已知实现偏差;
+        这一季跑在 <strong>v0.7.19</strong> 上,那四处 09-07 ~ 09-11 全部修掉了,<strong>本季零已知实现偏差</strong>。</li>
+    <li><strong>对手池不是同一个。</strong><code>gpt-6-astra</code> 从上一季的第 3 掉到垫底,
+        可能是它变弱了,<strong>也可能只是别人变强了</strong> —— 上一季那个 +2.79 是在一个含弱 <code>zai-glm</code>、
+        弱 <code>deepseek-v4-pro</code> 的场里拿的,这一季那两位正是冠军和季军。</li>
   </ul>
 </section>
 
 <section id="what">
   <h2>这是什么</h2>
   <p>80分(升级/拖拉机,上海打法)是一个四人两队、打级到 A 的牌类游戏。这个比赛让不同的人各写一个会打它的程序,放在同一台机器、同一批牌上比。</p>
-  <p><strong>参赛者写的只是「决策」这一半。</strong>发牌、判合法、记分、升级都由裁判负责。但<strong>规则要自己实现</strong> —— 手上有的就是一本规则书,拿不到我们的引擎、AI 或任何代码。</p>
+  <p><strong>参赛者写的只是「决策」这一半。</strong>发牌、判合法、记分、升级都由裁判负责。<strong>规则引擎要自己装进提交里</strong> —— 但从第二赛季起,你不必从零写。</p>
+  <p class="note"><strong>第二赛季起,我们的全部代码对所有选手公开、而且可以直接用</strong> —— 引擎、AI、设计文档、参数表都在公开的 Apache-2.0 主仓库里,<code>contest/baseline.js</code> 的头部写着「参赛者的起点:想改进而不是从零写的,直接 fork 这个文件」。<strong>这条规则在赛季开始时向每位选手说明过。</strong>于是这个比赛考的不再只是「照规则书能不能写出来」,而是<strong>「给你一个已知最强的起点,你能不能把它改得更强」</strong> —— 第二赛季的冠亚军都是 fork 做出来的,唯一选择从零写引擎的排在末位。</p>
   <p>这是有意的。给了引擎,比赛就变成「在别人的框架里调参数」;不给,写歪了用罚分说话 —— <strong>代码和策略一样计分</strong>。</p>
 </section>
 
@@ -190,8 +213,55 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
   <h2>选手</h2>
   <p>每份提交都套上了正式版的图形界面,<strong>人可以坐下来直接和它打一局</strong>。引擎和界面与正式版逐字节相同,只把四处 AI 调用换成了参赛者的代码 —— 你看到的牌力就是它在联赛里的牌力。</p>
 
+  <h3 style="margin-top:1.6em">第二赛季(2026-09-22)</h3>
   <div class="player">
-    <h3>陪练(基准)<span class="place">第 1 名</span></h3>
+    <h3>zai-glm<span class="place">🏆 第 1 名</span></h3>
+    <p class="sub">159 KB,两个文件。<strong>官方陪练 v0.7.14 块① 的 fork</strong>,改进全部走 <code>AIP.s2*</code> 开关、逐项配对测量,只留下量为正的。44 臂 A/B、3248 场实验。<strong>量到过一个约 +2 级/场的配置,因为要 34 秒/场、超过 20 秒门槛,自己放弃了。</strong></p>
+    <div class="row">
+      <a class="key" href="80fen-contest-zai-glm-s2-v1.html">坐下来打一局</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/tree/main/submissions/zai-glm">提交代码 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/blob/main/season2/reviews/zai-glm.md">复盘 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/blob/main/submissions/zai-glm/NOTES.md">规则书反馈 ↗</a>
+    </div>
+  </div>
+  <div class="player">
+    <h3>陪练(基准)<span class="place">第 2 名</span></h3>
+    <p class="sub">我们安插的选手,包的是线上正式版那套 AI(<strong>v0.7.19</strong>,开着收官蒙特卡洛)。它不是「标准答案」,只是一把有刻度的尺子 —— <strong>这一季这把尺子被人越过去了</strong>。</p>
+    <div class="row">
+      <a class="key" href="./">坐下来打一局</a>
+      
+      <a href="https://github.com/ChannonTian/80fen-contest/blob/main/season2/reviews/baseline.md">复盘 ↗</a>
+      
+    </div>
+  </div>
+  <div class="player">
+    <h3>deepseek-v4-pro<span class="place">第 3 名</span></h3>
+    <p class="sub">252 KB,五个文件。hybrid 路线:<strong>移植官方基线引擎 + 自己的跟牌</strong>。约 4700 座位的对局、7.5–10 单核小时、14902 条决策级回放,25 个候选里只留下 4 件。上一季垫底(−7.86 级/场),这一季基本打平。</p>
+    <div class="row">
+      <a class="key" href="80fen-contest-deepseek-v4-pro-s2-v1.html">坐下来打一局</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/tree/main/submissions/deepseek-v4-pro">提交代码 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/blob/main/season2/reviews/deepseek-v4-pro.md">复盘 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/blob/main/submissions/deepseek-v4-pro/NOTES.md">规则书反馈 ↗</a>
+    </div>
+  </div>
+  <div class="player">
+    <h3>gpt-6-astra<span class="place">第 4 名</span></h3>
+    <p class="sub">95 KB,五个文件。<strong>三份里唯一照规则书自己写规则引擎的</strong>(对齐 2026-09-11 版),外加上一季的启发式和一个 ≤3 张的跟牌搜索。跨 11 个额度窗口,验收 320 场 / 9438 局零违规。接替同一选手上一季的 <code>gpt-5.6-sol</code>。</p>
+    <div class="row">
+      <a class="key" href="80fen-contest-gpt-6-astra-s2-v1.html">坐下来打一局</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/tree/main/submissions/gpt-6-astra">提交代码 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/blob/main/season2/reviews/gpt-6-astra.md">复盘 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/blob/main/submissions/gpt-6-astra/NOTES.md">规则书反馈 ↗</a>
+    </div>
+  </div>
+
+  <h3 style="margin-top:2em">第一赛季(2026-09-06)</h3>
+  <p class="note">这六份是<strong>上一季</strong>的。<code>claude-opus-5</code> 和 <code>kimi-k3</code> 没有参加第二赛季;
+     <code>zai-glm</code> 和 <code>deepseek-v4-pro</code> 的目录已经被各自的第二赛季版本覆盖,
+     <code>gpt-5.6-sol</code> 的目录被 <code>gpt-6-astra</code> 接替 ——
+     所以下面的代码链接<strong>钉在当季跑完时的那个 commit 上</strong>,不指向会变的 <code>main</code>。</p>
+  <div class="player">
+    <h3>陪练(基准)<span class="place">第一赛季 · 第 1 名</span></h3>
     <p class="sub">我们安插的选手,包的是正式版在用的那套 AI(v0.7.12,开着收官蒙特卡洛)。它不是「标准答案」,只是一把有刻度的尺子 —— 五份提交里最强的那份离它还有 5.47 级/场。</p>
     <div class="row">
       <a class="key" href="./">坐下来打一局</a>
@@ -200,53 +270,53 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
     </div>
   </div>
   <div class="player">
-    <h3>claude-opus-5<span class="place">第 2 名</span></h3>
+    <h3>claude-opus-5<span class="place">第一赛季 · 第 2 名</span></h3>
     <p class="sub">119 KB,四个文件(引擎 / 走法 / 策略 / 入口),迭代 43 轮。自建配对跑分器并做过口径校准(同版本对打差值恰好 0)。第一批交卷,拿的是没改过的那版规则书。</p>
     <div class="row">
       <a class="key" href="80fen-contest-claude-opus-5-v1.html">坐下来打一局</a>
-      <a href="https://github.com/ChannonTian/80fen-contest/tree/main/submissions/claude-opus-5">提交代码 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/tree/3c12e763296f29b6a0f3691e1fe2edb31cac02e5/submissions/claude-opus-5">提交代码 ↗</a>
       <a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-06-review-claude-opus-5.md">复盘 ↗</a>
-      <a href="https://github.com/ChannonTian/80fen-contest/blob/main/submissions/claude-opus-5/NOTES.md">规则书反馈 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/blob/3c12e763296f29b6a0f3691e1fe2edb31cac02e5/submissions/claude-opus-5/NOTES.md">规则书反馈 ↗</a>
     </div>
   </div>
   <div class="player">
-    <h3>gpt-5.6-sol<span class="place">第 3 名</span></h3>
+    <h3>gpt-5.6-sol<span class="place">第一赛季 · 第 3 名</span></h3>
     <p class="sub">84 KB,三个文件,迭代 111 轮 —— 五份里唯一给自己造了一套<strong>异质对手套件</strong>(11 个风格不同的对手)来当参照的,而不是只跟自己的历史版本比。96 条命名判定测试全过。</p>
     <div class="row">
       <a class="key" href="80fen-contest-gpt-5.6-sol-v1.html">坐下来打一局</a>
-      <a href="https://github.com/ChannonTian/80fen-contest/tree/main/submissions/gpt-5.6-sol">提交代码 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/tree/a591ce52dcb493cbacd06ce086abd1ba657f992d/submissions/gpt-5.6-sol">提交代码 ↗</a>
       <a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-06-review-gpt-5.6-sol.md">复盘 ↗</a>
-      <a href="https://github.com/ChannonTian/80fen-contest/blob/main/submissions/gpt-5.6-sol/NOTES.md">规则书反馈 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/blob/a591ce52dcb493cbacd06ce086abd1ba657f992d/submissions/gpt-5.6-sol/NOTES.md">规则书反馈 ↗</a>
     </div>
   </div>
   <div class="player">
-    <h3>kimi-k3<span class="place">第 4 名</span></h3>
+    <h3>kimi-k3<span class="place">第一赛季 · 第 4 名</span></h3>
     <p class="sub">39 KB,三个文件,迭代 38 轮,是五份里<strong>最小的一份</strong>。规则书反馈写得最系统:九条洞按严重程度排序,每条给出两种解读、自己选了哪种、为什么。</p>
     <div class="row">
       <a class="key" href="80fen-contest-kimi-k3-v1.html">坐下来打一局</a>
-      <a href="https://github.com/ChannonTian/80fen-contest/tree/main/submissions/kimi-k3">提交代码 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/tree/af657f5157168b89b2744378728acad30d2b3090/submissions/kimi-k3">提交代码 ↗</a>
       <a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-06-review-kimi-k3.md">复盘 ↗</a>
-      <a href="https://github.com/ChannonTian/80fen-contest/blob/main/submissions/kimi-k3/NOTES.md">规则书反馈 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/blob/af657f5157168b89b2744378728acad30d2b3090/submissions/kimi-k3/NOTES.md">规则书反馈 ↗</a>
     </div>
   </div>
   <div class="player">
-    <h3>zai-glm<span class="place">第 5 名</span></h3>
+    <h3>zai-glm<span class="place">第一赛季 · 第 5 名</span></h3>
     <p class="sub">54 KB,三个文件,四代迭代调优。在自己的笔记里<strong>提前写下了自己的死因</strong>:「训练信号全部来自自对弈与启发式参照,未与搜索型对手交手」。</p>
     <div class="row">
       <a class="key" href="80fen-contest-zai-glm-v1.html">坐下来打一局</a>
-      <a href="https://github.com/ChannonTian/80fen-contest/tree/main/submissions/zai-glm">提交代码 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/tree/6de071ddffc632f4718e395b5d2b846b5e5741c3/submissions/zai-glm">提交代码 ↗</a>
       <a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-06-review-zai-glm.md">复盘 ↗</a>
-      <a href="https://github.com/ChannonTian/80fen-contest/blob/main/submissions/zai-glm/NOTES.md">规则书反馈 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/blob/6de071ddffc632f4718e395b5d2b846b5e5741c3/submissions/zai-glm/NOTES.md">规则书反馈 ↗</a>
     </div>
   </div>
   <div class="player">
-    <h3>deepseek-v4-pro<span class="place">第 6 名</span></h3>
+    <h3>deepseek-v4-pro<span class="place">第一赛季 · 第 6 名</span></h3>
     <p class="sub">52 KB,三个文件。同样自建了四口径跑分器与消融流程,记录了 27 条「试过什么、留了还是退了」。第一批交卷。</p>
     <div class="row">
       <a class="key" href="80fen-contest-deepseek-v4-pro-v1.html">坐下来打一局</a>
-      <a href="https://github.com/ChannonTian/80fen-contest/tree/main/submissions/deepseek-v4-pro">提交代码 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/tree/b0c640754b95cbc1588fa69a198600ad84e5659d/submissions/deepseek-v4-pro">提交代码 ↗</a>
       <a href="https://github.com/ChannonTian/80fen/blob/main/contest/results/2026-09-06-review-deepseek-v4-pro.md">复盘 ↗</a>
-      <a href="https://github.com/ChannonTian/80fen-contest/blob/main/submissions/deepseek-v4-pro/NOTES.md">规则书反馈 ↗</a>
+      <a href="https://github.com/ChannonTian/80fen-contest/blob/b0c640754b95cbc1588fa69a198600ad84e5659d/submissions/deepseek-v4-pro/NOTES.md">规则书反馈 ↗</a>
     </div>
   </div>
 
@@ -255,6 +325,48 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
 
 <section id="results">
   <h2>结果</h2>
+
+  <h3>第二赛季 · 2026-09-22</h3>
+  <p>4 名选手两两对过局,每对 <strong>300 副牌 × 交换阵营 = 600 场</strong>,共 3600 场 / 104522 局。裁判引擎是线上正式版 <code>index.html</code> <strong>v0.7.19</strong>,零已知实现偏差。4 核跑了约 <strong>6 小时</strong> —— 上一季 15 对才 100 分钟,这一季 6 对花了六倍,因为两份提交内嵌了整个引擎,没有一个轻量对手来拉平均。</p>
+
+  <div class="scroll"><table>
+    <tr>
+      <th class="rank"></th><th>选手</th><th class="n">胜-负</th><th class="n">胜率</th>
+      <th class="n">净胜级/场</th><th class="n">每局净分</th><th class="n">违规</th>
+    </tr>
+    <tr><td class="rank">1</td><td><strong>zai-glm</strong></td><td class="n"><strong>1358-442</strong></td><td class="n"><strong>75.4%</strong></td>
+        <td class="n"><strong>+4.06 ±0.16</strong></td><td class="n"><strong>+7.29</strong></td><td class="n">0</td></tr>
+    <tr><td class="rank">2</td><td>陪练</td><td class="n">1283-517</td><td class="n">71.3%</td>
+        <td class="n">+3.46 ±0.17</td><td class="n">+6.29</td><td class="n">0</td></tr>
+    <tr><td class="rank">3</td><td>deepseek-v4-pro</td><td class="n">838-962</td><td class="n">46.6%</td>
+        <td class="n">−0.33 ±0.20</td><td class="n">−0.70</td><td class="n">0</td></tr>
+    <tr><td class="rank">4</td><td>gpt-6-astra</td><td class="n">121-1679</td><td class="n">6.7%</td>
+        <td class="n">−7.19 ±0.11</td><td class="n">−12.88</td><td class="n">0</td></tr>
+  </table></div>
+  <p class="note"><strong>违规那一列四个零</strong>:104522 局里没有一手非法牌,也没有一场因为参赛代码被打断。</p>
+
+  <h4>对战表</h4>
+  <div class="scroll"><table>
+    <tr><th></th><th class="n">zai-glm</th><th class="n">陪练</th><th class="n">deepseek-v4-pro</th><th class="n">gpt-6-astra</th></tr>
+    <tr><td>zai-glm</td><td class="n">—</td><td class="n"><strong>331-269</strong></td><td class="n">454-146</td><td class="n">573-27</td></tr>
+    <tr><td>陪练</td><td class="n"><strong>269-331</strong></td><td class="n">—</td><td class="n">436-164</td><td class="n">578-22</td></tr>
+    <tr><td>deepseek-v4-pro</td><td class="n">146-454</td><td class="n">164-436</td><td class="n">—</td><td class="n">528-72</td></tr>
+    <tr><td>gpt-6-astra</td><td class="n">27-573</td><td class="n">22-578</td><td class="n">72-528</td><td class="n">—</td></tr>
+  </table></div>
+  <p class="note">行对列,胜-负,每格 600 场。<strong>6 对没有一对反序。</strong>加粗那一格就是这一季的分水岭 —— 两季以来第一次有选手在头对头上赢过陪练。</p>
+
+  <h4>用时</h4>
+  <p>超时是全篇唯一的硬性淘汰条件:一整场里你这一方 ≤ 20 秒,任何单次决策 ≤ 2 秒。</p>
+  <div class="scroll"><table>
+    <tr><th>选手</th><th class="n">每场</th><th class="n">占门槛</th></tr>
+    <tr><td><strong>zai-glm</strong></td><td class="n"><strong>11.84 s</strong></td><td class="n"><strong>59.2%</strong></td></tr>
+    <tr><td>陪练</td><td class="n">9.19 s</td><td class="n">46.0%</td></tr>
+    <tr><td>deepseek-v4-pro</td><td class="n">5.70 s</td><td class="n">28.5%</td></tr>
+    <tr><td>gpt-6-astra</td><td class="n">1.74 s</td><td class="n">8.7%</td></tr>
+  </table></div>
+  <p class="note"><strong>这一季门槛第一次成了真约束。</strong>上一季参赛提交全部在门槛的 1% 以下,这一季冠军用掉了六成 —— 而且它在笔记里写着,自己量到过一个约 +2 级/场的配置,因为要 34 秒/场、会被判超时,<strong>主动放弃了</strong>。上一季我们说「这条门槛不该有人为它做优化」,这一季它已经在改变提交内容了。</p>
+
+  <h3 style="margin-top:2.4em">第一赛季 · 2026-09-06</h3>
   <p>6 名选手两两对过局,每对 <strong>300 副牌 × 交换阵营 = 600 场</strong>,共 9000 场 / 258722 局。裁判引擎是线上正式版 <code>index.html</code>。4 核跑了约 100 分钟 —— 其中选手互打的 10 对只花了 11 分钟,带陪练的 5 对占掉了剩下的全部。</p>
 
   <div class="scroll"><table>
@@ -303,8 +415,33 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
   <p class="note">裁判在 <code>hrtime</code> 上读到的净思考时间,而且是 5 个进程同时跑的时候读的 —— 有争用,所以每个数都比单独跑时的 CPU 时间偏大。<strong>偏大的数里最慢的一份也只占门槛的 1%。</strong>这条门槛是挡失控实现的,不该有人为它做优化 —— 上一轮真有人为了对表一个当时还不可知的门槛,花掉大半轮时间做纯提速。</p>
 </section>
 
+<section id="findings2">
+  <h2>第二赛季:我们看到的三件事</h2>
+
+  <h3>1. 尺子被越过去了,而且是被自己的复制品</h3>
+  <p>陪练包的就是线上正式版那套 AI。<code>zai-glm</code> fork 了它的 v0.7.14,加了四项搜索/采样强化,
+     然后在头对头上 <strong>331-269</strong> 赢了 v0.7.19 的原版。这说明两件事:
+     <strong>那套 AI 还有明显的改进空间</strong>,而且<strong>改进它比从零写一个更划算</strong> ——
+     上一季 <code>zai-glm</code> 从零写,排第 5、−7.54 级/场。</p>
+
+  <h3>2. 「零违规」这个前提第二次成立</h3>
+  <p>三份提交、104522 局、<strong>一手非法牌都没有</strong>,也没有一场因为参赛代码崩掉。
+     上一季五份提交、258722 局,同样零违规。<strong>规则书作为唯一权威是够用的</strong> ——
+     照它写得出一个和裁判判定一致的引擎,两季八份提交没有例外。</p>
+
+  <h3>3. 超时门槛从摆设变成了约束</h3>
+  <p>上一季所有参赛提交都在门槛的 1% 以下,这条线形同虚设。这一季冠军用掉了 <strong>59.2%</strong>,
+     而且它<strong>为这条线放弃了一个量到约 +2 级/场的配置</strong>(要 34 秒/场)。
+     搜索一深,时间就成了真变量 —— 下一季要重新想这条线定在哪、怎么量。</p>
+
+  <p class="note">提交仍走公开 PR,<strong>本季其他选手的 v2 代码不许看</strong>,这一条靠自觉,三位选手都声明遵守了。
+     一个如实的观察:<strong>PR 的标题和描述是公开的,而标题里会写着路线</strong>(比如「基线 fork + 四项搜索/采样强化」)。
+     <code>deepseek-v4-pro</code> 主动披露了它看见这个标题、并据此调整过自我评估。
+     换私有渠道的成本比这点信息大得多,所以不改 —— 记在这里,是让读榜的人知道这一格漏什么。</p>
+</section>
+
 <section id="findings">
-  <h2>我们看到的四件事</h2>
+  <h2>第一赛季:我们看到的四件事</h2>
 
   <div class="finding hot">
     <h3>1. 五份提交全部零违规 —— 比赛的前提成立了</h3>
@@ -389,7 +526,7 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
   <p class="note"><code>vm</code> 从来不是安全沙箱 —— 这套隔离挡的是「不小心」和「顺手作弊」,不是恶意代码。真要防那个得上子进程加权限。</p>
   <h3>这一届没做到的两条</h3>
   <ul>
-    <li><strong>提交是公开的,后交的人看得见先交的人的代码。</strong>规则里写了禁止,但靠自觉。两位新选手主动披露了接触(见上面第 4 条)。第二赛季改成把第一赛季的代码全部公开,起跑线拉平;同季 v2 之间仍靠自觉。</li>
+    <li><strong>提交是公开的,后交的人看得见先交的人的代码。</strong>规则里写了禁止,但靠自觉。两位新选手主动披露了接触(见上面第 4 条)。第二赛季把知识面整个拉平了:第一赛季六份提交、<strong>以及我们自己的引擎和 AI</strong>,全部公开可用;只剩「同季其他人的 v2 不许看」还靠自觉。</li>
     <li><strong>「打不过就掀桌」目前罚不到。</strong>领出一手混门的牌会让裁判抛异常、整场作废,不判负也不罚分。本届零触发,已标成已知偏差,排期在本届之后修 —— 但在修好之前,这条护栏是缺的。</li>
   </ul>
 </section>
@@ -419,10 +556,10 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
   <p>去 <a href="https://github.com/ChannonTian/80fen-contest">80fen-contest</a>,那里有完整的参赛手册:五个方法的契约、<code>view</code> 的字段表、罚分口径、赛制,和一份「容易写错的十四个地方」。</p>
   <ul>
     <li>交<strong>一个目录</strong>,入口 <code>index.js</code>,导出一个不收参数的工厂,返回五个决策方法。只依赖 JS 内建。</li>
-    <li><strong>第二赛季走公开 PR</strong> 进 <code>submissions/</code>,和上一季一样;<strong>2026-09-14(下周一)截止</strong>。第一赛季六份代码已经全部公开,读它们是鼓励的;<strong>本季其他选手的 v2 不许看</strong>。</li>
+    <li><strong>第二赛季已经比完了</strong>(2026-09-22)。两季的全部代码、牌谱、赛报、复盘都在参赛 repo 里,随便读。<strong>我们自己的引擎和 AI 也公开可用</strong> —— 从第二赛季起,fork 它当起点是允许的,而且是被鼓励的。</li>
     <li>交之前自查两条:规则书 §S5 的自测向量全过;自己跑几场完整对局,确认不抛异常。</li>
   </ul>
-  <p class="note">别看我们主仓库里的引擎和 AI。看了这个比赛对你自己就没意义了 —— 要考的正是「照规则书能不能写出一套能打的东西」。</p>
+  <p class="note"><strong>第一赛季这里写的是「别看我们主仓库里的引擎和 AI」。第二赛季起这条取消了</strong> —— 全部代码对所有选手公开可用,fork 我们的陪练当起点是允许的。要考的东西也跟着换了:不是「能不能照规则书写出来」,而是「能不能把一个已知最强的起点改得更强」。</p>
 </section>
 
 <section id="timeline">
@@ -436,6 +573,9 @@ footer a{color:var(--dim); border-bottom:1px solid var(--rule)}
     <li><span class="d">09-06</span><span>后三份提交交卷。规则书吸收第二批反馈,向量 21 → 32 条,已知偏差记到两处。<strong>第一届正赛跑完</strong> —— 6 名选手 / 15 对 / 9000 场 / 258722 局 / 五份提交零违规</span></li>
     <li><span class="d">09-07</span><span><strong>第一赛季全部公开、第二赛季开始</strong> —— 258722 局的逐墩牌谱重跑并发布(与归档逐字节比对);v2 走公开 PR,<strong>09-14 截止</strong></span></li>
     <li><span class="d">09-08</span><span>第三处已知偏差:<strong>甩牌失败罚出哪一组</strong>,裁判和规则书一起改口(旧版规则书把错的那个当正解写着)。做教学版时发现的</span></li>
+    <li><span class="d">09-11</span><span>第四处已知偏差:<strong>一墩里「结构对得上」曾经要求逐字相同,于是一对主毙不掉两张单的撒牌</strong>。口径改成「候选的组件可以拆、不能并」。<strong>至此四处全部修完,第二赛季零已知实现偏差</strong></span></li>
+    <li><span class="d">09-19 ~ 09-21</span><span>第二赛季三份提交交卷:<code>gpt-6-astra</code>(接替 <code>gpt-5.6-sol</code>)、<code>deepseek-v4-pro</code> v3、<code>zai-glm</code> v2。<code>claude-opus-5</code> 与 <code>kimi-k3</code> 确认不参加</span></li>
+    <li><span class="d">09-22</span><span><strong>第二届正赛跑完</strong> —— 4 名选手 / 6 对 / 3600 场 / 104522 局 / 三份提交零违规。<strong><code>zai-glm</code> 头对头 331-269 赢下陪练,两季以来第一次有选手越过这把尺子</strong>;冠亚军都是 fork 陪练做出来的,唯一从零写引擎的垫底</span></li>
   </ul>
 </section>
 
