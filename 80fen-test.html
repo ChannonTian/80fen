@@ -1056,6 +1056,15 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   pPartnerPrior: 0.32,
   pPartnerCalc: 1,            // 记牌证据相对先验的采信比例;0 = 完全用先验(v0.7.19 之前的默认)
   blockWin: 1,                // 1=生成「盖住末家分牌」的吃法候选;0=只用最省的吃法(消融用)
+  /* 第 2 家、领出方暂大、队友坐末手而且高概率断这门(他会毙)—— 贴分(§7.9 的 A3)。
+   * test/cf-a3b1.js 定点反事实:种子 1~1500 【全部】+0.038 ±0.035 级(不过线),
+   * 闲家一格 +0.115 ±0.052;事先写死判据后在种子 1501~3000 复验闲家一格
+   * **+0.172 ±0.060 级(t=2.9)**,同批【全部】+0.135 ±0.039。
+   * 贴哪张 = 合法的带分单张里 coachScoreFollow 最高的那张,与量具的支路 B 逐字同口径。
+   * 只在收官搜索的窗口之外生效(窗口内由搜索决定)。
+   * 0 = 关;1 = 只在我是闲家时;2 = 两边都贴。 */
+  partnerRuffDump: 0,
+  partnerRuffDumpPV: 0.5,     // 「队友高概率断这门」的门槛,与 audit-scenarios 同一个数
   /* 跟牌时拆掉一个副花对子的代价(见 pairUnit / futureValue)。**默认 0,还在量。**
    * `test/cf-pair.js` 2800 副定点反事实:跟牌时 AI 拆了副花对子、改成不拆的最省牌,
    * 分数 **+1.04 ±0.37**(t=2.8)、级数 +0.05 ±0.02;而**对照组**(没拆对子、同样换成
@@ -3207,6 +3216,16 @@ function aiChooseFollow(view, plays){
              curSeat:X.cur.seat,curBoss:X.curBoss,leadSuit:lead.suit,phase:X.phase};
   if(cands.length){
     let best=cands[0];
+    if(AIP.partnerRuffDump&&(AIP.partnerRuffDump===2||!X.isDecl)
+       &&plays.length===1&&lead.type==='single'&&lead.suit!=='T'
+       &&!X.partnerWinning&&X.partnerRemaining&&view.hand.length>AIP.egMaxCards
+       &&countPoints(best.cards)===0
+       &&X.pVoidOf(X.partnerSeat,lead.suit)>AIP.partnerRuffDumpPV){
+      const dumps=view.hand.filter(x=>cardPoints(x)>0&&isLegalFollow(view.hand,lead,[x],trump))
+        .map(x=>({x,s:coachScoreFollow(view,plays,[x])})).sort((a,b)=>b.s-a.s);
+      if(dumps.length) best={cards:[dumps[0].x],cat:'dump',score:dumps[0].s,
+        reason:`队友多半断这门、会毙 —— 先把这 ${cardPoints(dumps[0].x)} 分贴上去`};
+    }
     const eg=endgameSearch(view,plays,cands.slice(0,AIP.egMaxCands));
     if(eg){
       const cur=eg.find(o=>o.cards===best.cards);
