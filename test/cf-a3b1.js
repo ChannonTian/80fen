@@ -24,6 +24,13 @@
  * **判据(2026-09-23,看数据之前写死):** 只有【全部】那一格的级数差 t≥2.5,
  * 才动手改启发式;分层读数只用来决定**怎么改**,不用来决定**改不改**。
  *
+ * **第一轮读数(种子 1~1500)与复验判据:**
+ *   A3【全部】 +0.038 ±0.035 级(t=1.1)  → 不改
+ *   B1【全部】 换门 −0.045 ±0.030 级,闲家那一格 −0.109 ±0.036(t=−3.0)→ AI 是对的,不改
+ *   A3【我是闲家】 +0.115 ±0.052(t=2.2)—— 这是**看完数据才挑出来的分层**,不算数。
+ *   把它当新假设,在不重叠的种子(1501 起)上**只验这一格**,判据仍是 t≥2.5。
+ *   ONLY=A3 跳过 B1 支路(省一半算力)。
+ *
  * ⚠️ 生产配置,不关 egSearch。EG=0 只用来探路,探路的数字不许当结论。
  */
 const fs=require('fs'),vm=require('vm');
@@ -134,7 +141,7 @@ for(let seed=S0+1;seed<=S0+N;seed++){
         const chk=E.checkThrow(hands,seat,cards,trump); if(!chk.ok)cards=chk.forced;
         // ---------- B1 ----------
         const su=E.effSuit(cards[0],trump), myPts=E.countPoints(cards);
-        if(hB1<MAXH&&su!=='T'&&myPts>0&&hand.some(x=>E.effSuit(x,trump)!==su)){
+        if(process.env.ONLY!=='A3'&&hB1<MAXH&&su!=='T'&&myPts>0&&hand.some(x=>E.effSuit(x,trump)!==su)){
           const mem=E.makeMemory(view), reads=E.makeReads(view.history,trump);
           const pVoidOf=E.makeVoidProb(reads,mem,trump,hand.length);
           const pv=Math.max(...[0,1,2,3].filter(s=>s%2!==team).map(s=>pVoidOf(s,su)));
