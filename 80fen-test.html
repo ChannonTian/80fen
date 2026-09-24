@@ -1010,6 +1010,10 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   bossRuffEVP: 0.5,
   /* feedRuffPts —— 送毙(领队友断门的牌)也可以带分:他毙下来,这些分归我方。 */
   feedRuffPts: 0,
+  /* tiaoAccept —— 队友领一张非钢板的小主(调王)时,我跟牌打分里「拿下牌权」那一项
+   *   按领出口径(leadTempoWeight)计,不按跟牌口径(tempoWeight 0.35)。
+   *   他领这张的**目的**就是让我接过去兑现;不接,这条路在打分器里就永远算不成(§7.9 A1 是它的另一头)。 */
+  tiaoAccept: 0,
   pwGain: 0.5,                // 比分敏感度对「现在兑现 vs 留着压制」的调节幅度
   grabBonus: 85,              // 无庄盘抢庄红利(有主)
   grabBonusNT: 58,            // 无庄盘抢庄红利(无将,主牌只有12张压不住场)
@@ -2998,7 +3002,7 @@ function scorePlay(X, cards, cat, beatsCur){
   const ev=p*gain-(1-p)*loss;
   // 牌权:本队赢下这墩,下一手由我方领出(我或队友),手上的优势才有机会兑现。
   // 输掉则牌权落到对手,他去兑现他的 —— 我方看不见对手手牌,用一个保守的固定值代表。
-  const tempo=(p*tempoValue(X,cards)-(1-p)*AIP.oppTempo)*AIP.tempoWeight;
+  const tempo=(p*tempoValue(X,cards)-(1-p)*AIP.oppTempo)*(X.tempoW||AIP.tempoWeight);
   return (CAT_K[cat]||1)*ev*(X.pw||1)+tempo-futureValue(cards,X)+ladderCross(X,p,gain,loss);
 }
 // 兼容旧接口(教练/测试仍在用)
@@ -3043,6 +3047,10 @@ function takeOverScoped(X, view){
 function aiChooseFollow(view, plays){
   const X=followCtx(view,plays);
   const {trump,lead}=X;
+  // 队友调王:他领的是一张压不住场的小主,标的就是牌权(见 AIP.tiaoAccept)
+  if(AIP.tiaoAccept&&plays[0].seat===X.partnerSeat&&lead.suit==='T'&&lead.type==='single'
+     &&plays[0].cards[0].suit!=='X'&&!isBossPlay(lead,X.mem,trump))
+    X.tempoW=AIP.leadTempoWeight;
   const cands=[];
   /* 同一手牌可能被两条不同的理由生成(比如「接过队友」和「跟分」常常就是同一张)。
    * 旧版遇到重复直接丢掉后来的那个 —— 于是先入的那条(可能带着罚分)会顶替掉
