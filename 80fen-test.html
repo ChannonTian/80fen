@@ -1019,10 +1019,12 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    *   非钢板主牌领出在 scoreLeadEV 里被扣两笔:drawTrumpValue 的负半边(「一家比两家」的偏差,
    *   B1 点上均值 −27)和 leadWeakTrump×(1−p)。这两笔是**绝对**的,不看手上还有什么可领。
    *   产品方的判断:和「副花高概率赢墩的大牌」比,钓主确实更差 —— 那时照扣;
-   *   但和「领对手断门的副花」比,钓主多数时候更好 —— 那时这两笔退还 trumpLeadRel 这个比例。
+   *   但和「领对手断门的副花」比,钓主多数时候更好 —— 所以**原本的首选是领进对手多半断的副花**时,
+   *   这两笔退还 trumpLeadRel 这个比例,再重新比。
+   *   (第一版写成「没有副花高概率赢墩的一手就退还」,诊断出来多半触发在「副花小牌 → 小主」上,
+   *    那不是产品方说的情形,改掉。)
    *   只在收官搜索的窗口之外生效(局末单独判断)。0 = 关。 */
   trumpLeadRel: 0,
-  trumpLeadRelWinP: 0.6,      // 「高概率赢墩」的门槛(本队赢下这墩的概率)
   /* voidLeadCost —— 领进对手多半断的门,补上漏掉的那一笔:断门那一家多一次氽废的机会
    *   (清掉一张废牌、整理牌型)。按对手断这门的概率计。0 = 关。 */
   voidLeadCost: 0,
@@ -4368,9 +4370,11 @@ function aiChooseLead(view){
   /* §7.13 阶段 0:领主的代价是相对的(见 AIP.trumpLeadRel)。
    * 手上没有「副花里高概率赢墩、对手又不太可能断这门」的一手时,钓主不再背那两笔绝对罚分。 */
   if(AIP.trumpLeadRel&&view.hand.length>AIP.egMaxCards){
-    const goodSide=cands.some(c=>c.suit!=='T'&&c.pWin!==undefined&&c.pWin>=AIP.trumpLeadRelWinP
-                                  &&L.oppVoidP(c.suit)<0.5);
-    if(!goodSide) for(const c of cands) if(c.suit==='T'&&c.trumpPen>0){
+    // 只在产品方说的那个情形里改判:原本的首选是**领进对手多半断的副花**。
+    // 首选若是副花里的钢板 / 高概率赢墩的牌,或者只是副花小牌探路,都不动。
+    const top=cands.reduce((a,c)=>c.score>a.score?c:a,cands[0]);
+    const intoVoid=top&&top.suit!=='T'&&L.oppVoidP(top.suit)>=0.5;
+    if(intoVoid) for(const c of cands) if(c.suit==='T'&&c.trumpPen>0){
       c.score+=AIP.trumpLeadRel*c.trumpPen;
       c.reason='副花里没有稳当的一手,只剩领进对手断门 —— 钓主,把牌权交出去';
     }

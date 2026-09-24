@@ -278,7 +278,6 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | 参数 | 默认 | 说明 |
 |---|---|---|
 | `trumpLeadRel` | `0` | — |
-| `trumpLeadRelWinP` | `0.6` | 「高概率赢墩」的门槛(本队赢下这墩的概率) |
 
 ### voidLeadCost —— 领进对手多半断的门,补上漏掉的那一笔:断门那一家多一次氽废的机会
 
