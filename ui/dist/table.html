@@ -1,0 +1,18 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#102e28"><title>80分 · 竖屏牌桌</title><link rel="stylesheet" href="table.css"></head><body>
+<main class="game" id="game">
+ <header class="topbar"><button class="icon-btn menu-btn" id="menu" aria-label="打开菜单"><span></span><span></span></button><div class="brand">80<span>分</span></div><div class="round">第 3 局 <span>·</span> 打 5</div><button class="icon-btn" id="history" aria-label="查看上一墩">↶</button></header>
+ <section class="scorebar" aria-label="当前局势"><div class="trump-tile"><span>主牌</span><b>♥ 5</b></div><div class="score-body"><div><span id="role">我方攻分</span><strong><b id="score">55</b><small> / 80</small></strong></div><div class="score-track"><i id="scoreFill"></i><span></span></div></div><div class="score-goal" id="scoreGoal">再拿<b>25 分</b>上台</div></section>
+ <section class="felt" id="felt" aria-label="本墩牌桌">
+   <div class="table-ring"></div><span class="table-watermark" aria-hidden="true">80</span>
+   <div class="seat north"><div class="seat-info"><span class="avatar">北</span><span>对家<small id="northCount">23 张</small></span><span class="winner-tag" id="winnerTag">暂大</span></div><div class="played" id="northCards"></div></div>
+   <div class="seat west"><div class="seat-info"><span class="avatar">西</span><span>上家<small id="westCount">23 张</small></span></div><div class="played" id="westCards"></div></div>
+   <div class="seat east"><div class="seat-info"><span>下家<small id="eastCount">23 张 · 首攻</small></span><span class="avatar dealer">东<i>庄</i></span></div><div class="played" id="eastCards"></div></div>
+   <div class="trick-points" id="trickPoints"><span>本墩</span><b>20</b><span>分</span></div>
+   <div class="seat south"><div class="played" id="southCards"></div><span class="your-turn" id="turnBadge">轮到你了</span></div>
+ </section>
+ <section class="decision" aria-live="polite"><span class="decision-icon" id="decisionIcon">♦</span><div><strong id="instruction">跟出一对方块</strong><span id="context">对家 K 对暂大 · 本墩你最后出</span></div><button class="text-btn" id="help" aria-label="查看跟牌说明">?</button></section>
+ <section class="hand-zone" aria-label="你的手牌"><div class="hand-heading"><span>我的手牌 <b id="handCount">25</b></span><span class="hand-tools"><button id="expand">展开手牌 ⤢</button><button id="reset" aria-label="重置当前局面">↺</button></span></div><div id="hand" class="hand"></div></section>
+ <footer class="action-zone"><div class="selection-line" id="selectionLine" role="status">点选手牌，确认后出牌</div><div class="actions"><button class="clear" id="clear" disabled>重选</button><button class="submit" id="submit" disabled><span id="submitLabel">选择 2 张牌</span><span aria-hidden="true">↗</span></button></div><div class="home-space"></div></footer>
+</main>
+<dialog id="sheet"><div class="sheet-header"><h2 id="sheetTitle"></h2><button id="closeSheet" class="icon-btn" aria-label="关闭">×</button></div><div id="sheetBody"></div></dialog>
+<script src="engine.js"></script><script src="table.js"></script></body></html>
