@@ -1037,6 +1037,13 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    *   最自信的那一档错了 7%,整体对数损失因此比「只用硬断门 + 超几何」的对照组还差。
    *   见过他垫 / 毙这门(硬断门)、或这门在外已经一张都不剩,仍然是 1。0 = 旧行为。 */
   voidReadSoft: 0.9,                   // (v0.7.21 测试版默认开,整包见 DESIGN §7.13)
+  /* voidReadTrust —— 行为读牌**整体**部分采信,不只是推到 0 张那一格:
+   *   p = 采信度 × p(行为读牌推出的上界) + (1 − 采信度) × p(只用硬信息:记牌 + 硬断门)。
+   *   病例(场景 E1b):对手跟了一张红桃 5,「他出的是最便宜的」推出他没有任何不带分的小红桃 ——
+   *   两家对手明明都跟了红桃,模型却认为他们多半快断了;旧的钢板常数式对这个偏差不敏感,
+   *   bossRuffEV 老实地用了这个概率,于是放着钢板 K 不领。1 = 旧行为(全信)。 */
+  voidReadTrust: 0.6,        // (v0.7.21 测试版默认开)calib-infer:0.8 / 0.6 / 0.4 对数损失 0.353 / 0.354 / 0.355,0.6 分箱最均衡;
+                             // 打开后 voidReadSoft 不再单独生效(0 张那一格已含在这条式子里)
   /* declVoidPrior —— 推断**庄家**的断门时,加上「他换过 8 张底、多半做出了断门」的先验:
    *   p ← p + (1 − p) × declVoidPrior。庄家推断别人时不用。
    *   60 副实测:庄家真断门率 43.6%,推断均值只有 25.9%;推断说 <10% 的时候真有 27% 断了。0 = 旧行为。 */
@@ -1779,7 +1786,11 @@ function makeVoidProb(reads, mem, trump, handLeft, who){
     if(cache[ck]!==undefined) return cache[ck];
     const m=maxHoldIn(reads,mem,seat,suitEff,trump);
     let p;
-    if(m===0){
+    if(AIP.voidReadTrust<1){
+      let raw=0; for(const k in mem.unseen) if(mem.unseen[k]>0&&effSuit(keyToCard(k),trump)===suitEff) raw+=mem.unseen[k];
+      const pOf=n=>n===0?1:clamp(Math.pow(1-share,n),0,0.97);
+      p=raw===0?1:AIP.voidReadTrust*pOf(m)+(1-AIP.voidReadTrust)*pOf(raw);
+    }else if(m===0){
       // 0 张是怎么来的:这门在外本来就一张不剩(硬)—— 还是靠「他会先出最便宜的」推出来的(软)
       p=1;
       if(AIP.voidReadSoft){
