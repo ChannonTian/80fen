@@ -993,6 +993,23 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   leadTrumpEVScale: 0.45,     // 领出主牌时,这一墩能收到的分按副牌口径打的折(主牌人人攥着不放)
   feedRuff: 1.0,              // 送毙(主打队友断门)的权重;设 0 即整条关闭,便于消融
   feedRuffMinP: 0.35,         // 队友断门概率低于这个值就不当成送毙机会
+  /* ===== v0.7.21 牌权交接包(产品方 2026-09-24:「这些问题不是孤立的,一起改完一起测」) =====
+   * 单点反事实把 B1 量成「不是错」,量法有两处缺陷(DESIGN §7.11(c)):替代支路由打分器自己挑,
+   * 而打分器里没有「把牌权交给队友」;分叉后整局也是同一套 AI。下面几件一起开。
+   *
+   * leadTempoSplit —— 领出的牌权项拆成三份:我拿下 → 我手上的钢板(tempoValue);
+   *   **队友拿下 → 队友能兑现的(partnerCashValue)**;对手拿下 → oppTempo。
+   *   旧口径 pTeam×tempoValue(我的) 把「队友接过去」记成了「我接着兑现我的」。 */
+  leadTempoSplit: 0,
+  /* partnerCashValue 里每一项的权重(1 = 与 tempoValue 同一量纲)。 */
+  partnerCashW: 1.0,
+  /* bossRuffEV —— 副牌钢板、但对手多半断这门(> bossRuffEVP)时,改走统一期望分口径
+   *   (leadWinP 里 pSurvive 的被毙概率、loss 里我送出去的分都真的算进去),
+   *   不再是「40 + 张数 − 45×ruffP」那条常数式。B1 里一半是这一类。 */
+  bossRuffEV: 0,
+  bossRuffEVP: 0.5,
+  /* feedRuffPts —— 送毙(领队友断门的牌)也可以带分:他毙下来,这些分归我方。 */
+  feedRuffPts: 0,
   pwGain: 0.5,                // 比分敏感度对「现在兑现 vs 留着压制」的调节幅度
   grabBonus: 85,              // 无庄盘抢庄红利(有主)
   grabBonusNT: 58,            // 无庄盘抢庄红利(无将,主牌只有12张压不住场)
@@ -3465,7 +3482,9 @@ function tiaoWangValue(L, cl, cards){
   // 牌权过渡:在外压得住这张的主,有多大比例可能在队友那边
   const {higher}=unseenBeats(L.mem,{suit:'T',top:cl.top,type:'single'},L.trump);
   const share=ptN+oppN>0?ptN/(ptN+oppN):0;
-  const handoff=higher>0?(ptN>=1?1:AIP.tiaoNoPartnerT)*share*AIP.oppTempo*AIP.tiaoHandoff:0;
+  // leadTempoSplit 打开时,「队友接过去之后兑现什么」由 leadTempo 统一算,这里不再重复记
+  const handoff=AIP.leadTempoSplit?0
+    :higher>0?(ptN>=1?1:AIP.tiaoNoPartnerT)*share*AIP.oppTempo*AIP.tiaoHandoff:0;
   return AIP.tiaoWang*(drawOut+unlock+handoff);
 }
 
@@ -3476,8 +3495,48 @@ function tiaoWangValue(L, cl, cards){
  * 这就是「不考虑牌权」那条观察的直接来源。
  * 和跟牌侧同一个口径:只算**打完这一手之后还剩**的单元,避免和 futureValue 重复计价。
  */
-function leadTempo(L, cards, pWin){
+function leadTempo(L, cards, pWin, pMine){
+  if(AIP.leadTempoSplit&&pMine!==undefined){
+    const pPt=Math.max(0,pWin-pMine);
+    return (pMine*tempoValue(L,cards)+pPt*partnerCashValue(L)-(1-pWin)*AIP.oppTempo)*AIP.leadTempoWeight;
+  }
   return (pWin*tempoValue(L,cards)-(1-pWin)*AIP.oppTempo)*AIP.leadTempoWeight;
+}
+
+/* 队友拿到牌权之后,他能兑现多少(v0.7.21,跨墩规划的第一层)。
+ * 和 tempoValue(我自己的钢板单元)同一个量纲、同一种贴现 —— 只是换成**推断**队友手上有什么:
+ *   ① 每门副牌里在外最大的那张(我手上没有更大的):他握着它的概率 × 这门能收的分 × 对手不断这门;
+ *      他领 K 赢过(partnerAceRead)的门,按 0.9 算他有 A;
+ *   ② 我断了、对手没断、我还有主的门:他领过来我毙,同样按能收的分计。
+ * 概率全部来自 expHoldIn / pVoidOf,不是新假设。 */
+function partnerCashValue(L){
+  if(L._pcv!==undefined) return L._pcv;
+  if(L.seat===undefined||!L.pVoidOf) return L._pcv=AIP.oppTempo;
+  const {mem,trump}=L, partner=(L.seat+2)%4;
+  const opps=[0,1,2,3].filter(p=>p%2!==L.seat%2);
+  const myBy={}; (L.hand||[]).forEach(c=>{const su=effSuit(c,trump);(myBy[su]=myBy[su]||[]).push(c);});
+  const myTrump=(myBy.T||[]).length;
+  const vals=[];
+  for(const su of ['S','H','D','C']){
+    if(trump.suit===su) continue;
+    const top=maxUnseenIdx(mem,su,trump);
+    const cash=(Math.min(10,unseenPointsIn(mem,su,trump)*0.33)+1.2)*(1-L.oppVoidP(su));
+    if(top>=0){
+      const myTop=(myBy[su]||[]).reduce((m,c)=>Math.max(m,ordIdx(c,trump)),-1);
+      if(myTop<top){
+        const pn=expHoldIn(L,partner,su), on=opps.reduce((a,q)=>a+expHoldIn(L,q,su),0);
+        let pHas=pn+on>0?pn/(pn+on):0;
+        pHas*=1-L.pVoidOf(partner,su);
+        if(L.partnerAce&&L.partnerAce[su]) pHas=Math.max(pHas,0.9);
+        vals.push(pHas*cash);
+      }
+    }
+    // 我断了这门、还有主:他领过来我毙
+    if(!(myBy[su]||[]).length&&myTrump>0) vals.push((1-L.pVoidOf(partner,su))*cash*0.8);
+  }
+  vals.sort((a,b)=>b-a);
+  let v=0,w=1; for(const x of vals){ v+=x*w; w*=AIP.tempoDecay; }
+  return L._pcv=Math.min(v*AIP.partnerCashW,AIP.tempoCap);
 }
 // 领出这一手能拿下这墩的粗估概率(只用于给 Tempo 加权,不参与收益计算)
 const LEAD_PWIN={throwBoss:0.95, boss:0.95, tractor:0.60, pair:0.45, single:0.25};
@@ -3565,7 +3624,9 @@ function trumpEdgeCount(L){
  * 带开关 AIP.feedRuff,便于单组件消融(设计文档 §6 的教训:先确认参数真的在起作用)。
  */
 function feedRuffValue(L, cl, cards){
-  if(!AIP.feedRuff||cl.suit==='T'||countPoints(cards)>0) return 0;
+  if(!AIP.feedRuff||cl.suit==='T') return 0;
+  // 带分送毙只在对手**不太可能**断这门时才成立 —— 否则是把分领进对手的断门(B1)
+  if(countPoints(cards)>0&&(!AIP.feedRuffPts||(L.oppVoidP&&L.oppVoidP(cl.suit)>=0.5))) return 0;
   const pv=L.partnerVoidP?L.partnerVoidP(cl.suit):0;
   if(pv<AIP.feedRuffMinP) return 0;
   // 队友手上还得有主牌可毙 —— 在外一张主都没有时这条不成立
@@ -3573,7 +3634,8 @@ function feedRuffValue(L, cl, cards){
   if(trAvail<=0) return 0;
   const oppNotVoid=1-(L.oppVoidP?L.oppVoidP(cl.suit):0);
   const rem=unseenPointsIn(L.mem,cl.suit,L.trump);
-  const gain=Math.min(12,rem*0.33)+AIP.oppTempo;    // 这墩的分 + 牌权留在我方
+  const gain=Math.min(12,rem*0.33)+AIP.oppTempo     // 这墩的分 + 牌权留在我方
+            +(AIP.feedRuffPts?countPoints(cards):0);  // 带分送毙:他毙下来,我这几分也归我方
   return AIP.feedRuff*pv*oppNotVoid*gain;
 }
 
@@ -3709,6 +3771,12 @@ function trumpLeadPrior(L, cards){
 function scoreLeadEV(L, cl, cards, pre){
   const {pts,ruffP,fut}=pre;
   const p=leadWinP(L,cl,cards);
+  let pMine;
+  if(AIP.leadTempoSplit){
+    const LS=Object.create(L);
+    LS.ptsTable=countPoints(cards)+(unseenPointsIn(L.mem,cl.suit,L.trump)>0?5:0); LS.lead=null;
+    pMine=Math.min(p,pSurvive(LS,cl,L.remainingOpp));
+  }
   const gain=pts+leadPointsEV(L,cl,cards);
   const loss=pts+leadLossPoints(L,cl,cards);
   let s=(p*gain-(1-p)*loss)*(L.pw||1)-fut, reason;
@@ -3756,13 +3824,13 @@ function scoreLeadEV(L, cl, cards, pre){
     else if(p<0.4&&unseenPointsIn(L.mem,cl.suit,L.trump)===0) reason='这门在外已无分,交牌权代价小';
   }
   if(ruffP>0.25&&cl.suit!=='T'&&p>0.6){ reason='压得住,但对手可能缺门来毙'; }
-  return {score:s,reason,pWin:p};
+  return {score:s,reason,pWin:p,pMine};
 }
 
 function scoreLeadPlay(L, cl, cards){
   const r=scoreLeadCore(L,cl,cards);
   if(r.pWin===undefined) return r;
-  return {score:r.score+leadTempo(L,cards,r.pWin), reason:r.reason};
+  return {score:r.score+leadTempo(L,cards,r.pWin,r.pMine), reason:r.reason};
 }
 
 function scoreLeadCore(L, cl, cards){
@@ -3779,6 +3847,11 @@ function scoreLeadCore(L, cl, cards){
       return {score:68+size*3+leadPointsEV(L,cl,cards)*1.4*(L.pw||1)-fut*0.35,
               reason:'整门都是最大,甩牌施压',pWin:LEAD_PWIN.throwBoss};
     return {score:5-pts*4,reason:'甩牌有风险'};
+  }
+  if(allBoss&&AIP.bossRuffEV&&cl.suit!=='T'&&ruffP>AIP.bossRuffEVP){
+    const r=scoreLeadEV(L,cl,cards,{pts,ruffP,fut:fut*AIP.futLeadCashDamp});
+    r.reason='虽是钢板,但对手多半断这门 —— 按被毙的概率算';
+    return r;
   }
   if(allBoss&&AIP.leadEV2){
     /* v0.6.1 —— 钢板领出也走统一期望分口径,`bossBase` / `bossSize` 就此退休。

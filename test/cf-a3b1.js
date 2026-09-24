@@ -19,6 +19,11 @@
  *   A 现状   AI 实际领的那一手
  *   B 换门   别的门(含主)里 coachScoreLead 最高的那一手
  *   C 不带分 不带分的候选里 coachScoreLead 最高的那一手(同门小牌也算)
+ *   T 调主   领手上最小的一张非王主牌 —— 产品方的路线:小主交给队友,他用 A / 级牌接过去再兑现
+ *   F 送毙   队友最可能断、对手最不可能断的那门里最小的一张(没有这样的门就不跑)
+ *   ⚠️ B / C 由打分器自己挑,**里面没有「交牌权」这个概念**(2026-09-24 产品方指出);
+ *      T / F 是照产品方的推演写死的支路,不经过打分器。
+ *   OV 同时改变**分叉后整局**的 AI —— 用来看同一条支路在「会接牌权的队友」手里值多少。
  * 报 dp(分)和 **dl(净升级当量,主口径)**。dl>0 = 支路比 AI 好。
  *
  * **判据(2026-09-23,看数据之前写死):** 只有【全部】那一格的级数差 t≥2.5,
@@ -29,7 +34,7 @@
  *   B1【全部】 换门 −0.045 ±0.030 级,闲家那一格 −0.109 ±0.036(t=−3.0)→ AI 是对的,不改
  *   A3【我是闲家】 +0.115 ±0.052(t=2.2)—— 这是**看完数据才挑出来的分层**,不算数。
  *   把它当新假设,在不重叠的种子(1501 起)上**只验这一格**,判据仍是 t≥2.5。
- *   ONLY=A3 跳过 B1 支路(省一半算力)。
+ *   ONLY=A3 / ONLY=B1 只跑其中一条(省算力)。
  *
  * ⚠️ 生产配置,不关 egSearch。EG=0 只用来探路,探路的数字不许当结论。
  */
@@ -151,9 +156,21 @@ for(let seed=S0+1;seed<=S0+N;seed++){
                                      .sort((a,b)=>b.sc-a.sc);
             const Bc=cs.find(c=>c.su!==su), Cc=cs.find(c=>c.pts===0);
             const rA=run(cards), rB=Bc?run(Bc.cards):null, rC=Cc?run(Cc.cards):null;
+            const L=E.leadCtx(view);
+            const lowT=hand.filter(x=>E.effSuit(x,trump)==='T'&&x.suit!=='X')
+                           .sort((a,b)=>E.ordIdx(a,trump)-E.ordIdx(b,trump))[0];
+            const fs=[...new Set(hand.map(x=>E.effSuit(x,trump)))]
+              .filter(s=>s!=='T'&&s!==su&&L.oppVoidP(s)<0.5)
+              .map(s=>({s,q:L.partnerVoidP(s)*(1-L.oppVoidP(s))})).sort((a,b)=>b.q-a.q)[0];
+            const fCard=fs&&fs.q>0.2?hand.filter(x=>E.effSuit(x,trump)===fs.s)
+                           .sort((a,b)=>E.cardPoints(a)-E.cardPoints(b)||E.ordIdx(a,trump)-E.ordIdx(b,trump))[0]:null;
+            const rT=lowT?run([lowT]):null, rF=fCard?run([fCard]):null;
             B1.push({pv, pts:myPts, n:hand.length, decl:team===declTeam, len:cards.length,
               dpB:rB?rB.p-rA.p:null, dlB:rB?rB.l-rA.l:null,
-              dpC:rC?rC.p-rA.p:null, dlC:rC?rC.l-rA.l:null, cSame:Cc?Cc.su===su:null});
+              dpC:rC?rC.p-rA.p:null, dlC:rC?rC.l-rA.l:null, cSame:Cc?Cc.su===su:null,
+              dpT:rT?rT.p-rA.p:null, dlT:rT?rT.l-rA.l:null,
+              dpF:rF?rF.p-rA.p:null, dlF:rF?rF.l-rA.l:null,
+              boss:E.isBossPlay(E.classify(cards,trump),L.mem,trump)});
             hB1++;
           }
         }
@@ -163,7 +180,7 @@ for(let seed=S0+1;seed<=S0+N;seed++){
         if(!E.isLegalFollow(hand,lead,cards,trump)) cards=E.genFollow(hand,lead,trump,rand);
         // ---------- A3 ----------
         const cur=E.currentWinner(plays,trump);
-        if(hA3<MAXH&&i===1&&lead.cards.length===1&&cards.length===1&&lead.suit!=='T'
+        if(process.env.ONLY!=='B1'&&hA3<MAXH&&i===1&&lead.cards.length===1&&cards.length===1&&lead.suit!=='T'
            &&cur.seat%2!==team&&E.countPoints(cards)===0){
           const mem=E.makeMemory(view), reads=E.makeReads(view.history,trump);
           const pVoidOf=E.makeVoidProb(reads,mem,trump,hand.length);
@@ -223,10 +240,12 @@ show('【第三家也高概率断门(可能盖毙)】',A3.filter(r=>r.pv3>PV),RA
 show('【第三家不太可能断门】',A3.filter(r=>r.pv3<=PV),RA3);
 show('【我坐庄方】',A3.filter(r=>r.decl),RA3);
 show('【我是闲家】',A3.filter(r=>!r.decl),RA3);
-const RB1=[['B 换门   −A','dpB','dlB'],['C 不带分 −A','dpC','dlC']];
+const RB1=[['B 换门   −A','dpB','dlB'],['C 不带分 −A','dpC','dlC'],['T 调主   −A','dpT','dlT'],['F 送毙   −A','dpF','dlF']];
 console.log('\nB1 对手高概率断门,却领这门送分');
 show('【全部】',B1,RB1);
 show('【领单张】',B1.filter(r=>r.len===1),RB1);
+show('【领的是钢板】',B1.filter(r=>r.boss),RB1);
+show('【领的不是钢板】',B1.filter(r=>!r.boss),RB1);
 show('【pVoid ≥ 0.8】',B1.filter(r=>r.pv>=0.8),RB1);
 show('【领的这手 ≥10 分】',B1.filter(r=>r.pts>=10),RB1);
 show('【我坐庄方】',B1.filter(r=>r.decl),RB1);
