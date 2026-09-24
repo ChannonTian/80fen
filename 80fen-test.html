@@ -1039,6 +1039,12 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    *   p ← p + (1 − p) × declVoidPrior。庄家推断别人时不用。
    *   60 副实测:庄家真断门率 43.6%,推断均值只有 25.9%;推断说 <10% 的时候真有 27% 断了。0 = 旧行为。 */
   declVoidPrior: 0,
+  /* pptMidOpp —— 「对手暂大、指望队友压回来」时,我和队友之间**还隔着一个对手**(我坐第 2 家、队友末手)。
+   *   pPartnerTakes 只比「当前最大的那张」,可中间那个对手会先出:他可能压上一张更大的、也可能直接毙。
+   *   test/calib-trick.js(新推断下):这一类预测 ≥0.9 的,实际只有 32% 拿下。
+   *   打开后,队友要赢的是「这门在外最大的那张落在他而不在中间那家」,再乘中间那家不毙的概率。
+   *   主牌墩(钓主)同样适用 —— 对手钓主、我第 2 家跟小主指望队友末手收,中间那家照样能先压一张大主(§7.9 的 A1)。0 = 旧行为。 */
+  pptMidOpp: 0,
   pwGain: 0.5,                // 比分敏感度对「现在兑现 vs 留着压制」的调节幅度
   grabBonus: 85,              // 无庄盘抢庄红利(有主)
   grabBonusNT: 58,            // 无庄盘抢庄红利(无将,主牌只有12张压不住场)
@@ -2680,7 +2686,22 @@ function pPartnerTakes(X){
     :(X.partnerSeat!==undefined&&X.pVoidOf?X.pVoidOf(X.partnerSeat,leadSuit):0.12);
   const trAvail=unseenBeats(mem,{suit:'T',top:-1,type:'single'},trump).total;
   const pRuff=(X.ptsTable>0?0.80:0.35)*(trAvail>0?0.85:0);
-  const take=(1-pVoid)*pHas+pVoid*pRuff;
+  let take=(1-pVoid)*pHas+pVoid*pRuff;
+  /* 我和队友之间还隔着一个对手(见 AIP.pptMidOpp):队友要压的不是当前这张,是那家可能压上来的;
+   * 那家断这门的话还可能直接毙。 */
+  if(AIP.pptMidOpp&&X.remaining){
+    const pi=X.remaining.indexOf(X.partnerSeat);
+    const mids=pi>0?X.remaining.slice(0,pi).filter(s=>s%2!==X.seat%2):[];
+    if(mids.length&&X.pVoidOf){
+      const m=mids[0];
+      const pn=expHoldIn(X,X.partnerSeat,leadSuit), on=expHoldIn(X,m,leadSuit);
+      const pTop=pn+on>0?pn/(pn+on):0;
+      // 主牌墩(钓主)里中间那家不存在「毙」,只有压不压得过
+      const pMidRuff=leadSuit==='T'?0:X.pVoidOf(m,leadSuit)*(trAvail>0?0.85:0)*(X.ptsTable>0?0.80:0.35);
+      const takeMid=((1-pVoid)*Math.min(pHas,pTop)+pVoid*pRuff*(1-0.5*pMidRuff))*(1-pMidRuff);
+      take=Math.min(take,takeMid);
+    }
+  }
   // 队友之后还有对手要过 → 他压回来了也未必守得住
   const after=X.oppAfterPartner?AIP.partnerHoldAfter:1;
   // 往 v3 那个常数 0.32 收缩。`take` 算的是「队友手上有没有压得住的牌」,
@@ -2853,7 +2874,8 @@ function followCtx(view, plays){
            remainingOpp,partnerRemaining,partnerSeat,oppAfterPartner,oppRuffRisk,curBoss,isDecl,reads,pVoidOf,oppVoidP,
            // 已打完几墩 —— view.history 里就有,不是新信息(pairHold 的闸门要用)
            trPlayed:Math.floor((view.history||[]).length/4),
-           holdRange,buriedKnown:view.buriedKnown,phase:phaseOf(view.hand.length)};
+           holdRange,buriedKnown:view.buriedKnown,phase:phaseOf(view.hand.length),
+           remaining,seat:view.seat};
   // 队友「暂大」不是「稳大」:确定性由记牌算出,不再是拍脑袋的常数
   X.certainty=isLast?1:pSurvive(X,cur.cl,remainingOpp);
   const rs=roundScore(view); X.def=rs.def; X.live=rs.live;
