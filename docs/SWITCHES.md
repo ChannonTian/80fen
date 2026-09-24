@@ -217,11 +217,11 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `egPointsEps` | `0.008` | — |
 | `bossSize` | `8` | 每多一张的加成(对子/拖拉机更难被压) |
 | `leadTrumpPenalty` | `26` | 未到收官时领出主牌钢板的折扣 |
-| `drawTrumpUnit` | `6` | 吊主:我方每比对手多一张主牌值多少分 |
-| `drawTrumpCap` | `30` | 吊主项的上下限 |
+| `drawTrumpUnit` | `6` | 钓主:我方每比对手多一张主牌值多少分 |
+| `drawTrumpCap` | `30` | 钓主项的上下限 |
 | `leadWeakTrump` | `14` | 领出压不住场的主牌(非钢板)的固定折扣 |
 
-### 调王/调主(v4.7,见 tiaoWangValue)。tiaoWang=0 即整条关闭,便于消融。
+### 钓主(v4.7,见 tiaoWangValue)。tiaoWang=0 即整条关闭,便于消融。
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
@@ -267,7 +267,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 |---|---|---|
 | `feedRuffPts` | `0` | — |
 
-### tiaoAccept —— 队友领一张非钢板的小主(调王)时,我跟牌打分里「拿下牌权」那一项
+### tiaoAccept —— 队友领一张非钢板的小主(钓主)时,我跟牌打分里「拿下牌权」那一项
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
@@ -413,7 +413,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `ruffOppBonus` | `-25` | ③  与 ruffPartnerBonus 同量级 —— 它们本来就是同一条规则的两半 |
 | `ruffOppMinPts` | `5` | ③  台面分下限 |
 | `takeOverEndTrump` | `1` | ②  收官阶段对将牌墩放开「接过队友」(0=退回旧行为) |
-| `tiaoUseExp` | `1` | ②  调主的判据改用**期望**张数而非硬下界(0=退回旧行为) |
+| `tiaoUseExp` | `1` | ②  钓主的判据改用**期望**张数而非硬下界(0=退回旧行为) |
 
 ### ② 「逼出对手的主」解锁了多少我方副牌钢板的价值。
 
@@ -427,19 +427,19 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 |---|---|---|
 | `drawTrumpVsOne` | `0` | — |
 
-### ② 调主的「我方主牌占不占优」判据用一家比一家。
+### ② 钓主的「我方主牌占不占优」判据用一家比一家。
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
 | `tiaoEdgeVsOne` | `0` | — |
 
-### ② 调王里那条「逼对手吐主」的收益。**默认 0 —— v0.6.0 起改由 pTeam 表达。**
+### ② 钓主里那条「逼对手吐主」的收益。**默认 0 —— v0.6.0 起改由 pTeam 表达。**
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
 | `tiaoDrawOut` | `0` | — |
 
-### ② 队友救回来的概率到多少才算「这是一次调主」。**只影响理由字符串,不影响出牌。**
+### ② 队友救回来的概率到多少才算「这是一次钓主」。**只影响理由字符串,不影响出牌。**
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
