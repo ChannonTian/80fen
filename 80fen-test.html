@@ -1028,6 +1028,17 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   /* voidLeadCost —— 领进对手多半断的门,补上漏掉的那一笔:断门那一家多一次氽废的机会
    *   (清掉一张废牌、整理牌型)。按对手断这门的概率计。0 = 关。 */
   voidLeadCost: 0,
+  /* ===== §7.13 阶段 3:推断先校准(test/calib-infer.js)=====
+   * voidReadSoft —— 「他跟小没压过 → 他没有更便宜的」这类**行为读牌**(makeReads 的 fCheap / fDump)
+   *   推到 0 张时,断门概率给这个值,不再是 1。它假设别人一定按「先出最便宜的 / 贴最大的分」出牌,
+   *   其实是一条出牌信号推断,不是演绎。60 副实测:推断 ≥0.9 那一档平均说 99.7%,真断门只有 92.6% ——
+   *   最自信的那一档错了 7%,整体对数损失因此比「只用硬断门 + 超几何」的对照组还差。
+   *   见过他垫 / 毙这门(硬断门)、或这门在外已经一张都不剩,仍然是 1。0 = 旧行为。 */
+  voidReadSoft: 0,
+  /* declVoidPrior —— 推断**庄家**的断门时,加上「他换过 8 张底、多半做出了断门」的先验:
+   *   p ← p + (1 − p) × declVoidPrior。庄家推断别人时不用。
+   *   60 副实测:庄家真断门率 43.6%,推断均值只有 25.9%;推断说 <10% 的时候真有 27% 断了。0 = 旧行为。 */
+  declVoidPrior: 0,
   pwGain: 0.5,                // 比分敏感度对「现在兑现 vs 留着压制」的调节幅度
   grabBonus: 85,              // 无庄盘抢庄红利(有主)
   grabBonusNT: 58,            // 无庄盘抢庄红利(无将,主牌只有12张压不住场)
@@ -1748,7 +1759,7 @@ function maxHoldIn(reads, mem, seat, suitEff, trump){
 }
 
 // 某家在某门缺门的概率。硬缺门=1;上界为0=1;否则按他手上牌占未见牌的比例衰减。
-function makeVoidProb(reads, mem, trump, handLeft){
+function makeVoidProb(reads, mem, trump, handLeft, who){
   let unseenTotal=0;
   for(const k in mem.unseen) unseenTotal+=Math.max(0,mem.unseen[k]);
   const share=clamp(handLeft/Math.max(1,unseenTotal),0.02,0.6);
@@ -1759,7 +1770,19 @@ function makeVoidProb(reads, mem, trump, handLeft){
     const ck=seat+':'+suitEff;
     if(cache[ck]!==undefined) return cache[ck];
     const m=maxHoldIn(reads,mem,seat,suitEff,trump);
-    return cache[ck]=(m===0?1:clamp(Math.pow(1-share,m),0,0.97));
+    let p;
+    if(m===0){
+      // 0 张是怎么来的:这门在外本来就一张不剩(硬)—— 还是靠「他会先出最便宜的」推出来的(软)
+      p=1;
+      if(AIP.voidReadSoft){
+        let raw=0; for(const k in mem.unseen) if(mem.unseen[k]>0&&effSuit(keyToCard(k),trump)===suitEff) raw+=mem.unseen[k];
+        if(raw>0) p=AIP.voidReadSoft;
+      }
+    }else p=clamp(Math.pow(1-share,m),0,0.97);
+    if(AIP.declVoidPrior&&who&&who.declSeat!==undefined&&who.declSeat>=0
+       &&seat===who.declSeat&&who.me!==who.declSeat&&p<1)
+      p=p+(1-p)*AIP.declVoidPrior;
+    return cache[ck]=p;
   };
 }
 
@@ -2816,7 +2839,7 @@ function followCtx(view, plays){
   const curBoss=isBossPlay(cur.cl,mem,trump)&&!oppRuffRisk;
   const isDecl=view.declSeat!==undefined&&view.declSeat>=0&&view.declSeat%2===view.seat%2;
   const reads=makeReads(view.history||[],trump);
-  const pVoidOf=makeVoidProb(reads,mem,trump,view.hand.length);
+  const pVoidOf=makeVoidProb(reads,mem,trump,view.hand.length,{declSeat:view.declSeat,me:view.seat});
   const oppVoidP=s=>Math.max(...[0,1,2,3].filter(p=>p%2!==view.seat%2).map(p=>pVoidOf(p,s)),0);
   let unseenTotal=0;
   for(const uk in mem.unseen) unseenTotal+=Math.max(0,mem.unseen[uk]);
@@ -3321,7 +3344,7 @@ function leadCtx(view){
   const voids=makeVoids(view.history||[],trump);
   const myTeam=view.seat%2;
   const reads=makeReads(view.history||[],trump);
-  const pVoidOf=makeVoidProb(reads,mem,trump,view.hand.length);
+  const pVoidOf=makeVoidProb(reads,mem,trump,view.hand.length,{declSeat:view.declSeat,me:view.seat});
   const holdRange=makeHoldRange(reads,mem,trump,view.hand.length);
   const partnerAce=partnerAceRead(view.history||[],trump,view.seat);
   // 从布尔改成概率:「对手可能缺这门」现在是个数,降权也就按比例来
@@ -4254,7 +4277,7 @@ function endgameSearch(view, plays, cands){
   const voids=makeVoids(view.history||[],trump);
   const reads=makeReads(view.history||[],trump);
   const capOf=(s,su)=>maxHoldIn(reads,mem,s,su,trump);
-  const pVoidOf=AIP.egVoidW>0?makeVoidProb(reads,mem,trump,n):null;
+  const pVoidOf=AIP.egVoidW>0?makeVoidProb(reads,mem,trump,n,{declSeat:view.declSeat,me:view.seat}):null;
   const rand=rng((view.history||[]).length*7919+view.seat*31+n*17+1);
   /* 亮主者手里钉死的牌:亮 k 张级牌 → 他手里有 k 张该门级牌(减去他已经打出的);王对同理。 */
   const known=[];

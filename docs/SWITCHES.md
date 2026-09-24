@@ -284,6 +284,18 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | 参数 | 默认 | 说明 |
 |---|---|---|
 | `voidLeadCost` | `0` | — |
+
+### ===== §7.13 阶段 3:推断先校准(test/calib-infer.js)=====
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `voidReadSoft` | `0` | — |
+
+### declVoidPrior —— 推断**庄家**的断门时,加上「他换过 8 张底、多半做出了断门」的先验:
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `declVoidPrior` | `0` | — |
 | `pwGain` | `0.5` | 比分敏感度对「现在兑现 vs 留着压制」的调节幅度 |
 | `grabBonus` | `85` | 无庄盘抢庄红利(有主) |
 | `grabBonusNT` | `58` | 无庄盘抢庄红利(无将,主牌只有12张压不住场) |
