@@ -1,24 +1,20 @@
 <!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#102e28"><title>80分 · 手边牌桌</title><link rel="stylesheet" href="lab.css"></head>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#f6f5f1"><title>80分 · 竖屏新牌桌</title><link rel="stylesheet" href="table.css"></head>
 <body>
-<main class="workbench">
-  <aside class="lab-panel">
-    <a class="wordmark" href="index.html" aria-label="80分原型首页">80<span>分</span><i>UI / 01</i></a>
-    <div class="intro"><p class="eyebrow">PORTRAIT TABLE STUDY</p><h1>牌在手边，<br>局势在眼前。</h1><p>为一只手、一块竖屏，<br>重新安排一张四人牌桌。</p></div>
-    <div class="lab-section"><h2>换一块屏幕</h2><div class="devices" id="devices">
-      <button data-w="320" data-h="568">小屏 <span>320 × 568</span></button>
-      <button data-w="375" data-h="667">标准 <span>375 × 667</span></button>
-      <button class="active" data-w="390" data-h="844">长屏 <span>390 × 844</span></button>
-      <button data-w="430" data-h="932">大屏 <span>430 × 932</span></button>
-    </div></div>
-    <div class="lab-section"><h2>试一个局面</h2><div class="scenarios" id="scenarios"><button class="active" data-scene="follow"><b>01</b><span>跟对子<small>25 张手牌 · 对家暂大</small></span><i>↗</i></button><button data-scene="lead"><b>02</b><span>出拖拉机<small>连续选牌 · 整组确认</small></span><i>↗</i></button><button data-scene="bury"><b>03</b><span>拿底扣底<small>33 张手牌 · 选满 8 张</small></span><i>↗</i></button></div></div>
-    <p class="lab-note">可以直接操作右侧牌桌。<br>手机打开时，牌桌会占满屏幕。</p>
-  </aside>
-  <section class="preview"><div class="device-label"><span>LIVE PROTOTYPE</span><span id="dimensions">390 × 844</span></div><div class="phone" id="phone"><iframe title="可交互的80分竖屏牌桌" src="table.html" id="table"></iframe></div><p class="preview-note">点牌选中 · 再点取消 · 确认后出牌</p></section>
-  <aside class="design-note"><span>设计假设 / 01</span><h2>不把 33 张牌<br>压成 33 条缝。</h2><p>四行分门，保留牌面。<br>长门横滑，选择不丢。<br>小屏先收桌面留白，<br>不先缩小手指的落点。</p><div class="mini-rule"></div><p>这是交互实验，使用固定局面。<br>合法性由主仓库规则引擎验证。<br>尚未接入完整对局。</p><a href="DESIGN.md" target="_blank">阅读设计说明 ↗</a></aside>
+<main class="game">
+  <header class="topbar"><div class="game-title">80<span>分</span></div><div class="trump-label"><span class="red">♥</span> 主 · 打 5</div><button class="icon-button" id="menu" aria-label="打开菜单">•••</button></header>
+  <section class="round" aria-label="当前牌局">
+    <div class="round-meta"><span id="role">我方攻分</span><div><strong id="score">55</strong><span class="score-target"> / 80</span></div><button id="history">本墩 <b id="trickPoints">20</b> 分 <span aria-hidden="true">↗</span></button></div>
+    <div class="trick" id="trick"></div>
+  </section>
+  <section class="hand-section" aria-label="我的手牌">
+    <div class="hand-heading"><div><h1 id="instruction">跟一对方块</h1><p id="context">轮到你 · 对家暂大</p></div><button id="overview">全手牌 <span id="handCount">25</span><span aria-hidden="true"> ↗</span></button></div>
+    <div class="suit-tabs" id="suitTabs" role="tablist" aria-label="选择手牌花色"></div>
+    <div class="hand-scroll" id="handScroll" tabindex="0" role="tabpanel" aria-label="当前花色手牌"><div class="card-grid" id="hand"></div><p class="hand-end" id="handEnd"></p></div>
+  </section>
+  <footer class="action-dock"><div class="selection-status" id="selectionStatus" aria-live="polite"></div><div class="actions"><button id="clear">清空</button><button id="submit" disabled><span id="submitLabel">选 2 张牌出牌</span><span aria-hidden="true">↑</span></button></div></footer>
 </main>
-<script>
-const frame=document.getElementById('table'),phone=document.getElementById('phone');
-document.querySelectorAll('[data-w]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-w]').forEach(x=>x.classList.toggle('active',x===b));phone.style.setProperty('--phone-w',b.dataset.w+'px');phone.style.setProperty('--phone-h',b.dataset.h+'px');document.getElementById('dimensions').textContent=b.dataset.w+' × '+b.dataset.h;});
-document.querySelectorAll('[data-scene]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-scene]').forEach(x=>x.classList.toggle('active',x===b));frame.contentWindow.postMessage({type:'scene',scene:b.dataset.scene},location.origin);});
-</script></body></html>
+<dialog id="sheet" aria-labelledby="sheetTitle"><div class="sheet-header"><h2 id="sheetTitle"></h2><button class="icon-button" id="closeSheet" aria-label="关闭">✕</button></div><div id="sheetBody"></div><div class="sheet-footer" id="sheetFooter" hidden><div id="sheetSelection" aria-live="polite"></div><div class="actions"><button id="clearAll">清空</button><button id="backToTable">出牌</button></div></div></dialog>
+<script src="engine.js"></script><script src="table.js"></script>
+</body></html>
