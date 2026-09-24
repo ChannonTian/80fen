@@ -87,11 +87,11 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `oppSpendGain` | `1` | 台面分在他眼里的权重 |
 | `oppSpendTempo` | `4` | 拿到牌权对他值多少分 |
 
-### 把「他肯不肯花」接进 pSurvive 的盖毙那一支(v0.7.4)。0 = 退回 0.90/0.50 两个常数。
+### v0.7.21 测试版改 0:test/calib-trick.js 量到「我毙了、预测 ≥0.9」实际只有 79% / 81% 拿下 ——
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `willingBeats` | `1` | — |
+| `willingBeats` | `0` | — |
 
 ### 后手还有已知断门的对手时,毙牌的罚分(v0.7.5,见上面的反事实回放)。
 
@@ -246,7 +246,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `leadTempoSplit` | `0` | — |
+| `leadTempoSplit` | `1` | (v0.7.21 测试版默认开,整包见 DESIGN §7.13) |
 
 ### partnerCashValue 里每一项的权重(1 = 与 tempoValue 同一量纲)。
 
@@ -258,50 +258,50 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `bossRuffEV` | `0` | — |
+| `bossRuffEV` | `1` | (v0.7.21 测试版默认开,整包见 DESIGN §7.13) |
 | `bossRuffEVP` | `0.5` | — |
 
 ### feedRuffPts —— 送毙(领队友断门的牌)也可以带分:他毙下来,这些分归我方。
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `feedRuffPts` | `0` | — |
+| `feedRuffPts` | `1` | (v0.7.21 测试版默认开,整包见 DESIGN §7.13) |
 
 ### tiaoAccept —— 队友领一张非钢板的小主(钓主)时,我跟牌打分里「拿下牌权」那一项
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `tiaoAccept` | `0` | — |
+| `tiaoAccept` | `1` | (v0.7.21 测试版默认开,整包见 DESIGN §7.13) |
 
 ### ===== §7.13 阶段 0:拆墙 =====
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `trumpLeadRel` | `0` | — |
+| `trumpLeadRel` | `1` | (v0.7.21 测试版默认开,整包见 DESIGN §7.13) |
 
 ### voidLeadCost —— 领进对手多半断的门,补上漏掉的那一笔:断门那一家多一次氽废的机会
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `voidLeadCost` | `0` | — |
+| `voidLeadCost` | `4` | (v0.7.21 测试版默认开,整包见 DESIGN §7.13) |
 
 ### ===== §7.13 阶段 3:推断先校准(test/calib-infer.js)=====
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `voidReadSoft` | `0` | — |
+| `voidReadSoft` | `0.9` | (v0.7.21 测试版默认开,整包见 DESIGN §7.13) |
 
 ### declVoidPrior —— 推断**庄家**的断门时,加上「他换过 8 张底、多半做出了断门」的先验:
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `declVoidPrior` | `0` | — |
+| `declVoidPrior` | `0.25` | (v0.7.21 测试版默认开,整包见 DESIGN §7.13) |
 
 ### pptMidOpp —— 「对手暂大、指望队友压回来」时,我和队友之间**还隔着一个对手**(我坐第 2 家、队友末手)。
 
 | 参数 | 默认 | 说明 |
 |---|---|---|
-| `pptMidOpp` | `0` | — |
+| `pptMidOpp` | `1` | (v0.7.21 测试版默认开,整包见 DESIGN §7.13) |
 | `pwGain` | `0.5` | 比分敏感度对「现在兑现 vs 留着压制」的调节幅度 |
 | `grabBonus` | `85` | 无庄盘抢庄红利(有主) |
 | `grabBonusNT` | `58` | 无庄盘抢庄红利(无将,主牌只有12张压不住场) |

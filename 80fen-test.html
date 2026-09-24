@@ -328,7 +328,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.20(测试版)</div>
+<div id="versionTag">80分 v0.7.21(测试版)</div>
 
 <script>
 /* ============================================================
@@ -846,7 +846,9 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   oppSpendGain: 1,           // 台面分在他眼里的权重
   oppSpendTempo: 4,          // 拿到牌权对他值多少分
   /* 把「他肯不肯花」接进 pSurvive 的盖毙那一支(v0.7.4)。0 = 退回 0.90/0.50 两个常数。 */
-  willingBeats: 1,
+  /* v0.7.21 测试版改 0:test/calib-trick.js 量到「我毙了、预测 ≥0.9」实际只有 79% / 81% 拿下 ——
+   * 对手(AI 自己,更别说人)并不是「不值得就不盖毙」。关掉后 96.6% vs 95.8%、96.8% vs 96.5%。 */
+  willingBeats: 0,
   /* 后手还有已知断门的对手时,毙牌的罚分(v0.7.5,见上面的反事实回放)。
    * push 的第 5 参是罚分,所以正数才是罚。0 = 关闭。 */
   ruffVoidBehind: 20,       // 见上面 voidBehind 处的反事实回放
@@ -1000,20 +1002,20 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * leadTempoSplit —— 领出的牌权项拆成三份:我拿下 → 我手上的钢板(tempoValue);
    *   **队友拿下 → 队友能兑现的(partnerCashValue)**;对手拿下 → oppTempo。
    *   旧口径 pTeam×tempoValue(我的) 把「队友接过去」记成了「我接着兑现我的」。 */
-  leadTempoSplit: 0,
+  leadTempoSplit: 1,   // (v0.7.21 测试版默认开,整包见 DESIGN §7.13)
   /* partnerCashValue 里每一项的权重(1 = 与 tempoValue 同一量纲)。 */
   partnerCashW: 1.0,
   /* bossRuffEV —— 副牌钢板、但对手多半断这门(> bossRuffEVP)时,改走统一期望分口径
    *   (leadWinP 里 pSurvive 的被毙概率、loss 里我送出去的分都真的算进去),
    *   不再是「40 + 张数 − 45×ruffP」那条常数式。B1 里一半是这一类。 */
-  bossRuffEV: 0,
+  bossRuffEV: 1,                   // (v0.7.21 测试版默认开,整包见 DESIGN §7.13)
   bossRuffEVP: 0.5,
   /* feedRuffPts —— 送毙(领队友断门的牌)也可以带分:他毙下来,这些分归我方。 */
-  feedRuffPts: 0,
+  feedRuffPts: 1,                   // (v0.7.21 测试版默认开,整包见 DESIGN §7.13)
   /* tiaoAccept —— 队友领一张非钢板的小主(钓主)时,我跟牌打分里「拿下牌权」那一项
    *   按领出口径(leadTempoWeight)计,不按跟牌口径(tempoWeight 0.35)。
    *   他领这张的**目的**就是让我接过去兑现;不接,这条路在打分器里就永远算不成(§7.9 A1 是它的另一头)。 */
-  tiaoAccept: 0,
+  tiaoAccept: 1,                   // (v0.7.21 测试版默认开,整包见 DESIGN §7.13)
   /* ===== §7.13 阶段 0:拆墙 =====
    * trumpLeadRel —— 领主的代价改成**相对的**(产品方,2026-09-24)。
    *   非钢板主牌领出在 scoreLeadEV 里被扣两笔:drawTrumpValue 的负半边(「一家比两家」的偏差,
@@ -1024,27 +1026,27 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    *   (第一版写成「没有副花高概率赢墩的一手就退还」,诊断出来多半触发在「副花小牌 → 小主」上,
    *    那不是产品方说的情形,改掉。)
    *   只在收官搜索的窗口之外生效(局末单独判断)。0 = 关。 */
-  trumpLeadRel: 0,
+  trumpLeadRel: 1,                   // (v0.7.21 测试版默认开,整包见 DESIGN §7.13)
   /* voidLeadCost —— 领进对手多半断的门,补上漏掉的那一笔:断门那一家多一次氽废的机会
    *   (清掉一张废牌、整理牌型)。按对手断这门的概率计。0 = 关。 */
-  voidLeadCost: 0,
+  voidLeadCost: 4,                   // (v0.7.21 测试版默认开,整包见 DESIGN §7.13)
   /* ===== §7.13 阶段 3:推断先校准(test/calib-infer.js)=====
    * voidReadSoft —— 「他跟小没压过 → 他没有更便宜的」这类**行为读牌**(makeReads 的 fCheap / fDump)
    *   推到 0 张时,断门概率给这个值,不再是 1。它假设别人一定按「先出最便宜的 / 贴最大的分」出牌,
    *   其实是一条出牌信号推断,不是演绎。60 副实测:推断 ≥0.9 那一档平均说 99.7%,真断门只有 92.6% ——
    *   最自信的那一档错了 7%,整体对数损失因此比「只用硬断门 + 超几何」的对照组还差。
    *   见过他垫 / 毙这门(硬断门)、或这门在外已经一张都不剩,仍然是 1。0 = 旧行为。 */
-  voidReadSoft: 0,
+  voidReadSoft: 0.9,                   // (v0.7.21 测试版默认开,整包见 DESIGN §7.13)
   /* declVoidPrior —— 推断**庄家**的断门时,加上「他换过 8 张底、多半做出了断门」的先验:
    *   p ← p + (1 − p) × declVoidPrior。庄家推断别人时不用。
    *   60 副实测:庄家真断门率 43.6%,推断均值只有 25.9%;推断说 <10% 的时候真有 27% 断了。0 = 旧行为。 */
-  declVoidPrior: 0,
+  declVoidPrior: 0.25,                   // (v0.7.21 测试版默认开,整包见 DESIGN §7.13)
   /* pptMidOpp —— 「对手暂大、指望队友压回来」时,我和队友之间**还隔着一个对手**(我坐第 2 家、队友末手)。
    *   pPartnerTakes 只比「当前最大的那张」,可中间那个对手会先出:他可能压上一张更大的、也可能直接毙。
    *   test/calib-trick.js(新推断下):这一类预测 ≥0.9 的,实际只有 32% 拿下。
    *   打开后,队友要赢的是「这门在外最大的那张落在他而不在中间那家」,再乘中间那家不毙的概率。
    *   主牌墩(钓主)同样适用 —— 对手钓主、我第 2 家跟小主指望队友末手收,中间那家照样能先压一张大主(§7.9 的 A1)。0 = 旧行为。 */
-  pptMidOpp: 0,
+  pptMidOpp: 1,                   // (v0.7.21 测试版默认开,整包见 DESIGN §7.13)
   pwGain: 0.5,                // 比分敏感度对「现在兑现 vs 留着压制」的调节幅度
   grabBonus: 85,              // 无庄盘抢庄红利(有主)
   grabBonusNT: 58,            // 无庄盘抢庄红利(无将,主牌只有12张压不住场)
