@@ -1014,6 +1014,18 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    *   按领出口径(leadTempoWeight)计,不按跟牌口径(tempoWeight 0.35)。
    *   他领这张的**目的**就是让我接过去兑现;不接,这条路在打分器里就永远算不成(§7.9 A1 是它的另一头)。 */
   tiaoAccept: 0,
+  /* ===== §7.13 阶段 0:拆墙 =====
+   * trumpLeadRel —— 领主的代价改成**相对的**(产品方,2026-09-24)。
+   *   非钢板主牌领出在 scoreLeadEV 里被扣两笔:drawTrumpValue 的负半边(「一家比两家」的偏差,
+   *   B1 点上均值 −27)和 leadWeakTrump×(1−p)。这两笔是**绝对**的,不看手上还有什么可领。
+   *   产品方的判断:和「副花高概率赢墩的大牌」比,钓主确实更差 —— 那时照扣;
+   *   但和「领对手断门的副花」比,钓主多数时候更好 —— 那时这两笔退还 trumpLeadRel 这个比例。
+   *   只在收官搜索的窗口之外生效(局末单独判断)。0 = 关。 */
+  trumpLeadRel: 0,
+  trumpLeadRelWinP: 0.6,      // 「高概率赢墩」的门槛(本队赢下这墩的概率)
+  /* voidLeadCost —— 领进对手多半断的门,补上漏掉的那一笔:断门那一家多一次氽废的机会
+   *   (清掉一张废牌、整理牌型)。按对手断这门的概率计。0 = 关。 */
+  voidLeadCost: 0,
   pwGain: 0.5,                // 比分敏感度对「现在兑现 vs 留着压制」的调节幅度
   grabBonus: 85,              // 无庄盘抢庄红利(有主)
   grabBonusNT: 58,            // 无庄盘抢庄红利(无将,主牌只有12张压不住场)
@@ -3807,7 +3819,9 @@ function scoreLeadEV(L, cl, cards, pre){
      * trumpLeadPrior=0 即退回 v0.6.0 的行为(纯靠 min(0,dt) + leadWeakTrump)。 */
     // dt 的负半边同样只在「攥着主牌还值钱」时才该扣满 —— 同一个理由
     const dtNeg=Math.min(0,dt)*(AIP.trumpLeadPrior?AIP.dtNegDamp*phaseK(L):1);
-    s+=dtNeg+p*Math.max(0,dt)-AIP.leadWeakTrump*(1-p)-trumpLeadPrior(L,cards);
+    const trumpPen=-dtNeg+AIP.leadWeakTrump*(1-p)+trumpLeadPrior(L,cards);
+    s+=p*Math.max(0,dt)-trumpPen;
+    pre.trumpPen=trumpPen;
     if(dt>8&&p>0.5&&cards.every(c=>c.suit!=='X')) reason='主牌多于对手,钓主清场';
     // 钓主:EV 模型看不见「把牌权过渡给队友」的那一小截额外价值
     const tw=tiaoWangValue(L,cl,cards);
@@ -3832,13 +3846,14 @@ function scoreLeadEV(L, cl, cards, pre){
     else if(p<0.4&&unseenPointsIn(L.mem,cl.suit,L.trump)===0) reason='这门在外已无分,交牌权代价小';
   }
   if(ruffP>0.25&&cl.suit!=='T'&&p>0.6){ reason='压得住,但对手可能缺门来毙'; }
-  return {score:s,reason,pWin:p,pMine};
+  if(AIP.voidLeadCost&&cl.suit!=='T') s-=AIP.voidLeadCost*ruffP;
+  return {score:s,reason,pWin:p,pMine,trumpPen:pre.trumpPen};
 }
 
 function scoreLeadPlay(L, cl, cards){
   const r=scoreLeadCore(L,cl,cards);
   if(r.pWin===undefined) return r;
-  return {score:r.score+leadTempo(L,cards,r.pWin,r.pMine), reason:r.reason};
+  return {score:r.score+leadTempo(L,cards,r.pWin,r.pMine), reason:r.reason, trumpPen:r.trumpPen, pWin:r.pWin};
 }
 
 function scoreLeadCore(L, cl, cards){
@@ -4310,7 +4325,7 @@ function aiChooseLead(view){
     for(const comp of comps){
       const cl={type:comp.type,len:comp.len,suit:s,top:comp.top,cards:comp.cards};
       const r=scoreLeadPlay(L,cl,comp.cards);
-      cands.push({cards:comp.cards,score:r.score,reason:r.reason});
+      cands.push({cards:comp.cards,score:r.score,reason:r.reason,suit:s,trumpPen:r.trumpPen,pWin:r.pWin});
     }
     // 甩牌候选:整门多组件且全是钢板(引擎 checkThrow 仍会最终把关)
     if(s!=='T'&&comps.length>=2&&bySuit[s].length<=6){
@@ -4350,6 +4365,16 @@ function aiChooseLead(view){
   // v3 这里还硬塞过一颗 `score:46 主力雄厚,钓主清场` 的候选。常数 46 无条件压过其他所有
   // 候选,且不看对手还剩几张主 —— 现在钓主的收益由 drawTrumpValue 在正常评分里算出来,
   // 所有主牌组件都能参与竞争,不需要这颗特例。
+  /* §7.13 阶段 0:领主的代价是相对的(见 AIP.trumpLeadRel)。
+   * 手上没有「副花里高概率赢墩、对手又不太可能断这门」的一手时,钓主不再背那两笔绝对罚分。 */
+  if(AIP.trumpLeadRel&&view.hand.length>AIP.egMaxCards){
+    const goodSide=cands.some(c=>c.suit!=='T'&&c.pWin!==undefined&&c.pWin>=AIP.trumpLeadRelWinP
+                                  &&L.oppVoidP(c.suit)<0.5);
+    if(!goodSide) for(const c of cands) if(c.suit==='T'&&c.trumpPen>0){
+      c.score+=AIP.trumpLeadRel*c.trumpPen;
+      c.reason='副花里没有稳当的一手,只剩领进对手断门 —— 钓主,把牌权交出去';
+    }
+  }
   cands.sort((a,b)=>b.score-a.score);
   let best=cands[0]||{cards:[view.hand[0]],reason:'兜底',score:0};
   /* v0.7.0:收官交给搜索。只用它**排序**(目标函数是「净升几级」,和分制不同量纲),

@@ -53,8 +53,8 @@ function checkLead(reason, f){
   const isTrump=cards.every(c=>E.effSuit(c,trump)==='T');
   const pts=E.countPoints(cards);
   const d=()=>`理由「${reason}」\n  主${trump.suit||'无'}${trump.rank} 手${dsc(hand)} 领出${dsc(cards)}(${cl?cl.type:'?'})`;
-  if(/吊主|调主|清主|不动主|留作后手/.test(reason)&&!/不占优|先不动主|留作后手/.test(reason))
-                                note('吊主/调主:领出的真的是主', isTrump, d());
+  if(/钓主|清主|不动主|留作后手/.test(reason)&&!/不占优|先不动主|留作后手/.test(reason))
+                                note('钓主:领出的真的是主', isTrump, d());
   if(/拖拉机/.test(reason))     note('拖拉机:真的是拖拉机', cl&&cl.type==='tractor', d());
   if(/甩牌/.test(reason))       note('甩牌:真的一次多张', cards.length>1, d());
   if(/对子探路|分对/.test(reason)) note('对子:真的是一对', cl&&cl.type==='pair', d());
