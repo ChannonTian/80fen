@@ -737,6 +737,101 @@ pHold = clamp(0.50 − 0.035·(门长ₑ − 基准), 0.15, 0.65)
 
 ## 5. 阶段三:出牌
 
+### 5.0 函数地图:一次领出 / 跟牌 / 扣底经过哪些函数、用哪些参数(2026-09-25)
+
+产品方要的是「每个参数管什么、怎么起作用」。参数的**逐条登记**在 [`SWITCHES.md`](SWITCHES.md)
+(脚本生成,带「读取于」一列:这个参数被哪个函数读);这一节是把函数串起来的**地图**。
+所有打分都折成「分」的量纲(一局 200 分),正分 = 这一手对我方有利。
+
+#### 领出:`aiChooseLead(view)`
+
+```
+leadCtx(view)                      局面:记牌、断门推断、阶段、台面比分、阶梯权重 pw
+  └─ 每门拆组件(decompose)+ 甩牌候选(整门 / 钢板子集 throwBossSubset)
+       └─ scoreLeadPlay = scoreLeadCore + leadTempo
+            scoreLeadCore 按这一手的类型分四支:
+              ① 甩牌             68 + 3×张数 + 1.4×leadPointsEV×pw − 0.35×留手价值     (整门都是钢板且对手不断门)
+              ② 钢板(旧常数式)  bossBase + bossSize×张数 + 1.4×leadPointsEV×pw − 留手价值(副牌×0.35)
+                                  主牌钢板再减 leadTrumpPenalty(收官只减 4),再加 drawTrumpValue(王只加负半边)
+                                  对手可能断门 → −(35+10)×断门概率
+              ②′ 钢板走期望分     leadEV2=1,或 bossRuffEV=1 且对手断门概率 > bossRuffEVP
+              ③ 非钢板            scoreLeadEV(见下)
+            leadTempo            (p×tempoValue − (1−p)×oppTempo)× leadTempoWeight
+                                  leadTempoSplit=1 时拆三份:我拿下 × tempoValue、队友拿下 × partnerCashValue、对手拿下 × oppTempo
+  └─ trumpLeadRel:首选是领进对手断门的副牌时,钓主候选退还 trumpPen × trumpLeadRel
+  └─ endgameSearch(手里 ≤ egMaxCards 张):推演改判,比启发式高出 egMargin 级才改
+```
+
+`scoreLeadEV`(非钢板领出的统一期望分):
+
+| 项 | 式子 | 读的参数 |
+|---|---|---|
+| 本队赢这墩的概率 p | `leadWinP` = 我这张活下来(`pSurvive`)+ 没活下来时队友压回来(`partnerRescueP`) | `leadTeamP` `leadRescueDamp` `rescueRuffAware` |
+| 收益 gain | 我出的分 + `leadPointsEV`(队友贴 ≈ 这门在外分 × 0.33 × 队友不断门;对手被迫漏 × 0.35) | `leadTrumpEVScale` |
+| 损失 loss | 我出的分 + `leadLossPoints`(赢墩那家的队友贴分) | `dumpOpp` `leadTrumpEVScale` |
+| 基本分 | (p×gain − (1−p)×loss)× pw − 留手价值 | — |
+| 牌型 | 对子 + `leadShapeBonus`,拖拉机 + `leadShapeBonus`×(张数−1) | `leadShapeBonus` |
+| **主牌领出**(钓主) | + p × max(0, dt) − **trumpPen**;trumpPen = −min(0,dt)(「一家比两家」的墙,平均 −27)+ `leadWeakTrump`×(1−p) + `trumpLeadPrior`;再 + `tiaoWangValue` | `drawTrumpUnit` `drawTrumpCap` `drawTrumpVsOne` `leadWeakTrump` `tiao*` |
+| **副牌领出** | + `feedRuffValue`(送毙:队友断门)或探路安全加成;− `voidLeadCost` × 对手断这门的概率 | `feedRuff*` `probeSafeBonus` `voidLeadCost` |
+
+#### 跟牌:`aiChooseFollow(view, plays)`
+
+```
+followCtx(view, plays)             当前最大 / 谁暂大 / 我是第几家 / 台面分 / 身后还有谁 / 断门推断 / certainty
+  └─ 候选生成(每一类是一个「想法」,生成出来才有机会被比较):
+       吃 / 毙      minWinFollow(最省的吃法)          加成 ruffOppBonus(台面有分我断门)、罚 ruffVoidBehind(后手有断门对手)
+       稳拿兑现分    cashWinPoints(末家稳拿时出主分牌)   cashWinMinAbove
+       毙得够高      ruffGuardFollow                     ruffGuard ruffGuardBonus ruffGuardMinPts
+       吃得够高      blockWinFollow(压过在外最大分牌)   blockWin
+       队友暂大      该毙就毙(ruffPartnerBonus)/ 接过来(takeOverScoped, overPartner)
+       贴分 / 跟小 / 垫牌   buildFollow('dump' / 'cheap' / 'discard')
+  └─ 每个候选 scorePlay(见下),取最高
+  └─ partnerRuffDump:第 2 家、队友多半断这门会毙 → 改贴分(A3)
+  └─ endgameSearch(同领出)
+```
+
+`scorePlay`(跟牌打分,所有候选同一把尺):
+
+| 项 | 式子 | 读的参数 |
+|---|---|---|
+| 本队赢这墩的概率 p | `pTeamWin`:我压过 → `pSurvive`(身后对手压回来 / 毙回来);我没压、队友暂大 → certainty;我没压、对手暂大 → `pPartnerTakes` | `pPartnerPrior` `pPartnerCalc` `pptMidOpp` `partnerHoldAfter` `willingBeats` `ruffWill*` |
+| 收益 / 损失 | 台面分 + 我出的分 + `laterPoints`(身后的人还会贴多少:按「这门在外的分 ÷ 3」均摊,封顶 10) | `dumpPartner` `dumpOpp` |
+| 基本分 | CAT_K × (p×gain − (1−p)×loss)× pw | —(CAT_K:毙 1.06,其余 1.0) |
+| 牌权 | (p × `tempoValue` − (1−p) × `oppTempo`)× `tempoWeight`(0.35;队友钓主时 `tiaoAccept` 改用 1.0) | `tempoWeight` `oppTempo` `tempoDecay` `tempoCap` |
+| 机会成本 | − `futureValue`(这手牌留着值多少,见下) | 见下 |
+| 跨阶梯 | + `ladderCross`(这一墩的分能不能把闲家推过 40/80/120 线) | `ladderCross` |
+| 规则罚 / 加成 | 各候选生成时带的 penalty | 见上 |
+
+#### 共用的几块
+
+| 函数 | 算什么 | 读的参数 |
+|---|---|---|
+| `futureValue(cards)` | 这手牌留着以后值多少。① 收官护底(只给最可能守到最后一墩的那一手,封顶在底分 × 倍数)② 王对溢价 ③ 主牌 `trumpHold` = `trumpHoldBase` + `trumpHoldTop` ×(1 − 在外比它大的比例)④ 副 A / K、差一张就是钢板(`nearBossHold`)⑤ 跟牌时分牌是负债(−0.30/分)| `endHorizon*` `endKittyCap` `reserveFloor` `jokerPair*` `trumpHold*` `nearBossHold` `pairHold` `ruffReserveW` |
+| `tempoValue` | 拿住牌权值多少:**我手上钢板单元**各自能收的分(这门在外分 × 0.33,封顶 10)按价值降序、每墩 × `tempoDecay` 贴现求和,封顶 `tempoCap` | `tempoDecay` `tempoCap` `fragileBonus` |
+| `pSurvive` | 我这一手活到墩末的概率:身后每家「压得过的牌在他手里的概率 × 他肯出」;断门那家「毙」的概率 = 断门概率 × `ruffWill`(台面有分 / 没分) | `willingBeats` `oppSpend*` `voidCondK` `holdKRange` `ruffWillCal` |
+| `makeVoidProb` | 某家断某门的概率:硬断门 = 1;否则按「他在这门最多还能有几张」(记牌 + 行为读牌)× 他的手牌占比 | `voidReadTrust` `voidReadSoft` `declVoidPrior` |
+| `drawTrumpValue` | 我方主牌占不占优:`drawTrumpUnit` ×(我的主 − 对手预估主),夹在 ±`drawTrumpCap`。`drawTrumpVsOne`=0 时拿我一家比**两个对手合计**,几乎恒为负 | `drawTrumpUnit` `drawTrumpCap` `drawTrumpVsOne` |
+| `pointWeight`(pw) | 阶梯权重:闲家分离下一条阶梯线越近越敏感,典型局面为 1 | `pwGain` |
+| `phaseK` | 开局 / 中盘 / 收官的衰减(留手价值随阶段打折) | `endPhaseKPerPt` `endPhaseKCap` |
+
+#### 扣底:`aiDiscard(hand, trump)`
+
+逐张挑 8 张,每张的分 = −`faceValue`(牌面价值:主牌 `buryTrumpBlock` 挡着、A 挡着)+ 断门贡献
+(整门埋掉给 `voidValue`,埋到只剩连续钢板给 `voidChainCredit` × `voidValue`,按主牌多少打折)
++ 分牌的风险差(留手上被送走的风险 − 埋进底被抠的风险 = 分 ×(2 ×(1 − 守住末墩概率)+ `buryPtShadow`))。
+
+#### 亮主:`aiDeclDecide` / `scoreDeclOption`
+
+见 §3.1:抢庄、主门长度外推、级数、坐庄、造反、关卡、暴露信息各一项,过门槛 θ(随已见牌数递减)就亮。
+
+#### 已知的结构性缺口(对着这张地图看)
+
+* **牌权**只算「我手上稳赢的钢板能收的分」,不算「上手后领出的收益 × 能不能留住牌权」的链;
+  领出和跟牌用同一个值(跟牌再乘 0.35);对手拿到牌权后的收益是常数 `oppTempo` 6。
+* **台面 0 分、我不是末家**:`laterPoints` 按「这门在外的分 ÷ 3」均摊,不是「当前最大压不住分牌时,末家有分牌的概率 × 分数」。
+* **钢板领出**还在常数式 ② 上:`bossBase` 34 起步,非钢板一般在 −10~+5,钢板几乎总是赢 —— 中盘单领大王就是这么来的。
+* **非钢板小主领出被收两遍**:`leadWeakTrump` ×(1−p)(白烧一张主)和 `trumpHold`(这张主的留手价值)说的是同一件事。
+
 ### 5.1 从「赢这墩」改成「净赚多少分」
 
 出牌的择优评分不能只以「是否本队赢下这墩」为目的,而要以「为本队保住/抢到足够分数的
