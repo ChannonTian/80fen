@@ -8,7 +8,7 @@
  *   1) 从 html 里抽出第一个 <script> 块（引擎+AI），在 vm 里跑；
  *   2) 对每条反馈跑一个写死的牌面，打印实际选择 + 是否违反断言。
  * 目的是把「自对弈测不出来的配合类问题」变成可回归的硬断言 ——
- * 自对弈两边是同一个 AI，它从不带着意图去调王，这类题目根本不会被出出来。
+ * 自对弈两边是同一个 AI，它从不带着意图去钓主，这类题目根本不会被出出来。
  */
 const fs=require('fs'), vm=require('vm'), path=require('path');
 const file=process.argv[2];
@@ -134,12 +134,12 @@ console.log(`\n===== ${path.basename(file)} =====\n`);
         ()=>d2&&d2.pass, '造反');
 }
 
-/* ── ② 调主：队友领小主，我持大主应当接过牌权（且要接得够高） ───────── */
+/* ── ② 钓主：队友领小主，我持大主应当接过牌权（且要接得够高） ───────── */
 {
   const hand=['SA','SK','S9','S8','C9','C8','C7','H4','H3','H6','D6','D7','D9'];
   const view={seat:3,trump:T,declSeat:0,history:[],buriedKnown:[],hand:H(hand)};
   const r=E.aiChooseFollow(view,[{seat:1,cards:H(['S4'])},{seat:2,cards:H(['S3'])}]);
-  check('2a','中盘：队友领小主调主、对手跟小 → 我应当接过牌权',
+  check('2a','中盘：队友领小主钓主、对手跟小 → 我应当接过牌权',
         `${ns(r.cards)}（${r.reason}）`, ()=>E.ordIdx(r.cards[0],T)>E.ordIdx(C('S4'),T),
         '出比 S4 大的主牌');
   /* 2b 换成一个**中盘真实**的局面：大小王与正/副常主大都已现身，SA 已接近钢板。
@@ -158,7 +158,7 @@ console.log(`\n===== ${path.basename(file)} =====\n`);
         `${ns(r3.cards)}（${r3.reason}）`, ()=>ns(r3.cards)==='SA', 'SA');
   check('2d','反过来：在外还有十几张主压得住 SA 时，不该硬接（对照组）',
         ns(r.cards), g=>g!=='SA', '不是 SA');
-  // 收官阶段（7 张）：AI 有 93% 的调主发生在这里，而 takeOverScoped 在 end 阶段直接关闭
+  // 收官阶段（7 张）：AI 有 93% 的钓主发生在这里，而 takeOverScoped 在 end 阶段直接关闭
   const v2={seat:3,trump:T,declSeat:0,history:[],buriedKnown:[],
     hand:H(['SA','SK','C9','C8','H4','H3','D6'])};
   const r2=E.aiChooseFollow(v2,[{seat:1,cards:H(['S4'])},{seat:2,cards:H(['S3'])}]);

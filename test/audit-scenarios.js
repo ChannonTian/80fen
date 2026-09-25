@@ -95,12 +95,12 @@ for(let seed=S0+1;seed<=S0+N;seed++){
           const cash=suits.filter(s=>s!==su&&pVoidOf(partnerSeat,s)>PV);
           if(cash.length) later('B2 队友高概率断门,却不领那门兑现', w=>[w%2!==myTeam,0]);
         }
-        /* B3 主门不占优却吊主(我的主牌数 ≤ 未见主牌的 1/3) */
+        /* B3 主门不占优却钓主(我的主牌数 ≤ 未见主牌的 1/3) */
         if(su==='T'){
           let uT=0; for(const k in mem.unseen)
             if(mem.unseen[k]>0&&E.effSuit(E.keyToCard(k),trump)==='T') uT+=mem.unseen[k];
           const nT=hand.filter(x=>E.effSuit(x,trump)==='T').length;
-          if(nT<=uT/3) later('B3 主门不占优却吊主', w=>[w%2!==myTeam,0]);
+          if(nT<=uT/3) later('B3 主门不占优却钓主', w=>[w%2!==myTeam,0]);
         }
       }else{
         const lead=E.classify(plays[0].cards,trump);
@@ -127,7 +127,7 @@ for(let seed=S0+1;seed<=S0+N;seed++){
             if(!E.isLegalFollow(hand,lead,[x],trump)) return false;
             const cl=E.classify([x],trump);
             return cl&&E.structMatches(cl,lead)&&cl.suit===cur.cl.suit&&cl.top>cur.cl.top;});
-          if(ptTrump>0&&couldWin) later('A1 吊主墩:明明有能赢的主却出小主',
+          if(ptTrump>0&&couldWin) later('A1 钓主墩:明明有能赢的主却出小主',
                               (w,p)=>[w%2!==myTeam&&p>0, p]);
         }
         /* A2a 后手对手高概率断这门(会来毙),我却往上贴分 */
