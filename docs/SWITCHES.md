@@ -245,7 +245,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `probeSafeBonus` | `6` | 推断出队友握 A 时,这门的小牌/分牌是贴分,该出 | `scoreLeadEV` `scoreLeadCore` |
 | `leadTrumpEVScale` | `0.45` | 领出主牌时,这一墩能收到的分按副牌口径打的折(主牌人人攥着不放) | `leadPointsEV` `leadLossPoints` |
 | `feedRuff` | `1.0` | 送毙(主打队友断门)的权重;设 0 即整条关闭,便于消融 | `trumpEdgeCount` `feedRuffValue` |
-| `feedRuffMinP` | `0.35` | 队友断门概率低于这个值就不当成送毙机会 | `feedRuffValue` |
+| `feedRuffMinP` | `0.35` | 队友断门概率低于这个值就不当成送毙机会 | `feedTempoValue` `feedRuffValue` |
 
 ### ===== v0.7.21 牌权交接包(产品方 2026-09-24:「这些问题不是孤立的,一起改完一起测」) =====
 
@@ -326,7 +326,8 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
-| `stakeHold` | `0` | (见上方注释)留手价值按座次与底分拆开(产品方,2026-09-25)。 | `oppSpendCeil` `kittyPointsEst` `trumpHold` `futureValue` |
+| `feedTempo` | `0` | 跟牌时「压下后下一墩可以送队友毙」的牌权价值权重(0 = 旧行为),见 feedTempoValue | `scorePlay` |
+| `stakeHold` | `0` | — | `oppSpendCeil` `kittyPointsEst` `trumpHold` `futureValue` |
 | `holdCtrlShare` | `0.4` | — | `trumpHold` |
 | `stakeRef` | `30` | 底分×2 达到多少算「值得整局留手」(15 分底) | `stakeFactor` |
 | `stakeCap` | `1.5` | — | `stakeFactor` |
@@ -380,7 +381,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `leadTempoWeight` | `1.0` | 牌权价值在领出打分里的权重。比跟牌侧(0.35)高得多, | `aiChooseFollow` `leadTempo` |
 | `tempoCap` | `40` | 牌权价值上限(贴现和自己会收敛,这个只当兜底) | `tempoValue` `leadChainValue` `oppChainValue` `partnerCashValue` |
 | `tempoDecay` | `0.80` | 待兑现单元按价值降序的贴现率:下一墩权重最高,往后递减 | `tempoValue` `oppChainValue` `partnerCashValue` |
-| `oppTempo` | `6` | 牌权落到对手手里的估计代价 | `oppChainValue` `scorePlay` `tiaoWangValue` `leadTempo` `partnerCashValue` `feedRuffValue` |
+| `oppTempo` | `6` | 牌权落到对手手里的估计代价 | `oppChainValue` `feedTempoValue` `scorePlay` `tiaoWangValue` `leadTempo` `partnerCashValue` `feedRuffValue` |
 | `fragileBonus` | `0.18` | 每多一张,组合被拆的风险溢价(飞机大炮该早兑现) | `bossUnits` |
 | `dumpPartner` | `0.85` | 队友把本门分贴过来的比例 | `laterPoints` |
 | `dumpOpp` | `0.85` | 后手对手能掏出多少本门分 | `laterPoints` `leadLossPoints` |

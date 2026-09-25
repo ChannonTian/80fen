@@ -1070,6 +1070,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * 帮家也按闲家的倒推公式估底分、替庄家留大王;王对护底溢价庄方两家都给。
    * 1:trumpHoldTop 拆成盘中控制(holdCtrlShare)+ 末墩(按 stakeFactor = 底分×2/stakeRef 缩放);
    *    帮家的底分估计 × partnerKittyK;jokerPairDecl 只给庄家本人。 */
+  feedTempo: 0,               // 跟牌时「压下后下一墩可以送队友毙」的牌权价值权重(0 = 旧行为),见 feedTempoValue
   stakeHold: 0,
   holdCtrlShare: 0.4,
   stakeRef: 30,               // 底分×2 达到多少算「值得整局留手」(15 分底)
@@ -3207,6 +3208,31 @@ function oppChainValue(X){
   return X._ocv=Math.min(v,AIP.tempoCap);
 }
 
+/* 抢权之后「打队友断门」的价值(feedTempo,产品方 2026-09-25)。
+ *
+ * 两家配合的链条:庄家钓主 → 帮家抢权 → 打庄家断门、庄家毙下收割 → 牌权交回庄家。
+ * audit-coop(30 副试跑):帮家一旦有牌权,63% 会领庄家真断门的副花,本队拿下 79%、均 15.7 分;
+ * 可庄家钓主的墩里帮家只拿下 5% —— 链条断在**抢权**这一步。原因:跟牌打分里「牌权值」
+ * 只数我自己的钢板(tempoValue),「拿到牌权后可以送队友毙」这条路一分不给。
+ * 这里用领出侧同一个估计(feedRuffValue 的口径):我手里还有的每门副牌,
+ * 队友断这门的概率 × 对手不断 ×(这门在外的分 + 牌权留在我方),取最好的一门。 */
+function feedTempoValue(X, exclude){
+  if(!X.pVoidOf||X.partnerSeat===undefined) return 0;
+  const drop=new Set((exclude||[]).map(c=>c.id)), trump=X.trump;
+  const trAvail=unseenBeats(X.mem,{suit:'T',top:-1,type:'single'},trump).total;
+  if(trAvail<=0) return 0;
+  const mine=new Set((X.hand||[]).filter(c=>!drop.has(c.id)).map(c=>effSuit(c,trump)));
+  let best=0;
+  for(const su of mine){
+    if(su==='T') continue;
+    const pv=X.pVoidOf(X.partnerSeat,su); if(pv<AIP.feedRuffMinP) continue;
+    const oppNot=1-(X.oppVoidP?X.oppVoidP(su):0);
+    const gain=Math.min(12,unseenPointsIn(X.mem,su,trump)*0.33)+AIP.oppTempo;
+    best=Math.max(best,pv*oppNot*gain);
+  }
+  return best;
+}
+
 // 统一的期望分打分器:先定性(cat),再算这一墩的净期望分,最后扣机会成本
 const CAT_K={ruff:1.06, over:1.0, dump:1.0, cheap:1.0, discard:1.0};
 function scorePlay(X, cards, cat, beatsCur){
@@ -3223,6 +3249,8 @@ function scorePlay(X, cards, cat, beatsCur){
     const us=beatsCur?leadChainValue(X,cards):partnerCashValue(X);
     tempo=(p*us-(1-p)*oppChainValue(X))*AIP.tempoModelW;
   }else tempo=(p*tempoValue(X,cards)-(1-p)*AIP.oppTempo)*(X.tempoW||AIP.tempoWeight);
+  // 我压下 → 下一墩我领,可以送队友毙(只在跟牌时;领出侧已有 feedRuffValue)
+  if(AIP.feedTempo&&beatsCur&&X.lead) tempo+=AIP.feedTempo*p*feedTempoValue(X,cards);
   return (CAT_K[cat]||1)*ev*(X.pw||1)+tempo-futureValue(cards,X)+ladderCross(X,p,gain,loss);
 }
 // 兼容旧接口(教练/测试仍在用)
