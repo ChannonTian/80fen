@@ -323,7 +323,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
-| `tempoModel` | `1` | (v0.7.22 测试版默认开,供试玩;自对弈读数见 CHANGELOG) | `tempoValue` `scorePlay` `leadTempo` |
+| `tempoModel` | `0` | 开 vs 关(1400 种子):−0.78 ±0.32 分/局(t=−2.45,4 块全负)、−0.009 级/局 —— 默认关 | `tempoValue` `scorePlay` `leadTempo` |
 | `tempoModelW` | `1.0` | 新口径下跟牌打分里牌权的权重(两边都是「分」,不再打 0.35 折) | `scorePlay` |
 | `tempoChainMinP` | `0.3` | 守住概率低于这个的那一手不进链(领出去多半是交牌权,链到此为止) | `leadChainValue` |
 | `pwGain` | `0.5` | 比分敏感度对「现在兑现 vs 留着压制」的调节幅度 | `pointWeight` |
