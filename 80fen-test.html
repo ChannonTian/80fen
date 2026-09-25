@@ -1054,6 +1054,10 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    *   打开后,队友要赢的是「这门在外最大的那张落在他而不在中间那家」,再乘中间那家不毙的概率。
    *   主牌墩(钓主)同样适用 —— 对手钓主、我第 2 家跟小主指望队友末手收,中间那家照样能先压一张大主(§7.9 的 A1)。0 = 旧行为。 */
   pptMidOpp: 1,                   // (v0.7.21 测试版默认开,整包见 DESIGN §7.13)
+  /* ruffWillCal —— 断门且有主的那家肯不肯毙,按实测改(见 ruffWill)。0 = 旧的 0.80 / 0.35。 */
+  ruffWillCal: 0,
+  ruffWillZero: 0.72,
+  ruffWillPts: 0.88,
   pwGain: 0.5,                // 比分敏感度对「现在兑现 vs 留着压制」的调节幅度
   grabBonus: 85,              // 无庄盘抢庄红利(有主)
   grabBonusNT: 58,            // 无庄盘抢庄红利(无将,主牌只有12张压不住场)
@@ -2592,6 +2596,16 @@ function pBeaterIn(cl, b, k){
 // 一手牌摆上台面后,还能活到墩末(不被指定的几个对手压掉)的概率。
 // 这是 v3 替换掉 v2 里 0.9/0.35 那几个魔法系数的地方 —— 概率直接从记牌算:
 // 「在外还剩几张能压我」+「他可能缺门来毙」。「队友暂大不是稳大」由此量化。
+/* 「断门的那家手里有主时,肯不肯毙」(v0.7.22 起可校准)。
+ * 旧值是两个手调常数:台面有分 0.80、没分 0.35 —— 「空气墩他懒得毙」。
+ * 实测(v0.7.21 自对弈 200 副,对手真断门且有主、副花单张领到他面前):
+ *     台面没分  第 2 家毙了 70%、第 4 家 75%      台面有分  95% / 84%
+ * 他不毙的话多半就是氽废一张烂牌,对领出方同样不利。打分器按 30% 算被毙,
+ * 于是「知道对手断门还探路」在账面上显得很便宜(§7.14)。 */
+function ruffWill(ptsTable){
+  if(AIP.ruffWillCal) return ptsTable>0?AIP.ruffWillPts:AIP.ruffWillZero;
+  return ptsTable>0?0.80:0.35;
+}
 function pSurvive(X, cl, seats){
   if(!seats||!seats.length) return 0.99;
   const {mem,trump}=X;
@@ -2666,10 +2680,10 @@ function pSurvive(X, cl, seats){
       // willingBeats 打开时,「值不值得他花」已经在 beatsW 里表达过了,不再乘那个常数
       pBeat=pVoidLead*pHasS*(oCeil!==undefined?1:(X.ptsTable>0?0.90:0.50));
     }else if(knownVoid){
-      pBeat=(X.ptsTable>0?0.80:0.35)*(trAvail>0?0.85:0);   // 已知缺门 → 只可能被毙
+      pBeat=ruffWill(X.ptsTable)*(trAvail>0?0.85:0);   // 已知缺门 → 只可能被毙
     }else{
       pBeat=(1-pVoidLead)*pHasS
-           +pVoidLead*(X.ptsTable>0?0.80:0.35)*(trAvail>0?0.85:0);
+           +pVoidLead*ruffWill(X.ptsTable)*(trAvail>0?0.85:0);
     }
     p*=1-clamp(pBeat,0,0.97);
   }
@@ -2698,7 +2712,7 @@ function pPartnerTakes(X){
   const pVoid=leadSuit==='T'?0
     :(X.partnerSeat!==undefined&&X.pVoidOf?X.pVoidOf(X.partnerSeat,leadSuit):0.12);
   const trAvail=unseenBeats(mem,{suit:'T',top:-1,type:'single'},trump).total;
-  const pRuff=(X.ptsTable>0?0.80:0.35)*(trAvail>0?0.85:0);
+  const pRuff=ruffWill(X.ptsTable)*(trAvail>0?0.85:0);
   let take=(1-pVoid)*pHas+pVoid*pRuff;
   /* 我和队友之间还隔着一个对手(见 AIP.pptMidOpp):队友要压的不是当前这张,是那家可能压上来的;
    * 那家断这门的话还可能直接毙。 */
@@ -2710,7 +2724,7 @@ function pPartnerTakes(X){
       const pn=expHoldIn(X,X.partnerSeat,leadSuit), on=expHoldIn(X,m,leadSuit);
       const pTop=pn+on>0?pn/(pn+on):0;
       // 主牌墩(钓主)里中间那家不存在「毙」,只有压不压得过
-      const pMidRuff=leadSuit==='T'?0:X.pVoidOf(m,leadSuit)*(trAvail>0?0.85:0)*(X.ptsTable>0?0.80:0.35);
+      const pMidRuff=leadSuit==='T'?0:X.pVoidOf(m,leadSuit)*(trAvail>0?0.85:0)*ruffWill(X.ptsTable);
       const takeMid=((1-pVoid)*Math.min(pHas,pTop)+pVoid*pRuff*(1-0.5*pMidRuff))*(1-pMidRuff);
       take=Math.min(take,takeMid);
     }

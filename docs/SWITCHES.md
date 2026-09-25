@@ -308,6 +308,14 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | 参数 | 默认 | 说明 |
 |---|---|---|
 | `pptMidOpp` | `1` | (v0.7.21 测试版默认开,整包见 DESIGN §7.13) |
+
+### ruffWillCal —— 断门且有主的那家肯不肯毙,按实测改(见 ruffWill)。0 = 旧的 0.80 / 0.35。
+
+| 参数 | 默认 | 说明 |
+|---|---|---|
+| `ruffWillCal` | `0` | — |
+| `ruffWillZero` | `0.72` | — |
+| `ruffWillPts` | `0.88` | — |
 | `pwGain` | `0.5` | 比分敏感度对「现在兑现 vs 留着压制」的调节幅度 |
 | `grabBonus` | `85` | 无庄盘抢庄红利(有主) |
 | `grabBonusNT` | `58` | 无庄盘抢庄红利(无将,主牌只有12张压不住场) |
