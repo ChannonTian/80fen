@@ -17,16 +17,16 @@ function setup(){
     }
     return elements.get(id);
   };
-  const document={getElementById:element,querySelectorAll:()=>[],querySelector:()=>null,addEventListener(){}};
-  const window={addEventListener(){}};
-  const context=vm.createContext({document,window,location:{search:'',origin:'http://localhost'},parent:{},URLSearchParams,console,ResizeObserver:class{observe(){}},requestAnimationFrame:f=>f(),setTimeout:()=>1,clearTimeout(){}});
+  const document={body:element('body'),getElementById:element,querySelectorAll:()=>[],querySelector:()=>null,addEventListener(){}};
+  const window={innerWidth:390,innerHeight:844,addEventListener(){}};
+  const context=vm.createContext({document,window,location:{href:'http://localhost/',search:'',origin:'http://localhost'},history:{replaceState(){}},parent:{},URL,URLSearchParams,console,ResizeObserver:class{observe(){}},requestAnimationFrame:f=>f(),setTimeout:()=>1,clearTimeout(){}});
   for(const file of ['engine.js','fan.js','table.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'../dist',file),'utf8'),context,{filename:file});
   const run=source=>vm.runInContext(source,context);
   const pointer=(type,id,x,y)=>{
     const b=element('card'+id);b.dataset={card:String(id),row:'1'};b.closest=()=>b;
     element('fanViewport').events[type]({button:0,pointerId:1,clientX:x,clientY:y,target:b,preventDefault(){}});
   };
-  return{run,element,pointer};
+  return{run,element,pointer,window};
 }
 test('25 and 33 cards stay in two fans with unique IDs; main and counter suits lose no cards',()=>{
   const {run}=setup();
@@ -107,4 +107,35 @@ test('geometry preserves a readable exposed edge and recoverable horizontal boun
     assert.ok(l.cards.every(c=>c.y+c.height<=h+1));
   }
   assert.equal(F.intent(40,2),'scrub');assert.equal(F.intent(3,-30),'drag');assert.equal(F.intent(2,2),'pending');
+});
+
+
+test('wide plan fits 25 cards on a phone and 33 on tablet/desktop without shrinking exposed edges',()=>{
+  const cards=Array.from({length:33},(_,id)=>({id,suit:'S',rank:2+Math.floor(id/2)}));
+  for(const [width,height,count,expectedTwo] of [[568,320,25,false],[750,390,25,false],[844,390,33,false],[768,1024,33,true],[1024,768,33,false],[1320,900,33,false]]){
+    const plan=F.widePlan(cards.slice(0,count),width,height);
+    assert.equal(plan.twoRows,expectedTwo);assert.equal(plan.rows.flat().length,count);
+    assert.equal(new Set(plan.rows.flat().map(c=>c.id)).size,count);
+    for(const l of plan.layouts){
+      assert.ok(l.cards.every(c=>c.y+c.height<=plan.height));
+      assert.ok(l.cards.slice(1).every((c,i)=>c.x-l.cards[i].x>=23.99));
+    }
+    if(width>=1024||count===25&&width>=750)assert.ok(plan.layouts.every(l=>l.width<=width+.01));
+    if(height===320)assert.ok(plan.height+42+50+90<=320);
+  }
+  assert.equal(F.isWide(390,844,'auto'),false);
+  assert.equal(F.isWide(844,390,'auto'),true);
+  assert.equal(F.isWide(768,1024,'auto'),true);
+  assert.equal(F.isWide(1440,900,'portrait'),false);
+  assert.equal(F.isWide(390,844,'wide'),false);
+});
+test('rotation and layout switching retain selection and trick state',()=>{
+  const {run,element,window}=setup();
+  run("hand.filter(c=>c.suit==='D'&&c.rank===10).forEach(c=>toggle(c.id))");
+  window.innerWidth=844;window.innerHeight=390;element('fanViewport').clientWidth=844;
+  run('renderHand()');assert.equal(run('wideLayout'),true);assert.equal(run('rowCards[1].length'),0);assert.equal(run('selected.size'),2);assert.equal(run('plays.length'),3);
+  run("setLayout('portrait')");assert.equal(run('wideLayout'),false);assert.equal(run('selected.size'),2);
+  run("setLayout('auto');submit()");assert.equal(run('score'),95);assert.equal(run('hand.length'),23);
+  window.innerWidth=390;window.innerHeight=844;element('fanViewport').clientWidth=390;
+  run('renderHand()');assert.equal(run('wideLayout'),false);assert.equal(run('completed'),true);assert.equal(run('score'),95);
 });

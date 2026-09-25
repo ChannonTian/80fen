@@ -2,6 +2,8 @@
 const E=window.TableEngine,F=window.FanUI,$=id=>document.getElementById(id);
 const trump={suit:'H',rank:5},glyph={T:'主',H:'♥',S:'♠',D:'♦',C:'♣',X:'✦'},names={T:'主牌',H:'红桃',S:'黑桃',D:'方块',C:'梅花',X:'王'};
 let hand=[],selected=new Set(),scene='follow',completed=false,plays=[],score=55,serial=0,resultCards=[],kittyCards=[],declaration=null,descending=true;
+let layoutMode=['auto','wide','portrait'].includes(new URLSearchParams(location.search).get('layout'))?new URLSearchParams(location.search).get('layout'):'auto';
+let wideLayout=false;
 let layouts=[],rowCards=[],gesture=null,toastTimer,framePending=false,sheetMode='';
 const card=(s,r)=>({suit:s,rank:r,id:serial++});
 const rank=r=>({11:'J',12:'Q',13:'K',14:'A',15:'小王',16:'大王'}[r]||String(r));
@@ -34,16 +36,40 @@ function face(c){
 function cardMarkup(c,classes='',attributes=''){
   return `<button class="playing-card ${color(c)} ${c.suit==='X'?'joker':''} ${classes} ${selected.has(c.id)?'selected':''}" data-card="${c.id}" aria-label="${label(c)}，第${c.id+1}张" aria-pressed="${selected.has(c.id)}" ${completed?'disabled':''} ${attributes}>${face(c)}</button>`;
 }
-function pile(cards){return `<div class="played-hand" style="width:${58+Math.max(0,cards.length-1)*23}px">${cards.map((c,i)=>`<div class="playing-card ${color(c)} ${c.suit==='X'?'joker':''}" style="--i:${i}" aria-label="${label(c)}">${face(c)}</div>`).join('')}</div>`;}
+function pile(cards){return `<div class="played-hand" style="width:calc(var(--table-card-w,58px) + ${Math.max(0,cards.length-1)} * var(--pile-step,23px))">${cards.map((c,i)=>`<div class="playing-card ${color(c)} ${c.suit==='X'?'joker':''}" style="--i:${i}" aria-label="${label(c)}">${face(c)}</div>`).join('')}</div>`;}
+function syncLayout(){
+  const width=window.innerWidth||390,height=window.innerHeight||844;
+  wideLayout=F.isWide(width,height,layoutMode);
+  $('game').classList.toggle('wide',wideLayout);
+  $('game').classList.toggle('compact',wideLayout&&height<=520);
+  document.body.classList.toggle('wide-view',wideLayout);
+  return{width,height};
+}
+function setLayout(mode){
+  if(!['auto','wide','portrait'].includes(mode))return;
+  stopGesture(true);layoutMode=mode;
+  const url=new URL(location.href);url.searchParams.set('layout',mode);history.replaceState(null,'',url);
+  $('sheet').close();renderHand();
+  if(mode==='wide'&&!wideLayout)toast('横过手机，即可展开横屏牌桌');
+}
 function renderHand(){
-  const width=$('fanViewport').clientWidth||390,height=$('handArea').clientHeight||260;
-  rowCards=F.split(groups().flatMap(g=>g.cards));layouts=rowCards.map((cards,row)=>F.layout(cards,width,height,row));
+  const viewport=syncLayout(),width=$('fanViewport').clientWidth||390,height=$('handArea').clientHeight||260;
+  const sorted=groups().flatMap(g=>g.cards);
+  if(wideLayout){
+    const plan=F.widePlan(sorted,width,viewport.height);rowCards=plan.rows;layouts=plan.layouts;
+    $('game').style.setProperty('--hand-height',plan.height+'px');
+    $('game').classList.toggle('two-fans',plan.twoRows);
+  }else{
+    rowCards=F.split(sorted);layouts=rowCards.map((cards,row)=>F.layout(cards,width,height,row));
+  }
+  $('fan0').setAttribute('aria-label',rowCards[1].length?'上层手牌':'扇形手牌');
   rowCards.forEach((cards,row)=>{
     const l=layouts[row];$('fan'+row).style.width=l.width+'px';
     $('fan'+row).innerHTML=cards.map((c,i)=>{const p=l.cards[i];const off=scene==='follow'&&!completed&&E.effSuit(c,trump)!=='D';return cardMarkup(c,'hand-card'+(off?' off-suit':''),`data-row="${row}" data-index="${i}" style="left:${p.x}px;top:${p.y}px;width:${p.width}px;height:${p.height}px;--angle:${p.angle}deg;z-index:${row*40+i};transform:translateY(${selected.has(c.id)?-24:0}px) rotate(${p.angle}deg)"`);}).join('');
   });
   $('handCount').textContent=hand.length+' 张';
   const overflow=layouts.some(l=>l.width>width+1);
+  $('handWheel').classList.toggle('no-overflow',!overflow);
   $('pan').disabled=!overflow;$('panHint').textContent=overflow?'左右拨牌':'已全部展开';
   panHand();updateSelection();
 }
@@ -69,7 +95,7 @@ function updateSelection(){
     if(b.classList.contains('hand-card'))b.style.transform=`translateY(${s?-24:0}px) rotate(${b.style.getPropertyValue('--angle')})`;
   });
   const v=legality();$('instruction').textContent=v.text;
-  $('context').textContent=completed?'点击「再试一手」重新开始':isBidding()?'':scene==='bury'?'点选后在底部埋底':selected.size?'拖到牌桌，松手出牌':'点牌选中 · 按住滑动可看清';
+  $('context').textContent=layoutMode==='wide'&&!wideLayout?'横过手机或加宽窗口，展开横屏':completed?'点击「再试一手」重新开始':isBidding()?'':scene==='bury'?'点选后在底部埋底':selected.size?'拖到牌桌，松手出牌':'点牌选中 · 按住滑动可看清';
   $('tapPlay').hidden=isBidding()||scene==='bury'||!selected.size&&!completed;
   $('tapPlay').disabled=!v.ok;$('tapPlay').textContent=completed?'再试一手':`出牌 ${selected.size} 张`;
   $('clear').disabled=$('clearAll').disabled=!selected.size||completed;
@@ -79,6 +105,7 @@ function updateSelection(){
 }
 function render(){
   $('arena').classList.toggle('finished',completed);
+  $('game').classList.toggle('is-bidding',isBidding());
   $('trumpStatus').innerHTML=isBidding()&&!declaration?'待亮主 <em>打 5</em>':`<i>${glyph[trump.suit]||'♛'}</i>${trump.suit?names[trump.suit]+'主':'无主'}<em>打 5</em>`;
   $('role').textContent=scene==='bury'?'我方守庄':isBidding()?'发牌阶段':'我方攻分';
   const points=scene==='bury'||isBidding()?0:score;
@@ -196,13 +223,14 @@ function openSheet(title,html,mode='menu'){
 }
 function openOverview(){openSheet(`手牌 · ${hand.length} 张`,groups().map(({s,cards})=>`<h3 class="overview-title">${s==='T'?'主牌':glyph[s]+' '+names[s]}<span>${cards.length} 张</span></h3><div class="card-grid">${cards.map(c=>cardMarkup(c)).join('')}</div>`).join(''),'overview');}
 function openMenu(){
-  openSheet('牌局菜单',`<button class="menu-option" data-load="follow">跟对子<small>25 张手牌 · 对家暂大 · 拖牌出手</small></button><button class="menu-option" data-load="lead">出拖拉机<small>试着选中 ♠J 对与 ♠Q 对</small></button><button class="menu-option" data-load="bury">拿底扣底<small>33 张手牌 · 底部确认埋底</small></button><button class="menu-option" data-load="declare">亮主与加固<small>先亮 ♥5，再用 ♥5 对加固</small></button><button class="menu-option" data-load="counter">抢按反主<small>下家已亮 ♠5，你可以用 ♥5 对反主</small></button><button class="menu-option" id="history">看本墩出牌</button><button class="menu-option" id="help">操作说明</button><p class="sheet-copy"><small>交互原型：固定局面，尚未接入完整对局。</small></p><a class="sheet-link" href="lab.html">屏幕尺寸实验室 ↗</a>`);
+  openSheet('牌局菜单',`<p class="layout-label">牌桌布局</p><div class="layout-options">${[['auto','自动适配'],['wide','横屏大屏'],['portrait','竖屏对照']].map(([mode,title])=>`<button data-layout="${mode}" aria-pressed="${mode===layoutMode}">${title}</button>`).join('')}</div><button class="menu-option" data-load="follow">跟对子<small>25 张手牌 · 对家暂大 · 拖牌出手</small></button><button class="menu-option" data-load="lead">出拖拉机<small>试着选中 ♠J 对与 ♠Q 对</small></button><button class="menu-option" data-load="bury">拿底扣底<small>33 张手牌 · 底部确认埋底</small></button><button class="menu-option" data-load="declare">亮主与加固<small>先亮 ♥5，再用 ♥5 对加固</small></button><button class="menu-option" data-load="counter">抢按反主<small>下家已亮 ♠5，你可以用 ♥5 对反主</small></button><button class="menu-option" id="history">看本墩出牌</button><button class="menu-option" id="help">操作说明</button><p class="sheet-copy"><small>交互原型：固定局面，尚未接入完整对局。</small></p><a class="sheet-link" href="lab.html">屏幕尺寸实验室 ↗</a>`);
   $('history').onclick=()=>openSheet('本墩',`${completed?`<p class="result-note">${legality().text}</p>`:''}${plays.map(p=>`<div class="history-entry"><b>${['你','下家 · 首攻','对家','上家'][p.seat]}</b>${p.cards.map(shortLabel).join('　')}</div>`).join('')||'<p class="sheet-copy">还没有出牌。</p>'}`);
   $('help').onclick=()=>openSheet('拿牌、看牌、出牌',`<p class="sheet-copy">点一下选牌，选中的牌会升起；再点取消。按住花字左右滑动，会放大当前牌，松手选中它。</p><p class="sheet-copy">从选中的牌向上拖，整组牌会跟着手指走。进入桌面的高亮区域后松手才出牌；拖回来或拖到桌外，都会保留选择。</p><p class="sheet-copy">需要看两侧的牌，可左右拨动手牌下方的滑块。底部「展牌」可展开完整牌面选牌；桌边也有点击出牌入口。</p><p class="sheet-copy">主牌排在最前，同门按大小相邻。菜单可切换 33 张扣底与抢主阶段。亮主、加固和反主只在对应阶段开放。</p>`);
 }
 document.addEventListener('click',e=>{
   const b=e.target.closest('[data-card]');if(b&&(!b.classList.contains('hand-card')||e.detail===0))toggle(Number(b.dataset.card));
   const l=e.target.closest('[data-load]');if(l)loadScene(l.dataset.load);
+  const mode=e.target.closest('[data-layout]');if(mode)setLayout(mode.dataset.layout);
 });
 $('pan').oninput=panHand;$('clear').onclick=$('clearAll').onclick=()=>{selected.clear();updateSelection();};
 $('tapPlay').onclick=$('buryConfirm').onclick=$('sheetSubmit').onclick=submit;
@@ -211,5 +239,7 @@ $('sort').onclick=()=>{descending=!descending;renderHand();$('sort').textContent
 $('kitty').onclick=()=>{if(scene!=='bury')return;openSheet(completed?'已埋底牌':'拿到的 8 张底牌',`<p class="sheet-copy">${completed?'你是庄家，可以查看已扣下的底牌。':'这些底牌已经加入手牌。选满 8 张，再在底部埋底。'}</p><div class="card-grid">${kittyCards.map(c=>`<div class="playing-card ${color(c)} ${c.suit==='X'?'joker':''}">${face(c)}</div>`).join('')}</div>`);};
 $('declare').onclick=()=>bid('declare');$('reinforce').onclick=()=>bid('reinforce');$('counter').onclick=()=>bid('counter');
 window.addEventListener('message',e=>{if(e.origin===location.origin&&e.source===parent&&e.data?.type==='scene')loadScene(e.data.scene);});
-new ResizeObserver(()=>{if(framePending)return;framePending=true;requestAnimationFrame(()=>{framePending=false;if(gesture)stopGesture(true);renderHand();});}).observe($('handArea'));
+function scheduleLayout(){if(framePending)return;framePending=true;requestAnimationFrame(()=>{framePending=false;if(gesture)stopGesture(true);renderHand();});}
+new ResizeObserver(scheduleLayout).observe($('handArea'));
+window.addEventListener('resize',scheduleLayout);
 loadScene(new URLSearchParams(location.search).get('scene')||'follow');
