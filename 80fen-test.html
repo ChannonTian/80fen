@@ -328,7 +328,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.22(测试版)</div>
+<div id="versionTag">80分 v0.7.23(测试版)</div>
 
 <script>
 /* ============================================================
@@ -830,7 +830,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * 11.3/11.2/10.7,分数 −0.18±0.12 / −0.13±0.15 / +0.25±0.25 全在噪声里。
    * 默认 0。留着是因为它是上面那个 2×2 的自变量。 */
   buryPtShadow: 0,
-  buryLowConf: 0,             // 守末墩没信心时每分底分的额外代价(0 = 旧行为),见 aiDiscard
+  buryLowConf: 2,             // (v0.7.23 测试版默认开)守末墩没信心时每分底分的额外代价(0 = 旧行为),见 aiDiscard
   buryConfLine: 0.75,
   buryConfBand: 0.2,
   /* 队友「压回来」要分清是被本门大牌压的、还是被毙掉的(见 partnerRescueP)。
@@ -1070,11 +1070,11 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * 帮家也按闲家的倒推公式估底分、替庄家留大王;王对护底溢价庄方两家都给。
    * 1:trumpHoldTop 拆成盘中控制(holdCtrlShare)+ 末墩(按 stakeFactor = 底分×2/stakeRef 缩放);
    *    帮家的底分估计 × partnerKittyK;jokerPairDecl 只给庄家本人。 */
-  feedTempo: 0,               // 跟牌时「压下后下一墩可以送队友毙」的牌权价值权重(0 = 旧行为),见 feedTempoValue
-  stakeHold: 0,
+  feedTempo: 1,               // (v0.7.23 测试版默认开)跟牌时「压下后下一墩可以送队友毙」的牌权价值权重(0 = 旧行为),见 feedTempoValue
+  stakeHold: 1,               // (v0.7.23 测试版默认开)
   holdCtrlShare: 0.4,
   stakeRef: 30,               // 底分×2 达到多少算「值得整局留手」(15 分底)
-  stakeCap: 1.5,
+  stakeCap: 1.0,              // 只往下打折、不超过旧的顶格值(旧常数就是「底分足够大」时的值);1.5 时自测「收官+30 分底:主A 仍肯花」不过
   partnerKittyK: 0.25,
   /* trumpSealW 现在是常数。正确形式(产品方,2026-09-25,待做):末家肯不肯拿大主来盖,
    * 是他两笔账的比较 —— ① 拿下这墩之后牌权的预期收益(接下来 n 墩,按他的座次与手牌);
@@ -5196,7 +5196,11 @@ function runTests(E){
     const view={seat:0,trump:T,history:[],buriedKnown:[],
                 hand:[C('S',14),C('S',13),C('S',9),C('S',8),C('S',7),C('H',3),C('D',4)]};
     const L=E.leadCtx(view);
+    // leadTempoSplit(v0.7.21)把「队友接过去之后兑现什么」挪进了 leadTempo,tiaoWangValue 不再重复记 ——
+    // 这条断言问的是钓主本身的收益,在旧口径下量
+    const lts=E.AIP.leadTempoSplit; E.AIP.leadTempoSplit=0;
     const v=E.tiaoWangValue(L,E.classify([C('S',7)],T),[C('S',7)]);
+    E.AIP.leadTempoSplit=lts;
     ok('主多于对手时,小主领出被认成钓主(收益为正)', v>0);
     ok('钓主关掉后收益归零',
        (()=>{const o=E.AIP.tiaoWang;E.AIP.tiaoWang=0;
@@ -5494,7 +5498,10 @@ function runTests(E){
       const noRead=E.maxHoldIn(E.makeReads([],T),mem,3,'H',T);
       ok('出牌方式反推:持有上界大幅收紧', withRead<=3 && noRead>10);
       const pv=E.makeVoidProb(E.makeReads(hist,T),mem,T,view.hand.length);
-      ok('出牌方式反推:断门概率显著抬升', pv(3,'H')>0.6);
+      const pv0=E.makeVoidProb(E.makeReads([],T),mem,T,view.hand.length);
+      // voidReadTrust(v0.7.21,calib-infer 校准)把行为读牌从「推到 0 张 = 100% 断门」软化了 ——
+      // 这条问的是「显著抬升」,按相对无读牌时的抬升量看
+      ok('出牌方式反推:断门概率显著抬升', pv(3,'H')>0.6||(E.AIP.voidReadTrust<1&&pv(3,'H')-pv0(3,'H')>0.3));
       // 队友暂大时用贴分序、否则用最便宜序 —— 两条序不能混用
       ok('贴分序:分牌排在废牌之前', E.dumpKey(C('H',10),T)<E.dumpKey(C('H',3),T));
       ok('最便宜序:分牌排在废牌之后', E.cheapKey(C('H',10),T)>E.cheapKey(C('H',3),T));

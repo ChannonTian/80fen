@@ -66,7 +66,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
 | `buryPtShadow` | `0` | (见上方注释)埋分的影子成本:每 1 分底分,额外折算多少「分」的留手负担。 | `aiDiscard` |
-| `buryLowConf` | `0` | 守末墩没信心时每分底分的额外代价(0 = 旧行为),见 aiDiscard | `aiDiscard` |
+| `buryLowConf` | `2` | (v0.7.23 测试版默认开)守末墩没信心时每分底分的额外代价(0 = 旧行为),见 aiDiscard | `aiDiscard` |
 | `buryConfLine` | `0.75` | — | `aiDiscard` |
 | `buryConfBand` | `0.2` | — | `aiDiscard` |
 
@@ -326,11 +326,11 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
-| `feedTempo` | `0` | 跟牌时「压下后下一墩可以送队友毙」的牌权价值权重(0 = 旧行为),见 feedTempoValue | `scorePlay` |
-| `stakeHold` | `0` | — | `oppSpendCeil` `kittyPointsEst` `trumpHold` `futureValue` |
+| `feedTempo` | `1` | (v0.7.23 测试版默认开)跟牌时「压下后下一墩可以送队友毙」的牌权价值权重(0 = 旧行为),见 feedTempoValue | `scorePlay` |
+| `stakeHold` | `1` | (v0.7.23 测试版默认开) | `oppSpendCeil` `kittyPointsEst` `trumpHold` `futureValue` |
 | `holdCtrlShare` | `0.4` | — | `trumpHold` |
 | `stakeRef` | `30` | 底分×2 达到多少算「值得整局留手」(15 分底) | `stakeFactor` |
-| `stakeCap` | `1.5` | — | `stakeFactor` |
+| `stakeCap` | `1.0` | 只往下打折、不超过旧的顶格值(旧常数就是「底分足够大」时的值);1.5 时自测「收官+30 分底:主A 仍肯花」不过 | `stakeFactor` |
 | `partnerKittyK` | `0.25` | — | `kittyPointsEst` |
 
 ### trumpSealW 现在是常数。正确形式(产品方,2026-09-25,待做):末家肯不肯拿大主来盖,
