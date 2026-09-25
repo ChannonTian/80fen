@@ -1063,7 +1063,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    *   概率从高到低排,牌权值 = Σ 第 j 手能收的分 × p₁×…×pⱼ(第一墩留住牌权的概率,就是能兑现下一墩收益的概率)。
    *   对手的牌权值不再是常数 oppTempo:按推断估对手手里各门最大那张能收多少、扣掉我方能毙的那部分。
    *   跟牌时:我压下 → 我的链;指望队友拿 → 队友能兑现多少(partnerCashValue)。0 = 旧口径。 */
-  tempoModel: 0,
+  tempoModel: 1,               // (v0.7.22 测试版默认开,供试玩;自对弈读数见 CHANGELOG)
   tempoModelW: 1.0,          // 新口径下跟牌打分里牌权的权重(两边都是「分」,不再打 0.35 折)
   tempoChainMinP: 0.3,       // 守住概率低于这个的那一手不进链(领出去多半是交牌权,链到此为止)
   pwGain: 0.5,                // 比分敏感度对「现在兑现 vs 留着压制」的调节幅度
@@ -5690,6 +5690,8 @@ function openSettings(){
     // 名字里不出现"局" —— 一局是一副牌,这里重置的是整场(从打 2 开始的那一整串)。
     `<div class="setRow" style="margin-top:0;justify-content:center">
        <button id="stNewMatch" style="background:#c0392b;color:#fff">🔄 重开整场(级数归零)</button></div>`+
+    `<div class="setRow" style="justify-content:center">
+       <button class="minor" onclick="window.__importRecord()">📥 导入牌谱(复盘别人发来的一局)</button></div>`+
     // 顺序按预期改动频率从高到低排:显示/音效、节奏是每次开局都可能顺手调的;
     // 教练模式跟练习目标走,时有变化;规则是几个人说好怎么打就定下来的房规,最少动。
     `<div class="setSection">显示与音效</div>`+
@@ -6490,6 +6492,37 @@ window.__newMatch=()=>{ M={levels:[2,2],dealer:-1,round:0,played:[-1,-1],past:[]
   // 笔记是记这一场的(第几局谁扣了什么底),整场重开就该跟着清空 —— 否则局号会串到新的一场
   notes=[]; try{ localStorage.removeItem(LSP+'notes'); }catch(e){}
   document.getElementById('overlay').style.display='none'; newRound(); };
+/* 导入牌谱(v0.7.22):把「复制牌谱」导出的那段文字贴回来,载入到「对局记录」里复盘。
+ * 载入的这一局追加在跨局复盘的局号按钮里(标成「导入 N」),不影响当前这一场的级数和比分。 */
+window.__importRecord=()=>{
+  showModal(`<div style="margin-bottom:6px">把「复制牌谱」得到的那段文字粘贴到下面:</div>`+
+    `<textarea id="impText" style="width:100%;height:140px;font-size:11px"></textarea>`+
+    `<div style="margin-top:8px;text-align:center"><button id="impGo">载入复盘</button> <span id="impMsg" style="color:#e88"></span></div>`);
+  document.getElementById('impGo').onclick=()=>{
+    try{
+      const rec=JSON.parse(document.getElementById('impText').value.trim());
+      if(!rec.initialHands||!rec.tricks) throw new Error('缺少手牌或出牌记录');
+      let uid=0; const card=code=>({suit:code[0],rank:+code.slice(1),id:'imp'+(uid++)});
+      const hands=rec.initialHands.map(h=>h.map(card));
+      const pool=hands.map(h=>h.slice());
+      // 出牌里的牌从对应那家的初始手牌里取,这样复盘时同一张牌前后是同一个对象
+      const take=(seat,code)=>{ const h=pool[seat]; const i=h.findIndex(x=>x.suit+x.rank===code);
+        return i>=0?h.splice(i,1)[0]:card(code); };
+      const tricks=rec.tricks.map((t,i)=>({no:i+1,winner:t.winner,points:t.points,
+        plays:t.plays.map(p=>({seat:p.seat,cards:p.cards.map(cd=>take(p.seat,cd))}))}));
+      const nImp=M.past.filter(r=>r.imported).length+1;
+      M.past.push({no:'导入 '+nImp, imported:true, trump:rec.trump, declSeat:rec.declSeat,
+        defPoints:rec.defPoints, defendersWin:rec.defPoints>=80, kittyPts:rec.kittyPts, mult:rec.mult,
+        levelsBefore:rec.levelsBefore||[2,2], levelsAfter:rec.levelsAfter||[2,2],
+        initialHands:hands, buried:(rec.buried||[]).map(card), tricks,
+        log:[{text:`导入的牌谱(${rec.version||'版本不明'},原局第 ${rec.no} 局,人坐${SEAT_NAME[rec.human]||'?'})`}]});
+      logRound=M.past.length-1; logMode='trick'; logFocus=0; activeTab='log';
+      // 还没开局时 G 是空的:牌桌不重画(render 要读 G),只画右侧的复盘面板
+      window.__closeSet(); if(G) render(); renderPanel();
+      if(G) setMsg('牌谱已载入:「对局记录」页签里可以逐墩复盘');
+    }catch(e){ document.getElementById('impMsg').textContent='读不懂这段文字:'+e.message; }
+  };
+};
 /* 复制牌谱(v0.7.22):把刚打完的这一局原样导出,供开发者逐手还原 AI 的决定。
  * 牌写成「花色 + 点数」:S/H/D/C,11~14 = J Q K A;X15 小王、X16 大王。
  * initialHands 是扣底之后、开打之前四家的手牌;buried 是庄家扣的 8 张;tricks 是每一墩四家按出牌顺序出的牌。
@@ -6708,7 +6741,10 @@ function renderPanel(){
     /* 看的是「哪一局」和「怎么看」两件独立的事,所以是两行:
      * 第一行选局(只有打完过局才出现),第二行选视图。
      * 往回翻的局全都已经结束,初始手牌一律可看 —— 只有当前这局要防开天眼。 */
-    const past=logRound!=null?M.past[logRound]:null;
+    let past=logRound!=null?M.past[logRound]:null;
+    // 还没开局(只导入了牌谱)时「本局」无可看 —— 退回最近一局导入 / 往局
+    if(!past&&!G&&M.past.length){ logRound=M.past.length-1; past=M.past[logRound]; }
+    if(!past&&!G){ el.innerHTML='<span style="opacity:.6">还没开局。可以在设置里「导入牌谱」复盘别人发来的一局。</span>'; return; }
     const src=past||{tricks:G.tricks, log:G.log, initialHands:G.initialHands,
                      buried:G.buried, trump:curTrumpForSort(), declSeat:G.declSeat};
     const done=past?true:!!G.ended;
@@ -6716,7 +6752,7 @@ function renderPanel(){
     if(M.past.length){
       html+=`<div class="toggleRow" style="flex-wrap:wrap">`+
         `<button class="minor${logRound==null?' on':''}" data-lr="cur" style="padding:3px 10px;font-size:13px">本局</button>`+
-        M.past.map((r,i)=>`<button class="minor${logRound===i?' on':''}" data-lr="${i}" style="padding:3px 10px;font-size:13px">第${r.no}局</button>`).join('')+
+        M.past.map((r,i)=>`<button class="minor${logRound===i?' on':''}" data-lr="${i}" style="padding:3px 10px;font-size:13px">${r.imported?r.no:`第${r.no}局`}</button>`).join('')+
         `</div>`;
     }
     const MODES=[['event','事件'],['trick','每墩出牌'],['suit','按花色']];
@@ -6726,7 +6762,7 @@ function renderPanel(){
       ` title="把右栏拉宽,复盘时看得清楚些">⇔ ${SIDE_NAMES[sideStep]}</button>`+`</div>`;
     if(past){
       const who=past.declSeat%2===HUMAN%2?'你们':'对方';
-      html+=`<div class="suitGroup" style="font-size:13px">第${past.no}局:${SEAT_NAME[past.declSeat]}(${who})坐庄,`+
+      html+=`<div class="suitGroup" style="font-size:13px">${past.imported?past.no:`第${past.no}局`}:${SEAT_NAME[past.declSeat]}(${who})坐庄,`+
         `主 ${past.trump.suit?SUIT_SYM[past.trump.suit]:'无主'}${rankName(past.trump.rank)},`+
         `${T('defenders')}得 ${past.defPoints} 分 → ${past.defendersWin?T('defenders')+'上台':'庄家守住'};`+
         `级数 ${past.levelsBefore.map(x=>rankName(Math.min(x,14))).join('/')} → ${past.levelsAfter.map(x=>rankName(Math.min(x,14))).join('/')}</div>`;
