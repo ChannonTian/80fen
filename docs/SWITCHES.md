@@ -318,6 +318,14 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `ruffWillCal` | `0` | (见上方注释)ruffWillCal —— 断门且有主的那家肯不肯毙,按实测改(见 ruffWill)。 | `ruffWill` |
 | `ruffWillZero` | `0.72` | — | `ruffWill` |
 | `ruffWillPts` | `0.88` | — | `ruffWill` |
+
+### ===== §7.14 牌权按产品方的模型重做(2026-09-25)=====
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `tempoModel` | `0` | (见上方注释)===== §7.14 牌权按产品方的模型重做(2026-09-25)===== | `tempoValue` `scorePlay` `leadTempo` |
+| `tempoModelW` | `1.0` | 新口径下跟牌打分里牌权的权重(两边都是「分」,不再打 0.35 折) | `scorePlay` |
+| `tempoChainMinP` | `0.3` | 守住概率低于这个的那一手不进链(领出去多半是交牌权,链到此为止) | `leadChainValue` |
 | `pwGain` | `0.5` | 比分敏感度对「现在兑现 vs 留着压制」的调节幅度 | `pointWeight` |
 | `grabBonus` | `85` | 无庄盘抢庄红利(有主) | `scoreDeclOption` |
 | `grabBonusNT` | `58` | 无庄盘抢庄红利(无将,主牌只有12张压不住场) | `scoreDeclOption` |
@@ -351,13 +359,13 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `endPhaseKCap` | `1.1` | 抬升上限 | `phaseK` |
 | `tempoWeight` | `0.35` | 牌权价值在跟牌打分里的权重 | `scorePlay` |
 | `leadTempoWeight` | `1.0` | 牌权价值在领出打分里的权重。比跟牌侧(0.35)高得多, | `aiChooseFollow` `leadTempo` |
-| `tempoCap` | `40` | 牌权价值上限(贴现和自己会收敛,这个只当兜底) | `tempoValue` `partnerCashValue` |
-| `tempoDecay` | `0.80` | 待兑现单元按价值降序的贴现率:下一墩权重最高,往后递减 | `tempoValue` `partnerCashValue` |
-| `oppTempo` | `6` | 牌权落到对手手里的估计代价 | `scorePlay` `tiaoWangValue` `leadTempo` `partnerCashValue` `feedRuffValue` |
+| `tempoCap` | `40` | 牌权价值上限(贴现和自己会收敛,这个只当兜底) | `tempoValue` `leadChainValue` `oppChainValue` `partnerCashValue` |
+| `tempoDecay` | `0.80` | 待兑现单元按价值降序的贴现率:下一墩权重最高,往后递减 | `tempoValue` `oppChainValue` `partnerCashValue` |
+| `oppTempo` | `6` | 牌权落到对手手里的估计代价 | `oppChainValue` `scorePlay` `tiaoWangValue` `leadTempo` `partnerCashValue` `feedRuffValue` |
 | `fragileBonus` | `0.18` | 每多一张,组合被拆的风险溢价(飞机大炮该早兑现) | `bossUnits` |
 | `dumpPartner` | `0.85` | 队友把本门分贴过来的比例 | `laterPoints` |
 | `dumpOpp` | `0.85` | 后手对手能掏出多少本门分 | `laterPoints` `leadLossPoints` |
-| `handShare` | `4` | 「某家握有这门未见牌的几分之一」的兜底值(领出时用;跟牌用实际手牌数动态算) | `pSurvive` `pPartnerTakes` `aiChooseFollow` |
+| `handShare` | `4` | 「某家握有这门未见牌的几分之一」的兜底值(领出时用;跟牌用实际手牌数动态算) | `pSurvive` `pPartnerTakes` `leadChainValue` `aiChooseFollow` |
 | `pNoPartnerLeft` | `0.02` | 队友已出过牌、对手暂大时,这墩还能翻盘的概率 | `pPartnerTakes` |
 
 ### 「对手暂大、队友还没出牌时,本队还能把这墩夺回来」的概率。

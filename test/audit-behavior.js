@@ -20,7 +20,7 @@ const E=c.module.exports;
 if(process.env.EG!=='1') E.AIP.egSearch=0;
 if(process.env.OV) Object.assign(E.AIP,JSON.parse(process.env.OV));
 const N=+process.argv[3]||300, S0=+(process.env.SEED0||0);
-const C={trumpTricks:0, careless:{partner:0,opp:0}, carelessPts:{partner:0,opp:0}, carelessPtsSum:0,
+const C={holdable:{partner:0,opp:0},holdableTbl:0,trumpTricks:0, careless:{partner:0,opp:0}, carelessPts:{partner:0,opp:0}, carelessPtsSum:0,
          bigJ:0, smallJ:0, sideProbe:0, probeVoid:0, probeVoidKnown:0, probeVoidPts:0, probeVoidPtsSum:0};
 const why={careless:{}, bigJ:{}, probe:{}};
 const bump=(o,k)=>{ k=String(k||'').replace(/[0-9.]+/g,'#').slice(0,40); o[k]=(o[k]||0)+1; };
@@ -66,9 +66,16 @@ for(let seed=S0+1;seed<=S0+N;seed++){
           const cur=E.currentWinner(plays,trump);
           if(cur.seat%2!==seat%2){
             const canBeat=hand.some(x=>E.effSuit(x,trump)==='T'&&E.ordIdx(x,trump)>cur.cl.top&&E.isLegalFollow(hand,lead,[x],trump));
+            /* 「能压过当前最大」不等于「压得住」:第 3 家拿 S8 去压,末家对手手里更大的主多的是,
+             * 压了本队也只有 3% 拿得到 —— 那是白送一张主,不压是对的。所以另数一个严口径:
+             * 手里有一张压下去、本队**守得住这墩**的概率 ≥ 0.7 的牌(AI 自己的 pTeamWin 算的)。 */
+            const X=E.followCtx(view,plays);
+            const canHold=hand.some(x=>E.effSuit(x,trump)==='T'&&E.ordIdx(x,trump)>cur.cl.top&&E.isLegalFollow(hand,lead,[x],trump)
+                                      &&E.pTeamWin(X,[x],true)>=0.7);
             const mine=E.classify(cards,trump);
             const beat=mine&&mine.suit==='T'&&mine.top>cur.cl.top;
-            if(canBeat&&!beat) pend.push({seat,role:seat%2===leadInfo.seat%2?'partner':'opp',pts:E.countPoints(cards),reason});
+            if(canBeat&&!beat) pend.push({seat,role:seat%2===leadInfo.seat%2?'partner':'opp',pts:E.countPoints(cards),reason,hold:canHold,
+                                          tbl:E.countPoints(plays.flatMap(p=>p.cards))});
           }
         }
       }
@@ -76,8 +83,9 @@ for(let seed=S0+1;seed<=S0+N;seed++){
     }
     history.push(...plays);
     const w=E.resolveTrick(plays,trump).winner;
-    for(const p of pend) if(w%2!==p.seat%2){ C.careless[p.role]++; bump(why.careless,p.role+':'+p.reason);
-      if(p.pts>0){ C.carelessPts[p.role]++; C.carelessPtsSum+=p.pts; } }
+    for(const p of pend) if(w%2!==p.seat%2){ C.careless[p.role]++;
+      if(p.pts>0){ C.carelessPts[p.role]++; C.carelessPtsSum+=p.pts; }
+      if(p.hold){ C.holdable[p.role]++; C.holdableTbl+=p.tbl; bump(why.careless,p.role+':'+p.reason); } }
     leader=w;
   }
 }
@@ -86,8 +94,9 @@ console.log(`${FILE}${process.env.OV?' OV='+process.env.OV:''} —— ${N} 副`)
 console.log(`① 钓主墩(单张主领出)${per(C.trumpTricks)} 墩/局;能压却没压、这墩归了对手:`
   +`领出者的队友 ${per(C.careless.partner)} 次/局(其中还出了分 ${per(C.carelessPts.partner)})、`
   +`对手 ${per(C.careless.opp)} 次/局(其中还出了分 ${per(C.carelessPts.opp)});送出的分 ${per(C.carelessPtsSum)} 分/局`);
+console.log(`   └ 严口径(手里有一张压下去守得住 ≥0.7 的):队友 ${per(C.holdable.partner)} 次/局、对手 ${per(C.holdable.opp)} 次/局;这些墩的台面分合计 ${per(C.holdableTbl)} 分/局`);
 console.log(`② 中盘(>8 张)单领大王 ${per(C.bigJ)} 次/局,小王 ${per(C.smallJ)} 次/局`);
 console.log(`③ 副花非钢板领出 ${per(C.sideProbe)} 次/局;打进对手真断门 ${per(C.probeVoid)} 次/局`
   +`(领出者推断知道的 ${C.probeVoid?(100*C.probeVoidKnown/C.probeVoid).toFixed(0):0}%;带分的 ${per(C.probeVoidPts)} 次/局,${per(C.probeVoidPtsSum)} 分/局)`);
 const top=(o,n)=>Object.entries(o).sort((a,b)=>b[1]-a[1]).slice(0,n).map(([k,v])=>`    ${String(v).padStart(4)}  ${k}`).join('\n');
-console.log('  ① 的理由:\n'+top(why.careless,8)); console.log('  ② 的理由:\n'+top(why.bigJ,6)); console.log('  ③ 的理由:\n'+top(why.probe,8));
+console.log('  ① 严口径的理由:\n'+top(why.careless,8)); console.log('  ② 的理由:\n'+top(why.bigJ,6)); console.log('  ③ 的理由:\n'+top(why.probe,8));

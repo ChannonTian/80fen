@@ -328,7 +328,7 @@
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.21(测试版)</div>
+<div id="versionTag">80分 v0.7.22(测试版)</div>
 
 <script>
 /* ============================================================
@@ -1058,6 +1058,14 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   ruffWillCal: 0,
   ruffWillZero: 0.72,
   ruffWillPts: 0.88,
+  /* ===== §7.14 牌权按产品方的模型重做(2026-09-25)=====
+   * tempoModel —— 牌权值 = **上手后连着领出的收益链**:把我手上能领的每一手按「领出后守得住这墩」的
+   *   概率从高到低排,牌权值 = Σ 第 j 手能收的分 × p₁×…×pⱼ(第一墩留住牌权的概率,就是能兑现下一墩收益的概率)。
+   *   对手的牌权值不再是常数 oppTempo:按推断估对手手里各门最大那张能收多少、扣掉我方能毙的那部分。
+   *   跟牌时:我压下 → 我的链;指望队友拿 → 队友能兑现多少(partnerCashValue)。0 = 旧口径。 */
+  tempoModel: 0,
+  tempoModelW: 1.0,          // 新口径下跟牌打分里牌权的权重(两边都是「分」,不再打 0.35 折)
+  tempoChainMinP: 0.3,       // 守住概率低于这个的那一手不进链(领出去多半是交牌权,链到此为止)
   pwGain: 0.5,                // 比分敏感度对「现在兑现 vs 留着压制」的调节幅度
   grabBonus: 85,              // 无庄盘抢庄红利(有主)
   grabBonusNT: 58,            // 无庄盘抢庄红利(无将,主牌只有12张压不住场)
@@ -3078,6 +3086,61 @@ function tempoValue(X, exclude){
 }
 
 
+/* 我方拿到牌权后,连着领出能兑现多少(见 AIP.tempoModel)。exclude = 这一手要打出去的牌。 */
+function leadChainValue(X, exclude){
+  const ck='_lcv:'+(exclude||[]).map(c=>c.id).join(',');
+  if(X[ck]!==undefined) return X[ck];
+  const {mem,trump}=X; const drop=new Set((exclude||[]).map(c=>c.id));
+  const hand=(X.hand||[]).filter(c=>!drop.has(c.id));
+  const by={}; hand.forEach(c=>{const su=effSuit(c,trump);(by[su]=by[su]||[]).push(c);});
+  const opps=X.seat!==undefined?[0,1,2,3].filter(q=>q%2!==X.seat%2):[];
+  const denom=X.shareDenom||AIP.handShare;
+  const units=[];
+  for(const su in by) for(const comp of decompose(by[su],trump)){
+    const cl={type:comp.type,len:comp.len,suit:su,top:comp.top};
+    const b=unseenBeats(mem,cl,trump);
+    const pOne=b.total>0?pBeaterIn(cl,b,Math.max(1,b.total/denom)):0;
+    let p=Math.pow(1-clamp(pOne,0,1),2);                 // 两个对手都压不过
+    if(su!=='T'&&X.pVoidOf&&opps.length){                 // 断门的对手会毙
+      let keep=1; for(const q of opps) keep*=1-X.pVoidOf(q,su)*ruffWill(1);
+      p*=keep;
+    }
+    if(p<AIP.tempoChainMinP) continue;
+    const rem=unseenPointsIn(mem,su,trump), size=comp.cards.length;
+    const g=Math.min(10,rem*0.33)*Math.min(1,size*0.6)+size*1.2;
+    units.push({p,g});
+  }
+  units.sort((a,b)=>b.p-a.p);
+  let v=0, keep=1;
+  for(const u of units){ keep*=u.p; v+=u.g*keep; if(keep<0.05) break; }
+  return X[ck]=Math.min(v,AIP.tempoCap);
+}
+/* 对手拿到牌权后能兑现多少:每门副牌在外最大那张落在对手手里的概率 × 这门能收的分 × 我方毙不了。 */
+function oppChainValue(X){
+  if(X._ocv!==undefined) return X._ocv;
+  if(X.seat===undefined||!X.pVoidOf) return X._ocv=AIP.oppTempo;
+  const {mem,trump}=X, partner=(X.seat+2)%4;
+  const opps=[0,1,2,3].filter(q=>q%2!==X.seat%2);
+  const myBy={}; (X.hand||[]).forEach(c=>{const su=effSuit(c,trump);(myBy[su]=myBy[su]||[]).push(c);});
+  const iHaveTrump=(myBy.T||[]).length>0;
+  const vals=[];
+  for(const su of ['S','H','D','C']){
+    if(trump.suit===su) continue;
+    const top=maxUnseenIdx(mem,su,trump); if(top<0) continue;
+    const myTop=(myBy[su]||[]).reduce((m,c)=>Math.max(m,ordIdx(c,trump)),-1);
+    if(myTop>=top) continue;                                   // 这门最大的在我手上
+    const pn=expHoldIn(X,partner,su), on=opps.reduce((a,q)=>a+expHoldIn(X,q,su),0);
+    const pOpp=pn+on>0?on/(pn+on):0.5;
+    const meRuff=!(myBy[su]||[]).length&&iHaveTrump?ruffWill(1):0;
+    const ptRuff=X.pVoidOf(partner,su)*ruffWill(1);
+    const cash=Math.min(10,unseenPointsIn(mem,su,trump)*0.33)+1.2;
+    vals.push(pOpp*cash*(1-meRuff)*(1-ptRuff));
+  }
+  vals.sort((a,b)=>b-a);
+  let v=0,w=1; for(const x of vals){ v+=x*w; w*=AIP.tempoDecay; }
+  return X._ocv=Math.min(v,AIP.tempoCap);
+}
+
 // 统一的期望分打分器:先定性(cat),再算这一墩的净期望分,最后扣机会成本
 const CAT_K={ruff:1.06, over:1.0, dump:1.0, cheap:1.0, discard:1.0};
 function scorePlay(X, cards, cat, beatsCur){
@@ -3088,7 +3151,12 @@ function scorePlay(X, cards, cat, beatsCur){
   const ev=p*gain-(1-p)*loss;
   // 牌权:本队赢下这墩,下一手由我方领出(我或队友),手上的优势才有机会兑现。
   // 输掉则牌权落到对手,他去兑现他的 —— 我方看不见对手手牌,用一个保守的固定值代表。
-  const tempo=(p*tempoValue(X,cards)-(1-p)*AIP.oppTempo)*(X.tempoW||AIP.tempoWeight);
+  let tempo;
+  if(AIP.tempoModel){
+    // 我压下 → 我接着领;我没压、本队还是拿下 → 是队友拿的,他接着领
+    const us=beatsCur?leadChainValue(X,cards):partnerCashValue(X);
+    tempo=(p*us-(1-p)*oppChainValue(X))*AIP.tempoModelW;
+  }else tempo=(p*tempoValue(X,cards)-(1-p)*AIP.oppTempo)*(X.tempoW||AIP.tempoWeight);
   return (CAT_K[cat]||1)*ev*(X.pw||1)+tempo-futureValue(cards,X)+ladderCross(X,p,gain,loss);
 }
 // 兼容旧接口(教练/测试仍在用)
@@ -3590,6 +3658,10 @@ function tiaoWangValue(L, cl, cards){
  * 和跟牌侧同一个口径:只算**打完这一手之后还剩**的单元,避免和 futureValue 重复计价。
  */
 function leadTempo(L, cards, pWin, pMine){
+  if(AIP.tempoModel){
+    const pm=pMine!==undefined?pMine:pWin, pPt=Math.max(0,pWin-pm);
+    return (pm*leadChainValue(L,cards)+pPt*partnerCashValue(L)-(1-pWin)*oppChainValue(L))*AIP.leadTempoWeight;
+  }
   if(AIP.leadTempoSplit&&pMine!==undefined){
     const pPt=Math.max(0,pWin-pMine);
     return (pMine*tempoValue(L,cards)+pPt*partnerCashValue(L)-(1-pWin)*AIP.oppTempo)*AIP.leadTempoWeight;
@@ -6399,11 +6471,11 @@ function endRound(){
   if(adv.matchOver){
     const weWon=adv.winnerTeam===0;
     html+=`<div style="margin-top:10px;font-size:20px;color:var(--gold)">${weWon?'你们打过 A,整场胜利!':'对方打过 A,整场告负'}</div>`;
-    html+=`<div style="margin-top:14px"><button onclick="window.__newMatch()">重开整场</button> <button class="minor" onclick="window.__review()">复盘本局</button></div>`;
+    html+=`<div style="margin-top:14px"><button onclick="window.__newMatch()">重开整场</button> <button class="minor" onclick="window.__review()">复盘本局</button> <button class="minor" onclick="window.__copyRecord()">复制牌谱</button></div>`;
   }else{
     html+=`<div style="margin-top:6px;font-size:14px">级数 —— 你们:打${rankName(Math.min(M.levels[0],14))} / 对方:打${rankName(Math.min(M.levels[1],14))}</div>`;
     html+=`<div style="font-size:14px">下一局 ${SEAT_NAME[M.dealer]} 坐庄,打${rankName(M.levels[M.dealer%2])}</div>`;
-    html+=`<div style="margin-top:14px"><button onclick="window.__next()">下一局</button> <button class="minor" onclick="window.__review()">复盘本局</button></div>`;
+    html+=`<div style="margin-top:14px"><button onclick="window.__next()">下一局</button> <button class="minor" onclick="window.__review()">复盘本局</button> <button class="minor" onclick="window.__copyRecord()">复制牌谱</button></div>`;
   }
   // 弹层之下的牌桌也要跟着进「已结束」态(托管按钮收起、发牌区改成「复盘中」),
   // 否则点「复盘本局」把弹层关掉之前,底下还留着上一秒的按钮
@@ -6418,6 +6490,23 @@ window.__newMatch=()=>{ M={levels:[2,2],dealer:-1,round:0,played:[-1,-1],past:[]
   // 笔记是记这一场的(第几局谁扣了什么底),整场重开就该跟着清空 —— 否则局号会串到新的一场
   notes=[]; try{ localStorage.removeItem(LSP+'notes'); }catch(e){}
   document.getElementById('overlay').style.display='none'; newRound(); };
+/* 复制牌谱(v0.7.22):把刚打完的这一局原样导出,供开发者逐手还原 AI 的决定。
+ * 牌写成「花色 + 点数」:S/H/D/C,11~14 = J Q K A;X15 小王、X16 大王。
+ * initialHands 是扣底之后、开打之前四家的手牌;buried 是庄家扣的 8 张;tricks 是每一墩四家按出牌顺序出的牌。
+ * 离线打开(file://)时剪贴板可能不让写,就把文字放进弹层里让人手动复制。 */
+window.__copyRecord=()=>{
+  const r=M.past[M.past.length-1]; if(!r) return;
+  const cs=c=>c.suit+c.rank;
+  const rec={fmt:'80fen-record-1', version:(document.getElementById('versionTag')||{}).textContent||'',
+    human:HUMAN, no:r.no, declSeat:r.declSeat, trump:r.trump, levelsBefore:r.levelsBefore, levelsAfter:r.levelsAfter,
+    defPoints:r.defPoints, kittyPts:r.kittyPts, mult:r.mult,
+    initialHands:(r.initialHands||[]).map(h=>h.map(cs)), buried:(r.buried||[]).map(cs),
+    tricks:(r.tricks||[]).map(t=>({plays:t.plays.map(p=>({seat:p.seat,cards:p.cards.map(cs)})),winner:t.winner,points:t.points}))};
+  const txt=JSON.stringify(rec);
+  const fallback=()=>showModal(`<div style="margin-bottom:6px">复制下面这段文字,发给开发者:</div>`+
+    `<textarea readonly style="width:100%;height:160px;font-size:11px" onclick="this.select()">${txt.replace(/</g,'&lt;')}</textarea>`);
+  try{ navigator.clipboard.writeText(txt).then(()=>setMsg('牌谱已复制到剪贴板'),fallback); }catch(e){ fallback(); }
+};
 window.__review=()=>{ document.getElementById('overlay').style.display='none';
   render(); setMsg('复盘中:可查看出牌历史、教练复盘等记录,准备好后点下方"下一局"继续'); };
 
