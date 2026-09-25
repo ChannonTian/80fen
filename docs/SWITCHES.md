@@ -66,6 +66,9 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
 | `buryPtShadow` | `0` | (见上方注释)埋分的影子成本:每 1 分底分,额外折算多少「分」的留手负担。 | `aiDiscard` |
+| `buryLowConf` | `0` | 守末墩没信心时每分底分的额外代价(0 = 旧行为),见 aiDiscard | `aiDiscard` |
+| `buryConfLine` | `0.75` | — | `aiDiscard` |
+| `buryConfBand` | `0.2` | — | `aiDiscard` |
 
 ### 队友「压回来」要分清是被本门大牌压的、还是被毙掉的(见 partnerRescueP)。
 
@@ -114,7 +117,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 |---|---|---|---|
 | `pairBossMaxP` | `0.15` | (见上方注释)「在外还有更大的对子」的概率低于这个值,就把自己的对子当钢板(见 pPairAbove)。 | `isBossPlay` |
 | `kittyMult` | `2` | 抠底倍数的估计值(按最后一墩单张算) | `aiDiscard` `kittyPts` `kittyMultOf` |
-| `kittyPointBias` | `0.8` | 闲家倒推底分时的折扣(庄家倾向不埋分) | `kittyPointsEst` |
+| `kittyPointBias` | `0.8` | 闲家倒推底分时的折扣(庄家倾向不埋分) | `kittyPointsEstRaw` |
 | `jokerPairHold` | `7` | 王对的**成对溢价**(单张的压制价值已在 trumpHold 里,别算两遍) | `futureValue` |
 
 ### v0.7.8 ——「差一张就是钢板」的期权价值(见 futureValue)。
@@ -319,7 +322,17 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `ruffWillZero` | `0.72` | — | `ruffWill` |
 | `ruffWillPts` | `0.88` | — | `ruffWill` |
 
-### trumpSealW —— 主牌墩里我这张单张主已经压过在外所有主分牌时,后手「肯花不带分的大主来盖我」的系数。
+### 留手价值按座次与底分拆开(产品方,2026-09-25)。0 = 旧行为:「在外已无更大」的主牌一律 +trumpHoldTop,
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `stakeHold` | `0` | (见上方注释)留手价值按座次与底分拆开(产品方,2026-09-25)。 | `oppSpendCeil` `kittyPointsEst` `trumpHold` `futureValue` |
+| `holdCtrlShare` | `0.4` | — | `trumpHold` |
+| `stakeRef` | `30` | 底分×2 达到多少算「值得整局留手」(15 分底) | `stakeFactor` |
+| `stakeCap` | `1.5` | — | `stakeFactor` |
+| `partnerKittyK` | `0.25` | — | `kittyPointsEst` |
+
+### trumpSealW 现在是常数。正确形式(产品方,2026-09-25,待做):末家肯不肯拿大主来盖,
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
