@@ -1063,7 +1063,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    *   实测(模拟人用小主钓主、第 3 家接,200 副):封死主分的那一手本队拿下 60%,AI 估的是 19%;
    *   最省的接法(低于在外主分牌)拿下 7%,丢墩里 76% 是被末家用主分牌连分带牌权拿走的。
    *   这是「他肯不肯花」的另一半:毙牌那一支是高估了他不肯(ruffWill),这一支是高估了他肯。1 = 旧行为。 */
-  trumpSealW: 1,
+  trumpSealW: 0.5,             // (v0.7.22 测试版默认开)只在跟牌时生效
   /* ===== §7.14 牌权按产品方的模型重做(2026-09-25)=====
    * tempoModel —— 牌权值 = **上手后连着领出的收益链**:把我手上能领的每一手按「领出后守得住这墩」的
    *   概率从高到低排,牌权值 = Σ 第 j 手能收的分 × p₁×…×pⱼ(第一墩留住牌权的概率,就是能兑现下一墩收益的概率)。
@@ -2680,7 +2680,9 @@ function pSurvive(X, cl, seats){
   /* 主牌墩里,我这张单张主已经压过在外**所有主分牌**(见 AIP.trumpSealW):
    * 后手要盖我只能花一张不带分的大主(王、主 A、级数牌……),他多半不肯为这一墩花。 */
   let sealed=false;
-  if(AIP.trumpSealW<1&&leadSuit==='T'&&cl.suit==='T'&&cl.type==='single'&&!iRuffed){
+  // 只在**跟牌**时生效(X.lead 有值):它是为「第 3 家接得住」写的。放到领出上,
+  // 小王单张天然压过所有主分牌,会被算成「很安全」,中盘单领小王翻倍(0.14 → 0.29 次/局)。
+  if(AIP.trumpSealW<1&&X.lead&&leadSuit==='T'&&cl.suit==='T'&&cl.type==='single'&&!iRuffed){
     let topPt=-1;
     for(const k in mem.unseen){ if(mem.unseen[k]<=0) continue; const u=keyToCard(k);
       if(effSuit(u,trump)==='T'&&cardPoints(u)>0) topPt=Math.max(topPt,ordIdx(u,trump)); }
