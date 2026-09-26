@@ -1090,6 +1090,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * stakeHold 把 ② 按座次 / 底分拆出来之后,可以直接换成这两个量的比较。见 DESIGN §7.13。 */
   trumpSealW: 0.5,             // (v0.7.22 测试版默认开)只在跟牌时生效
   trumpSealWPts: 1,            // (v0.7.26 测试版默认开)台面**有分**时的那一档(= trumpSealW 即旧行为);见 pSurvive
+  lastOverW0: 0,               // 将牌墩末家台面 0 分时同门盖过来的意愿系数(0 = 不打折,旧行为);见 pSurvive
   lastRuffWill: 0.95,          // (v0.7.26 测试版默认开)后手是本墩最后一家时「断门有主肯不肯毙」(0 = 旧口径 ruffWill);见 pSurvive
   guardPlan: 2,                // (v0.7.26 测试版默认开)守底计划权重(0 = 旧行为);见 guardCost。系数 guardW 由 test/fit-guard.js 拟合
   guardW: [-0.5023,1.04,0.4033,0.314,-0.0896,-0.0221,-0.1022],   // fit-guard.js,1500 副 / 27219 个庄家决策点(v0.7.23 打法),对数损失 0.586(均值 0.652)
@@ -2785,7 +2786,7 @@ function pSurvive(X, cl, seats){
   let sealed=false;
   // 只在**跟牌**时生效(X.lead 有值):它是为「第 3 家接得住」写的。放到领出上,
   // 小王单张天然压过所有主分牌,会被算成「很安全」,中盘单领小王翻倍(0.14 → 0.29 次/局)。
-  if(AIP.trumpSealW<1&&X.lead&&leadSuit==='T'&&cl.suit==='T'&&cl.type==='single'&&!iRuffed){
+  if((AIP.trumpSealW<1||AIP.lastOverW0)&&X.lead&&leadSuit==='T'&&cl.suit==='T'&&cl.type==='single'&&!iRuffed){
     let topPt=-1;
     for(const k in mem.unseen){ if(mem.unseen[k]<=0) continue; const u=keyToCard(k);
       if(effSuit(u,trump)==='T'&&cardPoints(u)>0) topPt=Math.max(topPt,ordIdx(u,trump)); }
@@ -2817,7 +2818,13 @@ function pSurvive(X, cl, seats){
     }else if(knownVoid){
       pBeat=rw*(trAvail>0?0.85:0);   // 已知缺门 → 只可能被毙
     }else{
-      pBeat=(1-pVoidLead)*pHasS
+      /* lastOverW0(2026-09-26,diag-third 在 v0.7.26 打法下):将牌墩里,末家在**台面 0 分**时拿更大的主来盖的意愿
+       * 远低于「他有就盖」—— 顶大接估 79~81% 实 90~91%、封分接估 59% 实 76~77%;台面有分时两者都准。
+       * 这墩不值他一张大主。产品方的第 1 条:肯不肯盖取决于这墩的分 + 牌权 vs 那张主的留手价值;先按台面有没有分两档。 */
+      // 只在「他只能用不带分的大主来盖」(我这张已压过在外所有主分牌,sealed)时打折 ——
+      // 比在外主分牌还小的那张,他用主分牌连分带牌权拿走是很愿意的(便宜接 0 分台面实际只守住 13~39%)
+      const overW=AIP.lastOverW0&&lastW&&sealed&&!(X.ptsTable>0)?AIP.lastOverW0:1;
+      pBeat=(1-pVoidLead)*pHasS*overW
            +pVoidLead*rw*(trAvail>0?0.85:0);
       /* 台面有分时他肯花(diag-third,2026-09-26):「封分接」估 60%、实际只守住 18~25%;
        * 台面 0 分时估 58%、实际 67~73%。常数一刀切两头都错,按台面分两档(trumpSealWPts)。 */
