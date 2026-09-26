@@ -61,6 +61,7 @@ learn/
 | **[`docs/CHANGELOG.md`](docs/CHANGELOG.md)** | 想知道哪版改了什么 | 版本总表 + 每版结论 |
 | [`notes/ai-journal.md`](docs/notes/ai-journal.md) | 未来的自己 | **v0.1.0~v0.7.5** 的完整推演与实验数据(当年的 CHANGELOG 全文)。v0.7.6 起不再分家,直接写在 `docs/CHANGELOG.md` |
 | [`notes/measurement.md`](docs/notes/measurement.md) | 同上 | **三把尺子,以及每一把量不到什么**。改 AI 之前先读这页 |
+| [`notes/ai-progress.md`](docs/notes/ai-progress.md) | 接手 AI 线的人 | **AI 线的交接页**:现在在哪、产品方定下的原则、做法、下一步。每次停下来之前更新 |
 | [`notes/negative-results.md`](docs/notes/negative-results.md) | 同上 | 试过、测了、否掉的改动。动那些默认关的开关之前先读 |
 | [`notes/release-log.md`](docs/notes/release-log.md) | 同上 | **v0.5.8~v0.7.0** 的上线备忘。v0.7.1 起上线前的检查固化成 `check-sync` 与 `docs/DESIGN.md` §12,这一页不再追加 |
 | [`notes/archive-plans.md`](docs/notes/archive-plans.md) | 同上 | 两份已实施的旧方案,存档 |
