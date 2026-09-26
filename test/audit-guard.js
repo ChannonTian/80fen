@@ -35,7 +35,7 @@ for(let seed=S0+1;seed<=S0+N;seed++){
   games++;
   const partner=(declSeat+2)%4;
   const rand=E.rng(seed^0x9e3779b9); const history=[]; let leader=declSeat, last=null, lastPlays=null, tno=0;
-  const spent=[]; const snap={};
+  const spent=[]; const snap={}; const LEADS=[];
   const bossOf=(seat,view)=>{ const mem=E.makeMemory(view); return hands[seat].filter(x=>E.effSuit(x,trump)==='T'
       &&E.unseenBeats(mem,{suit:'T',top:E.ordIdx(x,trump),type:'single'},trump).higher===0); };
   while(hands.some(h=>h.length)){
@@ -54,6 +54,12 @@ for(let seed=S0+1;seed<=S0+N;seed++){
       if(i===0){ const r=E.aiChooseLead(view); cards=r.cards; reason=r.reason; const chk=E.checkThrow(hands,seat,cards,trump); if(!chk.ok) cards=chk.forced; }
       else{ const lead=E.classify(plays[0].cards,trump); const r=E.aiChooseFollow(view,plays); cards=r.cards; reason=r.reason;
         if(!E.isLegalFollow(hand,lead,cards,trump)) cards=E.genFollow(hand,lead,trump,rand); }
+      if(seat===declSeat&&i===0&&hand.length>8&&cards.every(x=>E.effSuit(x,trump)==='T')){
+        // 庄家中盘领主:按领出那手的最大一张分类
+        const top=cards.reduce((m,x)=>E.ordIdx(x,trump)>E.ordIdx(m,trump)?x:m,cards[0]);
+        const cls=bossBefore.has(top.id)?'钢板主':(top.suit==='X'||top.rank===trump.rank||top.rank===14)?'大主(王/级牌/A,非钢板)':'小主';
+        LEADS.push(cls+(cards.length>1?'·成对/拖拉机':'·单张'));
+      }
       if(seat===declSeat){
         for(const x of cards) if(bossBefore.has(x.id)){
           let how;
@@ -82,6 +88,7 @@ for(let seed=S0+1;seed<=S0+N;seed++){
   for(const s of spent){ inc(`${tag}·钢板主打掉·${s.how}·${s.left>8?'中盘(>8张)':s.left>3?'收官前段(4~8张)':'最后3张'}`);
     if(!held&&s.left>3) inc(`丢底理由:${s.how} · ${s.reason}`); }
   inc(tag+'·埋分',kp); inc(tag+'·pLast',pLast);
+  for(const l of LEADS){ inc('中盘领主·'+l); inc(tag+'·中盘领主·'+l); }
 }
 const g=k=>K[k]||0;
 console.log(`${FILE}${process.env.OV?' OV='+process.env.OV:''} —— ${N} 副,其中庄家埋底 ≥${MINK} 分的 ${games} 局(${(100*games/all).toFixed(0)}%)`);
@@ -94,5 +101,7 @@ for(const t of ['丢底','守住']){ const n=g(t+'·局'); if(!n) continue;
   console.log('   庄家的钢板主怎么没的(每局平均张数):');
   for(const k of Object.keys(K).filter(k=>k.startsWith(t+'·钢板主打掉·')).sort((a,b)=>K[b]-K[a])) console.log(`     ${(K[k]/n).toFixed(2)}  ${k.slice((t+'·钢板主打掉·').length)}`);
 }
+console.log('\n庄家中盘(>8 张)领主,每局平均次数(全部 / 丢底局 / 守住局):');
+for(const k of Object.keys(K).filter(k=>k.startsWith('中盘领主·')).sort()) console.log(`   ${(K[k]/Math.max(1,g('局'))).toFixed(2)} / ${(g('丢底·'+k)/Math.max(1,g('丢底·局'))).toFixed(2)} / ${(g('守住·'+k)/Math.max(1,g('守住·局'))).toFixed(2)}  ${k.slice(5)}`);
 console.log('\n丢底局里,收官前(>3 张)打掉钢板主时 AI 给的理由(前 12):');
 for(const k of Object.keys(K).filter(k=>k.startsWith('丢底理由:')).sort((a,b)=>K[b]-K[a]).slice(0,12)) console.log(`   ${K[k]}  ${k.slice(5)}`);
