@@ -1082,6 +1082,9 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * stakeHold 把 ② 按座次 / 底分拆出来之后,可以直接换成这两个量的比较。见 DESIGN §7.13。 */
   trumpSealW: 0.5,
   trumpSealWPts: 0.5,
+  guardPlan: 0,               // 守底计划权重(0 = 旧行为);见 guardCost。系数 guardW 由 test/fit-guard.js 拟合
+  guardW: [-0.5023,1.04,0.4033,0.314,-0.0896,-0.0221,-0.1022],   // fit-guard.js,1500 副 / 27219 个庄家决策点(v0.7.23 打法),对数损失 0.586(均值 0.652)
+  guardReplace: 0,            // 1 = 庄家本人的护底只用 guardCost,旧的收官视野护底项不再叠加
   trumpTakeAll: 0,            // 1 = 将牌单张墩把每一档压得过的主都列为候选(见 aiChooseFollow 第 0 步);0 = 旧行为         // 台面**有分**时的那一档(= trumpSealW 即旧行为);见 pSurvive             // (v0.7.22 测试版默认开)只在跟牌时生效
   /* ===== §7.14 牌权按产品方的模型重做(2026-09-25)=====
    * tempoModel —— 牌权值 = **上手后连着领出的收益链**:把我手上能领的每一手按「领出后守得住这墩」的
@@ -2427,6 +2430,38 @@ function kittyMultOf(X){
   const size=ru?Math.min(ru.size,X.hand.length):1;
   return X._km=2*clamp(size,1,AIP.kittyMultMaxSize);
 }
+/* ---- 守底计划(guardPlan,产品方 2026-09-26)----
+ * 「标记 n 手作为守底的牌,推断守底概率;低则不埋分、不守底;能守住则尽量不在之前阶段打出标记过的牌。」
+ * audit-guard(1200 副,埋底 ≥15 分的局):守住 73%;丢底局剩 5 张时庄家平均只有 0.24 张钢板主
+ * (守住的局 1.23 张),钢板主主要是**中盘自己领出去的**(单领大王「主牌不占优」、钓主清场)。
+ * 旧的护底项只在收官视野(≈剩 11 张)内生效,之前一张王只按 trumpHold 计价,跟底里有多少分无关。
+ *
+ * 守住概率 P 由庄家看得到的四个量给出(系数由 test/fit-guard.js 在自对弈里拟合,见 AIP.guardW):
+ *   b = 手里的钢板主张数(在外已无更大)、t = 手里主牌张数、U = 在外主牌张数、n = 手里张数。
+ * 打出一手牌的守底代价 = 底分 × 倍数 × [P(现在的手) − P(打掉这手之后)] —— 钢板主一出 P 掉得多,
+ * 小牌出掉 P 不变、代价为 0。这就是「标记」:不是规则,是边际概率。 */
+function guardFeat(hand, mem, trump){
+  let t=0,b=0,U=0;
+  for(const k in mem.unseen){ const n=mem.unseen[k]; if(n<=0) continue;
+    if(effSuit(keyToCard(k),trump)==='T') U+=n; }
+  for(const c of hand){ if(effSuit(c,trump)!=='T') continue; t++;
+    if(unseenBeats(mem,{suit:'T',top:ordIdx(c,trump),type:'single'},trump).higher===0) b++; }
+  return {n:hand.length,t,b,U};
+}
+function guardP(f){
+  const w=AIP.guardW;
+  const z=w[0]+w[1]*Math.min(f.b,1)+w[2]*Math.min(f.b,3)+w[3]*f.t+w[4]*f.U+w[5]*f.n+w[6]*Math.min(f.b,1)*f.t;
+  return 1/(1+Math.exp(-z));
+}
+function guardCost(X, cards){
+  if(!AIP.guardPlan||seatRole(X)!=='decl'||!X.hand||!X.mem) return 0;
+  const kp=kittyPts(X); if(kp<=0) return 0;
+  const drop=new Set(cards.map(c=>c.id));
+  const f0=guardFeat(X.hand,X.mem,X.trump);
+  const f1=guardFeat(X.hand.filter(c=>!drop.has(c.id)),X.mem,X.trump);
+  return kp*kittyMultOf(X)*Math.max(0,guardP(f0)-guardP(f1))*AIP.guardPlan;
+}
+
 // 底分越大,「最后一墩争夺」越该提前开始规划
 function endHorizonOf(X){
   return clamp(AIP.endHorizon+kittyPts(X)*AIP.endHorizonPerPt,AIP.endHorizon,AIP.endHorizonMax);
@@ -2474,7 +2509,9 @@ function futureValue(cards, X){
   // 收官:留住最大的一手 = 守住(或抢下)翻倍的底分。
   // 这一项恰恰只在收官视野内成立,所以不能再乘 phaseK 那个衰减系数。
   const hz=endHorizonOf(X);
-  if(X.hand&&X.hand.length<=hz){
+  // guardReplace:庄家本人改用 guardCost(全程、按边际守住概率),旧的收官视野护底项不再重复计
+  const guardOwn=AIP.guardPlan&&AIP.guardReplace&&seatRole(X)==='decl';
+  if(X.hand&&X.hand.length<=hz&&!guardOwn){
     const kp=kittyPts(X);
     // 「保底手」只需要一手 —— 手上三个钢板单元,留一个守最后一墩就够,
     // 另外两个该在收官前兑现掉。v3 把这份护底价值发给**每一个**钢板单元,
@@ -2610,6 +2647,7 @@ function futureValue(cards, X){
      &&cards.some(c=>effSuit(c,trump)==='T')){
     flat+=AIP.ruffReserveW*Math.max(0, ruffReserve(X)-(X.ptsTable||0));
   }
+  flat+=guardCost(X,cards);
   return v*ph+flat;
 }
 
@@ -4727,7 +4765,7 @@ const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
   AIP,globalIdx,easeEnds,bossChain,pWinLastTrick,faceValue,voidProb,
   scoreDeclOption,declThreshold,aiDeclDecide,projectLen,trumpCountUnder,sideQuality,pPairOverride,
   phaseOf,futureValue,pTeamWin,laterPoints,scorePlay,unseenPointsIn,leadPointsEV,pSurvive,unseenBeats,roundScore,pointWeight,ruffThrow,SCORE_LADDER,makeReads,maxHoldIn,makeVoidProb,cheapKey,dumpKey,kittyPointsEst,tempoValue,
-  bossUnits,feedRuffValue,reserveHold,reserveUnit,
+  bossUnits,feedRuffValue,reserveHold,reserveUnit,guardFeat,guardP,
   makeHoldRange,partnerAceRead,tiaoWangValue,
   endgameSearch,sampleWorld,rolloutToEnd,rolloutLead,rolloutFollow,levelUtility,trumpLeadPrior};
 if(typeof module!=='undefined') module.exports=ENGINE;
