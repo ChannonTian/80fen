@@ -314,7 +314,13 @@
         <button id="btnHint" style="background:#6ec9ff">问教练</button>
       </div>
       <div id="dealerZone">
-        <!-- 托管排在最左:它整个出牌阶段都在,位置不会因为「看底牌」出现与否而漂移 -->
+        <!-- 「不亮」单独占这一区最左边的固定位置(和左边 dealZone 里逐张发牌时冒出来的
+             亮主/加固按钮完全是两个容器,物理上永远不会挤到同一个坐标)——它只在发完
+             最后一张牌的 finalDecl 阶段出现,那也正是「亮主」类按钮刚好也变全的一刻,
+             以前两者挤在同一条 flex 行里,新按钮一冒出来「不亮」的像素位置就跟着挪,
+             手快的人在那一瞬间点空当场变成误点。见 window.__skipDecl。 -->
+        <button id="btnSkipDecl" class="minor" hidden onclick="window.__skipDecl()">不亮</button>
+        <!-- 托管排在其次:它整个出牌阶段都在,位置不会因为「看底牌」出现与否而漂移 -->
         <button id="btnAuto" class="minor" onclick="window.__setAuto(!(window.__G&&window.__G().auto))">托管</button>
         <button id="btnBury" class="minor">扣底</button>
         <button id="btnKitty" class="minor" onclick="window.__showKitty()">看底牌</button>
@@ -336,7 +342,7 @@
 <div id="toast"></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.24(测试版)</div>
+<div id="versionTag">80分 v0.7.25(测试版)</div>
 
 <script>
 /* ============================================================
@@ -6883,9 +6889,8 @@ function render(){
       .sort((a,b)=>SUITS.indexOf(a.suit)-SUITS.indexOf(b.suit))
       .forEach(o=>
         btns.push(`<button data-a="d" data-s="${o.suit}" data-st="${o.strength}">${V}${SUIT_SYM[o.suit]}${o.strength===2?'(对)':''}</button>`));
-    // 发完牌进入最后机会时,给一颗「不亮」提前结束等待(它固定在最右,新按钮往左长)
-    if(G.phase==='finalDecl')
-      btns.push(`<button class="minor" onclick="window.__skipDecl()">不${T('declareV')}</button>`);
+    // 「不亮」不在这条 btns 里——它挪到 #dealerZone 的固定按钮了(见下面 btnSkipDecl),
+    // 免得发完最后一张牌它一冒出来就顶到这条不断在长的亮主按钮行上,变成误点。
     stripHTML=btns.length?btns.join(''):`<span>(暂无可${T('declare')}的牌)</span>`;
     // 只绑亮主类按钮([data-a]);「不亮」用自己的 inline onclick,别被这里覆盖掉
     bind=()=>strip.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{
@@ -6928,6 +6933,9 @@ function render(){
   // 扣底/看底牌本局用不上(你不坐庄)就收起来,不留灰按钮占地方(托管那颗另有显隐规则)
   document.getElementById('btnBury').hidden=(G.phase!=='kitty');
   document.getElementById('btnKitty').hidden=!canSeeKitty;
+  // 不亮:只在「发完牌、最后机会」这一刻出现,固定占 dealerZone 最左边那个位置
+  document.getElementById('btnSkipDecl').hidden=(G.phase!=='finalDecl');
+  document.getElementById('btnSkipDecl').textContent='不'+T('declareV');
   document.getElementById('btnHint').disabled=auto||!(C.on&&myTurn);
   // 只在发牌/亮主阶段给发牌区留两行高度,其余时候把这块高度还给牌桌
   document.getElementById('controls').classList.toggle('dealing',
