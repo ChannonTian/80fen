@@ -339,6 +339,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 |---|---|---|---|
 | `trumpSealW` | `0.5` | (v0.7.22 测试版默认开)只在跟牌时生效 | `pSurvive` |
 | `trumpSealWPts` | `1` | (v0.7.26 测试版默认开)台面**有分**时的那一档(= trumpSealW 即旧行为);见 pSurvive | `pSurvive` |
+| `lastOverW0` | `0` | 将牌墩末家台面 0 分时同门盖过来的意愿系数(0 = 不打折,旧行为);见 pSurvive | `pSurvive` |
 | `lastRuffWill` | `0.95` | (v0.7.26 测试版默认开)后手是本墩最后一家时「断门有主肯不肯毙」(0 = 旧口径 ruffWill);见 pSurvive | `pSurvive` |
 | `guardPlan` | `2` | (v0.7.26 测试版默认开)守底计划权重(0 = 旧行为);见 guardCost。系数 guardW 由 test/fit-guard.js 拟合 | `guardCost` `futureValue` |
 | `guardBossOnly` | `0` | 1 = 守底代价只看钢板主张数的变化(主牌张数不变) | `guardCost` |
