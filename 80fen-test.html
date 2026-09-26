@@ -3362,8 +3362,11 @@ function aiChooseFollow(view, plays){
    * 王 / 级数牌这类末家盖不住的「稳接」压根不在候选集里 —— 台面有分时封分接实际只守住 18~25%,
    * 拿手里最大的主接能守住 60~65%、每次净多 4~5 分,打分器却选不到。候选不该用规则砍,交给 scorePlay。
    * 只在队友领出的墩(我接他的牌权)或对手暂大时生成;末家不需要(最省的那张就是必赢)。 */
+  // trumpTakeAll=1:所有将牌单张墩(整局对照 −0.30 ±0.18 分/局 —— 连对手第 2 家也提前花大主);
+  // =2:只在**队友领出**的将牌墩(接队友的钓主),这才是报的那个局面
   if(AIP.trumpTakeAll&&!X.isLast&&lead.suit==='T'&&lead.type==='single'
-     &&(!X.partnerWinning||plays[0].seat===X.partnerSeat)){
+     &&(AIP.trumpTakeAll===2?plays[0].seat===X.partnerSeat
+                            :(!X.partnerWinning||plays[0].seat===X.partnerSeat))){
     const seen=new Set();
     for(const c of view.hand){
       if(effSuit(c,trump)!=='T'||ordIdx(c,trump)<=X.cur.cl.top) continue;
