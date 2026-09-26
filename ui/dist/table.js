@@ -9,7 +9,7 @@ const card=(s,r)=>({suit:s,rank:r,id:serial++});
 const rank=r=>({11:'J',12:'Q',13:'K',14:'A',15:'小王',16:'大王'}[r]||String(r));
 const label=c=>c.suit==='X'?rank(c.rank):names[c.suit]+rank(c.rank);
 const shortLabel=c=>c.suit==='X'?rank(c.rank):glyph[c.suit]+rank(c.rank);
-const color=c=>c.suit==='H'||c.suit==='D'||c.suit==='X'&&c.rank===16?'red':'';
+const color=c=>'suit-'+c.suit+(c.suit==='X'&&c.rank===16?' red':'');
 const chosen=()=>hand.filter(c=>selected.has(c.id));
 const isBidding=()=>scene==='declare'||scene==='counter';
 const groups=()=>['T','S','H','D','C'].filter(s=>s!==trump.suit).map(s=>({s,cards:hand.filter(c=>E.effSuit(c,trump)===s).sort((a,b)=>(descending?1:-1)*(E.ordIdx(b,trump)-E.ordIdx(a,trump))||a.suit.localeCompare(b.suit)||a.id-b.id)}));
@@ -31,7 +31,7 @@ function loadScene(next){
   $('pan').value='50';$('sheet').close();render();
 }
 function face(c){
-  return `<span class="index">${c.suit==='X'?(c.rank===16?'大':'小'):rank(c.rank)}<i>${c.suit==='X'?'王':glyph[c.suit]}</i></span><span class="pip" aria-hidden="true">${glyph[c.suit]}</span><span class="bottom-index" aria-hidden="true">${c.suit==='X'?'✦':rank(c.rank)+'<br>'+glyph[c.suit]}</span>${E.cardPoints(c)?`<span class="point-mark">${E.cardPoints(c)}</span>`:''}`;
+  return `<span class="index${c.rank===10?' two':''}"><span class="rank-value">${c.suit==='X'?(c.rank===16?'大':'小'):rank(c.rank)}</span><i>${c.suit==='X'?'王':glyph[c.suit]}</i></span><span class="bottom-index" aria-hidden="true">${c.suit==='X'?'✦':rank(c.rank)+'<br>'+glyph[c.suit]}</span>${E.cardPoints(c)?`<span class="point-mark">${E.cardPoints(c)}</span>`:''}`;
 }
 function cardMarkup(c,classes='',attributes=''){
   return `<button class="playing-card ${color(c)} ${c.suit==='X'?'joker':''} ${classes} ${selected.has(c.id)?'selected':''}" data-card="${c.id}" aria-label="${label(c)}，第${c.id+1}张" aria-pressed="${selected.has(c.id)}" ${completed?'disabled':''} ${attributes}>${face(c)}</button>`;
@@ -106,7 +106,7 @@ function updateSelection(){
 function render(){
   $('arena').classList.toggle('finished',completed);
   $('game').classList.toggle('is-bidding',isBidding());
-  $('trumpStatus').innerHTML=isBidding()&&!declaration?'待亮主 <em>打 5</em>':`<i>${glyph[trump.suit]||'♛'}</i>${trump.suit?names[trump.suit]+'主':'无主'}<em>打 5</em>`;
+  $('trumpStatus').innerHTML=isBidding()&&!declaration?'待亮主 <em>打 5</em>':`<i class="${color({suit:trump.suit,rank:5})}">${glyph[trump.suit]||'♛'}</i>${trump.suit?names[trump.suit]+'主':'无主'}<em>打 5</em>`;
   $('role').textContent=scene==='bury'?'我方守庄':isBidding()?'发牌阶段':'我方攻分';
   const points=scene==='bury'||isBidding()?0:score;
   $('score').textContent=points;$('scoreFill').style.width=Math.min(100,points/80*100)+'%';$('scoreTrack').setAttribute('aria-valuenow',String(Math.min(80,points)));

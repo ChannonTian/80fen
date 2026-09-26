@@ -1,0 +1,1956 @@
+<!doctype html>
+<!-- Teaching style preview; source: 5a143095f1163be2be3302e342753abce6f8109e. Course and grading logic preserved. -->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>80分 · 学一手</title>
+<style>
+/* ============================================================
+   80分教学版 —— 原型 v0.0.3
+   四段式框架:进度条 / 出题区 / 牌桌区 / 答题区。
+   反馈不做全屏浮层 —— 讲解回到出题区(猫改口),对错与「继续」落在
+   答题区,手牌全程可见。看反馈的时候手里还有什么牌,是要一起看的。
+   配色:橄榄绿系,不用 Duolingo 那支亮绿。
+   ============================================================ */
+:root{
+  /* 橄榄绿主色系 */
+  --ol:#55731C; --ol-rim:#3D5412; --ol-bg:#E7F0D2; --ol-tx:#3A5011; --ol-dk:#2A3B0C;
+  /* 砖红(错) */
+  --rd:#B03E27; --rd-rim:#8A2C16; --rd-bg:#F9E3DC; --rd-tx:#8A2C16;
+  /* 靛蓝(选中) */
+  --bl:#3B6E92; --bl-rim:#2C5876; --bl-bg:#E0EDF5; --bl-tx:#2A5271;
+  /* 梅紫(新规则徽章、关键词) */
+  --pu:#7E5C99; --pu-bg:#F0EAF5;
+  /* 金(分值角标) */
+  --gd:#DDA32C; --gd-tx:#4A3708;
+  --tx:#33362E; --tx2:#7A7C72; --line:#E2E0D6; --dis:#E4E2D8; --dis-tx:#A9A79C;
+  --page:#FFFCF6; --felt:#F3F1E7;
+
+  /* 牌宽是唯一标尺 */
+  --cardW:clamp(54px,16vw,80px);
+  --cardH:calc(var(--cardW)*1.44);
+  --fs:clamp(15px,4vw,17px);
+}
+@media (max-height:680px){ :root{--cardW:clamp(44px,13vw,62px)} }
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;height:100%}
+body{background:var(--page);color:var(--tx);overflow:hidden;
+  font:600 var(--fs)/1.45 -apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",system-ui,sans-serif}
+#app{height:100svh;display:flex;flex-direction:column;max-width:560px;margin:0 auto;position:relative;overflow:hidden}
+
+/* ---------- 按钮 ---------- */
+.btn{display:block;width:100%;border:0;border-radius:14px;padding:13px 20px;
+  font:800 clamp(15px,4.2vw,17px)/1.2 inherit;letter-spacing:.5px;color:#fff;
+  background:var(--ol);border-bottom:4px solid var(--ol-rim);cursor:pointer}
+.btn:active:not(:disabled){transform:translateY(4px);border-bottom-width:0;margin-bottom:4px}
+.btn:disabled{background:var(--dis);color:var(--dis-tx);border-bottom-color:#CFCDC2;cursor:default}
+.btn.red{background:var(--rd);border-bottom-color:var(--rd-rim)}
+.rnd{width:50px;height:50px;flex:none;border-radius:13px;border:2px solid var(--line);
+  border-bottom-width:4px;background:#fff;font-size:21px;cursor:pointer;display:grid;
+  place-items:center;color:var(--ol-tx)}
+.rnd:active:not(:disabled){transform:translateY(3px);border-bottom-width:1px}
+.rnd:disabled{opacity:.35;cursor:default}
+
+/* ==========  ① 进度条  ========== */
+#top{display:flex;align-items:center;gap:13px;padding:11px 16px 5px;flex:none}
+#quit{border:0;background:none;color:var(--dis-tx);font-size:25px;line-height:1;cursor:pointer;padding:0 2px}
+#bar{flex:1;height:13px;background:var(--line);border-radius:7px;overflow:hidden}
+#barIn{height:100%;width:0;background:var(--ol);border-radius:7px;position:relative;
+  transition:width .35s cubic-bezier(.4,0,.2,1)}
+#barIn::after{content:"";position:absolute;left:6px;right:6px;top:3px;height:3px;border-radius:2px;background:rgba(255,255,255,.35)}
+
+/* ==========  ② 出题区  ========== */
+#ask{flex:none;padding:2px 14px 7px}
+/* 徽章 + 题型 + 这一局,挤在同一行 —— 顶上每多一行,牌桌就少一行 */
+#head{display:flex;align-items:center;flex-wrap:wrap;gap:5px 8px;margin:0 0 6px}
+#badge:empty,#ctx:empty{display:none}
+#badge{display:inline-flex;align-items:center;gap:5px;flex:none;color:var(--pu);font:800 10px/1 inherit;
+  letter-spacing:1px;background:var(--pu-bg);border-radius:6px;padding:4px 7px}
+#badge::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--pu);flex:none}
+/* 题型是短标签,不是一句话。加 min-width:0 让它自己换行,而不是把局面胶囊挤下去 */
+#task{font:800 clamp(16px,4.6vw,19px)/1.25 inherit;margin-right:auto;white-space:nowrap}
+#ctx{display:inline-flex;gap:5px;flex:none}
+#ctx i{font-style:normal;background:var(--ol);color:#fff;border-radius:6px;padding:4px 7px;
+  font:800 10px/1 inherit;letter-spacing:0;white-space:nowrap}
+#ctx i.pts{background:var(--gd);color:var(--gd-tx)}
+/* 亮主、扣底这些不发生在牌桌上 —— 不标明阶段,会被当成「轮到我出牌」 */
+#ctx i.phase{background:var(--pu-bg);color:var(--pu);
+  box-shadow:inset 0 0 0 1.5px currentColor}
+#coach{display:flex;align-items:flex-start;gap:8px}
+#face{width:54px;height:54px;flex:none}
+#bub{position:relative;background:#fff;border:2px solid var(--line);border-radius:14px;
+  padding:9px 12px;font:600 clamp(13px,3.7vw,15px)/1.45 inherit;flex:1;
+  max-height:34vh;overflow-y:auto;transition:background .2s,border-color .2s}
+#bub::before,#bub::after{content:"";position:absolute;top:15px;border:8px solid transparent}
+#bub::before{left:-16px;border-right-color:var(--line)}
+#bub::after{left:-13px;border-right-color:#fff}
+#bub b{color:var(--pu)}
+#bub .term{color:var(--pu);border-bottom:2px dotted var(--pu);cursor:help}
+#bub .sim{display:block;margin-top:4px;font-size:.85em;color:var(--tx2);font-weight:600}
+#bub.good .sim,#bub.bad .sim{color:inherit;opacity:.78}
+#bub .tip{display:block;margin-top:5px;color:var(--pu);font-size:.9em}
+/* 讲解态:猫改口说反馈 */
+#bub.good{background:var(--ol-bg);border-color:#B6CE85} #bub.good::after{border-right-color:var(--ol-bg)}
+#bub.good::before{border-right-color:#B6CE85}
+#bub.bad{background:var(--rd-bg);border-color:#EFC4B7} #bub.bad::after{border-right-color:var(--rd-bg)}
+#bub.bad::before{border-right-color:#EFC4B7}
+#bub.good b,#bub.bad b{color:inherit;text-decoration:underline;text-underline-offset:3px}
+
+/* ==========  ③ 牌桌区 + ④ 手牌:作为一个整体居中,中间只留一点  ========== */
+/* 居中用 margin:auto 而不是 justify-content:center —— 后者在内容超高时会把顶部裁掉
+   (提示一出,出题区变高,牌桌被挤到装不下,北家那张牌的点数就没了)。
+   margin:auto 在有空间时照样居中,空间不够时退化成从头排,一张也不裁。 */
+#board{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;
+  justify-content:flex-start;padding:2px 8px;overflow-y:auto;overflow-x:hidden}
+#board>#table{margin:auto 0}          /* 有空间就居中,不够就从头排,一张也不裁 */
+#table{display:flex;flex-direction:column;align-items:center;gap:7px;width:100%}
+#hand{flex:none;display:flex;justify-content:center;gap:8px;padding:6px 8px 2px;
+  min-height:calc(var(--cardH) + 16px);align-items:flex-end}
+
+.seatmap{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;width:min(300px,90%);place-items:center}
+.seatbtn{border:2px solid var(--line);border-bottom-width:4px;border-radius:14px;background:#fff;
+  padding:11px 4px;width:100%;font:800 14px/1.25 inherit;color:var(--tx);cursor:pointer}
+.seatbtn small{display:block;font-weight:700;font-size:11px;color:var(--tx2);margin-top:3px}
+.seatbtn.me{background:var(--felt);cursor:default;border-color:#D8D5C6}
+.seatbtn.sel{border-color:var(--bl);background:var(--bl-bg);color:var(--bl-tx)}
+.seatbtn.ok{border-color:var(--ol);background:var(--ol-bg);color:var(--ol-tx)}
+.seatbtn.no{border-color:var(--rd);background:var(--rd-bg);color:var(--rd-tx)}
+.arrowbox{font:700 11px/1.3 inherit;color:var(--tx2);text-align:center}
+
+.trick{display:grid;grid-template-columns:repeat(3,1fr);gap:0;width:100%;
+  place-items:center;background:var(--felt);border-radius:18px;padding:4px 2px;max-width:none}
+.slot{position:relative;display:flex;flex-direction:column;align-items:center;gap:2px;
+  justify-content:center;min-height:calc(var(--cardH) + 20px);padding:3px 4px 4px;border-radius:12px}
+.slot .who{font:700 11px/1 inherit;color:var(--tx2);white-space:nowrap}
+.slot.mine .who,.slot.mate .who{color:var(--ol-tx)}
+.slot .who.win{background:var(--gd);color:var(--gd-tx);border-radius:5px;padding:2px 6px}
+.slot .ph{width:calc(var(--cardW) + 6px);height:calc(var(--cardH) + 4px);
+  border-radius:11px;border:2.5px dashed #CFCBB9}
+/* 多张牌叠起来放 —— 和正式版出牌区(.played)同一套视觉语言:后一张压前一张 -0.5,
+   只留左半边(点数 + 花色)够认牌。我们的牌本来就只画左半边,正好接得上。
+   不叠的话一格只有牌桌 1/3 宽,四张牌得缩到 23px,牌面就读不出来了。 */
+.slot .cards{display:flex;gap:0;justify-content:center;align-items:center}
+.cards.ov .card{margin-left:calc(var(--cardW)*-.5)}
+.cards.ov .card:first-child{margin-left:0}
+/* 叠起来之后右半边被盖住,分值角标与「主」字条挪到左边那条露出来的窄边上 */
+.cards.ov .card .pt{left:2px;right:auto;top:56%;bottom:auto;font-size:calc(var(--cardW)*.2);padding:1px 3px}
+.cards.ov .card .trumpTag{left:0;right:auto;width:52%;top:30%;font-size:calc(var(--cardW)*.21);
+  padding:1px 0;border-radius:0 4px 4px 0;text-align:center}
+/* 领出题上面已经压了一条可视条,再画三个空框就把自己那张挤出屏幕了 ——
+   别人还没出牌,那三格的信息量是零,只留自己这一格。 */
+.trick.solo{grid-template-columns:1fr;padding:3px 2px}
+.trick.m2{--cardW:clamp(46px,13vw,68px)}       /* 一格两张 */
+.trick.m4{--cardW:clamp(38px,11vw,54px)}       /* 一格三四张(拖拉机、甩牌) */
+/* 明牌演示:几家的牌摊开给你看 */
+.openrow{display:flex;align-items:center;gap:9px;width:100%;max-width:340px;margin:0}
+.openrow b{flex:none;width:4.2em;font:800 12px/1.3 inherit;color:var(--tx2);text-align:right}
+.openrow.me b{color:var(--ol-tx)}
+/* 一门(或主牌)还剩多少:每格一张牌,已出的灰、我手上的绿、外面的留白。
+   数牌应该是**看**出来的 —— 摆 16 张牌看不清,写算式又回到文字题。 */
+.barrow{display:flex;align-items:center;gap:8px;width:100%;max-width:360px;margin:1px 0}
+.barrow b{flex:none;width:3.4em;font:800 12px/1.3 inherit;color:var(--tx2);text-align:right}
+/* 一门最多 26 张,窄屏上也必须排成一条 —— 折行的条不再是「一眼看出」,
+   所以格子按宽度等分收缩,不换行。 */
+.bar{display:flex;flex-wrap:nowrap;gap:2px;flex:1;min-width:0}
+.bar i{flex:1 1 0;min-width:0;max-width:11px;height:14px;border-radius:2px;display:block;
+  background:#fff;border:1px solid var(--line)}
+.bar i.out{background:#D8D5C8;border-color:#CBC7B8}      /* 已经出过 */
+.bar i.mine{background:var(--ol);border-color:var(--ol-rim)}  /* 在我手上 */
+/* 读数和图例并一行:竖屏上每省一行,牌桌就多一行 */
+.barfoot{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;
+  gap:4px 10px;margin:3px 0 1px;font:700 11px/1.3 inherit;color:var(--tx2)}
+.barfoot span{display:inline-flex;align-items:center;gap:4px}
+.barfoot i{width:9px;height:11px;border-radius:2px;border:1px solid var(--line);display:block}
+.barfoot i.out{background:#D8D5C8} .barfoot i.mine{background:var(--ol)}
+.barsum{font:700 12px/1.3 inherit;color:var(--tx2)}
+.barsum b{color:var(--rd-tx);font-size:1.15em}
+.opencards{--cardW:clamp(33px,9.5vw,48px);--cardH:calc(var(--cardW)*1.38);
+  display:flex;gap:0;align-items:center}
+.opencards .card{margin-left:calc(var(--cardW)*-.5)}
+.opencards .card:first-child{margin-left:0}
+/* 叠着放是为了省宽度,可王牌的「大/王」是两行字,叠起来就只剩半个字。
+   张数不多、放得下的时候用 spread 摊开,别为了统一把牌摆成看不清。 */
+.opencards.spread{flex-wrap:wrap;gap:4px;justify-content:center}
+.opencards.spread .card{margin-left:0}
+.opencards .card .pt{left:2px;right:auto;top:56%;bottom:auto;font-size:calc(var(--cardW)*.2);padding:1px 3px}
+.opencards .card .trumpTag{left:0;right:auto;width:52%;top:30%;font-size:calc(var(--cardW)*.21);
+  padding:1px 0;border-radius:0 4px 4px 0;text-align:center}
+/* 要点的那一行**不叠** —— 叠是给「只看不点」的展示用的。
+   叠着选牌有两处必错:点中心会点到后一张;选中抬起来又会盖住下一张的可点区。 */
+.opencards.pickset{gap:7px}
+.opencards.pickset .card{cursor:pointer;margin-left:0}
+.opencards.pickset .card .pt{left:auto;right:3px;top:auto;bottom:3px;
+  font-size:calc(var(--cardW)*.25);padding:2px 4px}
+.opencards.pickset .card .trumpTag{left:0;right:0;width:auto;top:38%;
+  font-size:calc(var(--cardW)*.2);border-radius:0}
+.opencards.pickset .card.sel{transform:translateY(-11px);
+  box-shadow:0 2px 0 rgba(0,0,0,.09),0 0 0 3px var(--bl)}
+.tcenter{grid-column:2;font:700 11px/1.35 inherit;color:var(--tx2);text-align:center}
+.pile{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;max-width:100%}
+
+/* 答题一律落在牌桌上:点座位、点牌、点队伍 —— 下面不再列一排选项 */
+.slot.pickable{cursor:pointer;border-radius:12px;transition:background .12s}
+.slot.selslot{background:var(--bl-bg);box-shadow:inset 0 0 0 3px var(--bl)}
+.slot.okslot{background:var(--ol-bg);box-shadow:inset 0 0 0 3px var(--ol)}
+.slot.noslot{background:var(--rd-bg);box-shadow:inset 0 0 0 3px var(--rd)}
+.slot.okslot .ph,.slot.noslot .ph{border-color:transparent}
+.slot .who.us{color:var(--ol-tx)} .slot .who.them{color:var(--rd-tx)}
+.trickWrap{position:relative;width:100%}
+/* 只有「算多少分」这类数值题还留选项,排成两列的短牌,不占竖向 */
+.kittyBox{width:100%;max-width:340px;background:var(--felt);border-radius:16px;padding:8px 6px 10px;
+  text-align:center;font:700 12px/1.3 inherit;color:var(--tx2)}
+.kittyBox b{color:var(--rd-tx);font-size:1.1em}
+.kittyBox.ok{background:var(--ol-bg);box-shadow:inset 0 0 0 2.5px var(--ol)}
+.kittyBox.no{background:var(--rd-bg);box-shadow:inset 0 0 0 2.5px var(--rd)}
+.kittySlot{display:flex;justify-content:center;gap:5px;margin-top:6px;min-height:calc(var(--cardH)*.9)}
+.kittySlot .card{--cardW:clamp(38px,11vw,54px);--cardH:calc(var(--cardW)*1.44)}
+.kittySlot .kph{width:clamp(38px,11vw,54px);height:calc(clamp(38px,11vw,54px)*1.44);
+  border-radius:9px;border:2px dashed #CFCBB9;display:block}
+.chips{display:grid;grid-template-columns:repeat(2,1fr);gap:9px;width:100%;max-width:340px}
+.chips .opt{text-align:center}
+.chips.l3{grid-template-columns:repeat(2,1fr);gap:7px}
+.chips.l3 .opt{padding:10px 6px;font-size:clamp(13px,3.6vw,15px)}
+.ladderHead{font:700 clamp(15px,4.2vw,17px)/1.4 inherit;text-align:center;margin-bottom:10px}
+.ladderHead b{color:var(--ol-tx);font-size:1.15em}
+.ladderHead small{color:var(--tx2);font-weight:600}
+.opts{display:flex;flex-direction:column;gap:8px;width:100%;max-width:330px}
+.opt{border:2px solid var(--line);border-bottom-width:4px;border-radius:13px;background:#fff;
+  padding:11px 15px;font:700 clamp(14px,4vw,16px)/1.3 inherit;color:var(--tx);cursor:pointer;text-align:left}
+.opt.sel{border-color:var(--bl);background:var(--bl-bg);color:var(--bl-tx)}
+.opt.ok{border-color:var(--ol);background:var(--ol-bg);color:var(--ol-tx)}
+.opt.no{border-color:var(--rd);background:var(--rd-bg);color:var(--rd-tx)}
+
+/* ---------- 牌 ---------- */
+.card{position:relative;display:inline-block;width:var(--cardW);height:var(--cardH);flex:none;
+  background:#fff;color:#111;border-radius:7px;border:1.5px solid #CBC8BA;font-weight:800;
+  user-select:none;box-shadow:0 2px 0 rgba(0,0,0,.09);vertical-align:top}
+.card.sS{color:#141414} .card.sH{color:#B33A2B} .card.sD{color:#A8286A} .card.sC{color:#14472C}
+.card.jb{color:#B33A2B} .card.js{color:#141414}
+.card .tl.two{font-size:calc(var(--cardW)*.32)}
+.trumpTag{position:absolute;left:0;right:0;top:38%;text-align:center;font:800 calc(var(--cardW)*.2)/1 inherit;
+  color:#fff;background:var(--ol);padding:2px 0;letter-spacing:1px;opacity:.92}
+.card .tl{position:absolute;top:3px;left:5px;font-size:calc(var(--cardW)*.40);line-height:1}
+.card .bl{position:absolute;bottom:3px;left:5px;font-size:calc(var(--cardW)*.38);line-height:1}
+/* 角标只能放右下:左上是点数(「10」占两个字宽)、左下是花色 */
+.card .pt{position:absolute;right:3px;bottom:3px;font-size:calc(var(--cardW)*.25);line-height:1;
+  background:var(--gd);color:var(--gd-tx);border-radius:5px;padding:2px 4px;font-weight:800}
+.card.pick{cursor:pointer;transition:transform .1s}
+.card.sel{transform:translateY(-13px);box-shadow:0 2px 0 rgba(0,0,0,.09),0 0 0 3px var(--bl)}
+.card.ok{box-shadow:0 2px 0 rgba(0,0,0,.09),0 0 0 3px var(--ol)}
+.card.no{box-shadow:0 2px 0 rgba(0,0,0,.09),0 0 0 3px var(--rd);opacity:.6}
+.card.dim{opacity:.32}
+.card.played{animation:playIn .28s cubic-bezier(.2,.9,.3,1.3)}
+@keyframes playIn{from{transform:translateY(22px) scale(.85);opacity:0}to{transform:none;opacity:1}}
+.flyer{position:fixed;z-index:60;transition:transform .48s cubic-bezier(.5,0,.6,1),opacity .48s;pointer-events:none}
+
+/* ==========  ⑤ 答题区(按钮 / 反馈)  ========== */
+#foot{flex:none;padding:9px 16px calc(10px + env(safe-area-inset-bottom));
+  border-top:2px solid var(--line);background:#fff;transition:background .2s,border-color .2s}
+#foot.good{background:var(--ol-bg);border-top-color:#B6CE85}
+#foot.bad{background:var(--rd-bg);border-top-color:#EFC4B7}
+#verdict{display:none;font:800 clamp(16px,4.4vw,18px)/1.2 inherit;margin-bottom:8px}
+#foot.good #verdict{display:block;color:var(--ol-tx)}
+#foot.bad  #verdict{display:block;color:var(--rd-tx)}
+#btnRow{display:flex;gap:11px;align-items:center}
+#btnRow .btn{flex:1}
+#foot.good .rnd,#foot.bad .rnd{background:#fff;border-color:rgba(0,0,0,.09)}
+
+/* ==========  地图:一个单元 = 一「手」牌  ========== */
+.page{position:absolute;inset:0;background:var(--page);z-index:50;display:flex;flex-direction:column;
+  overflow-y:auto;-webkit-overflow-scrolling:touch}
+.page.hide{display:none}
+.unit{margin:14px 16px 0;background:var(--ol);color:#fff;border-radius:16px;padding:12px 17px;
+  border-bottom:4px solid var(--ol-rim)}
+.unit.lock{background:var(--dis);border-bottom-color:#CFCDC2;color:#8B897E}
+.unit small{display:block;font:800 11px/1 inherit;letter-spacing:1.4px;opacity:.9;margin-bottom:5px}
+.unit b{font-size:18px}
+.fan{display:flex;justify-content:center;padding:22px 12px 4px;min-height:130px;align-items:flex-end}
+.lnode{--w:clamp(50px,15vw,64px);width:var(--w);height:calc(var(--w)*1.44);flex:none;
+  margin-left:-10px;border-radius:8px;border:0;padding:0;position:relative;cursor:default;
+  transition:transform .16s;transform-origin:bottom center}
+.lnode:first-child{margin-left:0}
+/* 牌背 */
+.lnode.back{background:
+   repeating-linear-gradient(45deg,rgba(255,255,255,.14) 0 3px,transparent 3px 7px),
+   repeating-linear-gradient(-45deg,rgba(255,255,255,.14) 0 3px,transparent 3px 7px),
+   linear-gradient(160deg,var(--ol),var(--ol-dk));
+  box-shadow:0 2px 0 rgba(0,0,0,.14);border:2px solid rgba(255,255,255,.5)}
+.lnode.back.lock{background:
+   repeating-linear-gradient(45deg,rgba(255,255,255,.16) 0 3px,transparent 3px 7px),
+   linear-gradient(160deg,#BFBDB1,#9E9C90);border-color:rgba(255,255,255,.45)}
+.lnode.back::after{content:"80";position:absolute;inset:0;display:grid;place-items:center;
+  color:rgba(255,255,255,.82);font:800 calc(var(--w)*.34)/1 inherit;letter-spacing:1px}
+/* 正面(已完成) */
+.lnode.face{background:#fff;border:1.5px solid #CBC8BA;box-shadow:0 2px 0 rgba(0,0,0,.09);color:#B33A2B}
+.lnode.face .r{position:absolute;top:4px;left:6px;font:800 calc(var(--w)*.4)/1 inherit}
+.lnode.face .s{position:absolute;bottom:4px;left:6px;font:800 calc(var(--w)*.38)/1 inherit}
+.lnode.face .star{position:absolute;right:3px;bottom:3px;background:var(--gd);color:var(--gd-tx);
+  border-radius:5px;font:800 calc(var(--w)*.26)/1 inherit;padding:2px 4px}
+/* 当前:抬起 + 可点 */
+.lnode.now{cursor:pointer;transform:translateY(-16px) rotate(-2deg);z-index:3;
+  box-shadow:0 4px 0 rgba(0,0,0,.16),0 0 0 3px var(--gd)}
+.lnode.face{z-index:2}
+.lnode.now:active{transform:translateY(-10px)}
+.nowline{text-align:center;font:800 clamp(15px,4.2vw,17px)/1.3 inherit;margin:12px 16px 3px}
+.nowsub{text-align:center;font:600 12px/1.3 inherit;color:var(--tx2);margin-bottom:12px}
+.golead{margin:0 16px 6px}
+.locknote{text-align:center;color:var(--tx2);font:600 12px/1.4 inherit;padding:10px 16px 20px}
+
+#done{align-items:center;justify-content:center;text-align:center;padding:24px;gap:2px}
+#done .big{font-size:58px}
+#done h2{font:800 24px/1.2 inherit;color:var(--ol-tx);margin:8px 0 2px}
+#done p{color:var(--tx2);font-weight:600;margin:0 0 20px}
+.stats{display:flex;gap:12px;margin-bottom:24px}
+.stat{border:2px solid var(--gd);border-radius:14px;padding:8px 20px;min-width:100px}
+.stat b{display:block;font-size:21px;color:#8A6510}
+.stat small{font-size:11px;color:var(--tx2);font-weight:800;letter-spacing:1px}
+</style>
+<link rel="stylesheet" href="theme.css">
+<link rel="stylesheet" href="learn-theme.css">
+</head>
+<body>
+<div id="app">
+
+  <div class="page" id="map"></div>
+
+  <!-- ① 进度条 -->
+  <div id="top">
+    <button id="quit" title="退出">&times;</button>
+    <div id="bar"><div id="barIn"></div></div><a class="learn-link" href="index.html" aria-label="离开练习，去牌桌">打牌</a>
+  </div>
+
+  <!-- ② 出题区 -->
+  <div id="ask">
+    <div id="head"><span id="badge"></span><span id="task"></span><span id="ctx"></span></div>
+    <div id="coach"><span id="face"></span><div id="bub"></div></div>
+  </div>
+
+  <!-- ③ 牌桌区(内容太高时只滚这一块) -->
+  <div id="board"><div id="table"></div></div>
+  <!-- ④ 手牌:答题面,永远不参与滚动、不会被挤掉 -->
+  <div id="hand"></div>
+
+  <!-- ④ 答题区 -->
+  <div id="foot">
+    <div id="verdict"></div>
+    <div id="btnRow">
+      <button class="rnd" id="hintBtn" title="问教练">💡</button>
+      <button class="btn" id="cta" disabled>检查</button>
+    </div>
+  </div>
+
+  <div class="page hide" id="done">
+    <div class="big">🐱</div>
+    <h2>这一课通关了</h2>
+    <p>你已经看得懂一墩牌了</p>
+    <div class="stats">
+      <div class="stat"><b id="sAcc">—</b><small>正确率</small></div>
+      <div class="stat"><b id="sTime">—</b><small>用时</small></div>
+    </div>
+    <button class="btn" id="doneBtn" style="max-width:300px">继续</button>
+  </div>
+</div>
+
+<script>
+(function(){
+'use strict';
+
+/* ================= 教练:狸花猫 ================= */
+function catSVG(mood){
+  const eyes = mood==='good'
+    ? `<path d="M20 36q5-5 10 0M42 36q5-5 10 0" stroke="#2B2A24" stroke-width="3" fill="none" stroke-linecap="round"/>`
+    : mood==='bad'
+    ? `<ellipse cx="25" cy="37" rx="6" ry="6.5" fill="#F2EFE4"/><ellipse cx="47" cy="37" rx="6" ry="6.5" fill="#F2EFE4"/>
+       <ellipse cx="25" cy="37" rx="5" ry="5.6" fill="#A9B84E"/><ellipse cx="47" cy="37" rx="5" ry="5.6" fill="#A9B84E"/>
+       <ellipse cx="25" cy="37" rx="1.9" ry="5" fill="#1E1D18"/><ellipse cx="47" cy="37" rx="1.9" ry="5" fill="#1E1D18"/>
+       <circle cx="23.2" cy="34.6" r="1.5" fill="#fff"/><circle cx="45.2" cy="34.6" r="1.5" fill="#fff"/>`
+    : `<ellipse cx="25" cy="37" rx="6" ry="5.6" fill="#F2EFE4"/><ellipse cx="47" cy="37" rx="6" ry="5.6" fill="#F2EFE4"/>
+       <ellipse cx="25" cy="37" rx="5.1" ry="4.8" fill="#A9B84E"/><ellipse cx="47" cy="37" rx="5.1" ry="4.8" fill="#A9B84E"/>
+       <ellipse cx="25" cy="37" rx="1.7" ry="4.3" fill="#1E1D18"/><ellipse cx="47" cy="37" rx="1.7" ry="4.3" fill="#1E1D18"/>
+       <circle cx="23.3" cy="35" r="1.4" fill="#fff"/><circle cx="45.3" cy="35" r="1.4" fill="#fff"/>`;
+  const mouth = mood==='good'
+    ? `<path d="M30 50q6 6 12 0" stroke="#5C5344" stroke-width="2.2" fill="none" stroke-linecap="round"/>`
+    : mood==='bad'
+    ? `<path d="M31 52q5-4 10 0" stroke="#5C5344" stroke-width="2.2" fill="none" stroke-linecap="round"/>`
+    : `<path d="M31 49q2.5 3 5 0M36 49q2.5 3 5 0" stroke="#5C5344" stroke-width="2.2" fill="none" stroke-linecap="round"/>`;
+  return `<svg viewBox="0 0 72 72" width="100%" height="100%" aria-hidden="true">
+   <path d="M11 30 L13 7 L31 17 Z" fill="#A2977F"/><path d="M15 26 L16.5 13 L27 19 Z" fill="#DCA9A6"/>
+   <path d="M61 30 L59 7 L41 17 Z" fill="#A2977F"/><path d="M57 26 L55.5 13 L45 19 Z" fill="#DCA9A6"/>
+   <ellipse cx="36" cy="39" rx="26" ry="24" fill="#A99E86"/>
+   <path d="M36 15 L31 26 M36 15 L41 26 M26 19 L23 28 M46 19 L49 28" stroke="#5C5344" stroke-width="3" stroke-linecap="round" fill="none"/>
+   <path d="M12 36 L4 33 M12 42 L4 42 M60 36 L68 33 M60 42 L68 42" stroke="#5C5344" stroke-width="2.4" stroke-linecap="round" opacity=".55"/>
+   <ellipse cx="36" cy="49" rx="13" ry="10" fill="#EFEADC"/>
+   ${eyes}
+   <path d="M33 44 L39 44 L36 47.6 Z" fill="#D0757E"/>
+   ${mouth}
+   <path d="M22 46 L8 44 M22 49 L9 51 M50 46 L64 44 M50 49 L63 51" stroke="#8E8878" stroke-width="1.4" opacity=".55" stroke-linecap="round"/>
+  </svg>`;
+}
+const setCat=m=>{ document.getElementById('face').innerHTML=catSVG(m); };
+
+/* ================= 牌与规则(教学子集) =================
+   TR = null(无主) 或 {s:主花色, lv:这一局打几}。
+   级数是**每课自带的参数**,不是常量 —— 初学者老是因为一直打 2 就以为
+   「主牌 = 2」,换了级就懵。所以每一课都换一个级数,而且「打几 · 谁是主」
+   常驻在题干下面。 */
+const SYM={S:'♠',H:'♥',D:'♦',C:'♣'};
+const SUITCN={S:'黑桃',H:'红桃',D:'方块',C:'草花'};
+const PTS={5:5,10:10,13:10};
+const RS=r=>r>10?({11:'J',12:'Q',13:'K',14:'A'})[r]:String(r);
+const C=(s,r,i)=>({suit:s,rank:r,id:s+r+(i||0)});
+const H=(r,i)=>C('H',r,i), S=(r,i)=>C('S',r,i), D=(r,i)=>C('D',r,i), Cl=(r,i)=>C('C',r,i);
+const BJ=C('X',16), SJ=C('X',15);
+const pts=c=>PTS[c.rank]||0;
+
+/* ==LEARN-ENGINE-PORT-START== 以下整段从 index.html 的引擎块**逐字复制**,一个字符不改。
+   拖拉机能不能连,取决于级数牌抽走之后的相邻关系(打 7 时 66+88 才连得上)——
+   这种东西自己重写一份必错,而且会和正式版悄悄漂开。
+   test/learn-engine-sync.js 钉住这一段与 index.html 逐字相同,不符就报错。
+   (v0.7.14 修掉了 decompose 贪心切链那条,所以这里搬过来的是修好的版本) */
+const RULES={ strictTractorFollow:true, partialTractorFollow:true,
+              kittyMultiplier:(lastLeadSize)=>2*(lastLeadSize||1) };
+function cardPoints(c){ return c.rank===5?5 : (c.rank===10||c.rank===13)?10 : 0; }
+function countPoints(cards){ return cards.reduce((a,c)=>a+cardPoints(c),0); }
+
+function effSuit(c, trump){
+  if(c.suit==='X' || c.rank===trump.rank) return 'T';
+  if(trump.suit && c.suit===trump.suit) return 'T';
+  return c.suit;
+}
+function natOrder(trumpRank){ const r=[]; for(let x=2;x<=14;x++) if(x!==trumpRank) r.push(x); return r; }
+function ordIdx(c, trump){
+  if(c.rank===16) return 15;
+  if(c.rank===15) return 14;
+  if(c.rank===trump.rank){
+    if(!trump.suit) return 13;
+    return c.suit===trump.suit?13:12;
+  }
+  return natOrder(trump.rank).indexOf(c.rank);
+}
+function pairKey(c){ return c.suit+':'+c.rank; }
+function decompose(cards, trump){
+  const by={};
+  for(const c of cards)(by[pairKey(c)]=by[pairKey(c)]||[]).push(c);
+  const pairs=[], singles=[];
+  for(const k in by){
+    const arr=by[k];
+    if(arr.length>=2) pairs.push([arr[0],arr[1]]);
+    if(arr.length%2===1) singles.push(arr[arr.length-1]);
+  }
+  pairs.sort((a,b)=>ordIdx(a[0],trump)-ordIdx(b[0],trump));
+  const comps=[]; let run=[];
+  const flush=()=>{
+    if(!run.length) return;
+    if(run.length>=2) comps.push({type:'tractor',len:run.length,cards:run.flat(),
+                                  top:ordIdx(run[run.length-1][0],trump)});
+    else comps.push({type:'pair',cards:run[0],top:ordIdx(run[0][0],trump)});
+    run=[];
+  };
+  /* 同一个 ordIdx 可能有不止一对 —— 三门副级牌对全是同一个序号,无主局的四门级数牌对
+   * 也是。它们对成链是**可替换**的,所以不能一趟扫:遇到同序号当场断链的话,
+   * **手上多出一对同序号的对子反而会把本来连得上的链切短**。主♠打2、手上
+   * ♠A♠A(11)+♥2♥2(12)+♦2♦2(12)+♠2♠2(13),一趟扫切成两个二连对,而 11→12→13
+   * 本该是一个三连对。
+   * 改成分层:同序号的第 1 对算第 0 层、第 2 对第 1 层……,一层一层地扫,
+   * 层内 ordIdx 严格递增,最长的链必然落在第 0 层。
+   * 只有一层时(绝大多数手牌)这一段和原来的一趟扫**逐字等价**。 */
+  const layer=[];
+  for(let i=0;i<pairs.length;i++)
+    layer.push(i && ordIdx(pairs[i-1][0],trump)===ordIdx(pairs[i][0],trump) ? layer[i-1]+1 : 0);
+  const nLayer=layer.length ? Math.max(...layer)+1 : 0;
+  for(let L=0;L<nLayer;L++){
+    for(let i=0;i<pairs.length;i++){
+      if(layer[i]!==L) continue;
+      const p=pairs[i];
+      if(run.length && ordIdx(p[0],trump)===ordIdx(run[run.length-1][0],trump)+1) run.push(p);
+      else { flush(); run=[p]; }
+    }
+    flush();
+  }
+  for(const s of singles) comps.push({type:'single',cards:[s],top:ordIdx(s,trump)});
+  return comps;
+}
+function classify(cards, trump){
+  if(!cards||!cards.length) return null;
+  const es=effSuit(cards[0],trump);
+  if(!cards.every(c=>effSuit(c,trump)===es)) return null;
+  if(cards.length===1) return {type:'single',suit:es,top:ordIdx(cards[0],trump),cards};
+  const comps=decompose(cards,trump);
+  if(comps.length===1){ const c=comps[0]; return {type:c.type,len:c.len,suit:es,top:c.top,cards}; }
+  return {type:'throw',suit:es,cards,comps,top:Math.max(...comps.map(c=>c.top))};
+}
+function countPairsIn(cards){
+  const by={}; for(const c of cards) by[pairKey(c)]=(by[pairKey(c)]||0)+1;
+  return Object.values(by).reduce((a,n)=>a+Math.floor(n/2),0);
+}
+function maxTractorLen(cards, trump){
+  return Math.max(0,...decompose(cards,trump).filter(c=>c.type==='tractor').map(c=>c.len));
+}
+function pairsInLead(lead){
+  if(lead.type==='pair') return 1;
+  if(lead.type==='tractor') return lead.len;
+  if(lead.type==='throw') return lead.comps.reduce((a,c)=>a+(c.type==='pair'?1:c.type==='tractor'?c.len:0),0);
+  return 0;
+}
+function isLegalFollow(hand, lead, chosen, trump){
+  const n=lead.cards.length;
+  if(chosen.length!==n) return false;
+  const ids=new Set(hand.map(c=>c.id));
+  const seen=new Set();
+  for(const c of chosen){ if(!ids.has(c.id)||seen.has(c.id)) return false; seen.add(c.id); }
+  const suitInHand=hand.filter(c=>effSuit(c,trump)===lead.suit);
+  const chosenInSuit=chosen.filter(c=>effSuit(c,trump)===lead.suit);
+  if(chosenInSuit.length!==Math.min(n,suitInHand.length)) return false;
+  const need=pairsInLead(lead);
+  if(need>0){
+    const must=Math.min(need,countPairsIn(suitInHand));
+    if(countPairsIn(chosenInSuit)<must) return false;
+  }
+  if(RULES.strictTractorFollow && lead.type==='tractor'){
+    const m=maxTractorLen(suitInHand,trump);
+    const cm=maxTractorLen(chosenInSuit,trump);
+    if(m>=lead.len && cm<lead.len) return false;                    // 有长必跟(可拆子拖拉机)
+    if(RULES.partialTractorFollow && m>=2 && m<lead.len && cm<m) return false; // 【可调】短拖也必须跟
+  }
+  return true;
+}
+function structSig(comps){ return comps.map(c=>c.type+(c.len||'')).sort().join(','); }
+/* 候选这一手够不够格和领出比大小 —— 「结构对得上」的准确含义。
+ *
+ * 口径:候选的组件可以**拆**,不能**并**。拖拉机拆得成对子和单张、对子拆得成两张单;
+ * 反过来两张单并不成一对、两个不相连的对子并不成拖拉机。于是:
+ *   · 一对主 盖得住「两张单」的甩牌 —— 毙掉撒牌最常见的形态就是这个
+ *   · 一副主拖拉机 盖得住「两个不相连的对子」
+ *   · 两张单 盖不住一对、两个不相连的对子 盖不住拖拉机(和以前一样)
+ *
+ * 旧版要求组件构成**逐字相同**(structSig 相等),于是主 ♥8♥8 去毙 ♦Q+♦J 的撒牌时,
+ * 这一手在 resolveTrick 里被整个跳过,撒牌方反而收了这一墩。
+ * 而 checkThrow 那一侧的 canBeatComp 早就认「拖拉机压对子」—— 一副引擎里两套口径。
+ *
+ * 实现:只需要把领出里的**连对段**(对子算 1 段、长度 L 的拖拉机算 L 段)装进候选的
+ * 连对段里,一段装得下几对就是它的容量;单张不用管,装完之后剩的牌必然正好够。
+ * 段数是个位数,直接回溯。 */
+function structMatches(cand, lead){
+  if(cand.cards.length!==lead.cards.length) return false;
+  const runs=x=>(x.type==='throw'?x.comps:[x])
+    .filter(c=>c.type!=='single').map(c=>c.type==='tractor'?c.len:1).sort((a,b)=>b-a);
+  const need=runs(lead), cap=runs(cand);
+  const fit=(i)=>{
+    if(i===need.length) return true;
+    for(let j=0;j<cap.length;j++){
+      if(cap[j]<need[i]) continue;
+      cap[j]-=need[i];
+      if(fit(i+1)) return true;
+      cap[j]+=need[i];
+    }
+    return false;
+  };
+  return fit(0);
+}
+
+function resolveTrick(plays, trump){
+  const lead=classify(plays[0].cards,trump);
+  let winIdx=0, best=lead;
+  for(let i=1;i<plays.length;i++){
+    const cl=classify(plays[i].cards,trump);
+    if(!cl || !structMatches(cl,lead)) continue;
+    if(cl.suit===best.suit){ if(cl.top>best.top){winIdx=i;best=cl;} }
+    else if(cl.suit==='T'){ winIdx=i; best=cl; }
+  }
+  return {winner:plays[winIdx].seat,
+          points:countPoints(plays.flatMap(p=>p.cards)),
+          winningPlay:best};
+}
+function canBeatComp(suitCards, comp, trump){
+  if(comp.type==='single') return suitCards.some(c=>ordIdx(c,trump)>comp.top);
+  const comps=decompose(suitCards,trump);
+  if(comp.type==='pair')
+    return comps.some(c=>(c.type==='pair'||c.type==='tractor')&&c.top>comp.top);
+  return comps.some(c=>c.type==='tractor'&&c.len>=comp.len&&c.top>comp.top);
+}
+function checkThrow(hands, seat, cards, trump){
+  const lead=classify(cards,trump);
+  if(!lead||lead.type!=='throw') return {ok:true};
+  /* 先把**被压住的**组件全找出来,不是找到一个就收工 —— 罚出哪一组只在这些里面挑。 */
+  const beaten=lead.comps.filter(comp=>{
+    for(let p=0;p<4;p++){
+      if(p===seat) continue;
+      const sc=hands[p].filter(c=>effSuit(c,trump)===lead.suit);
+      if(canBeatComp(sc,comp,trump)) return true;
+    }
+    return false;
+  });
+  if(!beaten.length) return {ok:true};
+  /* 罚出**被压住的那些里最小的一组**:先比张数(单张 < 对子 < 拖拉机),张数相同再比 top。
+   *
+   * 两处都曾经写错(v0.7.16 一起改口):
+   *   ① 挑选范围是「被压住的」,不是全部组件。甩 ♥3♥3 + ♥A、别家 ♥K♥K —— ♥A 是这门
+   *      最大的,没人压得住,被压的只有 ♥3♥3,那就出 ♥3♥3,不能因为「♥A 张数少」去出 ♥A。
+   *   ② 在这个范围里「最小」先比张数。甩 ♠4♠4 + ♠9、别家 ♠5♠5 + ♠K 两组都被压,
+   *      出 ♠9;旧写法只比 top 会出 ♠4♠4 —— 一对比一张单贵得多,「罚」反而罚重了,
+   *      还把一对拆散。
+   * 两个例子单看任何一个都分不出这两条,合起来才定得下来。 */
+  const size=c=>c.cards.length;
+  const lowest=beaten.reduce((a,c)=>
+    size(c)!==size(a) ? (size(c)<size(a)?c:a) : (c.top<a.top?c:a));
+  return {ok:false, forced:lowest.cards};
+}
+function scoreRound({defPoints, kitty, defWonLastTrick, lastLeadSize}){
+  const kittyPts=countPoints(kitty);
+  const mult=RULES.kittyMultiplier(lastLeadSize);
+  const total=defPoints + (defWonLastTrick ? kittyPts*mult : 0);
+  if(total<80){
+    return {defendersWin:false, total, kittyPts, mult, declarerLevelsUp: total===0?3 : total<40?2 : 1};
+  }
+  return {defendersWin:true, total, kittyPts, mult, defenderLevelsUp: Math.floor((total-80)/40)};
+}
+function declarationOf(cards, trumpRank){
+  if(cards.length===1 && cards[0].rank===trumpRank) return {suit:cards[0].suit,strength:1};
+  if(cards.length===2 && pairKey(cards[0])===pairKey(cards[1])){
+    if(cards[0].rank===trumpRank) return {suit:cards[0].suit,strength:2};
+    if(cards[0].rank===15) return {suit:null,strength:3};
+    if(cards[0].rank===16) return {suit:null,strength:4};
+  }
+  return null;
+}
+function canOverride(cur, next, seat){
+  if(!cur) return true;
+  if(next.strength<=cur.strength) return false;
+  if(seat!==undefined && cur.seat===seat) return false;
+  return true;
+}
+/* ==LEARN-ENGINE-PORT-END== */
+
+function cardName(c){ return c.suit==='X'?(c.rank===16?'大王':'小王'):SYM[c.suit]+RS(c.rank); }
+function cardHTML(c,cls,showPt,tr){
+  if(c.suit==='X') return `<div class="card ${c.rank===16?'jb':'js'} ${cls||''}" data-id="${c.id}">`+
+    `<span class="tl">${c.rank===16?'大':'小'}</span><span class="bl">王</span></div>`;
+  const p=pts(c), isT=tr&&tr!=='hide'&&tr.suit&&effSuit(c,tr)==='T';
+  return `<div class="card s${c.suit} ${cls||''}" data-id="${c.id}">`+
+    `<span class="tl${RS(c.rank).length>1?' two':''}">${RS(c.rank)}</span><span class="bl">${SYM[c.suit]}</span>`+
+    (isT?'<span class="trumpTag">主</span>':'')+
+    (showPt&&p?`<span class="pt">${p}</span>`:'')+`</div>`;
+}
+
+/* 教学版只打单张,下面两个是给单张场景的薄封装 */
+function legalSet(hand,ledSuit,tr){
+  if(ledSuit==null) return hand.slice();
+  const same=hand.filter(c=>effSuit(c,tr)===ledSuit);
+  return same.length?same:hand.slice();
+}
+function winnerOf(played,leadSeat,tr){
+  const plays=[];
+  for(let k=0;k<4;k++){const s=(leadSeat+k)%4; const a=asArr(played[s]); if(a)plays.push({seat:s,cards:a});}
+  return resolveTrick(plays,tr).winner;
+}
+function partialWinner(played,leadSeat,tr){ return winnerOf(played,leadSeat,tr); }
+
+const SEAT=['南','东','北','西'];
+const isUs=s=>s%2===0;
+const nameOf=s=>SEAT[s]+(s===0?'(你)':s===2?'(队友)':'');
+
+/* ================= 课程 =================
+   题型全部落在牌桌上:
+     seat      点座位          multi/cardpick  点牌
+     winpick   点「谁收这一墩」的那一家        teampick 点「这分算谁的」
+     trickpick 点手牌 → 牌直接打到你的位子上   numpick 只有数值题还留选项
+*/
+const U1=[
+{ id:'l1', rank:'A', name:'你和你的搭档', mins:3, tr:{suit:null,rank:2}, qs:[
+ { type:'seat', badge:'新概念', task:'认认人',
+   prompt:'四个人两两搭档。你坐<b>南</b>边 —— 谁是你的队友?',
+   hint:'队友不在你旁边。', answer:2,
+   good:'对。<b>坐你对面</b>的是队友,左右两家都是对手。',
+   bad:'不对。左右两家是对手,<b>坐你对面</b>的那家才是队友。' },
+ { type:'multi', badge:'新概念', task:'挑出分牌',
+   prompt:'一副牌里只有<b>三种牌算分</b>。把有分的都点出来。',
+   hint:'一共三张。最大的 A 不算分。',
+   cards:[H(3),H(5),H(9),H(13),H(10),H(14)], answer:['H50','H130','H100'],
+   good:'对。<b>5 算 5 分,10 和 K 各算 10 分</b>,其余的牌一分没有。',
+   bad:'有分的只有三种:<b>5(5分)、10(10分)、K(10分)</b>。A 再大也不算分。' },
+ { type:'numpick', task:'算一算', prompt:'这三张牌一共多少分?', hint:'K 和 10 都算 10 分。',
+   cards:[H(13),H(5),H(10)], showPt:true, opts:['15 分','20 分','25 分','30 分'], answer:2,
+   good:'对。10 + 5 + 10 = <b>25 分</b>。',
+   bad:'再数一次:K 算 <b>10</b>、5 算 <b>5</b>、10 算 <b>10</b> —— 合起来 25 分。' },
+ { type:'winpick', badge:'新规则', task:'谁收这一墩',
+   prompt:'四家各出一张牌,叫做一<span class="term">墩</span>。<b>点一下</b>收走这一墩的那一家。',
+   hint:'都是红桃,只要比点数。', simplify:'本关:所有人手里只有红桃',
+   played:[H(7),H(13),H(4),H(9)], lead:1, answer:1,
+   good:'对。出的是同一门,<b>最大的那张收走这一墩</b>。',
+   bad:'比点数:7 / K / 4 / 9 —— <b>K 最大</b>,东家收走。' },
+ { type:'teampick', badge:'新规则', task:'这分算谁的',
+   prompt:'东家收走了这一墩,里面有 <b>10 分</b>。<b>点一下</b>这分该记在谁的账上。',
+   hint:'谁和东家是一队的?',
+   played:[H(7),H(13),H(4),H(9)], lead:1, showPt:true, answer:1,
+   good:'对。<b>分是算一队的,不算个人的。</b>东和西是一队,这 10 分进他们队的账。',
+   bad:'80分是<b>两队</b>在打 —— 东家收的分,和他队友西家记同一本账。' },
+ { type:'trickpick', task:'出一张牌',
+   prompt:'轮到你了(你是最后一家)。出一张<b>能收走这一墩</b>的牌。',
+   hint:'先看场上最大的是哪张。', simplify:'本关:所有人手里只有红桃',
+   played:[null,H(9),H(3),H(6)], lead:1, hand:[H(4),H(12),H(3)], answer:'H120',
+   good:'对!<b>♥Q 比场上最大的 ♥9 还大</b>,这一墩归你。',
+   bad:'场上最大的是 <b>♥9</b>。你手里只有 <b>♥Q</b> 压得过它 —— 出小牌收不走。' },
+ { type:'trickpick', badge:'新技巧', task:'出一张牌',
+   prompt:'还差 <b>5 分</b>就上台。队友的 ♥A 已经最大,谁也压不过了 —— 你出哪张?',
+   hint:'队友赢定了 —— 那就往这一墩里放分。', simplify:'本关:所有人手里只有红桃', score:75,
+   played:[null,H(8),H(14),H(3)], lead:1, hand:[H(3),H(5)], showPt:true, answer:'H50',
+   good:'漂亮。队友反正赢定了,你把 <b>♥5 的 5 分</b>递给他 —— 分就进了你们队的账。这叫<span class="term">贴分</span>。',
+   bad:'队友已经赢定了。这时候出 <b>♥5(5分)</b>,分就进你们队;出 ♥3 白白浪费一次机会。' },
+ { type:'mini', task:'最后两墩', score:65, goal:'你们队 65 分,还差 15 分就到 80',
+   hint:'能压就压;压不过、又是队友最大,就把分贴进去。', simplify:'本关:所有人手里只有红桃',
+   hands:[[H(13),H(6)],[H(11),H(4)],[H(5),H(9)],[H(10),H(3)]], lead:0,
+   good:'一墩牌的规矩就这些了 —— <b>同一门里最大的收走,分算一队的。</b>' },
+]},
+
+{ id:'l2', rank:'2', name:'有这门必须跟', mins:4, tr:{suit:null,rank:2}, qs:[
+ { type:'trickpick', badge:'新规则', task:'出一张牌',
+   prompt:'从这一关起,你手里<b>不再只有红桃</b>。东家领出红桃 —— 你出哪张?',
+   hint:'看看手里有没有红桃。', simplify:'规则解除:手牌不再限定同一门',
+   played:[null,H(9),H(4),H(6)], lead:1, hand:[H(7),S(14),Cl(3)], answer:'H70', lose:true,
+   illegal:'你手里还有 <b>♥7</b> —— <b>有这门就得先跟这门</b>,不能垫别的。这是 80分 最要紧的一条规矩。',
+   good:'对。领出红桃,你有红桃就<b>必须出红桃</b>。',
+   bad:'领出的是红桃,你手里的 <b>♥7</b> 就是唯一能出的那张。' },
+ { type:'multi', task:'哪几张能出',
+   prompt:'东家领出 <b>♥9</b>。你手里这三张,<b>现在能出</b>的都点出来。',
+   hint:'规矩管的是花色,不是大小。',
+   cards:[H(3),H(13),S(14)], answer:['H30','H130'],
+   good:'两张红桃都能出。<b>规矩只管花色</b> —— 出大出小是你自己的选择,不是义务。',
+   bad:'♠A 出不去。有红桃的时候,<b>两张红桃都能出,而且只能出它们</b>。' },
+ { type:'multi', badge:'新规则', task:'哪几张能出',
+   prompt:'这次你<b>一张红桃都没有</b>。现在能出哪几张?',
+   hint:'没有那门的时候,限制就没了。',
+   cards:[S(4),Cl(9),D(6)], answer:['S40','C90','D60'],
+   good:'三张都能出。<b>没有领出那门,就没人管你出什么</b> —— 这叫「<span class="term">垫</span>」。'+
+        '<span class="sim">至于该垫哪一张,得先知道哪些是主牌 —— 下一课就讲。</span>',
+   bad:'一张红桃都没有的时候,手里<b>三张全都能出</b>。' },
+ { type:'winpick', task:'谁收这一墩',
+   prompt:'领出的是红桃,你没有红桃,垫了一张 <b>♠A</b>。<b>点一下</b>收走这一墩的那一家。',
+   hint:'黑桃不是这一墩领出的门。',
+   played:[S(14),H(9),H(4),H(6)], lead:1, answer:1,
+   good:'对。<b>副牌之间不比大小</b> —— 你垫的黑桃 A 再大,也不是红桃,收不走。',
+   bad:'黑桃不是这一墩领出的门,<b>根本不参与比较</b>。收走的是红桃里最大的 <b>♥9</b>。' },
+ { type:'trickpick', task:'出一张牌',
+   prompt:'台面 <b>15 分</b>,队友的 ♥A 稳赢。你想把 <b>♠K</b> 的 10 分贴给他 —— 行吗?',
+   hint:'先想义务,再想划算。',
+   played:[null,H(5),H(14),H(10)], lead:1, hand:[H(6),S(13)], showPt:true, answer:'H60',
+   illegal:'不行。<b>义务在前</b>:手里有红桃就得跟红桃,<b>♠K 现在出不去</b>。想贴分,也只能贴红桃里的分牌 —— 等你断了红桃才轮得到黑桃。',
+   good:'对。有红桃就得跟红桃,<b>♠K 出不去</b>。义务永远排在划算前面。',
+   bad:'手里有 <b>♥6</b>,就只能出它。' },
+ { type:'mini', task:'最后两墩', score:70, goal:'你们队 70 分,再抓 10 分就上台',
+   hint:'点不动的牌就是现在不能出的。',
+   hands:[[H(13),D(8)],[H(11),S(9)],[H(4),S(14)],[H(3),S(7)]], lead:0,
+   good:'记住这两件事:<b>有这门必须跟,没有才可以垫;垫出去的牌不参与比较。</b>' },
+]},
+
+{ id:'l3', rank:'3', name:'主牌是哪些', mins:5, tr:{suit:'S',rank:5}, qs:[
+ { type:'multi', badge:'新概念', task:'挑出主牌',
+   prompt:'这一局哪些牌是<b>主牌</b>?',
+   hint:'别忘了王,也别忘了别的花色的 5。',
+   cards:[S(9),H(5),D(13),BJ,Cl(5),D(11)], answer:['S90','H50','X160','C50'], noTrumpTag:true,
+   good:'对。主牌 = <b>大小王</b> + <b>所有花色的 5</b> + <b>整门黑桃</b>。',
+   bad:'漏了 —— 这一局打 5,<b>♥5 ♣5 ♦5 也全是主牌</b>,不再算它们本来的花色。' },
+ { type:'multi', badge:'换一局', task:'挑出主牌', tr:{suit:'C',rank:8},
+   prompt:'<b>换了一局</b> —— 现在哪些是主牌?',
+   hint:'级数变了,主牌那一批也跟着变。',
+   cards:[Cl(3),S(8),H(8),SJ,D(12),Cl(13)], answer:['C30','S80','H80','X150','C130'], noTrumpTag:true,
+   good:'对。<b>级数是每一局都会变的</b> —— 这局打 8,所有的 8 就都是主牌;'+
+        '上一局打 5,主牌里那一批就是所有的 5。别把「主牌 = 2」记死了。',
+   bad:'这一局打的是 <b>8</b>:♠8 ♥8 是主(副级),整门草花是主,王也是主。'+
+       '<b>级数每局都会变</b>,主牌那一批跟着变。' },
+ { type:'multi', badge:'新规则', task:'哪几张能出',
+   prompt:'东家领出<b>红桃</b>。你手里这三张,<b>能出</b>哪几张?',
+   hint:'♥5 现在还算红桃吗?',
+   cards:[H(5),D(7),Cl(9)], answer:['H50','D70','C90'],
+   good:'三张都能出 —— 因为 <b>♥5 已经是主牌</b>,不再算红桃了,所以你其实<b>没有红桃</b>。'+
+        '这是新手最容易搞错的一条。',
+   bad:'♥5 是这一局的<b>副级牌,属于主牌</b>,不算红桃。既然你没有红桃,三张就都能出。' },
+ { type:'cardpick', task:'哪张最大',
+   prompt:'下面四张都是主牌。<b>点一下最大的</b>那张。',
+   hint:'王比什么都大。',
+   cards:[S(14),SJ,S(5),H(5)], answer:'X150', noTrumpTag:true,
+   good:'对。主牌从大到小:<b>大王 &gt; 小王 &gt; 正级(♠5)&gt; 副级(♥5 ♦5 ♣5)&gt; ♠A &gt; ♠K …</b>',
+   bad:'王最大。次序是 <b>大王 &gt; 小王 &gt; 正级 &gt; 副级 &gt; 主花色的 A K Q</b> —— ♠A 只排第五档。' },
+ { type:'cardpick', task:'哪张大',
+   prompt:'这两张都是「5」—— <b>点一下大的</b>那张。',
+   hint:'一张在主花色里,一张不在。',
+   cards:[H(5),S(5)], answer:'S50', noTrumpTag:true,
+   good:'对。主花色那张 5(<b>♠5,正级</b>)比其他三门的 5(<b>副级</b>)大。',
+   bad:'两张都是主牌,但 <b>♠5 是主花色的 5(正级)</b>,压得过 ♥5 ♦5 ♣5 这三张副级。' },
+ { type:'mini', task:'最后两墩', score:110, goal:'你们队 110 分,再抓 10 分就能升级',
+   hint:'主牌压得过任何副牌。',
+   hands:[[H(14),S(9)],[H(13),Cl(4)],[H(3),S(2)],[H(11),D(6)]], lead:0,
+   good:'主牌那一档记牢:<b>大王 &gt; 小王 &gt; 正级 &gt; 副级 &gt; 主花色其余</b>。'+
+        '<span class="sim">级数每局都会变,主花色也会变 —— 每局开打前先看清楚这两样。</span>' },
+]},
+
+{ id:'l4', rank:'4', name:'垫还是毙', mins:4, tr:{suit:'D',rank:7}, qs:[
+ { type:'trickpick', badge:'新规则', task:'出一张牌',
+   prompt:'台面这一墩有 <b>20 分</b> —— 抢下来正好 80。领出的是黑桃,你<b>一张黑桃都没有</b>。出哪张?',
+   hint:'你手上有主牌吗?', score:60,
+   played:[null,S(13),S(10),S(4)], lead:1, hand:[D(6),Cl(3)], showPt:true, answer:'D60',
+   good:'毙掉。<b>♦6 是主牌</b>,黑桃再大也压不过主 —— 这 20 分归你们队 —— 这叫「<span class="term">毙</span>」。',
+   bad:'垫掉 ♣3,这 20 分就白送给对手了。你手上有主牌 <b>♦6</b>,<b>主牌收得走任何副牌</b>。' },
+ { type:'winpick', task:'谁收这一墩',
+   prompt:'你刚才用 <b>♦6</b> 毙了。<b>点一下</b>收走这一墩的那一家。',
+   hint:'主牌和副牌不在一个档次上。',
+   played:[D(6),S(13),S(10),S(4)], lead:1, showPt:true, answer:0,
+   good:'对。<b>主牌大过一切副牌</b> —— 哪怕只是一张 ♦6。',
+   bad:'只要出了主牌,副牌就都不算了。<b>♦6 收走这一墩</b>,连同里面的 20 分。' },
+ { type:'trickpick', badge:'新技巧', task:'出一张牌',
+   prompt:'队友已经用 <b>♦A</b> 把这墩毙下来了,稳赢。你也没有黑桃 —— 出哪张?',
+   hint:'队友赢定了,这一墩是你们队的。',
+   played:[null,S(4),D(14),S(13)], lead:1, hand:[D(12),H(10)], showPt:true, answer:'H100',
+   good:'漂亮,一举两得。队友赢定了,<b>不用再花主牌</b>;手里的 <b>♥10 是 10 分</b>,'+
+        '正好贴进去 —— 分进你们队,主牌也留住了。',
+   bad:'队友的 ♦A 已经赢了,再压一张 <b>♦Q</b> 是白白消耗主牌。这时候该把 <b>♥10(10分)</b> 贴进去。' },
+ { type:'winpick', task:'谁收这一墩',
+   prompt:'东家没黑桃,用 <b>♦3</b> 毙;你也没有,用 <b>♦8</b> 毙。<b>点一下</b>谁收。',
+   hint:'都是主牌,那就比主牌之间的大小。',
+   played:[D(8),D(3),S(9),S(4)], lead:2, answer:0,
+   good:'对。<b>几家都毙,就比主牌之间谁大</b> —— ♦8 压过 ♦3。',
+   bad:'都毙了就在主牌里比大小,<b>♦8 &gt; ♦3</b>,你收走。' },
+ { type:'mini', task:'最后两墩', score:150, goal:'你们队 150 分,再抓 10 分就升两级',
+   hint:'没有领出那门、台面又有分,就该考虑毙。',
+   hands:[[D(6),D(3)],[S(13),Cl(6)],[S(8),Cl(9)],[S(14),Cl(12)]], lead:1,
+   good:'这一课两条:<b>没有那门才谈得上垫或毙;毙不毙,看这一墩值不值、以及队友是不是已经赢了。</b>' },
+]},
+
+{ id:'l5', rank:'5', name:'对子', mins:4, tr:{suit:'H',rank:3}, qs:[
+ { type:'multi', badge:'新概念', task:'挑出对子',
+   prompt:'下面哪几张能凑成一<span class="term">对</span>?',
+   hint:'点数一样还不够。',
+   cards:[S(7,0),S(7,1),H(7),S(9)], answer:['S70','S71'],
+   good:'对。对子必须<b>同花色、同点数</b> —— 两副牌里有两张一模一样的 ♠7,那才是一对。',
+   bad:'♠7 和 ♥7 点数一样,但<b>花色不同,不成对</b>。对子要的是一模一样的两张。' },
+ { type:'winpick', task:'谁收这一墩',
+   prompt:'东家领出<b>一对 ♦9</b>。<b>点一下</b>收走这一墩的那一家。',
+   hint:'西家出的是两张散牌,不是一对。',
+   played:[[D(5,0),D(5,1)],[D(9,0),D(9,1)],[D(4,0),D(4,1)],[D(13),D(12)]], lead:1, answer:1,
+   good:'对。对子之间比大小,<b>♦9 那一对最大</b>。西家出的是两张散牌,<b>结构不一样,根本不参与比较</b> —— ♦K 再大也没用。',
+   bad:'比的是三家的对子:♦9 / ♦4 / ♦5,<b>♦9 最大</b>。西家那两张散牌不参与比较。' },
+ { type:'playset', badge:'新规则', task:'跟一手牌',
+   prompt:'东家领出<b>一对 ♠8</b>。你手里有黑桃 —— 该出哪两张?',
+   hint:'门里有对子的时候,能不能拆开出?',
+   played:[null,[S(8,0),S(8,1)],null,null], lead:1,
+   hand:[S(10,0),S(10,1),S(2),D(13)], answer:['S100','S101'],
+   illegal:'不行。<b>门里有对就必须出对</b> —— 你手上有一对 ♠10,就得把它出出来,不能拆开跟一张散的。',
+   good:'对。领出对子,你门里有对子就<b>必须出对子</b>,不能拆。',
+   bad:'你手上有<b>一对 ♠10</b>,领出的又是对子 —— 那就只能出这一对。' },
+ { type:'playset', task:'跟一手牌',
+   prompt:'还是领出<b>一对 ♠8</b>。这次你的黑桃<b>凑不成对</b> —— 该出哪两张?',
+   hint:'凑不成对,但黑桃还是得跟。',
+   played:[null,[S(8,0),S(8,1)],null,null], lead:1,
+   hand:[S(4),S(9),D(13)], anyLegal:true,
+   good:'对。<b>没有对子就出散的,但黑桃有几张就得跟几张</b> —— 两张黑桃全出去,♦K 轮不到。',
+   bad:'黑桃还有两张,就得<b>把这两张黑桃都跟出去</b>,不能拿 ♦K 顶数。' },
+ { type:'winpick', badge:'新技巧', task:'谁收这一墩',
+   prompt:'东家领出<b>一对 ♠8</b>,西家没黑桃,拿<b>两张散的红桃(主)</b>去毙。<b>点一下</b>谁收。',
+   hint:'两张散主,算不算「一对」?',
+   played:[[S(13,0),S(13,1)],[S(8,0),S(8,1)],[S(2),S(5)],[H(6),H(9)]], lead:1, answer:0,
+   good:'对,是你收。<b>两张散主毙不掉一对</b> —— 结构不一样就不参与比较。想毙对子,得用<b>一对主</b>。',
+   bad:'西家那两张主是<b>散的</b>,不是一对,<b>结构对不上,不参与比较</b>。场上真正在比的是两对:♠K 对压过 ♠8 对,你收。' },
+]},
+
+{ id:'l6', rank:'6', name:'拖拉机', mins:5, tr:{suit:'S',rank:6}, qs:[
+ { type:'multi', badge:'新概念', task:'挑出拖拉机',
+   prompt:'<span class="term">拖拉机</span> = <b>同花色、点数相邻的两对</b>。把能连成拖拉机的都点出来。',
+   hint:'四张。看哪两对是挨着的。',
+   cards:[H(8,0),H(8,1),H(9,0),H(9,1),H(11,0),H(11,1)],
+   answer:['H80','H81','H90','H91'],
+   good:'对。<b>8 和 9 挨着</b>,两对连起来就是拖拉机。J 和 9 中间隔着 10,连不上。',
+   bad:'拖拉机要<b>点数相邻</b>:♥8♥8 + ♥9♥9 连得上;♥J♥J 和 ♥9♥9 中间隔着 10,连不上。' },
+ { type:'multi', badge:'要紧', task:'挑出拖拉机',
+   prompt:'下面这些红桃里,<b>能连成一副拖拉机的都点出来</b>。',
+   hint:'这一局的 ♥6 去哪了?',
+   cards:[H(5,0),H(5,1),H(7,0),H(7,1),H(8,0),H(8,1),H(12)],
+   answer:['H50','H51','H70','H71','H80','H81'],
+   good:'六张全是。<b>这一局打 6,所有的 6 都被抽去当主牌了</b> —— 红桃里 5 的下一张就是 7,'+
+        '所以 55 → 77 → 88 一路连下来,是一副<b>三连对</b>。',
+   bad:'再想想:打 6 的时候 <b>♥6 已经不在红桃里了</b>(它是主牌)。'+
+       '红桃里 5 的下一张就是 7,所以 <b>55 + 77 + 88 连成一副三连对</b>,六张全要。' },
+ { type:'multi', badge:'对照', task:'挑出拖拉机', tr:{suit:'S',rank:2},
+   prompt:'<b>同样这些牌,换了一局。</b>现在能连成拖拉机的是哪几张?',
+   hint:'这一局的 ♥6 还在红桃里。',
+   cards:[H(5,0),H(5,1),H(7,0),H(7,1),H(8,0),H(8,1),H(12)],
+   answer:['H70','H71','H80','H81'],
+   good:'只有 <b>77 + 88</b>。打 2 的时候 ♥6 还在红桃里,5 和 7 中间隔着它,♥5♥5 连不进来。'+
+        '<span class="sim">同样一手牌,能连出什么,取决于这一局打几 —— 牌序是会变的。</span>',
+   bad:'♥5♥5 这次连不进来了 —— 打 2 的时候 <b>♥6 还是普通红桃</b>,5 和 7 中间隔着它。'+
+       '能连的只有 <b>♥7♥7 + ♥8♥8</b>。上一题六张全连,这一题只连四张,差别只在<b>这一局打几</b>。' },
+ { type:'playset', badge:'新规则', task:'跟一手牌',
+   prompt:'东家领出<b>一副拖拉机 ♦9♦9♦10♦10</b>。你该出哪四张?',
+   hint:'你手上也有一副拖拉机。',
+   played:[null,[D(9,0),D(9,1),D(10,0),D(10,1)],null,null], lead:1,
+   hand:[D(4,0),D(4,1),D(5,0),D(5,1),D(12)],
+   answer:['D40','D41','D50','D51'], lose:true,
+   illegal:'不行。<b>有拖拉机就必须跟拖拉机</b> —— 你手上的 ♦4♦4♦5♦5 正好是一副,得整副拿出来。',
+   good:'对。领出拖拉机,你门里也有一副,就<b>必须整副跟出去</b>,不能拆。',
+   bad:'你手上 <b>♦4♦4 + ♦5♦5</b> 正好连成一副拖拉机 —— 有拖拉机就得跟拖拉机。' },
+ { type:'winpick', task:'谁收这一墩',
+   prompt:'东家领出拖拉机 <b>♦9♦9♦10♦10</b>,你用<b>主牌的拖拉机</b> ♠4♠4♠5♠5 毙。<b>点一下</b>谁收。',
+   hint:'主牌盖副牌,但结构得对上。',
+   played:[[S(4,0),S(4,1),S(5,0),S(5,1)],[D(9,0),D(9,1),D(10,0),D(10,1)],
+           [D(2,0),D(2,1),D(3,0),D(3,1)],[D(13),D(12),D(11),D(8)]], lead:1, answer:0,
+   good:'对。<b>主牌的拖拉机毙得掉副牌的拖拉机</b> —— 但结构要对上:得同样是两连对。'+
+        '西家那四张是散牌,不参与比较。',
+   bad:'你出的是<b>主牌的两连对</b>,结构和领出的一样,又是主 —— 这一墩归你。' },
+]},
+
+{ id:'l7', rank:'7', name:'甩牌', mins:5, tr:{suit:'H',rank:11}, qs:[
+ { type:'multi', badge:'新概念', task:'能一起甩的',
+   prompt:'轮到你领出时,可以把<b>同一门</b>的几组牌'+
+          '一起<span class="term">甩</span>出去。下面这手,<b>能一起甩的都点出来</b>。',
+   hint:'甩牌只能是同一门。',
+   cards:[S(4,0),S(4,1),S(9),D(13)], answer:['S40','S41','S90'],
+   good:'对。<b>甩牌必须同一门</b> —— ♠4♠4 和 ♠9 都是黑桃,可以一起甩出去(一对 + 一张单)。'+
+        '♦K 是方块,甩不到一起。',
+   bad:'甩牌只能甩<b>同一门</b>。三张黑桃 ♠4♠4♠9 是一手,♦K 是另一门,不能混着甩。' },
+
+ { type:'numpick', badge:'先数牌', task:'数大牌',
+   prompt:'前几墩里,黑桃的大牌是这么走的。你手上还剩一张 <b>♠Q</b> —— <b>还有黑桃压得过它吗?</b>',
+   hint:'两副牌,每张牌各有两张。A 和 K 都走完了。',
+   rows:[{who:'已出过',cards:[S(14,0),S(14,1),S(13,0),S(13,1)]},
+         {who:'你手上',cards:[S(12,0)],me:true}],
+   opts:['没有了,♠Q 最大','还有,压得过'], answer:0,
+   good:'对。<b>♠A ♠K 各两张都已经走完</b>,黑桃里再没有能压过 ♠Q 的了(另一张 ♠Q 只能跟你打平,'+
+        '而平手是先出的收)。<b>甩牌之前先做的就是这件事</b> —— 数清这门的大牌还剩几张。',
+   bad:'再数一遍出过的牌:<b>♠A 两张、♠K 两张,全走完了</b>。黑桃里没有比 ♠Q 更大的了。' },
+
+ { type:'throwjudge', badge:'新规则', task:'甩得出去吗',
+   prompt:'打到最后几张,黑桃都亮出来了。你想把 <b>♠4♠4 + ♠9</b> 一起甩出去 —— <b>甩得成吗?</b>',
+   hint:'一组一组去看:有没有人压得过其中任何一组?',
+   hands:[[S(4,0),S(4,1),S(9)],[S(13),S(2)],[S(3)],[S(7)]], throwIds:['S40','S41','S90'],
+   opts:['甩得出去','甩不出去'], answer:1,
+   good:'甩不成。你的 ♠4♠4 没人压得住,但 <b>东家那张 ♠K 压得过你的单张 ♠9</b> —— '+
+        '<b>只要有任何一家、能盖过你其中任何一组,整个甩牌就不成立。</b>',
+   bad:'♠4♠4 确实没人压得住(压一对要用更大的一对),但别忘了另一组:'+
+       '<b>东家的 ♠K 压得过你的单张 ♠9</b>。一组被管住,整手甩牌就不成立。' },
+
+ { type:'forcedpick', task:'被迫出哪张',
+   prompt:'甩牌被拦下来了。这时候<b>不是整手收回</b>,而是被迫交出其中一组。<b>会被迫打出的是哪几张?</b>',
+   hint:'东家那张 ♠K 压得住你的哪一组?一张单牌压得住一对吗?',
+   hands:[[S(4,0),S(4,1),S(9)],[S(13),S(2)],[S(3)],[S(7)]], throwIds:['S40','S41','S90'],
+   good:'对,出 <b>♠9</b>。东家那张 ♠K 只压得住你的<b>单张 ♠9</b> —— <b>♠4♠4 他压不住</b>,'+
+        '压一对得拿更大的一对来。<b>没被压住的组不用交出来。</b>'+
+        '<span class="sim">要是他手上是 ♠5♠5+♠K,两组就都被压了 —— 那时候才比大小,'+
+        '一张单比一对小,还是出 ♠9。反过来,你甩 ♠3♠3+♠A、他有 ♠K♠K:♠A 谁也压不住,'+
+        '被压的只有 ♠3♠3,那就得整对交出去。甩牌失败只是被强制出牌,不额外罚分。</span>',
+   bad:'看清楚东家压住的是哪一组:他只有<b>一张</b> ♠K,压得住你的单张 ♠9,<b>压不住 ♠4♠4</b>'+
+       '(压对子要用更大的对子)。只有<b>被压住</b>的那一组要交出来,所以是 ♠9。' },
+
+ { type:'winpick', task:'这一墩谁收',
+   prompt:'你被迫只出了一张 <b>♠9</b>。<b>点一下</b>这一墩最后被谁收走。',
+   hint:'东家手上那张 ♠K。',
+   played:[[S(9)],[S(13)],[S(3)],[S(7)]], lead:0, answer:1,
+   good:'对。东家用 <b>♠K</b> 收走 —— 你不但没收到牌,还把这门的底细亮给了全桌,'+
+        '手上那对 ♠4 也白留着。<b>这就是甩牌失败的真实代价:不罚分,但很难看。</b>',
+   bad:'领出的是黑桃单张,<b>♠K 最大</b>,东家收走。' },
+
+ { type:'numpick', task:'什么时候别甩',
+   prompt:'那么,<b>什么时候不该甩?</b>',
+   hint:'甩失败的代价是什么?',
+   opts:['手上牌多就甩','那门还有大牌没出现过,就先别甩','有分就甩','随时都可以甩'], answer:1,
+   good:'对。甩牌赌的是<b>这一门的大牌都已经不在别人手上</b>。'+
+        '还没数清楚就甩,被拦下来就只剩最小的那一组出去,等于白白暴露了一手牌。'+
+        '<span class="sim">所以甩牌是「记牌」的下游本事 —— 记牌那一课在下一个单元。</span>',
+   bad:'甩牌赌的是<b>这门的大牌都已经出过了</b>。没数清就甩,被拦下来只能出最小的一组,'+
+       '既没收到牌,还把手牌亮给了对手。' },
+]},
+];
+
+/* ===== 单元 2 · 一局怎么打完 =====
+   阶梯、抠底倍数、扣底 —— 这些最容易写成算术选择题,那样是背不住的。
+   办法:每一条线都放进一个残局里,让人**亲手**打出「过线」和「没过线」两种结果;
+   扣底则做成真正的动作(从手牌里挑 N 张扣下去),而不是二选一。 */
+const U2=[
+
+{ id:'u2l1', rank:'A', name:'分与阶梯', mins:5, tr:{suit:'C',rank:4}, qs:[
+ { type:'trickpick', badge:'新规则', task:'差 5 分', score:75,
+   prompt:'<b>最后一墩。</b>你们队抓了 <b>75 分</b>,台面这一墩有 <b>5 分</b>。出哪张?',
+   hint:'抢下来是 80,抢不到是 75。这 5 分差在哪?',
+   played:[null,Cl(5),Cl(3),Cl(9)], lead:1, hand:[Cl(14),Cl(2)], showPt:true, answer:'C140',
+   good:'对!<b>♣A 抢下这 5 分,正好 80 —— 上台了。</b>'+
+        '<span class="sim">出 ♣2 就停在 75 分:差这 5 分,庄家方反而升 1 级。'+
+        '<b>80 是闲家的及格线</b>,79 和 80 是两个世界。</span>',
+   bad:'台面只有 5 分,却是决定性的 5 分:抢下来 80 <b>上台</b>,抢不到 75 <b>庄家升 1 级</b>。'+
+       '♣A 压得过 ♣9 —— 出它。' },
+
+ { type:'trickpick', badge:'再往上一档', task:'差 5 分', score:115,
+   prompt:'<b>同样的最后一墩,换个分数。</b>这次你们已经有 <b>115 分</b>。还是这 5 分 —— 出哪张?',
+   hint:'80 之后,每多 40 分多升一级。',
+   played:[null,Cl(5),Cl(3),Cl(9)], lead:1, hand:[Cl(14),Cl(2)], showPt:true, answer:'C140',
+   good:'对。<b>115 → 120,从「上台」变成「上台还升 1 级」。</b>'+
+        '<span class="sim">阶梯是 80 / 120 / 160:上台 / 升 1 级 / 升 2 级 —— '+
+        '每一档都卡在这种「差几分」的地方。</span>',
+   bad:'115 分只是上台;抢下这 5 分到 <b>120</b>,就是<b>上台再升 1 级</b>。同一张 ♣A,又一次卡在线上。' },
+
+ { type:'trickpick', badge:'另一头', task:'差 5 分', score:35,
+   prompt:'<b>再换一次。</b>这一局你们打得很差,只抓了 <b>35 分</b>。最后这 5 分要不要抢?',
+   hint:'抓得越少,庄家升得越多。',
+   played:[null,Cl(5),Cl(3),Cl(9)], lead:1, hand:[Cl(14),Cl(2)], showPt:true, answer:'C140',
+   good:'要抢。<b>35 分庄家升 2 级,40 分只升 1 级</b> —— 这 5 分替你们挡掉了一级。'+
+        '<span class="sim">阶梯的下半截是:0 分关光升 3 级 / 1~39 升 2 级 / 40~79 升 1 级。'+
+        '<b>就算上不了台,也要往上够一档。</b></span>',
+   bad:'上不了台不等于无所谓:<b>35 分庄家升 2 级,40 分只升 1 级</b>。这 5 分值一整级。' },
+
+ { type:'ladder', task:'整张表', defPoints:0,
+   prompt:'最后一种情况:闲家<b>一分都没抓到</b>。结果是?',
+   hint:'这是最惨的一档。',
+   good:'对。一分不给叫<b>「关光」,庄家方直接升 3 级</b> —— 一局顶三局。'+
+        '<span class="sim">整张表:0 关光升3 / 1~39 升2 / 40~79 升1 / 80 上台 / 120 升1 / 160 升2。'+
+        '刚才那三道题,就是在这张表上来回挪了三次。</span>',
+   bad:'一分没抓到叫<b>关光</b>,庄家方升 <b>3</b> 级。' },
+]},
+
+{ id:'u2l2', rank:'2', name:'底与抠底', mins:5, tr:{suit:'H',rank:9}, qs:[
+ { type:'trickpick', badge:'新规则', task:'守最后一墩', score:60,
+   prompt:'发完牌剩 8 张扣着,叫<span class="term">底牌</span>,归庄家。'+
+          '这副底里有 <b>25 分</b> —— 平时不算给任何人,<b>但闲家赢下最后一墩就翻倍拿走</b>。'+
+          '你们(闲家)60 分。<b>最后一墩,庄家领出 ♥K 来护底</b> —— 出哪张?',
+   hint:'♥ 是主。庄家手里攥了张大主来抢这一墩,你得压得过它。',
+   rows:[{who:'底牌',cards:[S(5),D(10),Cl(13),S(2)]}],
+   played:[null,H(13),H(3),H(6)], lead:1, hand:[H(14),H(4)], showPt:true, answer:'H140',
+   good:'对!<b>♥A 压过 ♥K,最后一墩是你们的 —— 底里 25 分 ×2 = 50 分进账,'+
+        '60 + 50 = 110 分,上台。</b>'+
+        '<span class="sim">出 ♥4 就停在 60 分,庄家升 1 级。<b>同一张牌,两个结局。</b></span>',
+   bad:'庄家领的 <b>♥K</b> 是主牌,只有 <b>♥A</b> 压得过(♥9 是正级,更大,但不在你手上)。'+
+       '守不住最后一墩,底里那 25 分<b>一分也拿不到</b>。' },
+
+ { type:'playset', badge:'倍数', task:'这次是一对', score:60,
+   prompt:'<b>同样 60 分、同样 25 分的底。</b>这次庄家护底护得更狠 —— '+
+          '最后一墩领出的是<b>一对 ♥K</b>。跟哪两张?',
+   hint:'倍数看最后一墩每人出几张。',
+   played:[null,[H(13,0),H(13,1)],[H(3,0),H(3,1)],[H(6,0),H(6,1)]], lead:1,
+   hand:[H(14,0),H(14,1),H(4,0),H(4,1)], showPt:true, answer:['H140','H141'],
+   good:'对。<b>最后一墩是对子,倍数就从 ×2 变成 ×4</b> —— 25 × 4 = <b>100 分</b>,'+
+        '60 + 100 = 160 分,上台还升 2 级。'+
+        '<span class="sim">倍数 = <b>2 × 最后一墩每人出的张数</b>:单张 ×2、对子 ×4、两连对的拖拉机 ×8。'+
+        '同样一副底,末墩的牌型能差出四倍。</span>',
+   bad:'领出的是对子,你必须跟对子 —— <b>♥A♥A</b> 是唯一压得过 ♥K♥K 的。'+
+       '赢下来底分是 <b>25 × 4 = 100 分</b>,不是 50。' },
+
+ { type:'playset', badge:'倍数 ×8', task:'跟哪四张', score:60,
+   prompt:'<b>还是那 25 分的底。</b>庄家末墩领出 <b>♥Q♥Q ♥J♥J</b> —— '+
+          '两个挨着的对子,叫<span class="term">拖拉机</span>。挑出压得过的那一组。',
+   hint:'跟拖拉机要用拖拉机:两个对子的点数也得挨着。',
+   played:[null,[H(12,0),H(12,1),H(11,0),H(11,1)],
+           [H(3,0),H(3,1),H(4,0),H(4,1)],[H(6,0),H(6,1),H(7,0),H(7,1)]], lead:1,
+   hand:[H(14,0),H(14,1),H(13,0),H(13,1),H(5,0),H(5,1)], showPt:true,
+   answer:['H140','H141','H130','H131'],
+   good:'对。末墩每人出 <b>4 张</b>,倍数 <b>2 × 4 = ×8</b> —— 25 × 8 = <b>200 分</b>。'+
+        '<span class="sim">×2 / ×4 / ×8 三道题<b>同一副底、同样 60 分</b>,变的只有末墩牌型。'+
+        '倍数不用背,是<b>数张数</b>数出来的。</span>',
+   bad:'要压拖拉机,自己也得是拖拉机 —— <b>♥A♥A ♥K♥K</b>(A、K 挨着)。'+
+       '♥5♥5 接不上谁,只是个孤对子。每人出 4 张,底分就是 25 × <b>8</b> = 200 分。' },
+
+ { type:'trickpick', badge:'换个结局', task:'守不住的时候', score:60,
+   prompt:'<b>还是那 25 分的底。</b>这次庄家末墩领出的是 <b>♥9</b> —— 正级,主牌里除了王最大的一张。'+
+          '他整局留着它就为了这一下。出哪张?',
+   hint:'这一墩你赢不了 —— 那底会怎样?',
+   played:[null,H(9),H(3),H(6)], lead:1, hand:[H(14),H(4)], showPt:true, anyLegal:true,
+   good:'出哪张都一样 —— <b>♥9 是正级,♥A 也压不过。这一墩赢不了,底里那 25 分就一分都拿不到。</b>'+
+        '<span class="sim">抠底只有一个条件:<b>闲家赢下最后一墩</b>。守不住,底分归零,'+
+        '停在 60 分,庄家升 1 级。'+
+        '<b>庄家整局留着一张大主不打,就是在守这一墩</b> —— 这也是你以后做庄时该做的事。</span>',
+   bad:'♥9 是<b>正级</b>,比 ♥A 大 —— 两张都压不过,出哪张都行。'+
+       '重点是:<b>守不住最后一墩,底里 25 分一分不给</b>。' },
+]},
+
+{ id:'u2l3', rank:'3', name:'断门的价值', mins:4, tr:{suit:'S',rank:12}, qs:[
+ { type:'trickpick', badge:'新概念', task:'用上断门', score:55,
+   prompt:'你早就把方块打光了 —— <b>断门</b>。这一墩台面 <b>25 分</b>,抢下来正好 80。出哪张?',
+   hint:'方块你一张都没有,所以不受跟牌义务约束。',
+   played:[null,D(13),D(10),D(5)], lead:1, hand:[S(6),Cl(4)], showPt:true, answer:'S60',
+   good:'毙掉。<b>断掉一门,就等于在这门上多了一次「毙」的机会</b> —— '+
+        '♠6 再小也是主牌,方块再大也压不过。55 + 25 = <b>80 分,上台。</b>',
+   bad:'你没有方块,手上又有主牌 <b>♠6</b> —— 毙下来,这 25 分归你们队。垫 ♣4 就白送了。' },
+
+ { type:'trickpick', badge:'换张牌', task:'用哪张毙', score:55,
+   prompt:'<b>同样断了方块,同样轮到你最后一个出。</b>这次手上有<b>两张</b>主牌 —— 毙哪张?',
+   hint:'你是最后一家,后面没人了 —— 哪张够用?',
+   played:[null,D(13),D(10),D(5)], lead:1, hand:[S(14),S(6),Cl(4)], showPt:true, answer:'S60',
+   good:'对,<b>♠6 就够了</b>。你是最后一家,后面没人再出牌 —— 小主已经收下这 25 分,'+
+        '<b>♠A 留着下一次用</b>。'+
+        '<span class="sim">「用够用的最小那张」只在<b>你是最后一家</b>时是死规矩:'+
+        '前面几家出牌时后面还有人能压,那就是另一回事了,后面的单元再说。</span>',
+   bad:'♠A 和 ♠6 都能毙下这 25 分 —— 但你是<b>最后一家</b>,没人再压得回来。'+
+       '用 ♠6 就行,<b>♠A 是张好牌,别浪费在一墩已经到手的牌上</b>。' },
+
+ { type:'trickpick', badge:'反过来防', task:'领出哪张',
+   prompt:'<b>轮到你领出。</b>刚才那一墩草花,<b>你的下家(东家,对手)是用主牌毙走的</b> —— '+
+          '他草花断了。手上一张 ♣K(10 分)、一张 ♦4(0 分),领哪张?',
+   hint:'你领出去的牌,下家能不能毙走?毙走的话他拿到几分?',
+   bars:[{who:'草花',total:24,out:20,mine:2,note:'东家毙过一次,他断了'}],
+   played:[null,null,null,null], lead:0, hand:[Cl(13),D(4)], showPt:true, answer:'D40',
+   good:'对,领 <b>♦4</b>。领 ♣K 出去,下家草花断了,<b>一张小主就把这 10 分端走</b>;'+
+        '领 ♦4,他就算毙,<b>毙走的也是 0 分</b>。'+
+        '<span class="sim">断门是双向的:你能用它收分,对手也能。'+
+        '所以<b>分牌别往对手断掉的那门上送</b>。</span>',
+   bad:'下家草花已经断了 —— 领 <b>♣K</b> 出去,他一张小主就毙走,<b>10 分白送</b>。'+
+       '领 <b>♦4</b>:就算被毙,他也一分拿不到。' },
+
+ { type:'trickpick', badge:'主动断门', task:'为什么打光它',
+   prompt:'<b>还是你领出。</b>草花你只剩 <b>♣3</b> 这最后一张,主牌还有一把。'+
+          '台面无分,领哪张?',
+   hint:'打掉这最后一张,草花这门对你来说会变成什么?',
+   bars:[{who:'草花',total:24,out:12,mine:1,note:'你只剩这一张'}],
+   played:[null,null,null,null], lead:0, hand:[Cl(3),S(9),D(7)], showPt:true, answer:'C30',
+   good:'对,<b>把 ♣3 打掉,草花就断了</b> —— 以后别人再在草花上抓分,你就能像第一题那样端走。'+
+        '<b>主动断门就是在给自己造「毙」的机会。</b>'+
+        '<span class="sim">下一课会看到:庄家扣底时最主要的动作,就是<b>把某一门打光</b>。</span>',
+   bad:'领 <b>♣3</b>:这一墩本来就没分,拿它换一个<b>断门</b>很划算 —— '+
+       '草花一断,以后这门上的分你都能用主牌端走。' },
+]},
+
+{ id:'u2l4', rank:'4', name:'扣底', mins:5, tr:{suit:'S',rank:12}, qs:[
+ { type:'discard', badge:'动手扣', task:'扣哪三张', n:3, phase:'扣底中',
+   prompt:'<b>你是庄家。</b>底牌拿进手里之后要<b>扣同样多的牌</b>回去。'+
+          '扣回去的牌别人看不见,但<b>分照样算</b> —— 闲家守住最后一墩就翻倍拿走(上一课那条)。'+
+          '从这几张里扣 <b>3 张</b>。',
+   hint:'哪一门只剩零星几张?扣掉它要付出什么代价吗?',
+   hand:[Cl(3),Cl(8),Cl(6),S(13),D(10),H(5)],
+   answer:['C30','C80','C60'],
+   good:'对,三张草花一起扣掉 —— <b>草花就此断门</b>,而且这三张<b>一分没有</b>。'+
+        '这一手不用纠结,因为断门<b>不要你付任何代价</b>。'+
+        '<span class="sim">注意措辞:不是「分不能扣」。分能不能扣下一题就会碰到 —— '+
+        '这一手只是运气好,断门和留分<b>没有打架</b>。</span>',
+   bad:'看一眼哪门最短:<b>草花只有三张</b>,扣掉就断门了,而且这三张一分没有 —— '+
+      '不花任何代价。♠K 是主牌,留着有用;♦10、♥5 扣了也行,但这一手<b>没必要</b>。' },
+
+ { type:'discard', badge:'两方案', task:'主牌很硬', n:4, phase:'扣底中',
+   prompt:'<b>换一手。方块只剩三张,其中一张是 ♦10(10 分)。</b>'+
+          '上面是你的<b>主牌</b> —— 先看它,再决定这 4 张怎么扣。',
+   hint:'主牌这么硬,断掉方块之后你能毙几次?',
+   rows:[{who:'你的主牌',cards:[BJ,SJ,S(12,0),S(12,1),S(14),S(13)],spread:true}],
+   hand:[D(4),D(7),D(10),Cl(2),H(13),Cl(7)],
+   answer:['D40','D70','D100','C20'],
+   good:'<b>这一手更好:方块三张全扣,♦10 一起埋。</b>'+
+        '主牌是双王 + 一对正级 + A K —— 断掉方块之后,别人往方块上送的分'+
+        '你能<b>一次次端走</b>,10 分很快就赚回来了。'+
+        '<span class="sim"><b>「断门埋分」是完全可以接受的打法</b>,不是失误。'+
+        '留一张 ♦10 在手上,这门就没断,那 10 分也没换来任何东西 —— 那才叫白花。</span>',
+   bad:'留着 ♦10,方块<b>就没断干净</b> —— 10 分留在手上,断门也没做成,两头落空。'+
+       '主牌这么硬的时候,<b>把 10 分埋进去换一个干净的断门是划算的</b>。' },
+
+ { type:'discard', badge:'两方案', task:'主牌很软', n:4, phase:'扣底中',
+   prompt:'<b>完全一样的六张牌。</b>但这次你的主牌<b>只有上面这三张小的</b> —— 再扣一次 4 张。',
+   hint:'这三张主牌,断了方块之后真能毙下几墩?',
+   rows:[{who:'你的主牌',cards:[S(4),S(3),S(6)],spread:true}],
+   hand:[D(4),D(7),D(10),Cl(2),H(13),Cl(7)],
+   answer:['D40','D70','C20','C70'],
+   good:'<b>这一手更好:♦10 留着,断门这次不值得买。</b>'+
+        '主牌只有三张小的 —— 方块就算断了,你也<b>毙不了几次</b>,'+
+        '那个断门换不回 10 分。'+
+        '<span class="sim"><b>同样六张牌,主牌一变,答案就反过来。</b>'+
+        '扣底没有「这张牌该扣」的定论,只有「这个断门值不值这些分」。'+
+        '值不值要看主牌 —— 这就是为什么扣底是庄家最难的一步。</span>',
+   bad:'主牌只有 ♠4 ♠3 ♠6 三张小的,断掉方块也<b>毙不动几墩</b> —— '+
+       '花 10 分买这个断门不划算。这次把 ♦10 留在手上。' },
+]},
+
+{ id:'u2l5', rank:'5', name:'亮主与反主', mins:4, tr:null, qs:[
+ { type:'cardpick', badge:'新概念', task:'拿哪张亮', phase:'发牌中',
+   prompt:'<b>牌还在一张一张发。</b>发牌途中可以<b>亮主</b>:亮出一张<b>和当前级数相同</b>的牌,'+
+          '那张牌的花色就成了这一局的主。<b>这一局打 5</b> —— 到手的这几张里,哪张能拿来亮?',
+   hint:'打几就用几来亮。花色不限,点数必须是 5。',
+   cards:[S(14),H(5),Cl(13),D(9)], answer:'H50',
+   good:'对,<b>♥5</b>。打 5 就用 5 来亮,亮 ♥5 就是「红桃做主」。'+
+        '<b>只能用已经拿到手的牌亮</b> —— 所以亮主是个「越早越冒险、越晚越可能被抢先」的选择。',
+   bad:'这一局打 <b>5</b>,只有<b>点数是 5</b> 的牌能拿来亮 —— 手上只有 <b>♥5</b>。'+
+       '♠A 再大也不行:亮主看的是<b>级数</b>,不是大小。' },
+
+ { type:'multi', badge:'新规则', task:'哪些能反掉', phase:'发牌中',
+   prompt:'<b>还在发牌。</b>别人已经用<b>单张 ♥5</b> 亮了红桃。'+
+          '你手上这些牌里,<b>能用来反主的都点出来</b>。',
+   hint:'反主要压过对方的强度:单张级牌 < 一对级牌 < 小王对 < 大王对。',
+   cards:[Cl(5,0),Cl(5,1),SJ,C('X',15,1),S(14,0),S(14,1)],
+   answer:['C50','C51','X150','X151'], noTrumpTag:true,
+   good:'对 —— <b>一对 ♣5</b>(一对级牌)和<b>一对小王</b>都反得掉。'+
+        '<b>两张 ♠A 不行</b>:反主比的是「强度」,不是牌面大不大。'+
+        '<span class="sim">注意都是<b>成对</b>点出来的:一对级牌要两张<b>同花色同点数</b>,'+
+        '王对要两张<b>同样的王</b>。</span>',
+   bad:'能反的只有<b>一对级牌</b>(♣5♣5)和<b>王对</b>(小王对),而且都得<b>成对</b>亮。'+
+       '♠A 再大也不是级牌,<b>强度不够</b> —— 反主比的是强度,不是点数。' },
+
+ { type:'multi', badge:'链子顶端', task:'亮出来是无主', phase:'发牌中',
+   prompt:'<b>还在发牌。</b>亮主链的顶端是<b>一对大王</b> —— 谁都反不掉,而且亮出来这一局<b>没有主花色</b>。'+
+          '把那一组牌点出来。',
+   hint:'是「一对」,不是一张 —— 王也要成对才能亮。',
+   cards:[BJ,C('X',16,1),SJ,S(5)], answer:['X160','X161'], noTrumpTag:true,
+   good:'对,<b>两张大王一起</b>。单张大王<b>亮不了主</b> —— 亮主链上除了最底下的单张级牌,'+
+        '其余每一档都要<b>成对</b>。'+
+        '<span class="sim">一对大王亮出来就是<b>无主局</b>:没有主花色,'+
+        '主牌只剩<b>大小王 + 四门的级数牌</b>。</span>',
+   bad:'得是<b>一对大王</b>,两张一起点。单张大王不能用来亮 —— '+
+       '亮主链:单张级牌 &lt; 一对级牌 &lt; 小王对 &lt; <b>大王对</b>,上面三档都要成对。' },
+]},
+
+{ id:'u2l6', rank:'6', name:'打完这一局', mins:5, tr:{suit:'D',rank:8}, qs:[
+ { type:'numpick', badge:'收尾', task:'先算一算',
+   prompt:'<b>打 8、方块主,你们是闲家。</b>台面抓了 <b>55 分</b>,底里有 <b>20 分</b>,'+
+          '还剩最后两墩。<b>要上台,至少得做到什么?</b>',
+   hint:'80 − 55 = 25。底分只有赢下最后一墩才算。',
+   opts:['再抓 25 分','守住最后一墩 —— 底里 20×2 = 40 分就够翻过 80','已经够了'], answer:1,
+   good:'对。台面再抓 25 分很难,但<b>守住最后一墩</b>,底里 20 分翻倍就是 40 分 —— '+
+        '55 + 40 = <b>95 分,直接上台</b>。接下来两墩,目标就是这个。',
+   bad:'光靠台面还差 25 分;但<b>守住最后一墩</b>,底里 20 分 ×2 = 40 分,55 + 40 = 95,一下就过了 80。' },
+
+ { type:'mini', task:'最后两墩', score:55, kitty:[S(5),D(10),H(5),S(2),D(4),Cl(7),S(8),D(6)],
+   goal:'守住最后一墩,底里 20 分翻倍',
+   hint:'最后一墩一定要赢下来 —— 底分全押在上面。',
+   hands:[[D(14),Cl(9)],[S(13),Cl(4)],[S(3),Cl(11)],[S(7),Cl(6)]], lead:1,
+   good:'这就是一整局的骨架:<b>台面抓分 + 守住最后一墩把底抠下来</b>。'+
+        '单元 2 到此为止 —— 你已经知道一局是怎么开始、怎么算、怎么结束的了。' },
+]},
+];
+
+/* ===== 单元 3 · 记牌与领出 =====
+   这个单元教的是「数牌」,最容易写成算术题 —— 那样学不会。
+   办法:数牌只做成**看图**(剩余条)和**出牌决定**,每一课的主体都是牌桌上的一手。
+   同一手牌配两份不同的记录,答案相反 —— 让人亲手感到「数没数清楚,打法就不一样」。 */
+const U3=[
+
+{ id:'u3l1', rank:'A', name:'这张还最大吗', mins:4, tr:{suit:'S',rank:6}, qs:[
+ { type:'multi', badge:'新概念', task:'挑出已经最大的',
+   prompt:'<b>两副牌,每张牌各有两张。</b>红桃的大牌走成了下面这样。'+
+          '你手上这三张里,<b>现在已经是红桃最大</b>的都点出来。',
+   hint:'一张一张对:比它大的,两张都走完了吗?',
+   rows:[{who:'红桃出过',cards:[H(14,0),H(14,1),H(13,0),H(12,0),H(12,1)]}],
+   cards:[H(13,1),H(11,0),H(10,0)], answer:['H131'],
+   good:'只有 <b>♥K</b>。两张 ♥A 都走完了,♥K 只走了一张 —— 你手上这张就是现在最大的。'+
+        '♥J、♥10 上面还压着<b>另一张没出过的 ♥K</b>。',
+   bad:'♥A 两张都走完,所以 <b>♥K 最大</b>。你手上的 ♥J、♥10 上面还压着'+
+       '<b>另一张没出过的 ♥K</b>,都不算最大。' },
+
+ { type:'trickpick', badge:'用起来', task:'出一张牌', score:60,
+   prompt:'台面这一墩有 <b>15 分</b>,抢下来正好 75。<b>先看出牌记录</b>,再决定出哪张。',
+   hint:'♥A 两张都走完了吗?',
+   rows:[{who:'红桃出过',cards:[H(14,0),H(14,1)]}],
+   played:[null,H(5),H(4),H(10)], lead:1, hand:[H(13),H(3)], showPt:true, answer:'H130',
+   good:'对。记录里<b>两张 ♥A 都走完了</b> —— 你的 ♥K 现在是红桃最大,出它必收,15 分稳稳进账。'+
+        '<span class="sim">这就是记牌的用处:它不是记着玩,是拿来决定这一手怎么打。</span>',
+   bad:'再看一眼记录:<b>♥A 两张都出过了</b>。你的 ♥K 已经是红桃最大,这一墩必收 —— 出小牌等于把 15 分让出去。' },
+
+ { type:'trickpick', badge:'换份记录', task:'出一张牌', score:60,
+   prompt:'<b>同样一手牌,换一份出牌记录。</b>这次台面一分没有。出哪张?',
+   hint:'♥A 这次走完了吗?台面有分吗?',
+   rows:[{who:'红桃出过',cards:[H(14,0)]}],
+   played:[null,H(7),H(2),H(9)], lead:1, hand:[H(13),H(3)], showPt:true, answer:'H30', lose:true,
+   good:'对,出 <b>♥3</b>。这次 ♥A <b>只走了一张</b>,外面还有一张压得住你的 ♥K;'+
+        '台面又一分没有 —— 没有理由拿 ♥K 去赌。'+
+        '<span class="sim"><b>同一手牌,两份记录,两个答案。</b>差别全在你有没有数清楚。</span>',
+   bad:'记录里 ♥A <b>只出过一张</b>,外面那张随时能压死你的 ♥K。台面还一分没有,'+
+       '这一墩不值得用掉一张大牌 —— 出 ♥3。' },
+
+ { type:'trickpick', badge:'换一门', task:'再数一遍', score:60,
+   prompt:'<b>换一门、换一手牌,再数一遍。</b>台面这一墩 <b>15 分</b>。'+
+          '草花走成了下面这样 —— 出哪张?',
+   hint:'比 ♣Q 大的草花是 ♣A、♣K,各两张。记录里走完了吗?',
+   rows:[{who:'草花出过',cards:[Cl(14,0),Cl(14,1),Cl(13,0),Cl(13,1),Cl(2,0)]}],
+   played:[null,Cl(5),Cl(4),Cl(10)], lead:1, hand:[Cl(12),Cl(3)], showPt:true, answer:'C120',
+   good:'对,出 <b>♣Q</b>。两张 ♣A、两张 ♣K <b>四张全走完了</b> —— ♣Q 现在是草花最大,'+
+        '这 15 分必收。'+
+        '<span class="sim">记牌不是背牌,是算<b>「比我这张大的,还剩几张在外面」</b>。'+
+        '剩 0 张,这张牌就是稳的;还剩一张,就是在赌。</span>',
+   bad:'数一遍比 ♣Q 大的:♣A 两张、♣K 两张 —— 记录里<b>四张都出过了</b>。'+
+       '♣Q 已经是草花最大,这一墩必收,出 ♣3 等于把 15 分让出去。' },
+]},
+
+{ id:'u3l2', rank:'2', name:'这门还剩几张', mins:5, tr:{suit:'S',rank:6}, qs:[
+ { type:'trickpick', badge:'新概念', task:'走不走 A', score:65,
+   prompt:'<b>打 6、黑桃主。</b>下面这条是红桃的家底 —— 一共 24 张(♥6 是主牌,不算红桃)。'+
+          '你们队 65 分,差 15 分上台。<b>轮到你领出</b>,出哪张?',
+   hint:'外面只剩 5 张红桃,分在三家手上。这门还走得通吗?',
+   bars:[{who:'红桃',total:24,out:16,mine:3,note:'分在另外三家手上'}],
+   played:[null,null,null,null], lead:0, hand:[H(14),S(4),Cl(9)], answer:'H140',
+   good:'对,<b>趁现在走 ♥A</b>。这门只剩 5 张在外面 —— <b>已经很可能有人断了红桃</b>,'+
+        '再等下去 ♥A 多半会被主牌毙走。差 15 分的时候,能兑现的分先兑现。',
+   bad:'看那条:红桃 24 张已经走了 16,<b>外面只剩 5 张分在三家手上</b>。'+
+       '门越薄,别人断门的可能越大 —— ♥A 越留越危险,现在就该走。' },
+
+ { type:'trickpick', badge:'换个门况', task:'走不走 A', score:65,
+   prompt:'<b>同样一手牌,换一份记录。</b>这次红桃才走了 4 张。还是你领出 —— 出哪张?',
+   hint:'这门还很厚,大家都还有红桃。',
+   bars:[{who:'红桃',total:24,out:4,mine:3,note:'这门还很厚'}],
+   played:[null,null,null,null], lead:0, hand:[H(14),S(4),Cl(9)], answer:'S40',
+   good:'对,<b>这次先别急着走 ♥A</b>。外面还有 17 张红桃,谁都不可能断门 —— '+
+        '♥A 放着很安全,留到后面还能把队友喂上来的分一起收走。先出一张不值钱的 ♠4 探探路。'+
+        '<span class="sim"><b>同一张 ♥A,门厚门薄两个答案。</b></span>',
+   bad:'红桃才走了 4 张,<b>外面还有 17 张</b> —— 这门厚得很,没人断得了门,♥A 放着很安全。'+
+       '急着走它,只会把一张必收的大牌换成一墩没什么分的小墩。' },
+
+ { type:'trickpick', badge:'两件事一起看', task:'走不走 K', score:65,
+   prompt:'<b>换一门。</b>两张 ♦A 都走完了,所以你的 <b>♦K 现在是方块最大</b>。'+
+          '看一眼这门还剩多少,再决定领哪张。',
+   hint:'上一课问的是「这张还最大吗」,这一课问的是「这门还剩几张」—— 这题两样都要看。',
+   bars:[{who:'方块',total:24,out:15,mine:2,note:'快有人断门了'}],
+   played:[null,null,null,null], lead:0, hand:[D(13),S(4),Cl(9)], answer:'D130',
+   good:'对,<b>走 ♦K</b>。它现在是方块最大(两张 ♦A 都走完了),而这门<b>外面只剩 7 张</b>,'+
+        '再等就该有人断门用主牌毙它了 —— <b>最大 + 门在变薄,就是兑现的时候</b>。'+
+        '<span class="sim">「还最大吗」和「还剩几张」是两个问题,'+
+        '得到的答案都是「现在走」的时候,就别再等了。</span>',
+   bad:'两件事一起看:♦K <b>现在是最大的</b>(♦A 两张都走完),这门<b>外面只剩 7 张</b>、'+
+       '快有人断门了 —— 两条都指向同一个答案:<b>现在就走</b>。' },
+]},
+
+{ id:'u3l3', rank:'3', name:'数主牌', mins:5, tr:{suit:'S',rank:6}, qs:[
+ { type:'trickpick', badge:'新概念', task:'清主还是走副',
+   prompt:'<b>你是庄家方,要守住(别让闲家到 80)。</b>下面这条是主牌的家底 —— '+
+          '打 6、黑桃主,主牌一共 <b>36 张</b>(大小王 4 + 四门的 6 共 8 + 黑桃其余 24)。'+
+          '轮到你领出,出哪张?',
+   hint:'对手手上还剩几张主?再走一轮能不能拔干净?',
+   bars:[{who:'主牌',total:36,out:29,mine:5,note:'队友也没主了,这 2 张都在对手手上'}],
+   played:[null,null,null,null], lead:0, hand:[S(14),D(14),Cl(3)], answer:'S140',
+   good:'对,<b>再走一轮主,把对手最后 2 张拔掉</b>。之后 ♦A 走出去就再没人毙得动,'+
+        '那门的分全是你的。现在先走 ♦A,正好撞在那 2 张主的枪口上。'+
+        '<span class="sim">这就叫<b>清主</b>:主牌是用来毙副牌的,把对手的主拔光,自己的副牌大牌才走得通。</span>',
+   bad:'看那条:对手手上<b>只剩 2 张主</b>,再走一轮就拔干净了。'+
+       '这时候先走 ♦A,等于把它送到那 2 张主的枪口上。' },
+
+ { type:'trickpick', badge:'换个局面', task:'清主还是走副',
+   prompt:'<b>同样一手牌,换一份记录。</b>这次主牌才走了一半。出哪张?',
+   hint:'对手手上还有 12 张主 —— 你清得动吗?',
+   bars:[{who:'主牌',total:36,out:14,mine:5,note:'你自己只有 5 张'}],
+   played:[null,null,null,null], lead:0, hand:[S(14),D(14),Cl(3)], answer:'D140',
+   good:'对,<b>这次先走 ♦A</b>。对手手上还有十几张主,你手上只有 5 张 —— '+
+        '<b>清不动</b>。与其把主牌一张张送掉,不如趁副门还厚,先把 ♦A 这样的现成大牌兑现。'+
+        '<span class="sim"><b>清不清主,看的是对手还剩几张,不是自己有几张。</b></span>',
+   bad:'对手还有 17 张主,你只有 5 张 —— <b>清主清不动</b>,走一轮只是白送。'+
+       '这时候该趁副门还厚,先走 ♦A 把现成的分兑现。' },
+
+ { type:'trickpick', badge:'反过来', task:'这一张毙不毙', score:50,
+   prompt:'<b>这次你是抓分方。</b>你草花断了,手上<b>只剩这一张主牌</b> —— '+
+          '条上看得到,主牌基本走光了,这是你最后一次毙的机会。台面 <b>25 分</b>,毙不毙?',
+   hint:'最后一次机会,该用在多大的一墩上?',
+   bars:[{who:'主牌',total:36,out:33,mine:1,note:'你只剩这一张'}],
+   played:[null,Cl(13),Cl(10),Cl(5)], lead:1, hand:[S(3),D(8)], showPt:true, answer:'S30',
+   good:'对,<b>毙</b>。你手上每一张主牌都是<b>一次把台面分端走的机会</b> —— '+
+        '这是最后一次,而这一墩有 25 分,没有比它更值得的了。'+
+        '<span class="sim">所以抓分方数主牌,数的是<b>「还剩几次毙的机会」</b>:'+
+        '机会有限,就该留给<b>台面分最大</b>的那几墩。反过来,台面无分的墩就别浪费。</span>',
+   bad:'台面 <b>25 分</b>,而你手上<b>只剩一张主牌</b> —— 这是最后一次毙的机会,'+
+       '再没有比 25 分更值得用掉它的一墩了。垫 ♦8 等于把 25 分送给对手。' },
+]},
+
+{ id:'u3l4', rank:'4', name:'领出练习', mins:5, tr:{suit:'S',rank:6}, qs:[
+ { type:'numpick', badge:'先说清楚', task:'这一课不一样',
+   prompt:'前面所有的题都有<b>唯一正确答案</b>,因为问的是<b>规则</b>或者<b>数得清的事</b>。'+
+          '领出不一样 —— <b>为什么?</b>',
+   hint:'领出的时候,你能看见什么、看不见什么?',
+   opts:['规则没写清楚','因为你看不见别人的牌 —— 领出是在权衡,不是照规则办','因为教程偷懒了'], answer:1,
+   good:'对。<b>规则问题有唯一解;领出是判断题。</b>'+
+        '但它不是玄学 —— 它建立在前三课那些<b>数得清楚</b>的东西上面:'+
+        '对手还剩几张主、这门还厚不厚、这一局还差多少分。'+
+        '<span class="sim">下面这个小局,每一手都由你领出。一边打一边想这三件事。</span>',
+   bad:'领出的时候你只看得见自己的牌和出过的牌,<b>看不见别人手上有什么</b>。'+
+       '所以是权衡 —— 但权衡的依据是数得清楚的:对手剩几张主、门厚不厚、还差多少分。' },
+
+ { type:'mini', task:'最后两墩', score:70, goal:'你们队 70 分,再抓 10 分就上台',
+   hint:'能压就压;压不过、又是队友最大,就把分贴进去。',
+   hands:[[S(14),H(13)],[S(9),H(11)],[S(3),H(4)],[S(7),H(10)]], lead:0,
+   good:'领出只权衡三件事:<b>对手还剩几张主 / 这门还厚不厚 / 这一局还差多少分</b>。'+
+        '前两件靠记牌算出来,第三件靠算分算出来 —— 所以领出不是玄学。'+
+        '<span class="sim">真正的牌力差距,差在「同样数清楚了,谁的权衡更准」。那一层得靠打。</span>' },
+]},
+];
+
+const UNITS=[
+ {key:'u1', part:'第一部 · 会打一墩',   name:'单元 1 · 一墩牌怎么打', lessons:U1},
+ {key:'u2', part:'第一部 · 会打一墩',   name:'单元 2 · 一局怎么打完', lessons:U2},
+ {key:'u3', part:'第二部 · 打得像个人', name:'单元 3 · 记牌与领出',   lessons:U3},
+];
+
+/* 局末结算一律交给引擎的 scoreRound,教学版不另写一套阶梯。
+   抓分方视角:台面抓到的分是 defPoints,底牌只有赢下最后一墩才算,而且翻倍。 */
+function settle(defPoints, kitty, wonLast, lastLeadSize){
+  return scoreRound({defPoints, kitty:kitty||[], defWonLastTrick:!!wonLast,
+                     lastLeadSize:lastLeadSize||1});
+}
+/* 阶梯的六种结果,给选择题当固定选项 —— 答案由 scoreRound 推,题里不写死 */
+const LADDER=['庄家方升 3 级','庄家方升 2 级','庄家方升 1 级',
+              '闲家上台,不升级','闲家上台,升 1 级','闲家上台,升 2 级'];
+function ladderIdx(defPoints, kitty, wonLast, lastLeadSize){
+  const sc=settle(defPoints,kitty,wonLast,lastLeadSize);
+  if(!sc.defendersWin) return sc.declarerLevelsUp===3?0:sc.declarerLevelsUp===2?1:2;
+  return 3+Math.min(2,sc.defenderLevelsUp);
+}
+function settleLine(defPoints, kitty, wonLast, lastLeadSize){
+  const sc=settle(defPoints,kitty,wonLast,lastLeadSize);
+  const kp=sc.kittyPts;
+  const extra=(wonLast&&kp)?`底里 <b>${kp} 分 × ${sc.mult} = ${kp*sc.mult} 分</b>一起进账,`:'';
+  if(!sc.defendersWin){
+    if(sc.total===0) return `一分没抓到 —— <b>被关光</b>,庄家方直接升 3 级。`;
+    return `${extra}一共 <b>${sc.total} 分</b> —— 没到 80,庄家方升 ${sc.declarerLevelsUp} 级。`;
+  }
+  if(sc.defenderLevelsUp===0) return `${extra}<b>一共 ${sc.total} 分,上台了!</b>下一局换你们坐庄。`;
+  return `${extra}<b>一共 ${sc.total} 分 —— 上台,还升 ${sc.defenderLevelsUp} 级!</b>`;
+}
+
+const PACE={ step:560, fly:480, review:1150 };
+
+/* ================= 运行时 ================= */
+const $=id=>document.getElementById(id);
+const LS='80fen-ui-study-preview-';
+const addCls=(el,c)=>{ if(c) el.classList.add(c); };
+let ui=0,li=0,L=null,TR=null,qi=0,sel=null,selMulti=[],answered=false,wrong=0,t0=0,mini=null,hinted=false;
+
+const QUI=['top','ask','board','hand','foot'];
+function show(p){
+  $('map').classList.toggle('hide',p!=='map');
+  $('done').classList.toggle('hide',p!=='done');
+  QUI.forEach(id=>$(id).style.visibility=p==='q'?'visible':'hidden');
+}
+const doneCount=k=>+(localStorage.getItem(LS+k)||0);
+/* 上一个单元打完,下一个才解锁 */
+const unlocked=u=>u===0||doneCount(UNITS[u-1].key)>=UNITS[u-1].lessons.length;
+
+/* ---------- 地图:一个单元 = 一「手」牌 ---------- */
+function drawMap(){
+  let html='<nav class="study-nav" aria-label="模式"><a class="study-brand" href="index.html">80<span>分</span></a><span class="study-current">学一手</span><a class="learn-link" href="index.html">去打牌 ↗</a></nav>';
+  UNITS.forEach((U,u)=>{
+    const dn=doneCount(U.key), open=unlocked(u), full=dn>=U.lessons.length;
+    const cards=U.lessons.map((x,i)=>{
+      if(open&&i<dn) return `<div class="lnode face"><span class="r">${x.rank}</span><span class="s">♥</span><span class="star">★</span></div>`;
+      if(open&&i===dn) return `<button class="lnode back now" data-u="${u}"></button>`;
+      return `<div class="lnode back lock"></div>`;
+    }).join('');
+    html+=`<div class="unit ${open?'':'lock'}" style="${u?'margin-top:26px':''}">`+
+          `<small>${U.part}</small><b>${U.name}</b></div>`;
+    if(!open){ html+=`<div class="locknote">打完上一个单元解锁</div>`; return; }
+    html+=`<div class="fan">${cards}</div>`;
+    const cur=U.lessons[dn];
+    html += cur
+      ? `<div class="nowline">${dn+1} · ${cur.name}</div>
+         <div class="nowsub">翻开这张牌开始 · 约 ${cur.mins} 分钟</div>
+         <div class="golead"><button class="btn" data-go="${u}">开始</button></div>`
+      : `<div class="nowline">${U.name.split(' · ')[1]} 打完了 🎉</div>
+         <div class="nowsub">${U.lessons.length} 张牌都翻过来了</div>
+         <div class="golead"><button class="btn ghost" data-again="${u}">从头再练一遍</button></div>`;
+  });
+  $('map').innerHTML=html;
+  $('map').querySelectorAll('[data-go],[data-u]').forEach(b=>{
+    const u=+(b.dataset.go!==undefined?b.dataset.go:b.dataset.u);
+    b.onclick=()=>start(u,doneCount(UNITS[u].key));});
+  $('map').querySelectorAll('[data-again]').forEach(b=>{
+    const u=+b.dataset.again;
+    b.onclick=()=>{localStorage.setItem(LS+UNITS[u].key,'0');drawMap();};});
+}
+
+/* ---------- 出牌区 ---------- */
+const asArr=x=>x?(Array.isArray(x)?x:[x]):null;
+/* 领出题上面挂了可视条的时候,别人那三格全是空的 —— 占掉大半屏高度,信息量是零。
+   只留自己这一格,自己那张牌才画得下、也画得大。 */
+const soloOpt=q=>({solo:!!(q.bars&&q.bars.length)&&(q.played||[]).every(x=>!x)});
+function trickHTML(played,lead,winner,showPt,opt){
+  opt=opt||{};
+  const P=played.map(asArr);
+  const wide=Math.max(1,...P.map(a=>a?a.length:1));
+  const cell=s=>{
+    const a=P[s];
+    const cls=[s===0?'mine':s===2?'mate':'', opt.pick?'pickable':'',
+               opt.selSeat===s?'selslot':'', opt.okSeat===s?'okslot':'', opt.noSeat===s?'noslot':''].join(' ');
+    // 队伍题:队伍直接写进座位名,不另加标签(加了会挡住座位名)
+    const who = opt.teamTag ? `${SEAT[s]} · ${isUs(s)?'你们队':'对手队'}` : nameOf(s);
+    const wcls = opt.teamTag ? (isUs(s)?'us':'them') : '';
+    return `<div class="slot ${cls}" data-seat="${s}">`+
+      `<div class="who ${wcls} ${winner===s?'win':''}">${who}</div>`+
+      (a?`<div class="cards${a.length>1?' ov':''}">${a.map(c=>cardHTML(c,'played',showPt,TR)).join('')}</div>`
+         :'<div class="ph"></div>')+`</div>`;
+  };
+  const wcls=(wide>=3?' m4':wide===2?' m2':'')+(opt.solo?' solo':'');
+  if(opt.solo) return `<div class="trickWrap"><div class="trick${wcls}">${cell(0)}</div></div>`;
+  return `<div class="trickWrap"><div class="trick${wcls}"><div></div>${cell(2)}<div></div>`+
+    `${cell(3)}<div class="tcenter">${lead!=null?SEAT[lead]+' 领出':''}</div>${cell(1)}`+
+    `<div></div>${cell(0)}<div></div></div></div>`;
+}
+
+/* 摊开给你看的几行牌:出牌记录、明牌残局、自己手上剩什么 */
+function rowsHTML(q){
+  let h=(q.rows||[]).map(r=>
+    `<div class="openrow ${r.me?'me':''}"><b>${r.who}</b><div class="opencards${r.spread?' spread':''}">`+
+    r.cards.map(c=>cardHTML(c,'',true,TR)).join('')+`</div></div>`).join('');
+  for(const bar of (q.bars||[])){
+    const out=bar.out||0, mine=bar.mine||0, left=bar.total-out-mine;
+    const cell=(n,cls)=>Array.from({length:Math.max(0,n)},()=>`<i class="${cls}"></i>`).join('');
+    h+=`<div class="barrow"><b>${bar.who}</b><div class="bar">`+
+       cell(out,'out')+cell(mine,'mine')+cell(left,'')+`</div></div>`+
+       `<div class="barfoot"><span class="barsum">外面还有 <b>${left}</b> 张`+
+       (bar.note?` · ${bar.note}`:'')+`</span></div>`;
+  }
+  if((q.bars||[]).length)
+    h+=`<div class="barfoot"><span><i class="out"></i>已出过</span>`+
+       `<span><i class="mine"></i>你手上</span><span><i></i>还在外面</span></div>`;
+  return h;
+}
+function saySetup(q){
+  setCat('idle'); $('bub').className='';
+  $('bub').innerHTML=q.prompt+(q.simplify?`<span class="sim">(${q.simplify})</span>`:'');
+}
+function sayFeedback(ok,text){
+  const q=L&&L.qs[qi];
+  // 两方案题不是对错题 —— 说「答对了」等于把「取舍」讲成了「标准答案」
+  const trade = q && q.badge==='两方案';
+  setCat(ok?'good':'bad');
+  $('bub').className=ok?'good':'bad';
+  $('bub').innerHTML=text;
+  $('verdict').textContent = trade ? (ok?'这一手更好':'另一手更好') : (ok?'答对了':'再想想');
+  $('foot').className=ok?'good':'bad';
+  $('hintBtn').style.display='none';
+  $('cta').textContent=ok?'继续':'知道了';
+  $('cta').disabled=false;
+  $('cta').className='btn'+(ok?'':' red');
+  $('cta').dataset.mode=ok?'next':'retry';
+  requestAnimationFrame(()=>requestAnimationFrame(fitTable));   // 气泡变高了,牌桌要跟着让位
+}
+function paintCtx(q){
+  let h='';
+  if(q&&q.phase) h+=`<i class="phase">${q.phase}</i>`;
+  if(TR&&TR.suit) h+=`<i>打 ${RS(TR.rank)} · ${SYM[TR.suit]}主</i>`;
+  const sc=q&&q.score;
+  if(sc!=null) h+=`<i class="pts">已抓 ${sc} 分</i>`;
+  $('ctx').innerHTML=h;
+}
+
+/* ---------- 渲染 ---------- */
+function render(){
+  const q=L.qs[qi];
+  TR = q.tr!==undefined ? q.tr : L.tr;                 // 题可以自带一局(用来演示「换级」)
+  sel=null;selMulti=[];answered=false;hinted=false;
+  $('barIn').style.width=(qi/L.qs.length*100)+'%';
+  $('badge').textContent=q.badge||'';
+  $('task').textContent=q.task;
+  paintCtx(q); saySetup(q);
+  $('hand').innerHTML='';$('table').innerHTML='';$('hand').style.minHeight='';
+  $('foot').className='';$('verdict').textContent='';
+  $('hintBtn').style.display='';$('hintBtn').disabled=!q.hint;
+  $('cta').textContent=q.type==='discard'?'扣底':(q.type==='trickpick'||q.type==='playset')?'出牌':'检查';
+  $('cta').disabled=true;$('cta').className='btn';$('cta').dataset.mode='check';
+  $('btnRow').style.display='';
+
+  if(q.type==='seat'){
+    $('table').innerHTML=`<div class="seatmap">
+      <div></div><button class="seatbtn" data-s="2">北<small>?</small></button><div></div>
+      <button class="seatbtn" data-s="3">西<small>?</small></button>
+      <div class="arrowbox">牌桌</div>
+      <button class="seatbtn" data-s="1">东<small>?</small></button>
+      <div></div><button class="seatbtn me">南<small>你</small></button><div></div></div>`;
+    $('table').querySelectorAll('.seatbtn[data-s]').forEach(b=>b.onclick=()=>{
+      if(answered)return;
+      $('table').querySelectorAll('.seatbtn').forEach(x=>x.classList.remove('sel'));
+      b.classList.add('sel');sel=+b.dataset.s;$('cta').disabled=false;});
+  }
+  else if(q.type==='multi'||q.type==='cardpick'){
+    const tr=q.noTrumpTag?'hide':TR;
+    $('table').innerHTML=rowsHTML(q)+
+      `<div class="pile">${q.cards.map(c=>cardHTML(c,'pick',q.showPt,tr)).join('')}</div>`;
+    $('table').querySelectorAll('.card').forEach(n=>n.onclick=()=>{
+      if(answered)return;
+      if(q.type==='cardpick'){
+        $('table').querySelectorAll('.card').forEach(x=>x.classList.remove('sel'));
+        n.classList.add('sel');sel=n.dataset.id;$('cta').disabled=false;return;
+      }
+      const i=selMulti.indexOf(n.dataset.id);
+      if(i<0){selMulti.push(n.dataset.id);n.classList.add('sel');}
+      else{selMulti.splice(i,1);n.classList.remove('sel');}
+      $('cta').disabled=!selMulti.length;});
+  }
+  else if(q.type==='ladder'){
+    const head=`<div class="ladderHead">闲家方一共抓到 <b>${q.defPoints} 分</b>`+
+      (q.kitty?` <small>(含抠底)</small>`:'')+`</div>`;
+    $('table').innerHTML=head+`<div class="chips l3">${LADDER.map((o,i)=>`<button class="opt" data-i="${i}">${o}</button>`).join('')}</div>`;
+    $('table').querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
+      if(answered)return;
+      $('table').querySelectorAll('.opt').forEach(x=>x.classList.remove('sel'));
+      b.classList.add('sel');sel=+b.dataset.i;$('cta').disabled=false;});
+  }
+  else if(q.type==='numpick'){
+    const top=rowsHTML(q)+(q.cards?`<div class="pile">${q.cards.map(c=>cardHTML(c,'',q.showPt,TR)).join('')}</div>`:'');
+    $('table').innerHTML=top+`<div class="chips">${q.opts.map((o,i)=>`<button class="opt" data-i="${i}">${o}</button>`).join('')}</div>`;
+    $('table').querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
+      if(answered)return;
+      $('table').querySelectorAll('.opt').forEach(x=>x.classList.remove('sel'));
+      b.classList.add('sel');sel=+b.dataset.i;$('cta').disabled=false;});
+  }
+  else if(q.type==='winpick'||q.type==='teampick'){
+    const tag = q.type==='teampick' ? true : null;
+    const draw=()=>{
+      $('table').innerHTML=trickHTML(q.played,q.lead,null,q.showPt,
+        {pick:true, selSeat:(q.type==='teampick'&&sel!=null)?-1:sel, teamTag:tag});
+      if(q.type==='teampick'&&sel!=null)
+        $('table').querySelectorAll('.slot').forEach(sl=>{ if(+sl.dataset.seat%2===sel) sl.classList.add('selslot'); });
+      $('table').querySelectorAll('.slot').forEach(sl=>sl.onclick=()=>{
+        if(answered)return;
+        sel = q.type==='teampick' ? (+sl.dataset.seat)%2 : +sl.dataset.seat;
+        $('cta').disabled=false; draw();});
+    };
+    draw();
+  }
+  else if(q.type==='trickpick'||q.type==='playset'||q.type==='discard'){ drawPlay(q); }
+  else if(q.type==='throwjudge'||q.type==='forcedpick'){ drawThrow(q); }
+  else if(q.type==='mini') startMini(q);
+  if(!$('hand').children.length) $('hand').style.minHeight='0';
+  requestAnimationFrame(()=>requestAnimationFrame(fitTable));   // 等布局落定再量
+}
+
+/* 出牌题:点手牌 → 牌直接打到你的位子上,手牌里那张就不留空位了。
+   playset 是它的多张版:领出几张就要挑几张(对子、拖拉机)。 */
+function need(q){
+  if(q.type==='discard') return q.n;
+  return q.type==='playset' ? asArr(q.played[q.lead]).length : 1;
+}
+/* 选牌只在手牌区完成(选中的牌抬起来),点「出牌」才落到牌桌上 ——
+   边点边往桌上飞,交互上像是已经出了,可是还能反悔,自相矛盾 */
+function drawPlay(q,handOnly){
+  const n=need(q);
+  const multi=(q.type==='playset'||q.type==='discard');
+  const picked=multi?selMulti:(sel?[sel]:[]);
+  // 牌桌只画一次 —— 每点一张手牌就重建牌桌的话,别人已经出的牌会把 playIn 动画
+  // 重放一遍(牌一直闪)。正式版 §11.3 早就写过这条,这里同样适用。
+  if(!handOnly) $('table').innerHTML=rowsHTML(q)+
+    (q.played?trickHTML(q.played,q.lead,null,q.showPt,soloOpt(q))
+             :`<div class="kittyBox">扣下去的 ${n} 张<div class="kittySlot">`+
+              picked.map(id=>cardHTML(q.hand.find(c=>c.id===id),'',true,TR)).join('')+
+              Array.from({length:Math.max(0,n-picked.length)},()=>'<i class="kph"></i>').join('')+
+              `</div></div>`);
+  $('hand').innerHTML=q.hand.map(c=>cardHTML(c,'pick'+(picked.includes(c.id)?' sel':''),q.showPt,TR)).join('');
+  $('hand').querySelectorAll('.card').forEach(el=>el.onclick=()=>{
+    if(answered)return;
+    const id=el.dataset.id;
+    if(multi){
+      const i=selMulti.indexOf(id);
+      if(i>=0) selMulti.splice(i,1);
+      else if(selMulti.length<n) selMulti.push(id);
+    } else sel = (sel===id?null:id);
+    const ready = multi ? selMulti.length===n : !!sel;
+    $('cta').disabled=!ready;
+    $('cta').textContent = ready ? (q.type==='discard'?`扣这 ${n} 张`:(n>1?`出这 ${n} 张`:'出牌')) : (q.type==='discard'?'扣底':'出牌');
+    drawPlay(q,multi);});
+  if($('cta').dataset.mode==='check')
+    $('cta').textContent = q.type==='discard'
+      ? (picked.length===n?`扣这 ${n} 张`:'扣底')
+      : (picked.length? (n>1?`出这 ${n} 张`:'出牌') : '出牌');
+}
+
+/* 甩牌题:四家的这一门牌全摊开(明牌),成不成立交给引擎的 checkThrow 算 */
+function throwCards(q){ return q.hands[0].filter(c=>q.throwIds.includes(c.id)); }
+function throwResult(q){ return checkThrow(q.hands,0,throwCards(q),TR); }
+function drawThrow(q){
+  const pickable = q.type==='forcedpick';
+  const row=(who,cards,cls,pick)=>
+    `<div class="openrow ${cls||''}"><b>${who}</b><div class="opencards${pick?' pickset':''}">`+
+    cards.map(c=>cardHTML(c,pick&&selMulti.includes(c.id)?'sel':'',true,TR)).join('')+`</div></div>`;
+  let html = row(pickable?'只能出':'你要甩', throwCards(q), 'me', pickable);
+  for(const s2 of [1,2,3]) html += row(SEAT[s2], q.hands[s2], '');
+  if(q.type==='throwjudge')
+    html += `<div class="chips" style="margin-top:8px">${q.opts.map((o,i)=>`<button class="opt" data-i="${i}">${o}</button>`).join('')}</div>`;
+  $('table').innerHTML=html;
+  if(pickable){
+    $('table').querySelectorAll('.pickset .card').forEach(n=>n.onclick=()=>{
+      if(answered)return;
+      const i=selMulti.indexOf(n.dataset.id);
+      if(i<0){selMulti.push(n.dataset.id);n.classList.add('sel');}
+      else{selMulti.splice(i,1);n.classList.remove('sel');}
+      $('cta').disabled=!selMulti.length;});
+  }else{
+    $('table').querySelectorAll('.opt').forEach(b=>b.onclick=()=>{
+      if(answered)return;
+      $('table').querySelectorAll('.opt').forEach(x=>x.classList.remove('sel'));
+      b.classList.add('sel');sel=+b.dataset.i;$('cta').disabled=false;});
+  }
+}
+
+/* ---------- 判分 ---------- */
+function check(){
+  const q=L.qs[qi];let ok,msg=null;
+  if(q.type==='seat'){
+    ok=sel===q.answer;
+    $('table').querySelectorAll('.seatbtn[data-s]').forEach(b=>{
+      const s=+b.dataset.s;b.classList.remove('sel');
+      addCls(b,s===q.answer?'ok':s===sel?'no':'');
+      b.querySelector('small').textContent=s===q.answer?'队友':'对手';});
+  } else if(q.type==='multi'){
+    ok=selMulti.length===q.answer.length&&q.answer.every(a=>selMulti.includes(a));
+    $('table').querySelectorAll('.card').forEach(n=>{
+      const isA=q.answer.includes(n.dataset.id);n.classList.remove('sel');
+      addCls(n,isA?'ok':selMulti.includes(n.dataset.id)?'no':'dim');
+      if(q.noTrumpTag&&TR){const c=q.cards.find(x=>x.id===n.dataset.id);
+        if(effSuit(c,TR)==='T')n.insertAdjacentHTML('beforeend','<span class="trumpTag">主</span>');}});
+  } else if(q.type==='cardpick'){
+    ok=sel===q.answer;
+    $('table').querySelectorAll('.card').forEach(n=>{
+      n.classList.remove('sel');
+      addCls(n,n.dataset.id===q.answer?'ok':n.dataset.id===sel?'no':'');});
+  } else if(q.type==='ladder'){
+    const want=ladderIdx(q.defPoints,q.kitty,q.wonLast,q.lastLeadSize);
+    ok=sel===want;
+    $('table').querySelectorAll('.opt').forEach(b=>{
+      const i=+b.dataset.i;b.classList.remove('sel');
+      addCls(b,i===want?'ok':i===sel?'no':'');});
+  } else if(q.type==='numpick'){
+    ok=sel===q.answer;
+    $('table').querySelectorAll('.opt').forEach(b=>{
+      const i=+b.dataset.i;b.classList.remove('sel');
+      addCls(b,i===q.answer?'ok':i===sel?'no':'');});
+  } else if(q.type==='winpick'||q.type==='teampick'){
+    ok=sel===q.answer;
+    const hit=s=>q.type==='teampick'?s%2===q.answer:s===q.answer;
+    const miss=s=>q.type==='teampick'?s%2===sel:s===sel;
+    $('table').innerHTML=trickHTML(q.played,q.lead,q.type==='winpick'?q.answer:null,q.showPt,
+      {teamTag:q.type==='teampick'?true:null});
+    $('table').querySelectorAll('.slot').forEach(sl=>{
+      const s=+sl.dataset.seat;
+      if(hit(s))sl.classList.add('okslot'); else if(miss(s))sl.classList.add('noslot');});
+  } else if(q.type==='throwjudge'){
+    const r=throwResult(q);                       // 成不成立由引擎说了算,题里不写死
+    const want=r.ok?0:1;
+    ok=sel===want;
+    $('table').querySelectorAll('.opt').forEach(b=>{
+      const i=+b.dataset.i;b.classList.remove('sel');
+      addCls(b,i===want?'ok':i===sel?'no':'');});
+  } else if(q.type==='forcedpick'){
+    const r=throwResult(q);
+    const want=(r.forced||[]).map(c=>c.id);
+    ok = want.length===selMulti.length && want.every(id=>selMulti.includes(id));
+    $('table').querySelectorAll('.pickset .card').forEach(n=>{
+      n.classList.remove('sel');
+      addCls(n, want.includes(n.dataset.id)?'ok':selMulti.includes(n.dataset.id)?'no':'dim');});
+  } else if(q.type==='discard'){
+    ok = q.answer.length===selMulti.length && q.answer.every(a=>selMulti.includes(a));
+    const pts=countPoints(selMulti.map(id=>q.hand.find(c=>c.id===id)));
+    $('table').innerHTML=rowsHTML(q)+
+      `<div class="kittyBox ${ok?'ok':'no'}">扣下去的 ${q.n} 张 · 带走 <b>${pts} 分</b>`+
+      `<div class="kittySlot">`+selMulti.map(id=>cardHTML(q.hand.find(c=>c.id===id),'',true,TR)).join('')+`</div></div>`;
+    $('hand').innerHTML=q.hand.filter(c=>!selMulti.includes(c.id))
+      .map(c=>cardHTML(c,q.answer.includes(c.id)?'ok':'dim',true,TR)).join('');
+  } else if(q.type==='playset'){
+    // 合法性交给引擎的 isLegalFollow —— 「门里有对必出对、有拖必跟拖」这套判定
+    // 自己重写一份必错,这正是把那一段整体搬过来的理由
+    const leadCards=asArr(q.played[q.lead]);
+    const lead=classify(leadCards,TR);
+    const chosen=selMulti.map(id=>q.hand.find(c=>c.id===id));
+    const isLegal=isLegalFollow(q.hand,lead,chosen,TR);
+    ok = q.anyLegal ? isLegal
+       : (isLegal && q.answer.length===chosen.length && q.answer.every(a=>selMulti.includes(a)));
+    if(!isLegal&&q.illegal) msg=q.illegal;
+    const played=q.played.slice(); played[0]=chosen;
+    $('table').innerHTML=trickHTML(played,q.lead,null,q.showPt);
+    const mine=$('table').querySelector('.slot[data-seat="0"]');
+    if(mine)mine.classList.add(ok?'okslot':'noslot');
+    const right=q.anyLegal?[]:q.answer;
+    $('hand').innerHTML=q.hand.filter(c=>!selMulti.includes(c.id))
+      .map(c=>cardHTML(c,right.includes(c.id)?'ok':'dim',q.showPt,TR)).join('');
+  } else if(q.type==='trickpick'){
+    const led=q.lead!=null&&q.played[q.lead]?effSuit(q.played[q.lead],TR):null;
+    const legal=legalSet(q.hand,led,TR).map(c=>c.id);
+    const isLegal=legal.includes(sel);
+    ok = q.anyLegal ? isLegal : (isLegal && sel===q.answer);
+    if(!isLegal&&q.illegal) msg=q.illegal;              // 违规牌:指着他手里剩的那张说
+    const played=q.played.slice(); played[0]=q.hand.find(c=>c.id===sel);
+    $('table').innerHTML=rowsHTML(q)+trickHTML(played,q.lead,null,q.showPt,soloOpt(q));
+    const mine=$('table').querySelector('.slot[data-seat="0"]');
+    if(mine)mine.classList.add(ok?'okslot':'noslot');
+    $('hand').innerHTML=q.hand.filter(c=>c.id!==sel)
+      .map(c=>cardHTML(c,c.id===q.answer?'ok':'dim',q.showPt,TR)).join('');
+  }
+  answered=true;if(!ok)wrong++;
+  sayFeedback(ok, ok?q.good:(msg||q.bad));
+}
+
+$('cta').onclick=()=>{
+  const m=$('cta').dataset.mode;
+  if(m==='check'){ if(!answered)check(); return; }
+  if(m==='next'){ qi++; qi>=L.qs.length?finish():render(); return; }
+  render();
+};
+$('hintBtn').onclick=()=>{
+  const q=L.qs[qi];if(!q.hint||hinted)return;hinted=true;
+  $('bub').innerHTML+=`<span class="tip">💡 ${q.hint}</span>`;
+  $('hintBtn').disabled=true;
+};
+
+/* ---------- 小局 ---------- */
+function startMini(q){
+  mini={hands:q.hands.map(h=>h.slice()),lead:q.lead,played:[null,null,null,null],
+        turn:q.lead,score:[0,0],trick:1,busy:false,gen:(mini?mini.gen+1:1),
+        goal:q.goal||'',start:q.score||0,
+        kitty:q.kitty||[],lastWin:null,lastSize:1};
+  $('btnRow').style.display='none';paintMini();
+  step(()=>aiStep(),PACE.step);
+}
+/* 所有小局定时器都走这里:gen 一变,在途的回调全部作废 ——
+   裸 setTimeout 会让上一墩的排程回来再出一张牌,同一家出两张、endTrick 跑两次 */
+function step(fn,ms){ const g=mini.gen; setTimeout(()=>{ if(mini&&mini.gen===g&&mini.turn!==0) fn(); },ms); }
+function stepAny(fn,ms){ const g=mini.gen; setTimeout(()=>{ if(mini&&mini.gen===g) fn(); },ms); }
+function ledSuitNow(){ const m=mini,c=m.played[m.lead]; return c?effSuit(c,TR):null; }
+function paintMini(){
+  const m=mini;
+  $('task').textContent=`第 ${m.trick} 墩`;
+  paintCtx({score:m.start+m.score[0]});                 // 抓到的分实时跳,和目标挂上钩
+  $('bub').className='';
+  // 说清楚这一手在决定什么,而不是干巴巴报个比分
+  const onTable=m.played.reduce((a,c)=>a+(c?pts(c):0),0);
+  let line;
+  if(m.turn!==0) line=`${m.goal}。<b>${nameOf(m.turn)}</b> 在出牌…`;
+  else if(!m.played[m.lead]) line=`轮到你<b>领出</b> —— 这一墩由你起头。`;
+  else{
+    const w=partialWinner(m.played,m.lead,TR);
+    line=`轮到你了。台面 <b>${onTable} 分</b>,现在最大的是 <b>${nameOf(w)}</b> —— `+
+         (isUs(w)?'这一墩暂时是你们队的。':'要不要抢下来?');
+  }
+  $('bub').innerHTML=line;
+  $('table').innerHTML=trickHTML(m.played,m.lead,null,true);
+  const legal=legalSet(m.hands[0],ledSuitNow(),TR).map(c=>c.id);
+  // 已经学过的规则:非法牌直接点不动
+  $('hand').innerHTML=m.hands[0].map(c=>cardHTML(c,'pick'+(legal.includes(c.id)?'':' dim'),true,TR)).join('');
+  $('hand').querySelectorAll('.card').forEach(n=>n.onclick=()=>{
+    if(mini.turn!==0||mini.busy)return;
+    if(!legal.includes(n.dataset.id))return;
+    playCard(0,mini.hands[0].find(c=>c.id===n.dataset.id));});
+  if(!$('hand').children.length) $('hand').style.minHeight='0';
+}
+function playCard(seat,card){
+  const m=mini;
+  if(!card||m.busy||seat!==m.turn||m.played[seat])return;
+  m.hands[seat]=m.hands[seat].filter(c=>c.id!==card.id);
+  m.played[seat]=card;m.turn=(m.turn+1)%4;
+  const full=m.played.every(Boolean);
+  if(full)m.busy=true;
+  paintMini();
+  if(full) stepAny(endTrick,PACE.step); else step(()=>aiStep(),PACE.step);
+}
+function aiStep(){
+  const m=mini;if(m.turn===0){paintMini();return;}
+  const legal=legalSet(m.hands[m.turn],ledSuitNow(),TR).slice().sort((a,b)=>ordIdx(a,TR)-ordIdx(b,TR));
+  if(!m.played[m.lead]){ playCard(m.turn,legal[legal.length-1]); return; }   // 领出:出最大的
+  const w=partialWinner(m.played,m.lead,TR);
+  const mateWinning = m.played[w] && w%2===m.turn%2 && w!==m.turn;
+  let pick;
+  if(mateWinning)
+    pick=legal.slice().sort((a,b)=>pts(b)-pts(a)||ordIdx(a,TR)-ordIdx(b,TR))[0];   // 队友最大 → 贴分
+  else{
+    const beats=legal.filter(c=>{
+      const t=m.played.slice(); t[m.turn]=c;
+      return winnerOf(fill(t,m),m.lead,TR)===m.turn;
+    });
+    pick=beats.length?beats[0]:legal[0];
+  }
+  playCard(m.turn,pick);
+}
+function fill(t,m){
+  const out=[null,null,null,null];
+  for(let k=0;k<4;k++){const s=(m.lead+k)%4; if(t[s])out[s]=t[s]; else break;}
+  if(t[m.turn])out[m.turn]=t[m.turn];
+  return out;
+}
+function endTrick(){
+  const m=mini;
+  const win=winnerOf(m.played,m.lead,TR);
+  const got=m.played.reduce((a,c)=>a+countPoints(asArr(c)||[]),0);
+  m.score[win%2===0?0:1]+=got;
+  m.lastWin=win; m.lastSize=asArr(m.played[m.lead]).length;   // 抠底倍数看最后一墩每人出几张
+  m.busy=true;
+  flyToWinner(win,()=>{
+    $('table').innerHTML=trickHTML(m.played,m.lead,win,true);
+    $('task').textContent=`${nameOf(win)} 收走`;
+    paintCtx({score:m.start+m.score[0]});
+    setCat(isUs(win)?'good':'idle');
+    $('bub').className=isUs(win)?'good':'';
+    $('bub').innerHTML=got?`这一墩有 <b>${got} 分</b>,${isUs(win)?'进<b>你们队</b>的账。':'被<b>对手</b>拿走了。'}`
+                          :'这一墩<b>没有分</b>。';
+    stepAny(()=>{
+      if(!m.hands[0].length){
+        $('btnRow').style.display='';$('hintBtn').style.display='none';answered=true;
+        sayFeedback(true,
+          `你们队又抓了 <b>${m.score[0]} 分</b>。`+
+          settleLine(m.start+m.score[0], m.kitty, isUs(m.lastWin), m.lastSize)+
+          `<span class="sim">${L.qs[qi].good}</span>`);
+        return;
+      }
+      m.gen++;
+      m.played=[null,null,null,null];m.lead=win;m.turn=win;m.trick++;m.busy=false;
+      paintMini();step(()=>aiStep(),PACE.step);
+    },PACE.review);
+  });
+}
+function flyToWinner(win,cb){
+  const t=[...$('table').querySelectorAll('.slot')].find(s=>+s.dataset.seat===win).getBoundingClientRect();
+  [...$('table').querySelectorAll('.slot .card')].forEach(c=>{
+    const r=c.getBoundingClientRect(),f=c.cloneNode(true);
+    f.classList.add('flyer');f.classList.remove('played');
+    f.style.cssText+=`position:fixed;left:${r.left}px;top:${r.top}px;width:${r.width}px;height:${r.height}px;margin:0`;
+    document.body.appendChild(f);
+    requestAnimationFrame(()=>{
+      f.style.transform=`translate(${t.left-r.left+10}px,${t.top-r.top+8}px) scale(.45)`;
+      f.style.opacity='0';});
+    setTimeout(()=>f.remove(),PACE.fly+40);
+  });
+  setTimeout(cb,PACE.fly+60);
+}
+
+/* 牌桌按剩下的高度缩放:反馈文字一长,气泡变高,三行的出牌区就装不下,
+   底下那一格会被裁掉半张牌。CSS 里算不了(--cardW 是 clamp 表达式,
+   getComputedStyle 只返回原始文本),只能渲染完量一次再定 —— 和正式版
+   fitHandRow 是同一个套路。 */
+function fitTable(){
+  const tbl=$('table'), t=tbl.querySelector('.trick');
+  tbl.style.removeProperty('--cardW');
+  if(!t) return;
+  t.style.removeProperty('--cardW'); t.style.removeProperty('--cardH');
+  const card=t.querySelector('.card,.ph'); if(!card) return;
+  const r=card.getBoundingClientRect();
+  const need=t.getBoundingClientRect().height;
+  // 牌桌里除了这一墩,还可能有出牌记录行、可视条、图例 —— 它们也吃 board 的高度。
+  // 只拿 board 的高度当可用空间,牌就会算得太大,把这一墩挤出屏幕。
+  const others=Math.max(0, tbl.getBoundingClientRect().height-need);
+  const avail=$('board').clientHeight-others-4;
+  if(!need||need<=avail) return;
+  // 牌桌里除了牌还有座位名、内边距、行距 —— 这部分不跟着牌宽缩,
+  // 所以不能按比例乘,要先把它量出来,再解出放得下的牌宽。
+  const overhead=need-3*r.height;                 // 三行牌以外的固定高度
+  const ratio=r.height/r.width;                   // 牌的高宽比(含 clamp 之后的实际值)
+  const w=Math.max(28, Math.floor((avail-overhead)/(3*ratio)));
+  /* 两个都要设,而且要设在 .trick 上:
+     ① --cardH 是在 :root 上按当时的 --cardW 算好再继承下去的,只改 --cardW 不会让它跟着变;
+     ② .trick.m2 / .m4 这两个类也在覆盖 --cardW,同级选择器压不过,得用行内样式。 */
+  t.style.setProperty('--cardW', w+'px');
+  t.style.setProperty('--cardH', Math.round(w*ratio)+'px');
+  // 缩到下限还是装不下(四张一格的那种大墩 + 一段长反馈):
+  // 宁可让最上面的北家滚出去,也不能裁掉最下面自己那一行 —— 反馈讲的就是它。
+  requestAnimationFrame(()=>{
+    const bd=$('board');
+    if(bd.scrollHeight>bd.clientHeight+1) bd.scrollTop=bd.scrollHeight;
+  });
+}
+
+/* ---------- 起止 ---------- */
+function start(u,i){
+  if(mini)mini.gen++;
+  ui=u; li=i; L=UNITS[u].lessons[i]; TR=L.tr;
+  qi=0;wrong=0;t0=Date.now();show('q');render();
+}
+function finish(){
+  const n=L.qs.length,sec=Math.round((Date.now()-t0)/1000);
+  $('sAcc').textContent=Math.round(n/(n+wrong)*100)+'%';
+  $('sTime').textContent=sec>=60?Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0'):sec+'秒';
+  const U=UNITS[ui];
+  if(li+1>doneCount(U.key)) localStorage.setItem(LS+U.key,String(li+1));
+  const nxt=U.lessons[li+1], nu=UNITS[ui+1];
+  $('done').querySelector('h2').textContent=nxt?'这一课通关了':`${U.name.split(' · ')[1]} 打完了`;
+  $('done').querySelector('p').textContent=
+    nxt?`下一课:${nxt.name}`:(nu?`解锁:${nu.name}`:'整个第一部都打完了');
+  $('barIn').style.width='100%';show('done');drawMap();
+}
+$('doneBtn').onclick=()=>show('map');
+$('quit').onclick=()=>{ if(confirm('退出这一课?这次的进度不保存。'))show('map'); };
+
+setCat('idle');drawMap();show('map');
+
+/* 给测试用的出口。整段代码在 IIFE 里,页面上看不见 —— 没有这个出口,
+   走查脚本只能点界面,没法把每道题的标答拿去问引擎「这手合法吗、赢不赢」。
+   ♥A♥A+♥J♥J 算不算拖拉机这种事,脑内推演是会推错的。 */
+window.__LEARN__={UNITS,winnerOf,isLegalFollow,legalSet,classify,structMatches,countPoints};
+})();
+</script>
+</body>
+</html>

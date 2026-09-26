@@ -1,0 +1,55 @@
+/* Shared visual language, based on the main repository's teaching UI. */
+:root{
+  --ol:#55731c;--ol-rim:#3d5412;--ol-bg:#e7f0d2;--ol-tx:#3a5011;--ol-dk:#2a3b0c;
+  --rd:#b03e27;--rd-rim:#8a2c16;--rd-bg:#f9e3dc;--rd-tx:#8a2c16;
+  --bl:#3b6e92;--bl-rim:#2c5876;--bl-bg:#e0edf5;--bl-tx:#2a5271;
+  --pu:#7e5c99;--pu-bg:#f0eaf5;--gd:#edcf83;--gd-tx:#57431b;
+  --tx:#33362e;--tx2:#71766a;--line:#d8dccf;--dis:#e5e7de;--dis-tx:#909586;
+  --page:#fffcf6;--felt:#f0f2e9;--card-line:#aeb3a5;
+  --ui-font:ui-rounded,"Hiragino Maru Gothic ProN","PingFang SC",-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;
+  --card-font:"Arial Rounded MT Bold","Trebuchet MS",ui-rounded,"PingFang SC",sans-serif;
+  --ink:var(--tx);--muted:var(--tx2);--red:var(--rd);--gold:var(--ol);
+  font-family:var(--ui-font);color:var(--tx);background:var(--page)
+}
+body{background:var(--page);color:var(--tx)}button,input,a{font-family:inherit}button:focus-visible,a:focus-visible,input:focus-visible{outline-color:var(--bl)}
+/* Plain white cards. Information stays at the edges; the centre stays blank. */
+.playing-card{background:#fff;border:1.5px solid var(--card-line);color:var(--tx);box-shadow:0 2px 0 #33362e14;border-radius:8px;font-family:var(--card-font)}
+.playing-card :is(.index,.bottom-index){font-family:var(--card-font)!important;font-weight:800;font-variant-numeric:lining-nums tabular-nums}
+.playing-card .index{letter-spacing:-1.5px}.playing-card .index i{font-family:Arial,sans-serif;letter-spacing:0}.playing-card.joker .index{font-family:var(--ui-font)!important}.playing-card .bottom-index{opacity:.7}
+.playing-card.suit-S{color:#262c2c}.playing-card.suit-H,.playing-card.red{color:#b33a2b}.playing-card.suit-D{color:#a8286a}.playing-card.suit-C{color:#245843}
+.playing-card .point-mark{background:var(--gd);color:var(--gd-tx);border-radius:4px;font-family:var(--ui-font);font-weight:800}
+#game{background:var(--page);color:var(--tx);box-shadow:none;font-family:var(--ui-font)}
+#game .status-bar{background:var(--page);border-bottom:2px solid var(--line)}
+#game .status-main{gap:10px}#game .brand{font-family:var(--card-font);color:var(--ol);font-weight:800;letter-spacing:-1px}#game .brand>span{font-family:var(--ui-font)}
+#game .trump-status{color:var(--tx)}#game .trump-status i{color:var(--rd)}#game .trump-status i.suit-S{color:#262c2c}#game .trump-status i.suit-D{color:#a8286a}#game .trump-status i.suit-C{color:#245843}#game .trump-status em{color:var(--tx2)}
+#game .menu-button{color:var(--tx2);font-size:21px}#game .score-line{color:var(--tx2)}#game .score-line b{color:var(--ol)}#game .score-track{background:var(--line);height:7px}#game .score-track i{background:var(--ol)}
+.learn-link{display:inline-flex;align-items:center;justify-content:center;min-width:44px;min-height:40px;padding:0 7px;border:1.5px solid var(--line);border-radius:11px;color:var(--ol-tx);font-size:14px;font-weight:750;text-decoration:none;background:#fff;flex-shrink:0}
+#game.wide .learn-link{order:1}#game.wide .status-bar{gap:22px}#game.wide.compact .status-bar{gap:12px}
+#game .felt{background:var(--felt);border:2px solid var(--line);box-shadow:none;transform:none;border-radius:36px;inset:28px 5px -8px}#game.wide .felt{inset:20px 0 -8px;border-radius:48px}#game.wide.compact .felt{inset:8px 0 -5px;border-radius:26px}
+#game .felt:after{display:none}#game .table-mark{display:none}
+#game .player-label{color:var(--tx);text-shadow:none;font-weight:750}#game .player-label small{color:var(--tx2);font-weight:500}#game .player-label .seat-dot{background:#b0b7a5;box-shadow:none}#game .player.winner .seat-dot{background:var(--ol);box-shadow:none}
+#game .played-hand,#game .winner .played-hand{filter:none}#game .winner .playing-card{border-color:var(--ol);box-shadow:0 0 0 1px var(--ol)}#game .winner-label{color:var(--ol-tx);background:var(--ol-bg);border:1px solid #b8cc95;border-radius:7px;font-weight:750}
+#game .empty-opponent{background:#e4e9da;border:2px solid #c8d2ba;border-radius:7px;box-shadow:2px 2px 0 #d1d9c7;transform:rotate(4deg)}
+#game .table-points{color:var(--tx2)}#game .table-points strong{color:var(--ol);font-family:var(--card-font);font-weight:800;text-shadow:none}#game .declaration-pile>p{color:var(--ol-tx);font-weight:650}
+#game .drop-cue{border-color:var(--bl);background:#e0edf555;border-radius:30px}#game .drop-cue span{background:#fff;border:2px solid var(--bl);color:var(--bl-tx);box-shadow:0 3px 0 #3b6e9222;border-radius:12px;font-weight:750}
+#game .arena.drag-over .drop-cue{background:#e0edf5aa}#game .arena.drag-invalid .drop-cue{background:#f9e3dc66;border-color:var(--rd)}#game .arena.drag-invalid .drop-cue span{color:var(--rd-tx);border-color:var(--rd)}
+#game .turn-copy strong{color:var(--tx);font-weight:750}#game .turn-copy span{color:var(--tx2)}
+#game .table-edge>button,#game .bid-actions button,#game .bottom-tools #buryConfirm{background:var(--ol);color:#fff;border:0;border-bottom:3px solid var(--ol-rim);border-radius:12px;box-shadow:none;font-weight:800}
+#game .table-edge>button:active:not(:disabled),#game .bid-actions button:active:not(:disabled){translate:0 2px}
+#game .table-edge>button:disabled,#game .bid-actions button:disabled,#game .bottom-tools #buryConfirm:disabled{background:var(--dis);color:var(--dis-tx);border-color:#cdd2c3;opacity:1;box-shadow:none}
+#game .hand-card{background:#fff;border:1.5px solid var(--card-line);box-shadow:-1px 2px 0 #33362e22;border-radius:8px}
+#game .hand-card.selected{background:var(--bl-bg);border:2px solid var(--bl);box-shadow:-1px 2px 0 #2c587644}#game .hand-card.selected:after{content:'✓';color:var(--bl-tx);font-size:13px;top:4px;right:4px;font-family:var(--ui-font)}
+#game .hand-card.off-suit{filter:none;background:#f7f7f2}#game .hand-card.selected.off-suit{background:var(--bl-bg)}#game .hand-card.peek{filter:none;border-color:var(--bl)}
+#game .hand-wheel,#game #panHint{color:var(--tx2)}#game .hand-wheel.no-overflow #panHint{color:var(--tx2)}
+#pan::-webkit-slider-runnable-track{background:#c4cdb8;height:4px}#pan::-webkit-slider-thumb{background:var(--bl-bg);border:2px solid var(--bl);box-shadow:none;border-radius:8px}
+#pan::-moz-range-track{background:#c4cdb8;height:4px}#pan::-moz-range-thumb{background:var(--bl-bg);border:2px solid var(--bl);box-shadow:none;border-radius:8px}
+#game .bottom-tools{background:var(--page);border-top:2px solid var(--line)}#game .bottom-tools button{background:#fff;color:var(--tx);border:1.5px solid var(--line);border-bottom:3px solid #c5ccb9;border-radius:10px;font-weight:700}#game .bottom-tools button:disabled{opacity:.45}
+#game .live-message{background:#fff;color:var(--tx);border:2px solid var(--line);box-shadow:0 3px 0 #33362e14;font-weight:650}
+#loupe,#dragGhost{filter:drop-shadow(0 3px 0 #33362e33)}#loupe .playing-card{background:#fff;border:2px solid var(--bl);box-shadow:none}#dragGhost .playing-card{background:#fff;border-color:var(--bl);box-shadow:0 2px 0 #33362e22}#dragGhost .drag-count{background:var(--bl-bg);color:var(--bl-tx);border:1px solid var(--bl);border-radius:8px;font-weight:700}
+#sheet{background:var(--page);color:var(--tx);border:2px solid var(--line);box-shadow:none}#sheet::backdrop{background:#33362e55;backdrop-filter:none}#sheet .sheet-header{border-bottom:2px solid var(--line)}#sheet .sheet-copy{color:var(--tx2)}#sheet .menu-option{background:#fff;border:2px solid var(--line);border-radius:12px;font-weight:750;color:var(--tx)}#sheet .menu-option small{color:var(--tx2);font-weight:500}#sheet .sheet-link{color:var(--bl-tx)}
+#sheet .layout-label{color:var(--tx2)}#sheet .layout-options button{background:#fff;color:var(--tx);border:2px solid var(--line);font-weight:700}#sheet .layout-options button[aria-pressed=true]{background:var(--bl-bg);border-color:var(--bl);color:var(--bl-tx)}
+#sheet .overview-title{color:var(--tx)}#sheet .overview-title span{color:var(--tx2)}#sheet .card-grid .playing-card.selected{outline-color:var(--bl);background:var(--bl-bg)}#sheet .history-entry{border-color:var(--line)}#sheet .history-entry b,#sheet .result-note{color:var(--ol-tx)}
+#sheetFooter{background:#fff;border-top:2px solid var(--line)}#sheetFooter .sheet-actions button{background:#fff;color:var(--tx);border:2px solid var(--line);font-weight:700}#sheetFooter .sheet-actions button:last-child{background:var(--ol);border-color:var(--ol-rim);color:#fff;border-bottom-width:3px}#sheetFooter .sheet-actions button:disabled{background:var(--dis);color:var(--dis-tx);border-color:var(--line);opacity:1}
+@media(max-width:340px){#game .status-bar{padding-left:12px;padding-right:10px}#game .status-main{gap:6px}#game .trump-status{font-size:15px}#game .trump-status em{font-size:13px;margin-left:6px}}
+/* Two digits get the same optical treatment as the teaching cards' .tl.two. */
+.playing-card .index.two .rank-value{font-size:.8em;letter-spacing:-1px}

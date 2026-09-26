@@ -1,0 +1,17 @@
+/* Keep the teaching interaction intact; use the same type, cards and states as the table. */
+body{font-family:var(--ui-font);font-weight:600;background:var(--page);color:var(--tx)}
+#app{padding-top:env(safe-area-inset-top);max-width:620px}
+.study-nav{display:flex;align-items:center;gap:14px;padding:12px 16px;border-bottom:2px solid var(--line);flex-shrink:0;background:var(--page)}
+.study-brand{font-family:var(--card-font);font-size:28px;letter-spacing:-1px;font-weight:800;color:var(--ol);text-decoration:none}.study-brand span{font-size:15px;letter-spacing:0;margin-left:2px}.study-current{font-size:18px;font-weight:800;color:var(--tx)}.study-nav .learn-link{margin-left:auto}
+#app .btn{font-family:var(--ui-font);font-weight:800;border-bottom-width:3px;border-radius:12px;letter-spacing:0}#app .btn:active:not(:disabled){transform:translateY(2px);border-bottom-width:1px;margin-bottom:0}
+#app #quit{width:32px;min-height:40px;padding:0;font-size:27px}#app #top{gap:10px}#app #bar{height:11px}#app #barIn:after{display:none}
+#app #bub{border-color:var(--line);border-radius:14px;font-size:15px;line-height:1.5}#app #bub.good{background:var(--ol-bg);border-color:#b6ce85}#app #bub.bad{background:var(--rd-bg);border-color:#efc4b7}#app #bub .term{color:var(--pu)}
+#app .card{font-family:var(--card-font);font-weight:800;border-color:var(--card-line);border-radius:8px;background:#fff;box-shadow:0 2px 0 #33362e14}#app .card .tl{letter-spacing:-1px}#app .card .bl{font-family:Arial,sans-serif}#app .card .pt{font-family:var(--ui-font);background:var(--gd);color:var(--gd-tx);font-weight:800}
+#app .card.sS{color:#262c2c}#app .card.sH{color:#b33a2b}#app .card.sD{color:#a8286a}#app .card.sC{color:#245843}
+#app .card.sel{background:var(--bl-bg);border-color:var(--bl);box-shadow:0 2px 0 #33362e14,0 0 0 2px var(--bl)}#app .card.ok{background:var(--ol-bg);border-color:var(--ol);box-shadow:0 0 0 2px var(--ol)}#app .card.no{background:var(--rd-bg);border-color:var(--rd);box-shadow:0 0 0 2px var(--rd)}
+#app .trick{background:var(--felt);border:2px solid var(--line);border-radius:20px}#app .slot .who.win{background:var(--ol-bg);color:var(--ol-tx);border:1px solid #b8cc95;border-radius:6px}#app .slot .ph{border-color:#c5cebb}
+#app .unit{background:var(--ol-bg);color:var(--ol-tx);border:2px solid #c1d3a2;border-radius:14px}#app .unit small{font-size:12px;letter-spacing:.5px}#app .unit.lock{background:#f0f1e9;color:#8d9583;border-color:var(--line)}
+#app .lnode.back{background:#dae4cb;border:2px solid #8da56d;box-shadow:0 2px 0 #33362e18;border-radius:8px}#app .lnode.back:after{color:#48652b;font-family:var(--card-font)}#app .lnode.back.lock{background:#e9ece3;border-color:#ccd3c1;box-shadow:none}#app .lnode.back.lock:after{color:#a2ab98}
+#app .lnode.now{border-color:var(--bl);background:var(--bl-bg);box-shadow:0 3px 0 #3b6e9233,0 0 0 2px var(--bl)}#app .lnode.now:after{color:var(--bl-tx)}#app .lnode.face{font-family:var(--card-font);border-color:var(--card-line)}
+#app .nowsub,#app .locknote{font-size:14px}#app .stats .stat{border-color:var(--line)}#app .stats .stat b{color:var(--ol-tx)}#app .rnd{border-bottom-width:3px}
+@media(max-height:680px){#app #bub{font-size:14px}#app .study-nav{padding-top:8px;padding-bottom:8px}}
