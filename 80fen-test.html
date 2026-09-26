@@ -342,7 +342,7 @@
 <div id="toast"></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.27(测试版)</div>
+<div id="versionTag">80分 v0.7.29(测试版)</div>
 
 <script>
 /* ============================================================
@@ -1096,7 +1096,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * stakeHold 把 ② 按座次 / 底分拆出来之后,可以直接换成这两个量的比较。见 DESIGN §7.13。 */
   trumpSealW: 0.5,             // (v0.7.22 测试版默认开)只在跟牌时生效
   trumpSealWPts: 1,            // (v0.7.26 测试版默认开)台面**有分**时的那一档(= trumpSealW 即旧行为);见 pSurvive
-  lastOverW0: 0,               // 将牌墩末家台面 0 分时同门盖过来的意愿系数(0 = 不打折,旧行为);见 pSurvive
+  lastOverW0: 0.5,             // (v0.7.29 测试版默认开)将牌墩末家台面 0 分时同门盖过来的意愿系数(0 = 不打折,旧行为);见 pSurvive
   lastRuffWill: 0.95,          // (v0.7.26 测试版默认开)后手是本墩最后一家时「断门有主肯不肯毙」(0 = 旧口径 ruffWill);见 pSurvive
   guardPlan: 2,                // (v0.7.26 测试版默认开)守底计划权重(0 = 旧行为);见 guardCost。系数 guardW 由 test/fit-guard.js 拟合
   guardW: [-0.5023,1.04,0.4033,0.314,-0.0896,-0.0221,-0.1022],   // fit-guard.js,1500 副 / 27219 个庄家决策点(v0.7.23 打法),对数损失 0.586(均值 0.652)
