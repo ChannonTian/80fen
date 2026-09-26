@@ -337,13 +337,13 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
-| `trumpSealW` | `0.5` | (见上方注释)trumpSealW 现在是常数。 | `pSurvive` |
-| `trumpSealWPts` | `0.5` | — | `pSurvive` |
-| `lastRuffWill` | `0` | 后手是本墩最后一家时「断门有主肯不肯毙」(0 = 旧口径 ruffWill);见 pSurvive | `pSurvive` |
-| `guardPlan` | `0` | 守底计划权重(0 = 旧行为);见 guardCost。系数 guardW 由 test/fit-guard.js 拟合 | `guardCost` `futureValue` |
+| `trumpSealW` | `0.5` | (v0.7.22 测试版默认开)只在跟牌时生效 | `pSurvive` |
+| `trumpSealWPts` | `1` | (v0.7.26 测试版默认开)台面**有分**时的那一档(= trumpSealW 即旧行为);见 pSurvive | `pSurvive` |
+| `lastRuffWill` | `0.95` | (v0.7.26 测试版默认开)后手是本墩最后一家时「断门有主肯不肯毙」(0 = 旧口径 ruffWill);见 pSurvive | `pSurvive` |
+| `guardPlan` | `2` | (v0.7.26 测试版默认开)守底计划权重(0 = 旧行为);见 guardCost。系数 guardW 由 test/fit-guard.js 拟合 | `guardCost` `futureValue` |
 | `guardBossOnly` | `0` | 1 = 守底代价只看钢板主张数的变化(主牌张数不变) | `guardCost` |
 | `guardReplace` | `0` | 1 = 庄家本人的护底只用 guardCost,旧的收官视野护底项不再叠加 | `futureValue` |
-| `trumpTakeAll` | `0` | 1 = 将牌单张墩把每一档压得过的主都列为候选(见 aiChooseFollow 第 0 步);0 = 旧行为         // 台面**有分**时的那一档(= trumpSealW 即旧行为);见 pSurvive             // (v0.7.22 测试版默认开)只在跟牌时生效 | `aiChooseFollow` |
+| `trumpTakeAll` | `2` | (v0.7.26 测试版默认开)2 = 只在队友领出的将牌单张墩、1 = 所有将牌单张墩,把每一档压得过的主都列为候选(见 aiChooseFollow 第 0 步);0 = 旧行为 | `aiChooseFollow` |
 
 ### ===== §7.14 牌权按产品方的模型重做(2026-09-25)=====
 

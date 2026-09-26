@@ -336,7 +336,7 @@
 <div id="toast"></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.24(测试版)</div>
+<div id="versionTag">80分 v0.7.26(测试版)</div>
 
 <script>
 /* ============================================================
@@ -1088,14 +1088,14 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * 是他两笔账的比较 —— ① 拿下这墩之后牌权的预期收益(接下来 n 墩,按他的座次与手牌);
    * ② 省下这张大主去争最后一墩的价值(底分 × 倍数 × 这张牌在末墩起决定作用的概率)。
    * stakeHold 把 ② 按座次 / 底分拆出来之后,可以直接换成这两个量的比较。见 DESIGN §7.13。 */
-  trumpSealW: 0.5,
-  trumpSealWPts: 0.5,
-  lastRuffWill: 0,            // 后手是本墩最后一家时「断门有主肯不肯毙」(0 = 旧口径 ruffWill);见 pSurvive
-  guardPlan: 0,               // 守底计划权重(0 = 旧行为);见 guardCost。系数 guardW 由 test/fit-guard.js 拟合
+  trumpSealW: 0.5,             // (v0.7.22 测试版默认开)只在跟牌时生效
+  trumpSealWPts: 1,            // (v0.7.26 测试版默认开)台面**有分**时的那一档(= trumpSealW 即旧行为);见 pSurvive
+  lastRuffWill: 0.95,          // (v0.7.26 测试版默认开)后手是本墩最后一家时「断门有主肯不肯毙」(0 = 旧口径 ruffWill);见 pSurvive
+  guardPlan: 2,                // (v0.7.26 测试版默认开)守底计划权重(0 = 旧行为);见 guardCost。系数 guardW 由 test/fit-guard.js 拟合
   guardW: [-0.5023,1.04,0.4033,0.314,-0.0896,-0.0221,-0.1022],   // fit-guard.js,1500 副 / 27219 个庄家决策点(v0.7.23 打法),对数损失 0.586(均值 0.652)
   guardBossOnly: 0,           // 1 = 守底代价只看钢板主张数的变化(主牌张数不变)
   guardReplace: 0,            // 1 = 庄家本人的护底只用 guardCost,旧的收官视野护底项不再叠加
-  trumpTakeAll: 0,            // 1 = 将牌单张墩把每一档压得过的主都列为候选(见 aiChooseFollow 第 0 步);0 = 旧行为         // 台面**有分**时的那一档(= trumpSealW 即旧行为);见 pSurvive             // (v0.7.22 测试版默认开)只在跟牌时生效
+  trumpTakeAll: 2,             // (v0.7.26 测试版默认开)2 = 只在队友领出的将牌单张墩、1 = 所有将牌单张墩,把每一档压得过的主都列为候选(见 aiChooseFollow 第 0 步);0 = 旧行为
   /* ===== §7.14 牌权按产品方的模型重做(2026-09-25)=====
    * tempoModel —— 牌权值 = **上手后连着领出的收益链**:把我手上能领的每一手按「领出后守得住这墩」的
    *   概率从高到低排,牌权值 = Σ 第 j 手能收的分 × p₁×…×pⱼ(第一墩留住牌权的概率,就是能兑现下一墩收益的概率)。
