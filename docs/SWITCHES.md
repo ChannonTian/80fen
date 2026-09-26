@@ -337,7 +337,9 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
-| `trumpSealW` | `0.5` | (v0.7.22 测试版默认开)只在跟牌时生效 | `pSurvive` |
+| `trumpSealW` | `0.5` | (见上方注释)trumpSealW 现在是常数。 | `pSurvive` |
+| `trumpSealWPts` | `0.5` | — | `pSurvive` |
+| `trumpTakeAll` | `0` | 1 = 将牌单张墩把每一档压得过的主都列为候选(见 aiChooseFollow 第 0 步);0 = 旧行为         // 台面**有分**时的那一档(= trumpSealW 即旧行为);见 pSurvive             // (v0.7.22 测试版默认开)只在跟牌时生效 | `aiChooseFollow` |
 
 ### ===== §7.14 牌权按产品方的模型重做(2026-09-25)=====
 
