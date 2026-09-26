@@ -5958,7 +5958,7 @@ function openSettings(){
     $('stCopySeed').disabled=!G;
     $('stRedo').disabled=!G; $('stRedoSwap').disabled=!G;
     $('stSeedHint').textContent='种子码 = 发牌种子 + 开局时的庄家、双方级数、局数。重打本局 / 用种子码开局都会把这些一起还原:'+
-      '同一副牌、同一家先拿牌、同样的攻守方和级数(打完结算后也能重打刚才那一局)。只输入纯数字 = 当首局开(双方打 2、切牌定先)。'+
+      '同一副牌、同一家先拿牌、同样的攻守方和级数(打完结算后也能重打刚才那一局)。必须粘贴完整的种子码(光一个数字不行)。'+
       '「交换队伍」:同一局牌两队角色互换再打一遍 —— 每人往下家挪一座,对方的牌、庄位、级数换给你们;再换一次换回来。';
     const canUndo=!!S.allowUndo&&!!G&&G.phase==='play'&&!G.ended&&G.undoStack.length>0;
     $('stUndo').checked=!!S.allowUndo;
@@ -6815,8 +6815,7 @@ window.__review=()=>{ document.getElementById('overlay').style.display='none';
  *   …-P5.-1                 关卡记录(必打关卡守住过的级,-1=没有),全是 -1 时省略
  *   …-T1                    交换队伍(整桌转了一座,见 swapStart);只有无庄盘的切牌要用到它,
  *                           庄定盘的庄家/级数在码里本身就已经是换过之后的
- * 只输入一个纯数字 = 当成「首局」开:双方打 2、无庄盘切牌定先 —— 不管你现在打到几、
- * 谁坐庄,同一个数字永远是同一局(不沿用当前级数,否则先拿牌的人和打几都会变)。 */
+ * 必须是完整的码:光一个数字说不清庄家和级数,发出来的不是同一局,所以不收。 */
 function seedCode(st){
   let c=`${st.seed}`;
   if(st.dealer>=0) c+=`-D${st.dealer}`;
@@ -6831,7 +6830,7 @@ function parseSeedCode(txt){
   const m=t.match(/^(\d+)((?:-[A-Z][-\d.]*?)*)$/);
   if(!m) return null;
   const st={seed:+m[1]};
-  if(!m[2]) return {seed:st.seed,dealer:-1,levels:[2,2],round:0,played:[-1,-1],scramble:false,rot:0};
+  if(!m[2]) return null;                     // 纯数字:缺庄家/级数,不收
   const parts=m[2].split(/-(?=[A-Z])/).filter(Boolean);
   let scr=false;
   for(const p of parts){
@@ -6890,7 +6889,7 @@ window.__redoRound=(swap)=>{
 window.__seedRound=()=>{
   const el=document.getElementById('stSeedInput');
   const st=el&&parseSeedCode(el.value);
-  if(!st){ alert('种子码格式不对。请粘贴完整的种子码(如 29857-D2-L3.5-R4),或只输入一个数字'); return; }
+  if(!st){ alert('种子码格式不对。请粘贴完整的种子码(如 29857-D2-L3.5-R4),光一个数字不行'); return; }
   const swap=document.getElementById('stSeedSwap').checked;
   if(!confirm(`用这个种子码开局${swap?'(交换队伍)':''}:当前进度会丢失,庄家、级数、局数都按种子码里的来。确定吗?`)) return;
   closeSettings();
