@@ -158,6 +158,13 @@
   #overlay,#setOverlay{position:fixed;inset:0;background:rgba(0,0,0,.7);display:none;
            align-items:center;justify-content:center;z-index:10}
   #setOverlay{z-index:11}
+  /* 通用提示条:结算/设置浮层挡在 #msg 前面,那条状态栏看不见——需要「一定看得到」的
+     反馈(复制成功之类)走这个,z-index 压过两层浮层。 */
+  #toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:20;
+         background:#173b2a;border:2px solid var(--gold);color:#cfe8d9;
+         padding:9px 18px;border-radius:8px;font-size:14px;opacity:0;
+         transition:opacity .25s;pointer-events:none;max-width:90vw;text-align:center}
+  #toast.show{opacity:1}
   #overlay .panel,#setOverlay .panel{background:#173b2a;border:2px solid var(--gold);border-radius:12px;
                   padding:26px 34px;text-align:center;font-size:17px;line-height:1.9;
                   max-height:80vh;overflow-y:auto}
@@ -326,9 +333,10 @@
   </div>
 </div>
 <div id="overlay"><div class="panel" id="overlayContent"></div></div>
+<div id="toast"></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.23(测试版)</div>
+<div id="versionTag">80分 v0.7.24(测试版)</div>
 
 <script>
 /* ============================================================
@@ -5747,6 +5755,7 @@ const S_DEFAULT={
   manualNext:false,  // true = 手动点击进入下一墩
   declWait:10.0,     // 发完牌后留给你亮主/反主的时间(秒),可点「不亮」提前结束
   autoLast:true,     // 这一手没得选(剩的牌恰好等于本墩要出的张数)时自动出,不用再点一下
+  allowUndo:false,   // 悔牌:只悔自己刚出的最后一手,独立于教练严格模式(见 undoLastPlay)
 };
 /* 托管与「没得选」时的节奏:托管是**快进一段**,不是看 AI 慢慢想,
  * 所以思考/留桌时间都压到这两个常数以内;没得选的那一手给一个短停顿,
@@ -5793,6 +5802,16 @@ function openSettings(){
        <button id="stNewMatch" style="background:#c0392b;color:#fff">🔄 重开整场(级数归零)</button></div>`+
     `<div class="setRow" style="justify-content:center">
        <button class="minor" onclick="window.__importRecord()">📥 导入牌谱(复盘别人发来的一局)</button></div>`+
+    `<div class="setSection">本局</div>`+
+    `<div class="setRow"><label>本局种子</label><code id="seedVal" style="font-size:13px;user-select:all"></code>
+       <button class="minor" id="stCopySeed">复制种子</button></div>`+
+    `<div class="setRow" style="justify-content:center">
+       <button class="minor" id="stRedo">🔁 重打本局(同一副牌重新发)</button></div>`+
+    `<div class="setRow"><label>用种子开局</label>
+       <input type="number" id="stSeedInput" step="1" style="width:120px" placeholder="粘贴种子号"></div>`+
+    `<div class="setRow" style="justify-content:center">
+       <button class="minor" id="stSeedGo">▶ 用此种子重新开局</button></div>`+
+    `<div class="setHint" id="stSeedHint"></div>`+
     // 顺序按预期改动频率从高到低排:显示/音效、节奏是每次开局都可能顺手调的;
     // 教练模式跟练习目标走,时有变化;规则是几个人说好怎么打就定下来的房规,最少动。
     `<div class="setSection">显示与音效</div>`+
@@ -5825,6 +5844,12 @@ function openSettings(){
     `<div class="setRow"><label><input type="checkbox" id="cReview"> 局后复盘</label></div>`+
     `<div class="setRow"><label><input type="checkbox" id="cQuiz"> 提问引导</label></div>`+
     `<div class="setRow"><label><input type="checkbox" id="cMemShow"> 记牌表常显(不用每墩点开验证)</label></div>`+
+    `<div class="setSection">悔牌</div>`+
+    `<div class="setRow"><label><input type="checkbox" id="stUndo"> 允许悔牌</label></div>`+
+    `<div class="setHint">只能悔回你自己刚出的最后一手(还没轮到下一家跟);跟教练严格模式的出牌前确认互不相关</div>`+
+    `<div class="setRow" style="justify-content:center">
+       <button class="minor" id="stUndoBtn">↩️ 悔回上一手</button></div>`+
+    `<div class="setHint" id="stUndoHint"></div>`+
     `<div class="setSection">规则</div>`+
     `<div class="setRow"><label>低分/少${T('trump')}时</label>
        <select id="stRebel">
@@ -5849,6 +5874,20 @@ function openSettings(){
     `<div class="setHint" id="rGateHint"></div>`;
   const $=id=>document.getElementById(id);
   const fill=()=>{
+    $('seedVal').textContent=G?G.seed:'(还没开局)';
+    $('stCopySeed').disabled=!G;
+    const roundActive=!!G&&!G.ended;
+    $('stRedo').disabled=!roundActive;
+    $('stSeedHint').textContent=roundActive
+      ?'重打本局:当前进度作废,发出和这一局完全一样的牌。用种子开局:输入一个种子号(自己复制的,或朋友发来的),重发一模一样的牌;级数与庄家不受影响。'
+      :'用种子开局随时可用;重打本局要等这一局开始之后(结算完的这一局已经翻篇,不能再重打)。';
+    const canUndo=!!S.allowUndo&&!!G&&G.phase==='play'&&!G.ended&&!!G.lastHumanPlay
+      &&G.trick.length===G.lastHumanPlay.trickIdx+1
+      &&!!G.trick[G.lastHumanPlay.trickIdx]&&G.trick[G.lastHumanPlay.trickIdx].seat===HUMAN;
+    $('stUndo').checked=!!S.allowUndo;
+    $('stUndoBtn').disabled=!canUndo;
+    $('stUndoHint').textContent=!S.allowUndo?'(关闭时没有任何入口,牌桌上也不会出现悔牌按钮)'
+      :canUndo?'可以悔回你刚出的那一手':'(现在没有可悔的上一手)';
     $('stRebel').value=S.fullRebel; $('stMin').value=S.aiThinkMin;
     $('stMax').value=S.aiThinkMax;  $('stHold').value=S.trickHold;
     $('stDeclWait').value=S.declWait;
@@ -5938,6 +5977,11 @@ function openSettings(){
   $('cReview').onchange=e=>{ C.review=e.target.checked; saveC(); };
   $('cQuiz').onchange=e=>{ C.quiz=e.target.checked; saveC(); };
   $('cMemShow').onchange=e=>{ C.memShow=e.target.checked; saveC(); if(G) renderPanel(); };
+  $('stCopySeed').onclick=window.__copySeed;
+  $('stRedo').onclick=window.__redoRound;
+  $('stSeedGo').onclick=window.__seedRound;
+  $('stUndo').onchange=e=>{ S.allowUndo=e.target.checked; saveS(); fill(); };
+  $('stUndoBtn').onclick=()=>{ if(undoLastPlay()) closeSettings(); else fill(); };
   $('stReset').onclick=()=>{ S={...S_DEFAULT, gates:[...S_DEFAULT.gates], rules:{...RULE_DEFAULTS}};
     if(G&&G.auto) window.__setAuto(false);      // 「恢复默认」也把托管交还
     saveS(); applyRules(); fill(); if(G) render(); };
@@ -6029,6 +6073,15 @@ function sortForDisplay(hand,trump){
 function trumpLabel(t){ return t? (t.suit?`${SUIT_SYM[t.suit]} 打${rankName(t.rank)}`:`${T('noTrump')} 打${rankName(t.rank)}`) : '未定'; }
 function log(t){ G.log.unshift({text:t}); }
 function setMsg(t){ document.getElementById('msg').textContent=t||''; }
+// #msg 被结算/设置浮层挡住时看不见,凡是"点了按钮必须看到反馈"的场合用这个
+let toastTimer=null;
+function showToast(t){
+  const el=document.getElementById('toast');
+  el.textContent=t;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.classList.remove('show'),2200);
+}
 function curTrumpForSort(){ return G.trump|| (G.decl&&G.decl.suit?{suit:G.decl.suit,rank:G.trumpRank}:{suit:null,rank:G.trumpRank}); }
 
 // ================= 整场状态(跨局) =================
@@ -6045,11 +6098,13 @@ let redealCount=0;        // 本局已重新发牌次数
 function rankOf(seat){ return G.dealerKnown?G.trumpRank:M.levels[seat%2]; }
 
 // ================= 开局:(首盘切牌定先)→ 逐张发牌抢亮 =================
-function newRound(){
+function newRound(){ startRound(seedBase++); }
+// seed 单独作为参数(而不是内部固定 seedBase++)是为了让「重打本局」「用种子开局」
+// 复用同一套发牌逻辑:前者传回 G.seed,后者传手输的种子号,见 window.__redoRound / __seedRound。
+function startRound(seed){
   // 上一盘可能还有在途的定时器(AI 思考 / 收墩 / 亮主倒计时),不清掉会打到新一盘的局面上
   if(G){ clearTimeout(G.aiTimer); clearTimeout(G.holdTimer); clearTimeout(G.declTimer);
          clearInterval(G.declTick); }
-  const seed=seedBase++;
   const dealerKnown=M.dealer>=0 && !scrambleNext;   // 完全造反重发 → 本盘按无庄盘抢庄
   scrambleNext=false;
   let first, cutsLog='';
@@ -6073,7 +6128,8 @@ function newRound(){
      coachNotes:[],coachChat:[],hintCards:null,quiz:null,
      /* 托管挂在 G 上而不是 S 上 —— 它按局生效,不跟着设置一起存下来:
       * 新的一局必须从你自己的那一手开始,不能上次开着这次就替你打完。 */
-     auto:false, autoTricks:0};
+     auto:false, autoTricks:0,
+     lastHumanPlay:null};   // 悔牌(见 undoLastPlay):只记「你刚出的那一手」,再出一手就覆盖掉
   if(cutsLog) log(cutsLog);
   if(dealerKnown) log(`第${M.round+1}局:${SEAT_NAME[M.dealer]} 坐庄,打${rankName(trumpRank)}(${T('counter')}只改主色,不易庄不拿底)`);
   render(); setMsg('发牌中…可随时'+T('declare')+'/'+T('counter'));
@@ -6376,7 +6432,7 @@ function humanPlay(){
       if(!chk.ok){
         log(`${T('throwP')}失败!被迫只出最小的一组(不罚分)`);
         setMsg(T('throwP')+'失败,只出最小的一组');
-        G.selected.clear(); playCards(HUMAN,chk.forced); return;
+        G.selected.clear(); recordUndoPoint(); playCards(HUMAN,chk.forced); return;
       }
       log(T('throwP')+'成功');
     }
@@ -6409,7 +6465,32 @@ function humanPlay(){
     }
   }
   G.selected.clear(); G.hintCards=null;
+  recordUndoPoint();
   playCards(HUMAN,sel);
+}
+
+/* 悔牌(v0.7.24,设置里开关默认关):只悔「你刚出的最后一手」,与教练撤回(严格模式的
+ * 出牌前确认)完全独立、不依赖它。record 记下这一手落子前 trick/教练记录/日志的长度,
+ * 一旦下一家跟了或收了墩,trick 长度就对不上了,悔牌入口自然失效——不支持悔到更早。 */
+function recordUndoPoint(){
+  G.lastHumanPlay={trickIdx:G.trick.length,
+    coachNotesLen:G.coachNotes.length, coachChatLen:G.coachChat.length, logLen:G.log.length};
+}
+function undoLastPlay(){
+  const u=G&&G.lastHumanPlay;
+  if(!u||G.phase!=='play'||G.ended) return false;
+  if(G.trick.length!==u.trickIdx+1||!G.trick[u.trickIdx]||G.trick[u.trickIdx].seat!==HUMAN) return false;
+  clearTimeout(G.aiTimer); G.aiTimer=null;
+  clearTimeout(G.holdTimer); G.holdTimer=null;
+  G.awaitNext=false;
+  const last=G.trick.pop();
+  G.hands[HUMAN]=sortForDisplay([...G.hands[HUMAN],...last.cards],curTrumpForSort());
+  G.coachNotes.length=u.coachNotesLen;
+  G.coachChat.length=u.coachChatLen;
+  G.log.splice(0,G.log.length-u.logLen);   // log 用 unshift,新条目在前,砍掉多出来的那些
+  G.lastHumanPlay=null;
+  render(); setMsg('已悔回上一手,重新选牌');
+  return true;
 }
 
 // ---- 教练:问教练(四步框架 + 关键墩提问引导) ----
@@ -6639,10 +6720,36 @@ window.__copyRecord=()=>{
   const txt=JSON.stringify(rec);
   const fallback=()=>showModal(`<div style="margin-bottom:6px">复制下面这段文字,发给开发者:</div>`+
     `<textarea readonly style="width:100%;height:160px;font-size:11px" onclick="this.select()">${txt.replace(/</g,'&lt;')}</textarea>`);
-  try{ navigator.clipboard.writeText(txt).then(()=>setMsg('牌谱已复制到剪贴板'),fallback); }catch(e){ fallback(); }
+  try{ navigator.clipboard.writeText(txt).then(()=>showToast('复制牌谱成功-代码已在剪贴板'),fallback); }catch(e){ fallback(); }
 };
 window.__review=()=>{ document.getElementById('overlay').style.display='none';
   render(); setMsg('复盘中:可查看出牌历史、教练复盘等记录,准备好后点下方"下一局"继续'); };
+
+/* 重打本局 / 用种子开局(v0.7.24):发牌只吃一个种子号,同一个种子 → 同一副牌
+ * (切牌定先、每家手牌、底牌全部一致,见 startRound)。只在「本局还没结束」时给重打入口——
+ * 结算之后 M.dealer/M.levels 已经推进到下一局,再拿旧种子发就对不上原来那一局了。 */
+window.__copySeed=()=>{
+  if(!G) return;
+  const txt=String(G.seed);
+  const fallback=()=>showModal(`<div style="margin-bottom:6px">复制下面这个种子号,发给对方:</div>`+
+    `<textarea readonly style="width:100%;height:40px;font-size:13px" onclick="this.select()">${txt}</textarea>`);
+  try{ navigator.clipboard.writeText(txt).then(()=>showToast('种子号已复制到剪贴板'),fallback); }catch(e){ fallback(); }
+};
+window.__redoRound=()=>{
+  if(!G||G.ended) return;
+  if(!confirm('重打本局:用同一副牌重新发一次,当前进度会丢失。确定吗?')) return;
+  const seed=G.seed;
+  closeSettings();
+  startRound(seed);
+};
+window.__seedRound=()=>{
+  const el=document.getElementById('stSeedInput');
+  const v=el&&parseInt(el.value,10);
+  if(!el||!Number.isFinite(v)){ alert('请先在上面输入一个种子号(数字)'); return; }
+  if(!confirm('用这个种子号开局:当前进度会丢失,级数和庄家不变,只换这一局的牌。确定吗?')) return;
+  closeSettings();
+  startRound(v);
+};
 
 // 手牌单行自适应:张数一多就把牌往一起挤(而不是换行),换行会把高度让给牌桌抢走
 function fitHandRow(){
