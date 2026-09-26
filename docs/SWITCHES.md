@@ -66,6 +66,9 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
 | `buryPtShadow` | `0` | (见上方注释)埋分的影子成本:每 1 分底分,额外折算多少「分」的留手负担。 | `aiDiscard` |
+| `buryLowConf` | `2` | (v0.7.23 测试版默认开)守末墩没信心时每分底分的额外代价(0 = 旧行为),见 aiDiscard | `aiDiscard` |
+| `buryConfLine` | `0.75` | — | `aiDiscard` |
+| `buryConfBand` | `0.2` | — | `aiDiscard` |
 
 ### 队友「压回来」要分清是被本门大牌压的、还是被毙掉的(见 partnerRescueP)。
 
@@ -114,7 +117,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 |---|---|---|---|
 | `pairBossMaxP` | `0.15` | (见上方注释)「在外还有更大的对子」的概率低于这个值,就把自己的对子当钢板(见 pPairAbove)。 | `isBossPlay` |
 | `kittyMult` | `2` | 抠底倍数的估计值(按最后一墩单张算) | `aiDiscard` `kittyPts` `kittyMultOf` |
-| `kittyPointBias` | `0.8` | 闲家倒推底分时的折扣(庄家倾向不埋分) | `kittyPointsEst` |
+| `kittyPointBias` | `0.8` | 闲家倒推底分时的折扣(庄家倾向不埋分) | `kittyPointsEstRaw` |
 | `jokerPairHold` | `7` | 王对的**成对溢价**(单张的压制价值已在 trumpHold 里,别算两遍) | `futureValue` |
 
 ### v0.7.8 ——「差一张就是钢板」的期权价值(见 futureValue)。
@@ -242,7 +245,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `probeSafeBonus` | `6` | 推断出队友握 A 时,这门的小牌/分牌是贴分,该出 | `scoreLeadEV` `scoreLeadCore` |
 | `leadTrumpEVScale` | `0.45` | 领出主牌时,这一墩能收到的分按副牌口径打的折(主牌人人攥着不放) | `leadPointsEV` `leadLossPoints` |
 | `feedRuff` | `1.0` | 送毙(主打队友断门)的权重;设 0 即整条关闭,便于消融 | `trumpEdgeCount` `feedRuffValue` |
-| `feedRuffMinP` | `0.35` | 队友断门概率低于这个值就不当成送毙机会 | `feedRuffValue` |
+| `feedRuffMinP` | `0.35` | 队友断门概率低于这个值就不当成送毙机会 | `feedTempoValue` `feedRuffValue` |
 
 ### ===== v0.7.21 牌权交接包(产品方 2026-09-24:「这些问题不是孤立的,一起改完一起测」) =====
 
@@ -319,6 +322,23 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `ruffWillZero` | `0.72` | — | `ruffWill` |
 | `ruffWillPts` | `0.88` | — | `ruffWill` |
 
+### 留手价值按座次与底分拆开(产品方,2026-09-25)。0 = 旧行为:「在外已无更大」的主牌一律 +trumpHoldTop,
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `feedTempo` | `1` | (v0.7.23 测试版默认开)跟牌时「压下后下一墩可以送队友毙」的牌权价值权重(0 = 旧行为),见 feedTempoValue | `scorePlay` |
+| `stakeHold` | `1` | (v0.7.23 测试版默认开) | `oppSpendCeil` `kittyPointsEst` `trumpHold` `futureValue` |
+| `holdCtrlShare` | `0.4` | — | `trumpHold` |
+| `stakeRef` | `30` | 底分×2 达到多少算「值得整局留手」(15 分底) | `stakeFactor` |
+| `stakeCap` | `1.0` | 只往下打折、不超过旧的顶格值(旧常数就是「底分足够大」时的值);1.5 时自测「收官+30 分底:主A 仍肯花」不过 | `stakeFactor` |
+| `partnerKittyK` | `0.25` | — | `kittyPointsEst` |
+
+### trumpSealW 现在是常数。正确形式(产品方,2026-09-25,待做):末家肯不肯拿大主来盖,
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `trumpSealW` | `0.5` | (v0.7.22 测试版默认开)只在跟牌时生效 | `pSurvive` |
+
 ### ===== §7.14 牌权按产品方的模型重做(2026-09-25)=====
 
 | 参数 | 默认 | 说明 | 读取于 |
@@ -361,7 +381,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `leadTempoWeight` | `1.0` | 牌权价值在领出打分里的权重。比跟牌侧(0.35)高得多, | `aiChooseFollow` `leadTempo` |
 | `tempoCap` | `40` | 牌权价值上限(贴现和自己会收敛,这个只当兜底) | `tempoValue` `leadChainValue` `oppChainValue` `partnerCashValue` |
 | `tempoDecay` | `0.80` | 待兑现单元按价值降序的贴现率:下一墩权重最高,往后递减 | `tempoValue` `oppChainValue` `partnerCashValue` |
-| `oppTempo` | `6` | 牌权落到对手手里的估计代价 | `oppChainValue` `scorePlay` `tiaoWangValue` `leadTempo` `partnerCashValue` `feedRuffValue` |
+| `oppTempo` | `6` | 牌权落到对手手里的估计代价 | `oppChainValue` `feedTempoValue` `scorePlay` `tiaoWangValue` `leadTempo` `partnerCashValue` `feedRuffValue` |
 | `fragileBonus` | `0.18` | 每多一张,组合被拆的风险溢价(飞机大炮该早兑现) | `bossUnits` |
 | `dumpPartner` | `0.85` | 队友把本门分贴过来的比例 | `laterPoints` |
 | `dumpOpp` | `0.85` | 后手对手能掏出多少本门分 | `laterPoints` `leadLossPoints` |
