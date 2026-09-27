@@ -84,6 +84,7 @@ learn/
 | `test/cf-pair.js` | 同上,针对**拆对子**:「跟牌时把一个副花对子拆了,而手上有不拆的牌」。自带对照组(没拆对子时同样换最便宜的牌) |
 | `test/audit-*.js` | 行为审计:统计某类错误发生了多少次 |
 | `test/audit-reason.js` | **教练理由的事实体检** —— 只查「理由说的和牌面对不对得上」,不评价棋力 |
+| `test/audit-coach.js` | **教练的同一标尺对账** —— 教练给你那手打的分必须等于 AI 自己给同一手的分;量口径差、判定翻转、推演改判时的漏报 |
 | `test/audit-dumpvoid.js` | 行为审计:「后手有已知断门的对手,我却把分贴过去」 |
 | `test/check-sync.js` | **三份 build 与文档的一致性体检** —— 晋级、推送之前跑一遍 |
 | `test/gen-switches.js` | 生成 `docs/SWITCHES.md` |
