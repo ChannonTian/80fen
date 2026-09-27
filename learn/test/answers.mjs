@@ -6,7 +6,10 @@
    脑内推演没推出来。
    带 rest 的题(单元 4 跟牌的位置):身后几家按 finishTrick 把这一墩打完,赢家看的是打完的结果;
    而且把手上**每一张别的合法牌**也打一遍 —— 标答打出来的结果要是不如一张「错」牌,
-   学的人看见的就是「出错的牌反而更好」,那道题就是自相矛盾的。 */
+   学的人看见的就是「出错的牌反而更好」,那道题就是自相矛盾的。
+   残局题(q.end,单元 5):标答交给 endSolve 穷举 —— 标答(和 accept)必须是最优,别的牌必须严格更差。
+   底分不告诉你的题(帮家 / 闲家,kittyKnown),对 kittys 里**每一个**底分都要成立:
+   帮家、闲家只数得出底分的下限,标答不能只在题里写的那个底分下才对。 */
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
 
 const b=await chromium.launch();
@@ -16,14 +19,60 @@ p.on('pageerror',e=>errs.push('PAGEERROR '+e.message));
 await p.goto('file://'+process.cwd()+'/learn.html');
 
 const rows=await p.evaluate(()=>{
-  const {UNITS,winnerOf,isLegalFollow,legalSet,effSuit,classify,countPoints,finishTrick}=window.__LEARN__;
+  const {UNITS,winnerOf,isLegalFollow,legalSet,effSuit,classify,countPoints,finishTrick,endMoves,endSolve}=window.__LEARN__;
   // 我方净得:这一墩的分归谁,就给谁记正负
   const net=r=>r.done?(r.win%2===0?r.got:-r.got):null;
   const out=[];
   for(const U of UNITS) for(const L of U.lessons) L.qs.forEach((q,i)=>{
+    if(q.type==='endplay'){
+      // 收官实战:沿最优打法走完,数出「你出错就亏」的那几手;对每一个可能的底分都要至少两手
+      const e=q.end, tr2=q.tr!==undefined?q.tr:L.tr, probs=[]; let seqOut='';
+      for(const K of (e.kittys||[e.kitty])){
+        let st={hands:[q.hand,e.hands[1],e.hands[2],e.hands[3]].map(h=>h.slice()),lead:q.lead,
+                played:q.played.slice(),def:e.def,declTeam:e.decl%2,kitty:K};
+        let dec=0, seq=[];
+        try{
+          while(st.hands.some(h=>h.length)||st.played.some(Boolean)){
+            const cnt=st.played.filter(Boolean).length;
+            if(cnt===4){ const w=winnerOf(st.played,st.lead,tr2);
+              const g=countPoints(st.played);
+              st={...st,lead:w,played:[null,null,null,null],def:st.def+((w%2)!==st.declTeam?g:0)};
+              if(!st.hands.some(h=>h.length)) break; continue; }
+            const s=(st.lead+cnt)%4; let c;
+            if(s===0){ const mv=endMoves(st,tr2);
+              const best=st.declTeam===0?Math.min(...mv.map(m=>m.v)):Math.max(...mv.map(m=>m.v));
+              if(mv.some(m=>m.v!==best)) dec++;
+              c=mv.find(m=>m.v===best).card; seq.push(c.id); }
+            else c=endSolve(st,tr2).card;
+            const h2=st.hands.slice(); h2[s]=st.hands[s].filter(x=>x!==c);
+            const p2=st.played.slice(); p2[s]=c; st={...st,hands:h2,played:p2};
+          }
+        }catch(err){ return out.push({tag:`${L.id} q${i+1} ${q.task}`,bad:err.message,end:true}); }
+        if(dec<2) probs.push(`底 ${K}:只有 ${dec} 手有取舍`);
+        if(K===e.kitty) seqOut=seq.join(' ');
+      }
+      return out.push(probs.length?{tag:`${L.id} q${i+1} ${q.task}`,bad:probs.join(';'),end:true}
+                                  :{tag:`${L.id} q${i+1} ${q.task}`,note:`收官实战,最优出牌 ${seqOut}`});
+    }
     if(!['trickpick','playset'].includes(q.type)||!q.played) return;
     const tr=q.tr!==undefined?q.tr:L.tr;
     const tag=`${L.id} q${i+1} ${q.task}`;
+    if(q.end){
+      const e=q.end, ok=new Set([q.answer].concat(q.accept||[])), probs=[];
+      const defSide=(e.decl%2)!==0;               // 我(南)是不是闲家
+      for(const K of (e.kittys||[e.kitty])){
+        let mv;
+        try{ mv=endMoves({hands:[q.hand,e.hands[1],e.hands[2],e.hands[3]],lead:q.lead,played:q.played.slice(),
+                          def:e.def,declTeam:e.decl%2,kitty:K},tr); }
+        catch(err){ return out.push({tag,bad:err.message,end:true}); }
+        const best=defSide?Math.max(...mv.map(m=>m.v)):Math.min(...mv.map(m=>m.v));
+        for(const m of mv){
+          if(ok.has(m.card.id)&&m.v!==best) probs.push(`底 ${K}:标答 ${m.card.id} 不是最优(闲家 ${m.F},最优 ${mv.find(x=>x.v===best).F})`);
+          if(!ok.has(m.card.id)&&m.v===best) probs.push(`底 ${K}:${m.card.id} 和标答一样好,却没写进 accept`);
+        }
+      }
+      return out.push(probs.length?{tag,bad:probs.join(';'),end:true}:{tag,note:`残局,穷举最优(底 ${(e.kittys||[e.kitty]).join('/')})`});
+    }
     if(q.anyLegal) return out.push({tag,note:'anyLegal,不判对错'});
     const ids=Array.isArray(q.answer)?q.answer:[q.answer];
     const cards=ids.map(id=>q.hand.find(c=>c.id===id));
@@ -96,6 +145,7 @@ for(const r of rows){
   if(r.note){ console.log(`·  ${r.tag} — ${r.note}`); continue; }
   const p1=[];
   if(r.bad){ p1.push('✗ '+r.bad); }
+  if(r.end){ bad++; console.log(`✗  ${r.tag}\n   `+p1.join('\n   ')); continue; }
   if(r.legal===false){ p1.push('✗ 标答不合法(跟牌义务)'); }
   // 领出题只出了一张牌,这一墩还没打完,赢家无从谈起
   const judged = r.lead!==0;
