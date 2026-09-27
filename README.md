@@ -39,6 +39,7 @@ learn/
   DESIGN.md                    设计稿:课程结构、题型库、真值来源、界面规格
   test/walk.mjs                十七课走查(竖屏两档,每题断言 + 核对小局比分)
   test/answers.mjs             绕开题里的标答,拿去问引擎:合法吗、这一墩归谁、台面分对不对
+  test/coach.mjs               把跟牌题交给最新 AI 答一遍,和标答对照(参考,不判对错)
   test/engine-sync.js          钉住 learn.html 里那段引擎移植与 index.html 逐字相同
 ```
 
@@ -107,6 +108,7 @@ learn/
 | `learn.html` | **教学版** —— 游戏化教程,单文件零依赖,手机竖屏优先。牌型与跟牌判定从 `index.html` 逐字移植,不自己重写 |
 | `learn/test/walk.mjs` | 十七课走查:竖屏两档各打一遍,每题断言判「答对了」,并核对每个小局的最终比分 |
 | `learn/test/answers.mjs` | **绕开题里写死的标答**,把每道出牌题的答案拿去问引擎:牌在手上吗、跟牌合法吗、这一墩归谁、题面写的「台面 N 分」和牌对得上吗。走查脚本判对错用的就是 `q.answer`,题目本身出错时它一样绿 |
+| `learn/test/coach.mjs` | 把单元 4 的跟牌题交给测试版 AI(`aiChooseFollow`)答一遍,和标答对照。**不判对错**(AI 是启发式):不一致先回头查题,查完站得住的就是给 AI 线的场景 |
 | `learn/test/engine-sync.js` | **钉住 `learn.html` 里那段引擎移植与 `index.html` 逐字相同**(20 个函数,正反两向查)|
 
 比赛相关的代码都在 `contest/`,教学版的在 `learn/`,**两边都不进 build** ——
