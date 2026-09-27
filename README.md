@@ -183,8 +183,8 @@ AI 只回答「合法之中选哪个」,规则判定全部交给引擎——所�
 场景库是回归网,不是尺子:
 
 ```
-node test/ai-scenarios.js 80fen-test.html   # 测试版:32/32(+1 待修)
-node test/ai-scenarios.js index.html        # 正式版:32/32(+1 待修)
+node test/ai-scenarios.js 80fen-test.html   # 测试版:32 过 / 2 败(2b、2d,见 ai-progress 第 9 项)/ 1 待修
+node test/ai-scenarios.js index.html        # 正式版:30 过 / 2 败(同上)/ 1 待修 —— 少的两条 H1c/H1d 是测试版的教练断言
 node test/audit-reason.js index.html 200    # 教练理由体检:16 类断言应全部 0 不符
 ```
 
