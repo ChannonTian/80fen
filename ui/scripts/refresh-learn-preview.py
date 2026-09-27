@@ -16,7 +16,7 @@ source, cat_count = re.subn(
     r'function catSVG\(mood\)\{.*?\n\}(?=\nconst setCat=)',
     '''function catSVG(mood){
   const expression = mood==='good' ? 'good' : mood==='bad' ? 'bad' : 'idle';
-  return `<span class="coach-cat coach-cat--${expression}" aria-hidden="true"></span>`;
+  return `<span class="coach-cat coach-cat--${expression}" role="img" aria-label="六六（Leo-Leo）教练"></span>`;
 }''',
     source, count=1, flags=re.S)
 if cat_count != 1:

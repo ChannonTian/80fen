@@ -359,7 +359,7 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
 /* ================= 教练:狸花猫 ================= */
 function catSVG(mood){
   const expression = mood==='good' ? 'good' : mood==='bad' ? 'bad' : 'idle';
-  return `<span class="coach-cat coach-cat--${expression}" aria-hidden="true"></span>`;
+  return `<span class="coach-cat coach-cat--${expression}" role="img" aria-label="六六（Leo-Leo）教练"></span>`;
 }
 const setCat=m=>{ document.getElementById('face').innerHTML=catSVG(m); };
 

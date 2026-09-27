@@ -10,7 +10,7 @@
 
 游戏页加载 `dist/theme.css`，教学对照页 `dist/learn.html` 复用同一主题并加载 `dist/learn-theme.css`。两页有互相进入的链接，教学进度使用独立前缀。详细取舍见 `dist/STYLE.md`。
 
-猫教练使用原创狸花猫头像，额头 M 纹、灰棕虎斑、黄绿色眼睛；同一张图保留日常、答对、思考三种表情。头像位于 `dist/assets/coach-tabby.png`，由教学预览生成脚本接入，重新生成页面也会保留。
+猫教练是第一个主要角色六六（Leo-Leo），依据用户提供的实拍照片绘制：暖棕虎斑、深色鼻头、金黄色眼睛；同一张图保留日常、答对、思考三种表情。头像位于 `dist/assets/leo-leo-expressions.png`，由教学预览生成脚本接入，重新生成页面也会保留。角色特征记录在 `characters/leo-leo.md`，后续角色参考同一画风。
 
 教学对照来自主仓库最新读取版本 `5a143095f1163be2be3302e342753abce6f8109e`，保留课程及判题逻辑。可用 `python3 ui/scripts/refresh-learn-preview.py --ref <明确的提交>` 重新生成；脚本在来源结构变动时会停止并提示检查适配点。没有改动仓库根目录的 `learn.html`。
 
