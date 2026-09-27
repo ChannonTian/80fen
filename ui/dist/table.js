@@ -113,8 +113,9 @@ function render(){
   const winner=plays.length?E.resolveTrick(plays,trump).winner:-1;
   $('players').innerHTML=[{seat:2,pos:'north',name:'对家'},{seat:3,pos:'west',name:'上家'},{seat:1,pos:'east',name:'下家'}].map(p=>{
     const cards=plays.find(x=>x.seat===p.seat)?.cards||[],win=winner===p.seat;
-    return `<div class="player ${p.pos} ${win?'winner':''}"><div class="player-label"><i class="seat-dot"></i><span>${p.name}</span><small>${scene==='follow'?'23':'25'} 张${p.seat===1&&!isBidding()&&scene!=='bury'?' · 庄':''}</small></div>${cards.length?pile(cards):'<div class="empty-opponent" aria-label="未出牌"></div>'}${win?`<span class="winner-label">${completed?'收墩':'暂大'}</span>`:''}</div>`;
+    return `<div class="player ${p.pos} ${win?'winner':''}"><div class="player-label">${p.seat===2?'<button class="leo-seat" id="coachHelp" aria-label="问六六：这手怎么打"><span class="leo-avatar" aria-hidden="true"></span></button>':`<span class="seat-avatar" aria-hidden="true">${p.seat===3?'上':'下'}</span>`}<span class="seat-name">${p.seat===2?'六六 · 对家':p.name}<small>${scene==='follow'?'23':'25'} 张${p.seat===1&&!isBidding()&&scene!=='bury'?' · 庄':''}</small></span></div>${cards.length?pile(cards):'<div class="empty-opponent" aria-label="未出牌"></div>'}${win?`<span class="winner-label">${completed?'收墩':'暂大'}</span>`:''}</div>`;
   }).join('');
+  $('coachHelp').onclick=openCoach;
   $('tablePoints').hidden=isBidding()||scene==='bury';$('trickPoints').textContent=E.countPoints(plays.flatMap(p=>p.cards));
   $('myPlay').innerHTML=completed&&scene!=='bury'?pile(resultCards):'';
   $('declarationPile').innerHTML=isBidding()&&declaration?pile(declarationCards())+`<p>${declaration.seat===0?'你':'下家'}已${declaration.strength===2?'亮对':'亮主'}</p>`:scene==='bury'?'<p>庄家拿底 · 选 8 张扣下</p>':'';
@@ -220,6 +221,10 @@ window.addEventListener('blur',()=>{if(gesture){stopGesture(true);updateSelectio
 function openSheet(title,html,mode='menu'){
   stopGesture(true);sheetMode=mode;$('sheetTitle').textContent=title;$('sheetBody').innerHTML=html;$('sheetFooter').hidden=mode!=='overview';
   if(!$('sheet').open)$('sheet').showModal();$('sheetBody').scrollTop=0;updateSelection();
+}
+function openCoach(){
+  const advice=completed?'这手结束了。可以再试一次，比较不同出法给这一墩带来的分数。':scene==='follow'?'这墩领出的是<b>方块对子</b>，你手里有方块对子，就要跟对子。对家暂大时，可以考虑送分；这里试着选两张方块 10，再拖到桌上。':scene==='lead'?'你来领出。先找同一门里的<b>对子或拖拉机</b>。选中的牌会抬起，再把它们一起拖到桌上。':scene==='bury'?'先选 <b>8 张底牌</b>。留意底里的分数，也想想扣下后能不能少一门副牌。选好后点底部「埋底」。':'用级牌亮主；相同花色的级牌对子可以加固。反主也要符合牌型强度，试试桌边的大按钮。';
+  openSheet('问六六',`<div class="coach-note"><span class="leo-avatar curious" aria-hidden="true"></span><div><h3>一起看这手牌</h3><p>六六 · 规则陪练</p></div></div><p class="coach-advice">${advice}</p><a class="learn-link" href="learn.html">去学一手 →</a>`,'coach');
 }
 function openOverview(){openSheet(`手牌 · ${hand.length} 张`,groups().map(({s,cards})=>`<h3 class="overview-title">${s==='T'?'主牌':glyph[s]+' '+names[s]}<span>${cards.length} 张</span></h3><div class="card-grid">${cards.map(c=>cardMarkup(c)).join('')}</div>`).join(''),'overview');}
 function openMenu(){

@@ -308,6 +308,8 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
 </style>
 <link rel="stylesheet" href="theme.css">
 <link rel="stylesheet" href="learn-theme.css">
+<link rel="stylesheet" href="leo-theme.css">
+<link rel="stylesheet" href="study-layout.css">
 </head>
 <body>
 <div id="app">
@@ -317,13 +319,13 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
   <!-- ① 进度条 -->
   <div id="top">
     <button id="quit" title="退出">&times;</button>
-    <div id="bar"><div id="barIn"></div></div><a class="learn-link" href="index.html" aria-label="离开练习，去牌桌">打牌</a>
+    <span class="lesson-position" id="lessonPosition"></span><div id="bar"><div id="barIn"></div></div><a class="learn-link" href="index.html" aria-label="离开练习，去牌桌">打牌</a>
   </div>
 
   <!-- ② 出题区 -->
   <div id="ask">
     <div id="head"><span id="badge"></span><span id="task"></span><span id="ctx"></span></div>
-    <div id="coach"><span id="face"></span><div id="bub"></div></div>
+    <div id="coach"><div class="coach-identity"><span id="face"></span><span>六六</span></div><div id="bub"></div></div>
   </div>
 
   <!-- ③ 牌桌区(内容太高时只滚这一块) -->
@@ -335,13 +337,13 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
   <div id="foot">
     <div id="verdict"></div>
     <div id="btnRow">
-      <button class="rnd" id="hintBtn" title="问教练">💡</button>
+      <button class="rnd" id="hintBtn" title="问六六" aria-label="问六六，获得提示">提示</button>
       <button class="btn" id="cta" disabled>检查</button>
     </div>
   </div>
 
   <div class="page hide" id="done">
-    <div class="big">🐱</div>
+    <div class="big leo-avatar happy" role="img" aria-label="六六开心地笑"></div>
     <h2>这一课通关了</h2>
     <p>你已经看得懂一墩牌了</p>
     <div class="stats">
@@ -1371,6 +1373,7 @@ let ui=0,li=0,L=null,TR=null,qi=0,sel=null,selMulti=[],answered=false,wrong=0,t0
 
 const QUI=['top','ask','board','hand','foot'];
 function show(p){
+  $('app').dataset.screen=p;
   $('map').classList.toggle('hide',p!=='map');
   $('done').classList.toggle('hide',p!=='done');
   QUI.forEach(id=>$(id).style.visibility=p==='q'?'visible':'hidden');
@@ -1381,34 +1384,28 @@ const unlocked=u=>u===0||doneCount(UNITS[u-1].key)>=UNITS[u-1].lessons.length;
 
 /* ---------- 地图:一个单元 = 一「手」牌 ---------- */
 function drawMap(){
-  let html='<nav class="study-nav" aria-label="模式"><a class="study-brand" href="index.html">80<span>分</span></a><span class="study-current">学一手</span><a class="learn-link" href="index.html">去打牌 ↗</a></nav>';
+  const total=UNITS.reduce((n,u)=>n+u.lessons.length,0);
+  const finished=UNITS.reduce((n,u)=>n+Math.min(doneCount(u.key),u.lessons.length),0);
+  const active=UNITS.findIndex((u,i)=>unlocked(i)&&doneCount(u.key)<u.lessons.length);
+  const next=active>=0?UNITS[active].lessons[doneCount(UNITS[active].key)]:null;
+  let html=`<header class="study-nav"><a class="study-brand" href="index.html">80<span>分</span></a><nav class="mode-nav" aria-label="模式"><a href="index.html">打牌</a><span aria-current="page">学一手</span></nav><span class="study-total">已学 ${finished} / ${total} 课</span></header>
+    <div class="study-content"><section class="study-welcome"><span class="leo-avatar" role="img" aria-label="六六"></span><div><span class="eyebrow">六六的牌桌小课</span><h1>一起学打牌</h1><p>先看牌，再动手。每次只练一个本领。</p></div></section>`;
+  if(next) html+=`<section class="next-lesson"><div class="next-top"><span>${finished?'接着练':'从这里开始'}</span><span>约 ${next.mins} 分钟</span></div><h2>${next.name}</h2><p>${UNITS[active].name} · 第 ${doneCount(UNITS[active].key)+1} 课</p><button class="btn" data-go="${active}">${finished?'继续这门课':'和六六练一手'} <span aria-hidden="true">→</span></button></section>`;
+  else html+=`<section class="next-lesson"><h2>这些本领，你都练过了。</h2><p>可以复习下面的课程，也可以去牌桌试一手。</p><a class="learn-link" href="index.html">去打牌 →</a></section>`;
+  html+='<div class="course-heading"><h2>你的牌技手册</h2><span>一步一步来</span></div><div class="course-list">';
   UNITS.forEach((U,u)=>{
-    const dn=doneCount(U.key), open=unlocked(u), full=dn>=U.lessons.length;
-    const cards=U.lessons.map((x,i)=>{
-      if(open&&i<dn) return `<div class="lnode face"><span class="r">${x.rank}</span><span class="s">♥</span><span class="star">★</span></div>`;
-      if(open&&i===dn) return `<button class="lnode back now" data-u="${u}"></button>`;
-      return `<div class="lnode back lock"></div>`;
-    }).join('');
-    html+=`<div class="unit ${open?'':'lock'}" style="${u?'margin-top:26px':''}">`+
-          `<small>${U.part}</small><b>${U.name}</b></div>`;
-    if(!open){ html+=`<div class="locknote">打完上一个单元解锁</div>`; return; }
-    html+=`<div class="fan">${cards}</div>`;
-    const cur=U.lessons[dn];
-    html += cur
-      ? `<div class="nowline">${dn+1} · ${cur.name}</div>
-         <div class="nowsub">翻开这张牌开始 · 约 ${cur.mins} 分钟</div>
-         <div class="golead"><button class="btn" data-go="${u}">开始</button></div>`
-      : `<div class="nowline">${U.name.split(' · ')[1]} 打完了 🎉</div>
-         <div class="nowsub">${U.lessons.length} 张牌都翻过来了</div>
-         <div class="golead"><button class="btn ghost" data-again="${u}">从头再练一遍</button></div>`;
+    const dn=Math.min(doneCount(U.key),U.lessons.length),open=unlocked(u),full=dn===U.lessons.length;
+    html+=`<details class="course-unit ${open?'':'locked'}" ${open&&!full?'open':''}><summary><span class="unit-number">${String(u+1).padStart(2,'0')}</span><span class="unit-title"><small>${U.part}</small><strong>${U.name.split(' · ')[1]}</strong></span><span class="unit-progress">${open?dn+' / '+U.lessons.length:'未解锁'}</span><span class="unit-chevron" aria-hidden="true">⌄</span></summary><div class="lesson-list">`;
+    U.lessons.forEach((lesson,i)=>{
+      const done=open&&i<dn,current=open&&i===dn,available=done||current;
+      html+=`<button class="lesson-row ${current?'current':''} ${done?'completed':''}" data-unit="${u}" data-lesson="${i}" ${available?'':'disabled'} ${current?'aria-current="step"':''}><span class="lesson-card">${done?'✓':lesson.rank}</span><span class="lesson-title"><strong>${lesson.name}</strong><small>${done?'已学 · 可以再练':current?'现在可以开始':'完成前一课解锁'}</small></span><span class="lesson-meta">${lesson.mins} 分钟 ${available?'↗':''}</span></button>`;
+    });
+    html+='</div></details>';
   });
+  html+='</div></div>';
   $('map').innerHTML=html;
-  $('map').querySelectorAll('[data-go],[data-u]').forEach(b=>{
-    const u=+(b.dataset.go!==undefined?b.dataset.go:b.dataset.u);
-    b.onclick=()=>start(u,doneCount(UNITS[u].key));});
-  $('map').querySelectorAll('[data-again]').forEach(b=>{
-    const u=+b.dataset.again;
-    b.onclick=()=>{localStorage.setItem(LS+UNITS[u].key,'0');drawMap();};});
+  $('map').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{const u=+b.dataset.go;start(u,doneCount(UNITS[u].key));});
+  $('map').querySelectorAll('[data-lesson]').forEach(b=>b.onclick=()=>{const u=+b.dataset.unit,i=+b.dataset.lesson;if(unlocked(u)&&i<=doneCount(UNITS[u].key))start(u,i);});
 }
 
 /* ---------- 出牌区 ---------- */
@@ -1492,6 +1489,7 @@ function render(){
   TR = q.tr!==undefined ? q.tr : L.tr;                 // 题可以自带一局(用来演示「换级」)
   sel=null;selMulti=[];answered=false;hinted=false;
   $('barIn').style.width=(qi/L.qs.length*100)+'%';
+  $('lessonPosition').textContent=(qi+1)+' / '+L.qs.length;
   $('badge').textContent=q.badge||'';
   $('task').textContent=q.task;
   paintCtx(q); saySetup(q);
