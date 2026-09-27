@@ -64,7 +64,34 @@ const rows=await p.evaluate(()=>{
   return out;
 });
 
+/* 字数预算(单元 2 起;单元 1 产品方认可过,不动)。产品方说「解释文字太多了」之后定的:
+   题面只写牌桌上看不出来的东西,答对/答错各一句,总结一课只说一次(通关页上的 sum)。
+   不设闸,字数一定会慢慢长回去 —— 每次补一句「顺便说明」都显得很合理。 */
+const BUDGET={prompt:50,good:36,bad:36};
+const texts=await p.evaluate(()=>{
+  const t=h=>(h||'').replace(/<[^>]+>/g,'').replace(/\s/g,'');
+  const out=[];
+  for(const U of window.__LEARN__.UNITS){ if(U.key==='u1') continue;
+    for(const L of U.lessons){
+      if(!L.sum) out.push({tag:L.id,f:'sum',n:-1});
+      L.qs.forEach((q,i)=>{
+        for(const f of ['prompt','good','bad']) out.push({tag:`${L.id} q${i+1}`,f,n:t(q[f]).length});
+        // key 圈的牌得真的在桌上(出过的牌、记录行、或者身后那几家的 rest 里)
+        if(q.key){
+          const onTable=[].concat(...(q.played||[]).filter(Boolean).map(x=>[].concat(x)),
+            ...(q.rows||[]).map(r=>r.cards),...Object.values(q.rest||{}));
+          for(const id of q.key) if(!onTable.some(c=>c.id===id)) out.push({tag:`${L.id} q${i+1}`,f:'key',n:-2,id});
+        }
+      });
+    }}
+  return out;
+});
 let bad=0;
+for(const x of texts){
+  if(x.n===-1){ bad++; console.log(`✗  ${x.tag} 没有 sum(通关页那一句)`); }
+  else if(x.n===-2){ bad++; console.log(`✗  ${x.tag} key 里的 ${x.id} 不在桌上`); }
+  else if(x.n>BUDGET[x.f]){ bad++; console.log(`✗  ${x.tag} ${x.f} ${x.n} 字,超过 ${BUDGET[x.f]}`); }
+}
 for(const r of rows){
   if(r.note){ console.log(`·  ${r.tag} — ${r.note}`); continue; }
   const p1=[];
