@@ -366,6 +366,18 @@ if('throwBossSubset' in E.AIP){
   check('H1b','对照组:闲家 20 分、台面 0 分,抢下不跨任何线 —— 不该为它花大王',
         b.pick+'(抢下='+b.takes+',闲家已得 '+b.def+' 分)—— '+b.reason,
         ()=>!b.takes, '不抢(cf-line 实测抢下要亏 2 个升级当量)');
+  /* 教练的薄冰警告(v0.7.31,coachJudgeFollow):H1 这种点上 AI 的首选不可信,教练必须改口、
+   * 把握降到「低」;H1b 抢下不跨线,不能乱报。等 H1 修好(首选改成抢),
+   * coachLadder 因「首选已经抢了」自动不再触发 —— 警告跟着代码走,不用人记得删。 */
+  if(E.coachJudgeFollow){
+    const J1=E.coachJudgeFollow({seat:1,trump:TD,declSeat:2,history:HIST_LINE,buriedKnown:[],hand:H(HAND_LINE)},PLAY_LINE);
+    check('H1c','教练:H1 局面(首选不抢、抢下就过 40 线)要报薄冰,把握降到低',
+          J1.ladder?`过 ${J1.ladder.line} 线(${J1.ladder.def}→${J1.ladder.reach}),把握 ${J1.conf}`:`没报(首选抢下=${a.takes})`,
+          ()=>a.takes?!J1.ladder:(!!J1.ladder&&J1.ladder.line===40&&J1.conf==='low'), '报 40 线,把握 low');
+    const J2=E.coachJudgeFollow({seat:3,trump:TH,declSeat:0,history:HIST_CTRL,buriedKnown:[],hand:H(HAND_CTRL)},PLAY_CTRL);
+    check('H1d','教练:H1b 对照(抢下不跨线)不能报薄冰',
+          J2.ladder?`误报 ${J2.ladder.line} 线`:'没报', ()=>!J2.ladder, '不报');
+  }
 }
 
 /* ── I「跟一对牌、垫其他花色废牌时,AI 还在凑对子」(v0.7.11,discardGreedy)────
