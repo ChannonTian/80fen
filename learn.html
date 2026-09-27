@@ -88,6 +88,9 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
 #bub .term{color:var(--pu);border-bottom:2px dotted var(--pu);cursor:help}
 #bub .sim{display:block;margin-top:4px;font-size:.85em;color:var(--tx2);font-weight:600}
 #bub.good .sim,#bub.bad .sim{color:inherit;opacity:.78}
+/* 身后几家接着出完的那一句:是「这一回发生了什么」,不是讲道理,所以单独一行、放在最后 */
+#bub .res{display:block;margin-top:4px;padding-top:4px;border-top:1px dashed currentColor;
+  font-size:.85em;font-weight:700}
 #bub .tip{display:block;margin-top:5px;color:var(--pu);font-size:.9em}
 /* 讲解态:猫改口说反馈 */
 #bub.good{background:var(--ol-bg);border-color:#B6CE85} #bub.good::after{border-right-color:var(--ol-bg)}
@@ -194,6 +197,10 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
 .slot.okslot{background:var(--ol-bg);box-shadow:inset 0 0 0 3px var(--ol)}
 .slot.noslot{background:var(--rd-bg);box-shadow:inset 0 0 0 3px var(--rd)}
 .slot.okslot .ph,.slot.noslot .ph{border-color:transparent}
+/* 跟牌位置课:还没出牌的座位要看得出「后面还有人」—— 这正是这一课要教的东西 */
+.slot .ph.wait{display:flex;align-items:center;justify-content:center;
+  font:700 11px/1.2 inherit;color:var(--tx2);border-style:dashed}
+.slot .ph.wait::after{content:'还没出'}
 .slot .who.us{color:var(--ol-tx)} .slot .who.them{color:var(--rd-tx)}
 .trickWrap{position:relative;width:100%}
 /* 只有「算多少分」这类数值题还留选项,排成两列的短牌,不占竖向 */
@@ -1352,10 +1359,211 @@ const U3=[
 ]},
 ];
 
+/* ===== 单元 4 · 跟牌的位置 =====
+   同样叫跟牌,四个座位解的是四个不同的问题 —— 差别全在「你后面还有谁没出」。
+   所以这一单元每道非末家的题都带 rest:你出完之后,身后的人接着把这一墩打完,
+   学的人亲眼看见那张 ♣K 是怎么从东家手里掏出来的。
+   不做阅读页。第二家原本打算只讲不考(AI 在这个位置自己都没有可靠判据),
+   改成只挑**有确定答案**的几种处境来考:钢板、一样大先出的收、队友亮过主的那张牌。 */
+const U4=[
+
+{ id:'u4l1', rank:'A', name:'最后一家', mins:4, tr:{suit:'H',rank:9}, qs:[
+ { type:'trickpick', badge:'新位置', task:'你最后一个出',
+   prompt:'<b>这一课你坐最后一家</b> —— 东家领出,北家、西家都出过了,<b>你出完这一墩就结束</b>。'+
+          '西家的 ♠J 现在最大,台面 10 分。出哪张?',
+   hint:'你后面还有人吗?压过 ♠J 最省的是哪张?',
+   played:[null,S(10),S(4),S(11)], lead:1, hand:[S(14),S(12),S(6)], showPt:true, answer:'S120',
+   good:'对,<b>♠Q</b>。最后一家的好处是<b>后面没人了</b>:压得过就一定收,用不着多花。'+
+        '♠Q 刚好压过 ♠J,♠A 留着以后用。',
+   bad:'你是最后一家,<b>后面没人能再压你</b> —— 压过 ♠J 最省的是 ♠Q。'+
+       '出 ♠A 也收得下,可那是白花一张大牌;出 ♠6 就是把 10 分让给对手。' },
+
+ { type:'trickpick', badge:'稳赢', task:'稳赢,出哪张',
+   prompt:'还是坐最后一家。这次台面一分没有,西家的 ♦J 最大。'+
+          '你的 ♦A、♦K 都压得过 —— 出哪张?',
+   hint:'两张都稳赢。哪一张自己还带着分?',
+   played:[null,D(8),D(3),D(11)], lead:1, hand:[D(14),D(13),D(6)], showPt:true, answer:'D130',
+   good:'对,<b>♦K</b>。反正稳赢,就出<b>自己带分的那张</b> —— ♦K 一出,10 分跟着进账。'+
+        '♦A 留在手上还是方块最大;反过来留 ♦K,以后还得找机会保它。',
+   bad:'你是最后一家,出哪张都稳赢 —— 那就出<b>自带 10 分的 ♦K</b>,把分顺手收进来。'+
+       '♦A 留着还是方块最大,不怕;♦K 留着反而要担心以后被人吃掉。' },
+
+ { type:'trickpick', badge:'队友最大', task:'贴不贴',
+   prompt:'队友北家的 ♣A 最大,西家已经跟过。<b>你是最后一个</b> —— 出哪张?',
+   hint:'你出完这一墩就结束了。它现在是谁的?',
+   played:[null,Cl(6),Cl(14),Cl(3)], lead:1, hand:[Cl(13),Cl(8),Cl(4)], showPt:true, answer:'C130',
+   good:'对,<b>贴 ♣K</b>。你是最后一家,队友的 ♣A 已经最大 —— <b>这一墩已经是你们的了</b>,'+
+        '没人还能动它。10 分直接落袋。',
+   bad:'你出完这一墩就结束,队友的 ♣A 已经最大 —— 这一墩<b>稳是你们的</b>。'+
+       '这时候不贴 ♣K,10 分就留在手上担风险。' },
+
+ { type:'trickpick', badge:'易错', task:'你也有 A',
+   prompt:'东家领了 ♠A,西家贴了一张 ♠5。<b>你手上也有一张 ♠A</b> —— 出哪张?',
+   hint:'两张 ♠A 一样大。一样大的时候谁收?',
+   played:[null,S(14,0),S(3),S(5)], lead:1, hand:[S(14,1),S(13),S(7)], showPt:true, answer:'S70', lose:true,
+   good:'对,<b>♠7</b>。两张 ♠A 一样大,<b>一样大的先出的收</b> —— 东家先出,你的 ♠A 压不过他。'+
+        '这一墩注定是对手的,那就一分都别往里送。',
+   bad:'<b>一样大的,先出的收。</b>东家的 ♠A 先出,你的 ♠A 跟上去也收不走 —— 这一墩注定是对手的。'+
+       '这时候出 ♠K 是送 10 分,出 ♠A 是白扔一张大牌。' },
+
+ { type:'trickpick', badge:'有人毙了', task:'要不要盖',
+   prompt:'东家领 ♣K,<b>西家草花断了,用 ♥4 毙</b>。你也没有草花 —— 台面 10 分,出哪张?',
+   hint:'你是最后一家。毙过 ♥4 最省的是哪张主?',
+   played:[null,Cl(13),Cl(3),H(4)], lead:1, hand:[H(12),H(6),D(4)], showPt:true, answer:'H60',
+   good:'对,<b>用 ♥6 盖毙</b>。西家拿主牌毙了,你拿更大的主牌压过去就行 —— '+
+        '最后一家不用怕后面还有人再盖,♥6 刚好压过 ♥4,♥Q 留着。',
+   bad:'西家已经用 ♥4 毙了。你也没草花,<b>拿更大的主压过去</b>就能把 10 分抢回来 —— '+
+       '你是最后一家,♥6 刚好够,用不着 ♥Q;垫 ♦4 就是把 10 分让出去。' },
+]},
+
+{ id:'u4l2', rank:'2', name:'第三家', mins:5, tr:{suit:'S',rank:8}, qs:[
+ { type:'trickpick', badge:'新位置', task:'队友先出了',
+   prompt:'<b>这一课你坐第三家</b>:队友北家领出,西家跟过,<b>你后面还有东家没出</b>。'+
+          '北家领的是 ♣A —— 出哪张?',
+   hint:'东家最多也就再有一张 ♣A。一样大的时候谁收?',
+   played:[null,null,Cl(14,0),Cl(3)], lead:2, hand:[Cl(13),Cl(4)], showPt:true, answer:'C130',
+   rest:{1:[Cl(14,1)]},
+   good:'对,<b>贴 ♣K</b>。就算东家手上也有一张 ♣A,<b>一样大,先出的收</b> —— 他压不过北家。'+
+        '你后面只剩他一个,除非他草花断了拿主牌毙,这一墩就是你们的。',
+   bad:'北家领的是 ♣A。东家就算也有一张 ♣A,<b>一样大先出的收</b>,他压不过 —— '+
+       '这一墩几乎稳是你们的,♣K 的 10 分该贴进去。' },
+
+ { type:'trickpick', badge:'新概念', task:'压多高才够',
+   prompt:'队友领 ♣10,西家的 ♣J 压住了,台面 10 分。<b>你后面还有东家</b>,两张 ♣K 都还没露面。出哪张?',
+   hint:'♣Q 压得过 ♣J。可东家要是有 ♣K 呢?',
+   rows:[{who:'草花出过',cards:[Cl(14,1)]}],
+   played:[null,null,Cl(10),Cl(11)], lead:2, hand:[Cl(14,0),Cl(12),Cl(3)], showPt:true, answer:'C140',
+   rest:{1:[Cl(13),Cl(6)]},
+   good:'对,<b>♣A</b>。♣Q 也压得过 ♣J —— 可东家要是有 ♣K,他就用这张<b>自带 10 分的牌</b>把墩收走。'+
+        '<span class="sim">第三家要问的不是「压不压得过」,是「<b>压得够不够高</b>」:'+
+        '外面还有 ♣K,就得出比 ♣K 大的。</span>',
+   bad:'你后面还有东家,<b>两张 ♣K 都没露面</b>。出 ♣Q,东家一张 ♣K 就把台面 10 分连同他自己的 10 分一起端走;'+
+       '出 ♣3,西家的 ♣J 收墩,东家照样往里贴 ♣K。只有 ♣A 他压不过。' },
+
+ { type:'trickpick', badge:'换一门', task:'这次要多高',
+   prompt:'队友领 ♦5,西家 ♦7,台面 5 分。<b>两张 ♦K 都出过了</b> —— 外面最大的分牌只剩 ♦10。出哪张?',
+   hint:'要防的是东家拿一张带分的牌收走。外面最大的分牌是哪张?',
+   rows:[{who:'方块出过',cards:[D(13,0),D(13,1)]}],
+   played:[null,null,D(5),D(7)], lead:2, hand:[D(11),D(9),D(2)], showPt:true, answer:'D110',
+   rest:{1:[D(10),D(3)]},
+   good:'对,<b>♦J</b>。♦K 都走完了,外面最大的分牌是 ♦10 —— 出比 ♦10 大的就够,♦J 刚好。'+
+        '<span class="sim">上一题外面有 K,要出 A;这一题只剩 10,J 就够。'+
+        '<b>「够高」量的是外面最大的那张分牌</b>,不是每次都出最大的。</span>',
+   bad:'外面最大的分牌是 <b>♦10</b>。出 ♦9,东家一张 ♦10 就压过你,连台面 5 分一起带走 —— '+
+       '得出比 ♦10 大的,♦J 刚好够。' },
+
+ { type:'trickpick', badge:'反过来', task:'贴不贴',
+   prompt:'队友领 ♥Q,西家跟了 ♥4 —— 现在队友最大。可<b>你后面还有东家</b>,'+
+          '比 ♥Q 大的 ♥A、♥K 一张都没露面。手上的 ♥10 贴不贴?',
+   hint:'队友现在最大 —— 是「最大」,还是「暂时最大」?',
+   played:[null,null,H(12),H(4)], lead:2, hand:[H(10),H(6),H(3)], showPt:true,
+   answer:'H30', accept:['H60'], lose:true,
+   rest:{1:[H(14),H(7)]},
+   good:'对,<b>先别贴</b>。队友只是「<b>暂时</b>」最大 —— 你后面的东家只要有一张 ♥A 或 ♥K,这一墩就归他,'+
+        '这时候贴 ♥10 等于替对手多装 10 分。'+
+        '<span class="sim">第一题的 ♣A 谁也压不过,所以贴;这一题的 ♥Q 上面还压着四张牌,所以不贴。'+
+        '<b>贴不贴,看队友那张牌后面的人还压不压得过。</b></span>',
+   bad:'队友的 ♥Q 只是<b>暂时</b>最大:你后面还有东家,♥A、♥K 四张一张都没露面。'+
+       '他只要有一张,♥10 就白送了。' },
+]},
+
+{ id:'u4l3', rank:'3', name:'第二家', mins:5, tr:{suit:'H',rank:7}, qs:[
+ { type:'trickpick', badge:'新位置', task:'身后还有两家',
+   prompt:'<b>这一课你坐第二家</b>:西家领出,<b>你后面还有东家、北家两个人</b>。'+
+          '西家领了 ♣10。另一张 ♣A 早就出过了 —— 出哪张?',
+   hint:'你这张 ♣A 现在还有谁压得过?',
+   rows:[{who:'草花出过',cards:[Cl(14,0)]}],
+   played:[null,null,null,Cl(10)], lead:3, hand:[Cl(14,1),Cl(6)], showPt:true, answer:'C141',
+   rest:{1:[Cl(13),Cl(3)],2:[Cl(5),Cl(8)]},
+   good:'对,<b>♣A</b>。另一张 ♣A 早出过了,你这张就是草花最大 —— 身后两家再多,'+
+        '也只有断了草花拿主牌毙才抢得走。台面有 10 分,钢板就该这时候用。',
+   bad:'你的 ♣A 已经是草花最大(另一张早出过了)。出 ♣6,身后的东家随便一张大草花就能收,'+
+       '还能顺手贴分进去 —— 这 10 分本来稳是你的。' },
+
+ { type:'trickpick', badge:'一样大', task:'还稳吗',
+   prompt:'<b>同样的牌,这次另一张 ♣A 还没露面</b> —— 说不定就在你身后的东家手上。还出 ♣A 吗?',
+   hint:'东家就算也有 ♣A,一样大的时候谁收?',
+   played:[null,null,null,Cl(10)], lead:3, hand:[Cl(14,0),Cl(6)], showPt:true, answer:'C140',
+   rest:{1:[Cl(14,1)],2:[Cl(5),Cl(8)]},
+   good:'对,照样出 <b>♣A</b>。东家就算也有一张 ♣A 跟上来,<b>一样大,先出的收</b> —— 你比他先出。'+
+        '<span class="sim">坐在对手前面的一个好处:<b>你的 A 永远排在他那张 A 前面</b>。</span>',
+   bad:'东家就算也有 ♣A,<b>一样大先出的收</b> —— 你先出,他压不过你。'+
+       '所以另一张 ♣A 露没露面都一样,这 10 分照样该收。' },
+
+ { type:'trickpick', badge:'新概念', task:'贴不贴',
+   prompt:'西家<b>钓主</b>,领了一张 ♥J。你手上两张主:♥10 和 ♥3,都压不过。'+
+          '<b>身后还有东家、北家</b> —— 出哪张?',
+   hint:'你后面第一个出牌的是谁?队友压不压得住,你现在知道吗?',
+   played:[null,null,null,H(11)], lead:3, hand:[H(10),H(3)], showPt:true, answer:'H30', lose:true,
+   rest:{1:[H(14),H(6)],2:[H(8),H(2)]},
+   good:'对,<b>♥3</b>。你压不过,身后第一个出的还是<b>对手</b>东家,队友北家压不压得住你完全不知道 —— '+
+        '♥10 贴进去就是在赌。'+
+        '<span class="sim">第二家信息最少:身后两家都还没出,<b>看不见结果,就别先把分放进去</b>。</span>',
+   bad:'身后还有两家,第一个就是对手东家;队友北家压不压得住,你现在完全不知道。'+
+       '这时候贴 ♥10,赌输了就白送 10 分。' },
+
+ { type:'trickpick', badge:'换份记录', task:'贴不贴',
+   prompt:'<b>还是这一手牌、还是西家领 ♥J。</b>这次多知道几件事:四张王都出完了,'+
+          '另一张 ♥7 是东家早先出掉的 —— 而开局<b>北家亮主亮的就是 ♥7</b>。出哪张?',
+   hint:'打 7、红桃主:王之下最大的就是 ♥7。它现在在谁手上?',
+   rows:[{who:'北家亮过',cards:[H(7,0)]},
+         {who:'已经出完',cards:[BJ,C('X',16,1),SJ,C('X',15,1),H(7,1)],spread:true}],
+   played:[null,null,null,H(11)], lead:3, hand:[H(10),H(3)], showPt:true, answer:'H100',
+   rest:{1:[H(14),H(6)],2:[H(7,0),H(2)]},
+   good:'对,<b>贴 ♥10</b>。四张王走完、另一张 ♥7 也出了 —— 北家手上那张 ♥7 <b>已经是全场最大的主</b>。'+
+        '他坐最后,一定收得下这一墩;队友稳收的墩,分就该往里放。'+
+        '<span class="sim">同一手牌、同一墩,上一题出 ♥3,这一题贴 ♥10 —— '+
+        '差别只在<b>你知不知道最后那个人手上有什么</b>。</span>',
+   bad:'王都走完了,另一张 ♥7 东家也出掉了 —— 北家亮主的那张 ♥7 就是<b>全场最大的主</b>,'+
+       '他坐最后,这一墩稳是你们的。这时候不贴 ♥10,10 分就白白留在手上。' },
+]},
+
+{ id:'u4l4', rank:'4', name:'同一手牌换位置', mins:4, tr:{suit:'D',rank:6}, qs:[
+ { type:'trickpick', badge:'末家', task:'出 K 吗',
+   prompt:'<b>这一课手上一直是这两张草花:♣K 和 ♣4。</b>只换你坐的位置。'+
+          '这次你<b>最后一个出</b>:东家领 ♣Q,西家贴了 ♣5。',
+   hint:'你后面还有人吗?',
+   played:[null,Cl(12),Cl(3),Cl(5)], lead:1, hand:[Cl(13),Cl(4)], showPt:true, answer:'C130',
+   good:'对,<b>♣K</b>。你是最后一家,♣K 压过 ♣Q 就一定收 —— 西家贴的 5 分加上你自己的 10 分,一起进账。',
+   bad:'你是最后一家,<b>后面没人了</b>,♣K 压过 ♣Q 就稳收 —— 15 分就这么让出去了。' },
+
+ { type:'trickpick', badge:'第三家', task:'出 K 吗',
+   prompt:'<b>还是 ♣K、♣4。</b>这次你坐第三家:队友北家领 ♣A,西家跟了 ♣3,<b>你后面还有东家</b>。',
+   hint:'东家就算也有 ♣A,一样大的时候谁收?',
+   played:[null,null,Cl(14,0),Cl(3)], lead:2, hand:[Cl(13),Cl(4)], showPt:true, answer:'C130',
+   rest:{1:[Cl(14,1),Cl(8)]},
+   good:'对,<b>贴 ♣K</b>。队友的 ♣A 身后只剩东家,他最多跟一张一样大的 ♣A —— 一样大先出的收,'+
+        '这一墩除了被毙,没人收得走。',
+   bad:'队友领的是 ♣A,你身后的东家最多跟一张一样大的 ♣A,<b>一样大先出的收</b> —— '+
+       '这一墩稳是你们的,♣K 该贴进去。' },
+
+ { type:'trickpick', badge:'第三家', task:'出 K 吗',
+   prompt:'<b>还是第三家、还是 ♣K、♣4。</b>这次队友领 ♣Q,<b>西家拿 ♣A 压了上去</b>。',
+   hint:'你的 ♣K 压得过西家的 ♣A 吗?',
+   played:[null,null,Cl(12),Cl(14)], lead:2, hand:[Cl(13),Cl(4)], showPt:true, answer:'C40', lose:true,
+   rest:{1:[Cl(8),Cl(3)]},
+   good:'对,<b>♣4</b>。西家的 ♣A 你压不过,这一墩已经是对手的了 —— 这时候出 ♣K,就是往对手那一墩里送 10 分。',
+   bad:'西家的 ♣A 压着,你的 ♣K 收不走 —— 这一墩已经是对手的,再出 ♣K 就是白送 10 分。' },
+
+ { type:'trickpick', badge:'换份记录', task:'出 K 吗',
+   prompt:'<b>还是 ♣K、♣4。</b>这次你坐第二家:西家领 ♣Q,<b>你后面还有东家、北家</b>。'+
+          '记录里<b>两张 ♣A 都出过了</b>。',
+   hint:'♣A 都走完了,♣K 现在是草花第几大?',
+   rows:[{who:'草花出过',cards:[Cl(14,0),Cl(14,1)]}],
+   played:[null,null,null,Cl(12)], lead:3, hand:[Cl(13),Cl(4)], showPt:true, answer:'C130',
+   rest:{1:[Cl(8),Cl(3)],2:[Cl(5),Cl(2)]},
+   good:'对,<b>♣K</b>。两张 ♣A 走完,♣K 就是草花最大 —— 坐第二家也不怕,身后谁都压不过它。'+
+        '<span class="sim">同一手 ♣K、♣4,四个处境:末家出 K,队友领 A 贴 K,西家压了 A 出 4,A 都走完了出 K。'+
+        '<b>出不出 K,只看一件事:它打出去之后,你身后还有没有人收得走它。</b></span>',
+   bad:'两张 ♣A 都出过了,♣K 已经是草花最大 —— 身后两家谁都压不过它,这一墩该收。' },
+]},
+];
+
 const UNITS=[
  {key:'u1', part:'第一部 · 会打一墩',   name:'单元 1 · 一墩牌怎么打', lessons:U1},
  {key:'u2', part:'第一部 · 会打一墩',   name:'单元 2 · 一局怎么打完', lessons:U2},
  {key:'u3', part:'第二部 · 打得像个人', name:'单元 3 · 记牌与领出',   lessons:U3},
+ {key:'u4', part:'第二部 · 打得像个人', name:'单元 4 · 跟牌的位置',   lessons:U4},
 ];
 
 /* 局末结算一律交给引擎的 scoreRound,教学版不另写一套阶梯。
@@ -1439,6 +1647,45 @@ const asArr=x=>x?(Array.isArray(x)?x:[x]):null;
 /* 领出题上面挂了可视条的时候,别人那三格全是空的 —— 占掉大半屏高度,信息量是零。
    只留自己这一格,自己那张牌才画得下、也画得大。 */
 const soloOpt=q=>({solo:!!(q.bars&&q.bars.length)&&(q.played||[]).every(x=>!x)});
+
+/* 跟牌位置课:你出完之后,身后的人接着把这一墩打完 —— 「位置」的意思就是「后面还有谁」,
+   只判对错不打完,学的人看不见那张 ♣K 是怎么从末家手里掏出来的。
+   q.rest = {座位: [这门里他手上的几张]}。后手的出法写死成一条简单规则,不用 AI:
+   队友最大 → 贴分;压得过 → 末家挑分最多的、非末家挑最小的那张压;压不过 → 出最没分的。
+   这条规则不是在教「对手就是这么打」,只是让结果可复现 —— 判对错看的永远是这一手本身。 */
+function restPick(s,hand,P,lead,tr){
+  const led=effSuit(asArr(P[lead])[0],tr);
+  const lo=(a,b)=>ordIdx(a,tr)-ordIdx(b,tr);
+  const legal=legalSet(hand,led,tr).slice().sort(lo);
+  const w=winnerOf(P,lead,tr);
+  if(w%2===s%2) return legal.slice().sort((a,b)=>pts(b)-pts(a)||lo(a,b))[0];
+  const beats=legal.filter(c=>{ const t=P.slice(); t[s]=c; return winnerOf(t,lead,tr)===s; });
+  if(beats.length) return s===(lead+3)%4 ? beats.slice().sort((a,b)=>pts(b)-pts(a)||lo(a,b))[0] : beats[0];
+  return legal.slice().sort((a,b)=>pts(a)-pts(b)||lo(a,b))[0];
+}
+function finishTrick(q,mine,tr){
+  tr=tr||TR;
+  const P=q.played.slice(); P[0]=mine;
+  const after=[];
+  for(let k=1;k<4;k++){
+    const s=(q.lead+k)%4;
+    if(P[s]||!q.rest||!q.rest[s]) continue;
+    // 只有排在你后面的座位才会接着出;排在你前面的早就出过了
+    const pos=(s-q.lead+4)%4, me=(0-q.lead+4)%4;
+    if(pos<me) continue;
+    P[s]=restPick(s,q.rest[s],P,q.lead,tr); after.push(s);
+  }
+  const done=P.every(x=>x);
+  const win=done?winnerOf(P,q.lead,tr):null;
+  const got=P.reduce((a,c)=>a+(c?pts(c):0),0);
+  return {P,after,win,got,done};
+}
+function restLine(r){
+  if(!r.after.length||!r.done) return '';
+  const who=r.after.map(s=>`${SEAT[s]}家出 ${cardName(r.P[s])}`).join(',');
+  return `<span class="res">${who} —— 这一墩 <b>${r.got} 分</b>,`+
+         `${isUs(r.win)?'<b>你们队</b>':'被<b>对手</b>'}收走。</span>`;
+}
 function trickHTML(played,lead,winner,showPt,opt){
   opt=opt||{};
   const P=played.map(asArr);
@@ -1453,7 +1700,7 @@ function trickHTML(played,lead,winner,showPt,opt){
     return `<div class="slot ${cls}" data-seat="${s}">`+
       `<div class="who ${wcls} ${winner===s?'win':''}">${who}</div>`+
       (a?`<div class="cards${a.length>1?' ov':''}">${a.map(c=>cardHTML(c,'played',showPt,TR)).join('')}</div>`
-         :'<div class="ph"></div>')+`</div>`;
+         :`<div class="ph${opt.wait&&s!==0?' wait':''}"></div>`)+`</div>`;
   };
   const wcls=(wide>=3?' m4':wide===2?' m2':'')+(opt.solo?' solo':'');
   if(opt.solo) return `<div class="trickWrap"><div class="trick${wcls}">${cell(0)}</div></div>`;
@@ -1605,7 +1852,7 @@ function drawPlay(q,handOnly){
   // 牌桌只画一次 —— 每点一张手牌就重建牌桌的话,别人已经出的牌会把 playIn 动画
   // 重放一遍(牌一直闪)。正式版 §11.3 早就写过这条,这里同样适用。
   if(!handOnly) $('table').innerHTML=rowsHTML(q)+
-    (q.played?trickHTML(q.played,q.lead,null,q.showPt,soloOpt(q))
+    (q.played?trickHTML(q.played,q.lead,null,q.showPt,{...soloOpt(q),wait:q.type==='trickpick'})
              :`<div class="kittyBox">扣下去的 ${n} 张<div class="kittySlot">`+
               picked.map(id=>cardHTML(q.hand.find(c=>c.id===id),'',true,TR)).join('')+
               Array.from({length:Math.max(0,n-picked.length)},()=>'<i class="kph"></i>').join('')+
@@ -1659,7 +1906,7 @@ function drawThrow(q){
 
 /* ---------- 判分 ---------- */
 function check(){
-  const q=L.qs[qi];let ok,msg=null;
+  const q=L.qs[qi];let ok,msg=null,tail='';
   if(q.type==='seat'){
     ok=sel===q.answer;
     $('table').querySelectorAll('.seatbtn[data-s]').forEach(b=>{
@@ -1741,17 +1988,19 @@ function check(){
     const led=q.lead!=null&&q.played[q.lead]?effSuit(q.played[q.lead],TR):null;
     const legal=legalSet(q.hand,led,TR).map(c=>c.id);
     const isLegal=legal.includes(sel);
-    ok = q.anyLegal ? isLegal : (isLegal && sel===q.answer);
+    // accept:几张牌同样好的时候(比如两张都不带分的小牌)都算对,别为了唯一答案硬挑一张
+    ok = q.anyLegal ? isLegal : (isLegal && (sel===q.answer || (q.accept||[]).includes(sel)));
     if(!isLegal&&q.illegal) msg=q.illegal;              // 违规牌:指着他手里剩的那张说
-    const played=q.played.slice(); played[0]=q.hand.find(c=>c.id===sel);
-    $('table').innerHTML=rowsHTML(q)+trickHTML(played,q.lead,null,q.showPt,soloOpt(q));
+    const r=finishTrick(q,q.hand.find(c=>c.id===sel));
+    $('table').innerHTML=rowsHTML(q)+trickHTML(r.P,q.lead,r.done?r.win:null,q.showPt,soloOpt(q));
+    if(isLegal) tail=restLine(r);
     const mine=$('table').querySelector('.slot[data-seat="0"]');
     if(mine)mine.classList.add(ok?'okslot':'noslot');
     $('hand').innerHTML=q.hand.filter(c=>c.id!==sel)
-      .map(c=>cardHTML(c,c.id===q.answer?'ok':'dim',q.showPt,TR)).join('');
+      .map(c=>cardHTML(c,c.id===q.answer||(q.accept||[]).includes(c.id)?'ok':'dim',q.showPt,TR)).join('');
   }
   answered=true;if(!ok)wrong++;
-  sayFeedback(ok, ok?q.good:(msg||q.bad));
+  sayFeedback(ok, (ok?q.good:(msg||q.bad))+tail);
 }
 
 $('cta').onclick=()=>{
@@ -1946,7 +2195,7 @@ setCat('idle');drawMap();show('map');
 /* 给测试用的出口。整段代码在 IIFE 里,页面上看不见 —— 没有这个出口,
    走查脚本只能点界面,没法把每道题的标答拿去问引擎「这手合法吗、赢不赢」。
    ♥A♥A+♥J♥J 算不算拖拉机这种事,脑内推演是会推错的。 */
-window.__LEARN__={UNITS,winnerOf,isLegalFollow,legalSet,classify,structMatches,countPoints};
+window.__LEARN__={UNITS,winnerOf,isLegalFollow,legalSet,effSuit,classify,structMatches,countPoints,finishTrick};
 })();
 </script>
 </body>

@@ -39,6 +39,12 @@ const PLANS=[
    [['play','S140'],['play','D140'],['play','S30']],
    [['num',1],['mini',0]],
  ]},
+ { key:'u4', lessons:[
+   [['play','S120'],['play','D130'],['play','C130'],['play','S70'],['play','H60']],
+   [['play','C130'],['play','C140'],['play','D110'],['play','H30']],
+   [['play','C141'],['play','C140'],['play','H30'],['play','H100']],
+   [['play','C130'],['play','C130'],['play','C40'],['play','C130']],
+ ]},
 ];
 
 /* 每课小局打完之后应该给出的结算结论 —— 由「起始分 + 这两墩抓到的分 + 底」推出来的,
@@ -48,13 +54,16 @@ const SCORE={
      '一共 120 分 —— 上台,还升 1 级','一共 160 分 —— 上台,还升 2 级',null,null,null],
  u2:[null,null,null,null,null,'一共 105 分,上台了'],
  u3:[null,null,null,'一共 90 分,上台了'],
+ u4:[null,null,null,null],
 };
 
-const SHOTS=process.argv.includes('--shots');
+const SHOTS=process.argv.some(a=>a.startsWith('--shots'));
 const SHOTDIR='learn/test/shots';
+// --shots=u4:再给这个单元的每道题拍一张「答完之后」的图(两档屏幕都拍),查反馈把牌桌挤没了没有
+const SHOTQ=(process.argv.find(a=>a.startsWith('--shots='))||'').slice(8);
 if(SHOTS) (await import('node:fs')).mkdirSync(SHOTDIR,{recursive:true});
 
-let bad=0;
+let bad=0, qn=0;
 const b=await chromium.launch({headless:true});
 for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
   const p=await b.newPage({viewport:{width:w,height:h},deviceScaleFactor:2});
@@ -73,7 +82,7 @@ for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
         await p.evaluate(([k,n])=>localStorage.setItem('80fenlearn-'+k,String(n)),
                          [prev.key,prev.lessons.length]);
       await p.reload(); await p.waitForTimeout(220);
-      const T0=Date.now();
+      const T0=Date.now(); qn=0;
       await p.click(`[data-go="${u}"]`); await p.waitForTimeout(220);
       if(tag==='p') await shot(`${U.key}-l${L+1}-q1.png`);
 
@@ -99,6 +108,7 @@ for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
           break;
         }
         await p.click('#cta'); await p.waitForTimeout(280);
+        if(SHOTQ===U.key){ qn=(qn||0)+1; await shot(`${tag}-${U.key}-l${L+1}-q${qn}-fb.png`); }
         const v=await p.evaluate(()=>document.getElementById('verdict').textContent);
         // 两方案题不是对错题,判的是「这一手更好」
         if(v!=='答对了'&&v!=='这一手更好') errs.push(`${U.key} L${L+1} 判成「${v}」: ${kind}=${val}`);
