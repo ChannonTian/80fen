@@ -127,10 +127,12 @@
   .cSec{display:flex;align-items:center;gap:6px;font-size:11px;color:#9fd6b5;letter-spacing:.06em;margin:4px 0 1px}
   .cSec::after{content:"";flex:1;height:1px;background:rgba(159,214,181,.25)}
   .cSec:first-child{margin-top:0}
-  .hold{font-size:11px;font-weight:bold;padding:0 6px;border-radius:3px;border:1px solid;letter-spacing:0}
-  .hold.high{color:#8fe0b4;border-color:rgba(143,224,180,.55)}
-  .hold.mid{color:var(--gold);border-color:rgba(255,215,94,.5);border-style:dashed}
-  .hold.low{color:#ff9d85;border-color:rgba(255,157,133,.55);border-style:dashed}
+  .msg .opt{margin:3px 0 5px}
+  .msg .tag{font-size:11px;font-weight:bold;padding:0 6px;border-radius:3px;border:1px solid;white-space:nowrap}
+  .msg .tag.top{color:#8fe0b4;border-color:rgba(143,224,180,.55)}
+  .msg .tag.ok{color:#9fd6b5;border-color:rgba(159,214,181,.45);border-style:dashed}
+  .msg .qz button.skip{background:transparent;color:#9fd6b5;border:1px solid rgba(159,214,181,.45)}
+  #chatAsk{border-radius:16px;padding:5px 12px;font-size:var(--fsSmall);background:#6ec9ff;flex:none}
   .msg .qz{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap}
   .msg .qz button{padding:3px 14px;font-size:var(--fsSmall)}
   #chatBar{flex:none;display:flex;gap:6px;padding:6px 8px;border-top:1px solid rgba(159,214,181,.2);
@@ -370,7 +372,7 @@
 <div id="toast"></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.32(测试版)</div>
+<div id="versionTag">80分 v0.7.33(测试版)</div>
 
 <script>
 /* ============================================================
@@ -4954,6 +4956,121 @@ function coachEvalLead(view, cards, adv){
   return {...J,gap,inCands:!!hit,mine};
 }
 
+/* ============================================================
+ * 教练的建议单与相关事实(v0.7.33)
+ * ============================================================
+ * 试玩反馈(v0.7.31):「确定的」那段把每一门的最大牌、谁断门、还剩几分全列出来,太长;
+ * 「把握低」「差 1 分 / 差 16 分」看不懂。改成:
+ *   · 建议单 = 最佳(可并列)+ 出了也不算失误的可选项,最多 3 个,按价值降序;
+ *   · 每个候选**只带它自己那门的相关事实**,不再整页罗列;
+ *   · 事实全用严格口径(硬演绎,和棋力无关):「别家」= 三家手里 + 底牌(庄家已知底牌时扣掉),
+ *     与记牌表页签同一口径。对子是不是「钢板」AI 是按概率判的(pPairAbove),
+ *     这里不说「压不住」,只说「♦K 两张都还没出」这种数得出来的事。
+ * 纯函数,不碰 DOM、不产出文字(文字归界面块,术语要跟语言档走)。 */
+const COACH_TIE=3;     // 与首选相差不到 3 分(统一单位)算并列
+
+// 别家还有哪些比 idx 大的牌(同一门):[{card,n}],从大到小
+function coachBiggerUnseen(mem, suit, trump, idx){
+  const out=[];
+  for(const k in mem.unseen){
+    const n=mem.unseen[k]; if(n<=0) continue;
+    const c=keyToCard(k);
+    if(effSuit(c,trump)===suit&&ordIdx(c,trump)>idx) out.push({card:c,n});
+  }
+  return out.sort((a,b)=>ordIdx(b.card,trump)-ordIdx(a.card,trump));
+}
+// 某家第几墩没跟出这门(断门的硬证据);没有就 0
+function coachVoidTrick(history, seat, suit, trump){
+  for(let i=0;i+1<(history||[]).length;i+=4){
+    const trick=history.slice(i,i+4), lead=classify(trick[0].cards,trump);
+    if(!lead||lead.suit!==suit) continue;
+    for(let j=1;j<trick.length;j++)
+      if(trick[j].seat===seat&&trick[j].cards.some(c=>effSuit(c,trump)!==suit)) return i/4+1;
+  }
+  return 0;
+}
+
+/* 一手牌的相关事实。领出看「这一门」;跟牌看「这一墩」。 */
+function coachFacts(view, plays, cards){
+  const t=view.trump, mem=makeMemory(view), hist=view.history||[];
+  const voids=makeVoids(hist,t);
+  const isOpp=s=>s%2!==view.seat%2, partner=(view.seat+2)%4;
+  const cl=classify(cards,t);
+  if(!plays||!plays.length){
+    const suit=cl?cl.suit:effSuit(cards[0],t);
+    const f={kind:'lead', suit, type:cl?cl.type:'?', out:0, top:null,
+             outPts:unseenPointsIn(mem,suit,t),
+             mine:view.hand.filter(c=>effSuit(c,t)===suit).length,
+             boss:null, bigger:null, pairAbove:null, oppVoid:[], partnerVoid:false};
+    for(const k in mem.unseen){
+      const n=mem.unseen[k]; if(n<=0) continue;
+      const c=keyToCard(k); if(effSuit(c,t)!==suit) continue;
+      f.out+=n; if(!f.top||ordIdx(c,t)>ordIdx(f.top,t)) f.top=c;
+    }
+    if(cl&&cl.type==='single'){
+      f.bigger=coachBiggerUnseen(mem,suit,t,cl.top);
+      f.boss=!f.bigger.length;
+    }else if(cl&&(cl.type==='pair'||cl.type==='tractor')){
+      // 严格口径:比我这组最大那对还大、两张都还没露面的点数
+      f.pairAbove=coachBiggerUnseen(mem,suit,t,cl.top).filter(x=>x.n>=2).map(x=>x.card);
+      f.boss=!f.pairAbove.length;
+    }
+    if(suit!=='T'){
+      f.oppVoid=[1,2,3].map(x=>(view.seat+x)%4).filter(s=>isOpp(s)&&voids[s][suit]);
+      f.partnerVoid=!!voids[partner][suit];
+    }
+    return f;
+  }
+  const lead=classify(plays[0].cards,t);
+  const before=currentWinner(plays,t);
+  const after=currentWinner(plays.concat([{seat:view.seat,cards}]),t);
+  const behind=[]; for(let i=plays.length+1;i<4;i++) behind.push((plays[0].seat+i)%4);
+  const f={kind:'follow', leadSuit:lead.suit, leadType:lead.type, need:lead.cards.length,
+           wins:after.seat===view.seat, last:plays.length===3,
+           table:countPoints(plays.flatMap(p=>p.cards)), pts:countPoints(cards),
+           partnerWinning:before.seat%2===view.seat%2, curSeat:before.seat,
+           mineInSuit:view.hand.filter(c=>effSuit(c,t)===lead.suit).length,
+           ruff:false, behindOpp:behind.filter(isOpp), behindOppVoid:[],
+           bigger:null, partnerCard:null, partnerBigger:null, beatCard:null};
+  f.ruff=f.wins&&!!cl&&cl.suit==='T'&&lead.suit!=='T';
+  if(lead.suit!=='T') f.behindOppVoid=f.behindOpp.filter(s=>voids[s][lead.suit]);
+  if(f.wins&&!f.last&&!f.ruff&&cl&&cl.type==='single') f.bigger=coachBiggerUnseen(mem,lead.suit,t,cl.top);
+  if(!f.wins&&before.cl.type==='single'){
+    const cur=plays.find(p=>p.seat===before.seat).cards[0];
+    if(f.partnerWinning){ f.partnerCard=cur; f.partnerBigger=coachBiggerUnseen(mem,before.cl.suit,t,before.cl.top); }
+    else f.beatCard=cur;
+  }
+  return f;
+}
+
+/* 建议单:最佳(可并列)+ 与首选相差不超过 okThr 的可选项(= 出了也不会被报失误),最多 max 个。
+ * 首选永远是 AI 自己的选择(约束 6);同门、同牌型、同样带几分、同一句理由、同一档的牌合并成一条「或」。 */
+function coachReasonCore(r){
+  return String(r||'').replace(/^收官推演:/,'').replace(/(收官推演[^)]*)/,'');
+}
+function coachOptions(view, plays, J, okThr, max){
+  const t=view.trump;
+  const list=[{cards:J.adv.cards,reason:J.adv.reason,delta:0,tier:'best'}];
+  for(const a of J.alts){
+    if(!(a.delta<=okThr)) continue;
+    list.push({cards:a.cards,reason:a.reason,delta:a.delta,tier:!J.rule&&a.delta<=COACH_TIE?'tie':'ok'});
+  }
+  list.sort((a,b)=>(a.tier==='best'?-1:0)-(b.tier==='best'?-1:0)||a.delta-b.delta);
+  const out=[];
+  for(const o of list){
+    const cl=classify(o.cards,t), facts=coachFacts(view,plays,o.cards);
+    // 事实也要一模一样才合并:♠9♠9 和 ♠J♠J 理由相同,但「比它大、两张都在别家」的不是同一批牌。
+    // 真正等价的是中间没有别家牌隔着的那种(♦5 与 ♦6),它们的事实逐字相同。
+    const key=[cl?cl.suit:'?',cl?cl.type:'?',o.cards.length,countPoints(o.cards),
+               coachReasonCore(o.reason),o.tier==='ok'?'ok':'top',JSON.stringify(facts)].join('|');
+    // 只合并价值也差不多的(相差不到 COACH_TIE),否则「♠J 或 ♠4」会把两手不一样好的牌说成一样
+    const hit=out.find(x=>x.key===key&&Math.abs(x.delta-o.delta)<=COACH_TIE);
+    if(hit){ hit.same.push(o.cards); continue; }
+    out.push({...o,key,same:[],facts});
+  }
+  return out.slice(0,max||3);
+}
+
 // 全 AI 无头模拟一整局(测试用;简化亮主为一轮制)
 // smartSeats:使用启发式 AI 的座位,其余用随机 AI
 function simulateRound(seed, smartSeats=[0,1,2,3]){
@@ -6195,7 +6312,7 @@ function openSettings(){
        <select id="cSens">${['高','中','低','关'].map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>`+
     `<div class="setRow"><label><input type="checkbox" id="cStrict"> 严格模式(大失误可撤回)</label></div>`+
     `<div class="setRow"><label><input type="checkbox" id="cReview"> 局后复盘</label></div>`+
-    `<div class="setRow"><label><input type="checkbox" id="cQuiz"> 提问引导</label></div>`+
+    `<div class="setRow"><label><input type="checkbox" id="cQuiz"> 问教练时先考一道题(可跳过)</label></div>`+
     `<div class="setRow"><label><input type="checkbox" id="cMemShow"> 记牌表常显(不用每墩点开验证)</label></div>`+
     `<div class="setSection">悔牌</div>`+
     `<div class="setRow"><label><input type="checkbox" id="stUndo"> 允许悔牌</label></div>`+
@@ -6853,7 +6970,7 @@ function humanPlay(){
            !confirm(`教练:更好的是 ${desc(best.cards)} —— ${best.reason}\n仍要出这手吗?`)){ G.coachNotes.pop(); return; }
         sndOops();
         coachSay(no,`⚠️ 你出 ${desc(sel)},更好的是 <b>${desc(best.cards)}</b> —— ${best.reason}`+
-          `<div class="dim">差约 ${Math.round(ev.gap)} 分${ev.unit==='eg'?'(收官推演:净升级 × 40 分)':''}</div>`,'warn');
+          `<div class="dim">按我的估算,比建议的那手约亏 ${Math.round(ev.gap)} 分${ev.unit==='eg'?'(收官按推演折算)':''}</div>`,'warn');
       }
       log(`教练(第${no}墩):你出 ${desc(sel)},建议 ${desc(best.cards)} — ${best.reason}${doubt?'(存疑)':''}`);
     }
@@ -6882,144 +6999,181 @@ function undoLastPlay(){
   return true;
 }
 
-// ---- 教练:问教练(v0.7.31:「确定的」与「我的判断」分开说) ----
-/* 旧的四步框架把四种可信度差着数量级的东西用同一种语气排在一起:
- *   义务(引擎判定)、牌面(记牌硬演绎)—— 百分之百对,和棋力无关;
- *   该出哪张(评分器择优)—— §7 列着它错在哪、错多少。
- * 现在分两段:上面「确定的」只放引擎和记牌能证明的事;下面「我的判断」带一个把握档,
- * 档位由首选领先第二名多少分算出来(块① coachJudge*),跨阶梯线这类已知短板直接降到「低」。
- * 顺手修掉的:③ 里的「在外最大约位次 11」是 ordIdx 内部序号,换成牌名和张数;
- * 领出时的「③④ 优先钢板收墩、避免白送分、大主牌留后手」是一句不看牌面的套话,换成这手牌的实情。 */
-const CONF_NAME={high:'把握高',mid:'把握中',low:'把握低'};
+// ---- 教练:问教练(v0.7.33:先问一道题 → 公布答案 → 给建议) ----
+/* v0.7.31 试玩反馈(产品方):
+ *   · 「确定的」那段太长:「你先出,任选一门」是废话,甩牌规则没必要每次都写;
+ *     各门的最大牌、谁断、还剩几分不要全列 —— 只把和候选相关的写进候选的理由里;
+ *   · 不要直接给答案:先问一个和「这一手价值最高的候选」相关、答案是已知事实的问题,可以跳过;
+ *     答完或跳过,都先公布这道题的答案,再给建议;
+ *   · 「把握低」「差 1 分 / 差 16 分」看不懂 —— 建议单改成「最佳(可并列)+ 也可以」,最多 3 个,按价值排。
+ *     「也可以」的门槛就是失误反馈的门槛:列出来的这几手,你出哪一手教练都不会报失误。
+ * 题目、答案、候选后面那句事实,数全部来自块① coachFacts(硬演绎,与记牌表同一口径),
+ * 不靠 AI 的判断,也不靠大模型。 */
 const seatShort=s=>SEAT_NAME[s].replace(/\(.*\)|（.*）/,'').trim();
+const SN=s=>s==='T'?T('trump'):SUIT_SYM[s];
+const cntOf=arr=>arr.reduce((a,x)=>a+x.n,0);
+const cardsLine=(arr,max)=>arr.slice(0,max||99).map(x=>miniName(x.card)+(x.n>1?`×${x.n}`:'')).join('、')+
+  (max&&arr.length>max?' 等':'');
+const bucketOf=(v,cuts)=>{ const i=cuts.findIndex(c=>v<=c); return i<0?cuts.length:i; };
+const topOf=(cs,t)=>cs.reduce((a,b)=>!a||ordIdx(b,t)>ordIdx(a,t)?b:a,null);
 function ladderLine(L){
   return L.defender
     ? `这墩抢下来,${T('defenders')}就从 ${L.def} 分到 ${L.reach} 分,过 ${L.line} 线`
     : `这墩放给对手,${T('defenders')}就从 ${L.def} 分到 ${L.reach} 分,过 ${L.line} 线`;
 }
-// 一门里「别家还剩」的统计 —— 与记牌表页签同一个口径(三家手中 + 底牌,庄家已知底牌时扣掉)
-function suitOutside(mem,suit,t){
-  let n=0, top=null;
-  for(const k in mem.unseen){
-    const m=mem.unseen[k]; if(m<=0) continue;
-    const c=keyToCard(k); if(effSuit(c,t)!==suit) continue;
-    n+=m; if(!top||ordIdx(c,t)>ordIdx(top,t)) top=c;
-  }
-  return {n,top};
+// 「东家(第 5 墩没跟♠)」—— 断门是事实,顺手把证据给出来
+function voidWho(view,seats,suit){
+  return seats.map(s=>{ const k=coachVoidTrick(view.history,s,suit,view.trump);
+    return `${seatShort(s)}${k?`(第 ${k} 墩没跟${SN(suit)})`:''}`; }).join('、');
 }
-function aboveCount(mem,suit,t,idx){
-  let n=0;
-  for(const k in mem.unseen){
-    const m=mem.unseen[k]; if(m<=0) continue;
-    const c=keyToCard(k); if(effSuit(c,t)===suit&&ordIdx(c,t)>idx) n+=m;
-  }
-  return n;
-}
-const topOf=(cs,t)=>cs.reduce((a,b)=>!a||ordIdx(b,t)>ordIdx(a,t)?b:a,null);
 
-function factsFollow(view,plays,J){
-  const t=G.trump, lead=classify(plays[0].cards,t), ctx=J.adv.ctx;
-  const sn=lead.suit==='T'?T('trump'):SUIT_NAME[lead.suit];
-  const mem=makeMemory(view);
-  const mine=view.hand.filter(c=>effSuit(c,t)===lead.suit);
-  const out=suitOutside(mem,lead.suit,t);
-  const need=lead.cards.length;
-  const rows=[];
-  rows.push(`<b>规则</b> 跟 ${need} 张。`+(mine.length
-    ? `你有${sn},必须跟${lead.type!=='single'?',门内有对必对':''}`+(mine.length<need?`;这门只剩 ${mine.length} 张,不够的用别门补`:'')
-    : `你没有${sn}:可以用${T('trump')}毙,也可以垫别门`));
-  let face=`<b>牌面</b> ${sn}别家还剩 ${out.n} 张`+(out.n?`,最大 ${miniName(out.top)}`:'');
-  if(mine.length){
-    const my=topOf(mine,t), up=aboveCount(mem,lead.suit,t,ordIdx(my,t));
-    face+=up?`;比你最大的 ${miniName(my)} 还大的有 ${up} 张`:`;别家没有比你的 ${miniName(my)} 更大的了`;
-    // 单张墩再和桌面比一次:「别家已无更大」≠「这墩压得过」—— 桌上可能已有同样大的先出了,或者已经被毙
-    if(lead.type==='single'){
-      const cur=currentWinner(plays,t), cc=plays.find(p=>p.seat===cur.seat).cards[0];
-      if(cur.cl.suit!==lead.suit) face+=`;这墩已被 ${miniName(cc)} 毙了,${sn}压不过`;
-      else if(ordIdx(my,t)===ordIdx(cc,t)) face+=`;但桌上已有 ${miniName(cc)} 先出,同样大先出者赢,你压不过`;
-      else if(ordIdx(my,t)<ordIdx(cc,t)) face+=`;压不过桌上的 ${miniName(cc)}`;
+/* 候选后面那一句:只说这一手用得上的事实 */
+function factText(f){
+  const P=[];
+  if(f.kind==='lead'){
+    const s=SN(f.suit);
+    if(f.suit==='T'){
+      P.push(`${T('trump')}别家还剩 ${f.out} 张,你有 ${f.mine} 张`);
+      if(f.type==='single') P.push(f.boss?'别家没有比它大的':`别家还有 ${cntOf(f.bigger)} 张比它大`);
+      return P.join(',');
     }
+    if(f.type==='single'){
+      const n=cntOf(f.bigger);
+      P.push(f.boss?`别家没有比它大的${s}`:`别家还有 ${n} 张比它大${n<=3?`(${cardsLine(f.bigger)})`:''}`);
+    }else if(f.pairAbove){
+      P.push(f.boss?`别家没有能压过它的${s}对子`
+        :`${f.pairAbove.slice(0,2).map(miniName).join('、')}${f.pairAbove.length>2?' 等':''}两张都在别家,同在一家才压得过`);
+    }
+    P.push(`${s}别家还剩 ${f.out} 张`);
+    if(f.oppVoid.length) P.push(`${f.oppVoid.map(seatShort).join('、')}已断${s}`);
+    if(f.partnerVoid) P.push(`队友已断${s}`);
+    if(f.boss===false&&f.outPts) P.push(`这门别家还有 ${f.outPts} 分`);
+    return P.join(',');
   }
-  rows.push(face);
-  const behind=3-plays.length;
-  rows.push(`<b>台面</b> ${ctx.ptsTable} 分 · ${seatShort(ctx.curSeat)}暂大(${ctx.partnerWinning?'队友':'对手'})`+
-    (ctx.partnerWinning&&ctx.curBoss?',别家已无更大、后手也没人断这门':'')+
-    (ctx.isLast?' · 你是最后一手':` · 你后面还有 ${behind} 家`));
-  const {def,live}=roundScore(view);
-  rows.push(`<b>分数</b> ${T('defenders')}已得 ${def} 分,还有 ${live} 分没出`+(J.ladder?`;${ladderLine(J.ladder)}`:''));
-  return rows;
-}
-function factsLead(view){
-  const t=G.trump, mem=makeMemory(view);
-  const rows=[];
-  rows.push(`<b>规则</b> 你${T('lead')},任选一门。${T('throwP')}要每一组在别家都压不住,否则只出最小的一组`);
-  const tr=suitOutside(mem,'T',t);
-  const myTr=view.hand.filter(c=>effSuit(c,t)==='T');
-  rows.push(`<b>${T('trump')}</b> 别家还剩 ${tr.n} 张`+(tr.n?`(最大 ${miniName(tr.top)})`:'')+`,你有 ${myTr.length} 张`);
-  // 你手里「别家已无更大」的牌:领出能吃(同大小先出者赢)
-  const bySuit={};
-  view.hand.forEach(c=>{(bySuit[effSuit(c,t)]=bySuit[effSuit(c,t)]||[]).push(c);});
-  const boss=[];
-  for(const su of ['T','S','H','C','D']){
-    if(!bySuit[su]) continue;
-    const my=topOf(bySuit[su],t), o=suitOutside(mem,su,t);
-    if(!o.top||ordIdx(my,t)>=ordIdx(o.top,t)) boss.push(miniName(my));
+  const s=SN(f.leadSuit);
+  if(f.wins&&f.last) P.push(`你最后出,这墩归你${f.table+f.pts?`(共 ${f.table+f.pts} 分)`:''}`);
+  else if(f.ruff){
+    P.push(`用${T('trump')}毙下${f.table?`(台面 ${f.table} 分)`:''}`);
+    P.push(f.behindOppVoid.length?`但${f.behindOppVoid.map(seatShort).join('、')}也断${s},可能再毙`
+                                  :`后面的对手都还没露出断${s}`);
+  }else if(f.wins){
+    P.push(`先压住${f.table?`(台面 ${f.table} 分)`:''}`);
+    if(f.bigger) P.push(cntOf(f.bigger)?`别家还有 ${cntOf(f.bigger)} 张比它大`:`别家没有比它大的${s}`);
+    if(f.behindOppVoid.length) P.push(`${f.behindOppVoid.map(seatShort).join('、')}已断${s},可能毙`);
+  }else if(f.partnerWinning){
+    P.push(!f.partnerBigger?'队友暂大'
+      :cntOf(f.partnerBigger)?`队友暂大,别家还有 ${cntOf(f.partnerBigger)} 张比他那张大`:'别家没有比队友那张更大的');
+    // 这门里最大 ≠ 稳:后面的对手已经断了这门,照样能毙
+    if(f.behindOppVoid.length) P.push(`但${f.behindOppVoid.map(seatShort).join('、')}已断${s},可能毙`);
+    P.push(f.pts?`贴 ${f.pts} 分`:'不贴分');
+  }else{
+    P.push('对手暂大');
+    P.push(f.pts?`这手带 ${f.pts} 分`:'不送分');
   }
-  rows.push(`<b>牌面</b> `+(boss.length?`你手里别家已无更大的:${boss.join('、')}`:'你手里每一门都还有别家压得过的牌'));
-  const voids=makeVoids(view.history||[],t);
-  const gone=[];
-  for(const x of [1,2,3]) for(const su of ['T','S','H','C','D'])
-    if(voids[x]&&voids[x][su]) gone.push(`${seatShort(x)}断${su==='T'?T('trump'):SUIT_SYM[su]}`);
-  if(gone.length) rows.push(`<b>断门</b> ${gone.join('、')}(没跟出来,确定)`);
-  const {def,live}=roundScore(view);
-  rows.push(`<b>分数</b> ${T('defenders')}已得 ${def} 分,还有 ${live} 分没出`);
-  return rows;
-}
-function judgeHTML(J){
-  const adv=J.adv;
-  let why='';
-  if(J.ladder) why=`${ladderLine(J.ladder)} —— 「抢不抢过线」是我已知的短板,这类局面我系统性偏保守,你的直觉多半比我准`;
-  else if(J.rule) why='这一手是按一条规则改判的,分数量不出它比别的好多少';
-  else if(!J.alts.length) why='';
-  else if(J.conf==='low') why='前几手差得很少,这里我分不出高下,选哪手都说得过去';
-  const alts=J.alts.slice(0,2).map(a=>`<div class="dim">${desc(a.cards)}${a.reason?`(${a.reason})`:''} · 差 ${Math.max(0,Math.round(a.delta))} 分</div>`).join('');
-  return `<div class="cSec">我的判断 <span class="hold ${J.conf}">${CONF_NAME[J.conf]}</span></div>`+
-    `<div><b style="color:#6ec9ff">${desc(adv.cards)}</b> —— ${adv.reason}</div>`+
-    (why?`<div class="dim">${why}</div>`:'')+alts+
-    (J.unit==='eg'?`<div class="dim">(收官:差多少按推演的净升级折算,1 级 = 40 分)</div>`:'');
-}
-function adviceHTML(facts,J){
-  return `<div class="cSec">确定的</div>`+facts.map(r=>`<div>${r}</div>`).join('')+judgeHTML(J);
+  return P.join(',');
 }
 
+// 跟牌时只在「要求不止一句废话」时提一句:领的不是单张、这门不够、或者你断了这门
+function obligationNote(view,plays){
+  if(!plays.length) return '';
+  const t=view.trump, lead=classify(plays[0].cards,t), s=SN(lead.suit);
+  const mine=view.hand.filter(c=>effSuit(c,t)===lead.suit).length, n=lead.cards.length;
+  if(!mine) return `你没有${s}:可以用${T('trump')}毙,也可以垫别的`;
+  if(mine<n) return `${s}只剩 ${mine} 张,全出,不够的用别门补`;
+  if(lead.type!=='single') return `要跟 ${n} 张${s},门内有对必对`;
+  return '';
+}
+
+function suggestHTML(view,plays,J){
+  const thr=isFinite(GAP_THR[C.gapSens])?GAP_THR[C.gapSens]:GAP_THR['中'];
+  const opts=coachOptions(view,plays,J,thr,3);
+  const tied=opts.some(o=>o.tier==='tie');
+  const tagOf=o=>o.tier==='ok'?'也可以':(tied?'并列最佳':'最佳');
+  const ob=obligationNote(view,plays);
+  let h=`<div class="cSec">建议</div>`+(ob?`<div class="dim">${ob}</div>`:'');
+  h+=opts.map(o=>{
+    const names=[o.cards,...o.same].map(desc).join(' 或 ');
+    const ft=factText(o.facts);
+    return `<div class="opt"><b>${names}</b> <span class="tag ${o.tier==='ok'?'ok':'top'}">${tagOf(o)}</span>`+
+      `<div class="dim">${coachReasonCore(o.reason)}${ft?`。${ft}`:''}</div></div>`;
+  }).join('');
+  if(opts.length===1&&J.alts.length)
+    h+=`<div class="dim">别的出法都比它差一截${isFinite(GAP_THR[C.gapSens])?',出了会被我记成失误':''}。</div>`;
+  if(J.ladder) h+=`<div class="dim" style="margin-top:4px">⚠️ ${ladderLine(J.ladder)}。「抢不抢过线」是我已知的短板,这类局面你的判断可能比我准。</div>`;
+  return h;
+}
+
+/* 题目:围绕「价值最高的那一手」要看的那个已知事实。没有值得问的就不问,直接给建议。 */
+function quizFor(view,plays,o){
+  const f=o.facts, t=view.trump, B4=['0','1','2','3+'];
+  // 答案是 0 的时候把意思说出来,光说「还有 0 张」等于没说
+  const countQ=(q,n,list,zero)=>({q,choices:B4,answer:Math.min(n,3),
+    reveal:n?`还有 <b>${n}</b> 张:${cardsLine(list,6)}。`:`<b>一张都没有</b> —— ${zero}。`});
+  const suitCountQ=(suit,out,extra)=>({q:`${SN(suit)}别家还剩几张?`,choices:['0–2','3–5','6–9','10+'],
+    answer:bucketOf(out,[2,5,9]),reveal:`${SN(suit)}别家还剩 <b>${out}</b> 张${extra}。`});
+  const tableQ=()=>{ const pc=plays.flatMap(p=>p.cards).filter(c=>cardPoints(c)>0);
+    return {q:'台面上现在一共几分?',choices:['5','10','15','20+'],answer:Math.min(f.table/5-1,3),
+      reveal:`台面 <b>${f.table}</b> 分:${pc.map(miniName).join('、')}。`}; };
+  if(f.kind==='lead'){
+    if(f.suit==='T') return {q:`${T('trump')}别家还剩几张?`,choices:['0–4','5–9','10–15','16+'],answer:bucketOf(f.out,[4,9,15]),
+      reveal:`${T('trump')}别家还剩 <b>${f.out}</b> 张${f.top?`,最大的是 ${miniName(f.top)}`:''};你手里有 ${f.mine} 张。`};
+    if(f.type==='single'&&!f.boss) return countQ(`${SN(f.suit)}里,别家还有几张比 ${miniName(o.cards[0])} 大?`,cntOf(f.bigger),f.bigger,'');
+    return suitCountQ(f.suit,f.out,
+      (f.oppVoid.length?`;${voidWho(view,f.oppVoid,f.suit)}已经断了`:';还没有对手露出断这门')+
+      `。剩得越少,越可能有人已经没有这门、拿${T('trump')}来毙`);
+  }
+  const s=SN(f.leadSuit);
+  if(f.wins&&f.last) return f.table>0?tableQ():null;
+  if(f.ruff) return {q:`你后面的对手里,有人已经确定断了${s}吗?`,choices:['有','没有'],answer:f.behindOppVoid.length?0:1,
+    reveal:f.behindOppVoid.length
+      ?`有:${voidWho(view,f.behindOppVoid,f.leadSuit)}。他手里还有${T('trump')}的话,可能盖过你。`
+      :`没有:后面的${f.behindOpp.map(seatShort).join('、')}都还没露出断${s}。`};
+  if(f.wins&&f.bigger) return countQ(`${s}里,别家还有几张比 ${miniName(o.cards[0])} 大?`,cntOf(f.bigger),f.bigger,
+    `${miniName(o.cards[0])} 在这门里别家已经压不过了`);
+  if(f.partnerCard&&f.partnerBigger) return countQ(`队友的 ${miniName(f.partnerCard)},别家还有几张比它大?`,cntOf(f.partnerBigger),f.partnerBigger,
+    `队友那张在这门里别家已经压不过了`+(f.behindOppVoid.length?`(但${f.behindOppVoid.map(seatShort).join('、')}已断${s},还是可能被毙)`:''));
+  if(f.leadType==='single'&&f.mineInSuit){
+    const my=topOf(view.hand.filter(c=>effSuit(c,t)===f.leadSuit),t);
+    const up=coachBiggerUnseen(makeMemory(view),f.leadSuit,t,ordIdx(my,t));
+    return countQ(`${s}里,别家还有几张比你最大的 ${miniName(my)} 大?`,cntOf(up),up,
+      `你的 ${miniName(my)} 在这门里别家已经压不过了`);
+  }
+  return f.table>0?tableQ():null;
+}
+
+const canAskCoach=()=>!!G&&C.on&&!G.ended&&G.phase==='play'&&!G.auto&&G.trick.length<4
+  &&(G.leader+G.trick.length)%4===HUMAN&&G.hands[HUMAN].length>0;
 function askCoach(){
-  if(!C.on||G.phase!=='play') return;
-  if((G.leader+G.trick.length)%4!==HUMAN||G.trick.length>=4) return;
-  const view=viewFor(HUMAN);
-  const following=G.trick.length>0;
-  const J=following?coachJudgeFollow(view,G.trick):coachJudgeLead(view);
-  const facts=following?factsFollow(view,G.trick,J):factsLead(view);
-  const html=adviceHTML(facts,J);
-  const no=G.tricks.length+1;
-  const t=G.trump;
-  // 提问引导:台面有分或跟主时,先考记牌再揭晓。你断了这门就不考「比你最大的还大」—— 那一问没有意义
-  const lead=following?classify(G.trick[0].cards,t):null;
-  const ptsTable=following?countPoints(G.trick.flatMap(p=>p.cards)):0;
-  const mine=following?G.hands[HUMAN].filter(c=>effSuit(c,t)===lead.suit):[];
-  const isKey=following&&mine.length&&(ptsTable>=10||lead.suit==='T');
-  if(G.quiz){ const m=chat.find(x=>x.id===G.quiz.mid); if(m&&m.quiz.state==='open') m.quiz.state='expired'; }
-  if(C.quiz&&isKey){
-    const my=topOf(mine,t);
-    const n=aboveCount(makeMemory(view),lead.suit,t,ordIdx(my,t));
-    const m=coachSay(no,`先考你:${lead.suit==='T'?T('trump'):SUIT_NAME[lead.suit]}里,别家还有几张比你的 ${miniName(my)} 更大?`,'quiz');
-    m.quiz={answer:Math.min(n,3),exact:n,advice:html,state:'open'};
+  if(!canAskCoach()) return;
+  // 这一墩已经出过题、还没答 —— 不重复出题,把人带回那道题
+  if(G.quiz){ const m=chat.find(x=>x.id===G.quiz.mid);
+    if(m&&m.quiz.state==='open'){ activeTab='coach'; chatStick=true; render(); return; } }
+  const view=viewFor(HUMAN), plays=G.trick.slice(), no=G.tricks.length+1;
+  const J=plays.length?coachJudgeFollow(view,plays):coachJudgeLead(view);
+  const advice=suggestHTML(view,plays,J), hint=J.adv.cards.map(c=>c.id);
+  const Q=C.quiz?quizFor(view,plays,{cards:J.adv.cards,facts:coachFacts(view,plays,J.adv.cards)}):null;
+  if(Q){
+    const m=coachSay(no,`先考你:${Q.q}`,'quiz');
+    m.quiz={...Q,advice,hint,state:'open'};
     G.quiz={mid:m.id};
   }else{
     G.quiz=null;
-    coachSay(no,html,'advice');
+    coachSay(no,advice,'advice');
+    G.hintCards=new Set(hint);      // 答案和建议出来之后才点亮提示,不然题目就白问了
   }
-  G.hintCards=new Set(J.adv.cards.map(c=>c.id));
   activeTab='coach';
+  render();
+}
+// idx = 选的第几个;−1 = 跳过。都先公布答案,再给建议
+function answerQuiz(m,idx){
+  const q=m.quiz; if(!q||q.state!=='open') return;
+  q.state='done';
+  if(G&&G.quiz&&G.quiz.mid===m.id) G.quiz=null;
+  chatPush({from:'me',t:idx<0?'跳过,直接看建议':`我选「${q.choices[idx]}」`});
+  coachSay(m.no,(idx<0?'':idx===q.answer?'✅ 对了。':'❌ 不对。')+q.reveal,'answer');
+  coachSay(m.no,q.advice,'advice');
+  if(G&&G.phase==='play'&&!G.ended&&G.tricks.length+1===m.no) G.hintCards=new Set(q.hint);
+  chatStick=true;
   render();
 }
 
@@ -7030,7 +7184,7 @@ function reviewHTML(autoNote){
   let h='';
   if(real.length){
     const top=real.slice().sort((a,b)=>b.gap-a.gap).slice(0,3);
-    h+=top.map(n=>`<div>第${n.no}墩:你出 ${desc(n.my)} → 我建议 ${desc(n.best)} · 差约 ${Math.round(n.gap)} 分<div class="dim">${n.reason}</div></div>`).join('');
+    h+=top.map(n=>`<div>第${n.no}墩:你出 ${desc(n.my)} → 我建议 ${desc(n.best)} · 约亏 ${Math.round(n.gap)} 分<div class="dim">${coachReasonCore(n.reason)}</div></div>`).join('');
     if(real.length>3) h+=`<div class="dim">另有 ${real.length-3} 手差得少一些,不一一列了</div>`;
   }else{
     h+=`<div>${G.autoTricks?'你自己出的那几墩没有明显失误':'本局没有明显失误,漂亮!'}</div>`;
@@ -7710,7 +7864,8 @@ function chatItemHTML(m){
   if(m.kind==='quiz'){
     const q=m.quiz;
     if(q.state==='open')
-      body+=`<div class="qz">`+[0,1,2,3].map(n=>`<button class="minor" data-qz="${n}" data-mid="${m.id}">${n===3?'3+':n}</button>`).join('')+`</div>`;
+      body+=`<div class="qz">`+q.choices.map((c,i)=>`<button class="minor" data-qz="${i}" data-mid="${m.id}">${c}</button>`).join('')+
+        `<button class="minor skip" data-qz="-1" data-mid="${m.id}">跳过问题看建议</button></div>`;
     else if(q.state==='expired') body+=`<div class="dim">(这墩已经打完了)</div>`;
   }
   const cls=m.kind==='warn'?' warn':m.kind==='doubt'?' doubt':m.kind==='intro'?' intro':'';
@@ -7719,7 +7874,8 @@ function chatItemHTML(m){
 function chatLogHTML(){
   if(!chat.length){
     return chatItemHTML({from:'coach',kind:'intro',html:C.on
-      ?'我是教练。轮到你时点「问教练」,我会把确定的事和我的判断分开说;出现大失误我会提醒,局末复盘关键回合。<br>'+
+      ?'我是教练。轮到你出牌时点「问教练」(下面左边这颗,牌桌上也有):我先考你一道和这手牌有关的题,'+
+       '答完或跳过就告诉你答案和建议;出现大失误我会提醒,局末复盘关键回合。<br>'+
        '这里也是你的笔记本:在下面记一笔,存在这台设备上。'
       :'教练已关(设置 → 教练 可以打开)。这里照样可以记笔记,存在这台设备上。'});
   }
@@ -7738,28 +7894,27 @@ function renderChatTab(el){
     el.classList.add('chatMode');
     el.innerHTML=`<div id="chatLog" aria-label="教练与笔记"></div>`+
       `<button id="chatNew" class="minor" hidden>↓ 新消息</button>`+
-      `<div id="chatBar"><input id="chatInput" placeholder="记一笔……什么牌值得记下？" maxlength="120" `+
+      `<div id="chatBar"><button id="chatAsk" title="轮到你出牌时可以问">问教练</button>`+
+      `<input id="chatInput" placeholder="记一笔……什么牌值得记下？" maxlength="120" `+
       `aria-label="记一笔笔记" autocomplete="off"><button id="chatSend">发送</button></div>`;
     const inp=el.querySelector('#chatInput'), logEl=el.querySelector('#chatLog');
     inp.value=chatDraft;
     inp.oninput=()=>{ chatDraft=inp.value; };
     inp.onkeydown=e=>{ if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){ e.preventDefault(); sendNote(); } };
     el.querySelector('#chatSend').onclick=sendNote;
+    el.querySelector('#chatAsk').onclick=askCoach;
     el.querySelector('#chatNew').onclick=()=>{ logEl.scrollTop=logEl.scrollHeight; };
     logEl.onscroll=()=>{ if(logEl.scrollHeight-logEl.scrollTop-logEl.clientHeight<30) el.querySelector('#chatNew').hidden=true; };
     // 提问的按钮:事件委托,消息区重画也不用重新绑
     logEl.onclick=e=>{
       const b=e.target.closest('[data-qz]'); if(!b) return;
-      const m=chat.find(x=>x.id===+b.dataset.mid); if(!m||m.quiz.state!=='open') return;
-      const q=m.quiz, guess=+b.dataset.qz, right=guess===q.answer;
-      q.state='done';
-      if(G&&G.quiz&&G.quiz.mid===m.id) G.quiz=null;
-      chatPush({from:'me',t:`我猜 ${guess===3?'3 张以上':guess+' 张'}`});
-      coachSay(m.no,`<div>${right?'✅ 对了':'❌ 不对'},别家还有 <b>${q.exact} 张</b>比它大。</div>`+q.advice,'advice');
-      chatStick=true; renderPanel();
+      const m=chat.find(x=>x.id===+b.dataset.mid); if(m) answerQuiz(m,+b.dataset.qz);
     };
     chatStick=true;
   }
+  // 「问教练」跟着牌局状态亮灭:消息区没变也要更新,所以放在比较之前
+  const ask=document.getElementById('chatAsk');
+  ask.hidden=!C.on; ask.disabled=!canAskCoach();
   const logEl=document.getElementById('chatLog');
   const html=chatLogHTML();
   if(html===logEl._html) return;
