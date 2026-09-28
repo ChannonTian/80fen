@@ -268,6 +268,7 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
 #foot.bad  #verdict{display:block;color:var(--rd-tx)}
 #btnRow{display:flex;gap:11px;align-items:center}
 #btnRow .btn{flex:1}
+a.btn{text-align:center;text-decoration:none;box-sizing:border-box}
 #foot.good .rnd,#foot.bad .rnd{background:#fff;border-color:rgba(0,0,0,.09)}
 
 /* ==========  地图:一个单元 = 一「手」牌  ========== */
@@ -1546,12 +1547,109 @@ const U5=[
 ]},
 ];
 
+/* ===== 单元 6 · 读牌与配合 =====
+   读牌 = 从「谁没跟」推出「他手上没有什么」。这一单元只考**这一墩**:
+   证据(上一墩谁毙了、谁的主打光了)要能让这一墩的结果变成确定的,才出题 ——
+   和单元 3、4 同一个标准。答完之后身后几家照 rest 把这一墩打完(单元 4 的机制)。
+   为什么不用单元 5 的残局穷举,见 DESIGN §9.15:残局里每张牌迟早都要出,读牌的作用被淹没了。 */
+const U6=[
+
+{ id:'u6l1', rank:'A', name:'谁还能毙', mins:3, tr:{suit:'S',rank:7},
+  sum:'谁断了这门、手上还有主,这门的分就别往他面前送。', qs:[
+ { type:'trickpick', badge:'新概念', task:'领哪张',
+   played:[null,null,null,null], lead:0, hand:[D(13),Cl(4)], showPt:true, answer:'C40',
+   rest:{1:[S(5),Cl(9)],2:[D(6),Cl(10)],3:[D(9),H(8)]},
+   prompt:'上一墩方块,<b>东家拿主毙了</b> —— 他方块断了。轮到你领。',
+   hint:'东家就坐你后面。♦K 领出去,他会怎么出?',
+   key:['S50'],
+   good:'对。东家方块断了,♦K 一领就被他毙走。',
+   bad:'东家方块断了,就坐你后面 —— ♦K 领出去,他一张主就毙走。' },
+
+ { type:'trickpick', badge:'反过来', task:'贴不贴',
+   played:[null,null,D(14),D(3)], lead:2, hand:[D(13),D(4)], showPt:true, answer:'D40', lose:true,
+   rest:{1:[S(5),S(9)]},
+   prompt:'队友领 ♦A。可东家方块断了,而且外面剩的主<b>全在他手上</b>(西、北都没主了)。',
+   hint:'单元 4 说队友领 A 就贴 —— 这次身后的东家能不能毙?',
+   key:['S50'],
+   good:'对。东家一定毙得了,♦A 不稳 —— 这次不贴。',
+   bad:'东家方块断了、手上有主,♦A 会被他毙走,♦K 贴进去就是白送。' },
+
+ { type:'trickpick', badge:'换份证据', task:'贴不贴',
+   played:[null,null,D(14),D(3)], lead:2, hand:[D(13),D(4)], showPt:true, answer:'D130',
+   rest:{1:[Cl(9),H(8)]},
+   prompt:'同样队友领 ♦A、东家方块断了。可这次东家<b>主也打光了</b>(上一轮主没跟)。',
+   hint:'东家没方块、也没主 —— 他能拿什么压 ♦A?',
+   good:'对。东家没方块也没主,只能垫 —— ♦A 稳了,贴。',
+   bad:'东家主也打光了,毙不了 ♦A —— 这墩稳是你们的,♦K 该贴。' },
+]},
+
+{ id:'u6l2', rank:'2', name:'送毙', mins:3, tr:{suit:'S',rank:7},
+  sum:'队友断了这门、手上有主:领这门给他毙,分往他那一墩里放。', qs:[
+ { type:'trickpick', badge:'新概念', task:'领哪张',
+   played:[null,null,null,null], lead:0, hand:[D(4),Cl(11)], showPt:true, answer:'D40',
+   rest:{1:[D(13),Cl(14)],2:[S(6),Cl(3)],3:[D(10),Cl(5)]},
+   prompt:'<b>北家(队友)方块断了</b>,手上有主;东家、西家的主都打光了。轮到你领。',
+   hint:'领方块,谁收这一墩?',
+   key:['S60'],
+   good:'对。领方块,北家一毙就收 —— 对手跟的方块分全归你们。',
+   bad:'领 ♣J,东家 ♣A 收走。领方块,北家一毙,这墩连分带牌都是你们的。' },
+
+ { type:'trickpick', badge:'配合', task:'贴不贴',
+   played:[null,null,null,D(14)], lead:3, hand:[D(13),D(4)], showPt:true, answer:'D130',
+   rest:{1:[D(9)],2:[S(6)]},
+   prompt:'西家领 ♦A。北家(最后出)<b>方块断了、手上有主</b>;东家没主了。',
+   hint:'这一墩最后是谁收?',
+   key:['S60'],
+   good:'对。北家最后一毙就收 —— 你的 ♦K 等于贴给队友。',
+   bad:'北家断方块、有主,又是最后出:这墩是你们的,♦K 该贴。' },
+
+ { type:'trickpick', badge:'换份证据', task:'贴不贴',
+   played:[null,null,null,D(14)], lead:3, hand:[D(13),D(4)], showPt:true, answer:'D40', lose:true,
+   rest:{1:[D(9)],2:[Cl(3)]},
+   prompt:'还是西家领 ♦A、北家方块断了。可这次北家<b>主也打光了</b>。',
+   hint:'北家没方块也没主,他还能收这墩吗?',
+   good:'对。北家毙不了,♦A 稳是西家的 —— 别贴。',
+   bad:'北家主也没了,毙不了 —— ♦K 贴进去是送给西家。' },
+]},
+
+{ id:'u6l3', rank:'3', name:'换一门再读', mins:3, tr:{suit:'H',rank:9},
+  sum:'先问谁断了门,再问他还有没有主 —— 两个都有,他就能毙。', qs:[
+ { type:'trickpick', badge:'再读一次', task:'领哪张',
+   played:[null,null,null,null], lead:0, hand:[Cl(13),D(4)], showPt:true, answer:'D40',
+   rest:{1:[H(5),D(10)],2:[Cl(6),D(12)],3:[Cl(8),S(3)]},
+   prompt:'打 9、红桃主。上一墩草花,<b>东家拿主毙了</b>。轮到你领。',
+   hint:'♣K 领出去,紧跟在你后面的是谁?',
+   key:['H50'],
+   good:'对。东家草花断了,♣K 不能往他面前送。',
+   bad:'东家草花断了、有主 —— ♣K 一领就被他毙走。' },
+
+ { type:'trickpick', badge:'送毙', task:'领哪张',
+   played:[null,null,null,null], lead:0, hand:[Cl(4),D(11)], showPt:true, answer:'C40',
+   rest:{1:[Cl(13),D(14)],2:[H(6),D(3)],3:[Cl(10),D(5)]},
+   prompt:'这次是<b>北家(队友)草花断了</b>、有主,东家、西家都没主了。',
+   hint:'领哪一门,队友能用上他的主?',
+   key:['H60'],
+   good:'对。领草花,北家一毙,对手的 ♣K ♣10 全送进你们这一墩。',
+   bad:'领 ♦J,东家 ♦A 收走。领草花,北家一毙就收,还连对手的分一起收。' },
+
+ { type:'trickpick', badge:'配合', task:'贴不贴',
+   played:[null,null,null,Cl(14)], lead:3, hand:[Cl(10),Cl(4)], showPt:true, answer:'C100',
+   rest:{1:[Cl(6)],2:[H(3)]},
+   prompt:'西家领 ♣A。北家最后出,<b>草花断了、有主</b>;东家没主了。',
+   hint:'这墩最后归谁?',
+   key:['H30'],
+   good:'对。北家最后毙,这墩是你们的 —— ♣10 贴进去。',
+   bad:'北家断草花、有主,又最后出 —— 这墩稳是你们的,♣10 该贴。' },
+]},
+];
+
 const UNITS=[
  {key:'u1', part:'第一部 · 会打一墩',   name:'单元 1 · 一墩牌怎么打', lessons:U1},
  {key:'u2', part:'第一部 · 会打一墩',   name:'单元 2 · 一局怎么打完', lessons:U2},
  {key:'u3', part:'第二部 · 打得像个人', name:'单元 3 · 记牌与领出',   lessons:U3},
  {key:'u4', part:'第二部 · 打得像个人', name:'单元 4 · 跟牌的位置',   lessons:U4},
  {key:'u5', part:'第二部 · 打得像个人', name:'单元 5 · 护底与抠底',   lessons:U5},
+ {key:'u6', part:'第二部 · 打得像个人', name:'单元 6 · 读牌与配合',   lessons:U6},
 ];
 
 /* 局末结算一律交给引擎的 scoreRound,教学版不另写一套阶梯。
@@ -1621,6 +1719,15 @@ function drawMap(){
          <div class="nowsub">${U.lessons.length} 张牌都翻过来了</div>
          <div class="golead"><button class="btn ghost" data-again="${u}">从头再练一遍</button></div>`;
   });
+  /* 打一整场:不是一个单元,是六个单元之后的最终课程(产品方 2026-09-28 定)。
+     「教练手把手带」的版本要等打牌界面合并进来之后再做(DESIGN 第十二节 第 7 条),
+     现在先链接到打牌界面。打完最后一个单元才解锁。 */
+  const allDone=unlocked(UNITS.length);
+  html+=`<div class="unit capstone ${allDone?'':'lock'}" style="margin-top:26px">`+
+        `<small>最终课程</small><b>打一整场</b></div>`+
+        (allDone?`<div class="nowsub">从发牌打到结算</div>
+          <div class="golead"><a class="btn" href="index.html">去打一整场</a></div>`
+                :`<div class="locknote">打完单元 6 解锁</div>`);
   $('map').innerHTML=html;
   $('map').querySelectorAll('[data-go],[data-u]').forEach(b=>{
     const u=+(b.dataset.go!==undefined?b.dataset.go:b.dataset.u);
