@@ -142,22 +142,48 @@ console.log(`\n===== ${path.basename(file)} =====\n`);
   check('2a','中盘：队友领小主钓主、对手跟小 → 我应当接过牌权',
         `${ns(r.cards)}（${r.reason}）`, ()=>E.ordIdx(r.cards[0],T)>E.ordIdx(C('S4'),T),
         '出比 S4 大的主牌');
-  /* 2b 换成一个**中盘真实**的局面：大小王与正/副常主大都已现身，SA 已接近钢板。
-   * 原来那版是一个 13 张手牌 + 空历史的合成局面，在外还有 12 张主压得住 SA ——
-   * 那种情况下用 SA 去接本来就是坏棋，AI 选 S8 是对的。
-   * 「接得够高」要在 SA 真的守得住的时候成立才算数。 */
-  const hist=[
-   {seat:0,cards:H(['XB'])},{seat:1,cards:H(['S3'])},{seat:2,cards:H(['XS'])},{seat:3,cards:H(['S6'])},
-   {seat:0,cards:H(['XB'])},{seat:1,cards:H(['S7'])},{seat:2,cards:H(['XS'])},{seat:3,cards:H(['S5'])},
-   {seat:0,cards:H(['S2'])},{seat:1,cards:H(['C2'])},{seat:2,cards:H(['S2'])},{seat:3,cards:H(['D2'])},
-   {seat:0,cards:H(['H2'])},{seat:1,cards:H(['C2'])},{seat:2,cards:H(['D2'])},{seat:3,cards:H(['H2'])}];
+  /* 2b「王和级数牌都出完、在外能压过主 K 的只剩另一张主 A」—— 原来那版历史只有 4 墩,手里却只剩 9 张
+   * (未见牌 83 张,牌数不自洽),AI 按它估末家拿着那张主 A 的概率被算得很低。
+   * 2026-09-28 补成完整的 16 墩(每一手都合法、每墩的胜者领下一墩,脚本核对过):
+   * 庄家 0 号钓了 6 轮主,副牌 10 墩,闲家(1/3)已得 55 分;庄家 ♦ 断门(第 9 墩毙);
+   * 在外的主只剩 SA、S6×2、S5×2。
+   * 补齐之后查出两件事:
+   *  ① 期望要改。同一局面把未见的 33 张随机补发(300 份,庄家不拿 ♦),分别强制出 SA / SK / S8 打到底
+   *    (test/roll-pos.js):出 SA 比出 SK 少 16.8 ±1.8 分、−0.44 ±0.05 级;底牌限 ≤5 分时仍少 3.2 ±1.1 分。
+   *    SA 是闲家唯一能守末墩抠底的牌,这墩 0 分、SK / S8 本来就有七八成拿下 —— 为一墩空气烧掉唯一的止张不值。
+   *    产品方框架的「不能只看这一墩」(剩什么牌、底里有没有分、差多少分过线)在这里指向不出 SA。
+   *  ② 出 SK 时末家被盖的概率被低估(3.6%):「台面 0 分他不肯花主 A」打了两道折,可我一放 SK 台面就有 10 分
+   *    → sealOwnPts 开关(见 pSurvive)。 */
+  const TRK=a=>a.flatMap(t=>t.slice(1).map((c,k)=>({seat:(t[0]+k)%4,cards:H([c])})));
+  const hist=TRK([
+    [0,'XB','S4','S3','S7'],[0,'XB','S9','D2','S8'],[0,'S7','SQ','XS','SJ'],[2,'XS','SQ','SJ','C2'],
+    [2,'SK','C2','S2','H2'],[0,'H2','ST','D2','S2'],
+    [3,'DA','D3','D9','D4'],[3,'DA','D6','D8','D7'],[3,'DQ','ST','DJ','DK'],[0,'HA','H5','H6','H8'],
+    [0,'HK','HA','H7','H9'],[1,'CA','C3','CJ','C4'],[1,'CA','C4','C5','C6'],[1,'CK','C7','C6','C8'],
+    [1,'HK','HJ','H6','HQ'],[1,'CK','CQ','C3','C9']]);
   const v3={seat:3,trump:T,declSeat:0,history:hist,buriedKnown:[],
     hand:H(['SA','SK','S9','S8','C9','C8','C7','H4','H3'])};
   const r3=E.aiChooseFollow(v3,[{seat:1,cards:H(['S4'])},{seat:2,cards:H(['S3'])}]);
-  check('2b','大牌已现身、SA 接近钢板时，接就要接得够高（别让末家用主10/主K掀走）',
-        `${ns(r3.cards)}（${r3.reason}）`, ()=>ns(r3.cards)==='SA', 'SA');
-  check('2d','反过来：在外还有十几张主压得住 SA 时，不该硬接（对照组）',
-        ns(r.cards), g=>g!=='SA', '不是 SA');
+  check('2b','王和级数牌都出完、在外只剩另一张 SA 压得过 SK、这墩 0 分、闲家要靠 SA 守末墩 → 接这墩用 SK / 小主,别烧 SA',
+        `${ns(r3.cards)}（${r3.reason}）`, ()=>ns(r3.cards)!=='SA', '不是 SA(随机补发 300 份:SA 比 SK 少 16.8 分、−0.44 级)');
+  /* 2b′ 产品方的设想(2026-09-28):「外面还剩两大王、两小王,以及一 A、一 K 不在自己手里,手里有一 K,
+   * 这时候应该会不出 K」—— 出 K 被末家的 A / 王连分带牌权拿走。自对弈真实局面(test/find-tiao.js KIND=2b1,
+   * 种子 217 的第一墩):♦ 作主,庄家 0 号领 ♦4 钓主,我是帮家,主牌只有 ♦A ♦K ♦9 ♦5 ♦4 ♦3,王和级数牌全在外。
+   * 随机补发 150 份(roll-pos):♦A 比 ♦K 多 4.7 ±2.5 分、+0.25 ±0.10 级,比跟小(♦3)多 5.2 分、+0.24 级。
+   * 同类 111 个真实局面(find-tiao):出 A 比出 K 平均 +7.4 分、+0.33 级,AI 从不出 K。 */
+  {
+    const TDm={suit:'D',rank:2};
+    const vp={seat:2,trump:TDm,declSeat:0,history:[],buriedKnown:[],
+      hand:H(['D5','S8','H3','H3','SK','D3','HK','D9','C4','S5','H9','C3','D4','H4','DK','H4','HT','DA','ST','H8','CT','H9','S4','HT','C7'])};
+    const rp=E.aiChooseFollow(vp,[{seat:0,cards:H(['D4'])},{seat:1,cards:H(['D3'])}]);
+    check("2b′",'队友钓小主,王 / 级数牌 / 另一张 A、K 都在外,我握 ♦A ♦K → 出 A,不出 K',
+          `${ns(rp.cards)}（${rp.reason}）`, ()=>ns(rp.cards)==='DA', 'DA');
+  }
+  /* 2d 原来的期望是「在外还有十几张主压得住 SA 时不该硬接」。产品方框架(2026-09-28):出 K 几乎不合理
+   * (对手出 A 或副级数牌就连分带牌权拿走),出 A 较合理 —— 被级数牌压了当下默认是均势。
+   * 这一条改成只断言「不出 SK」;出 SA 还是跟小交给打分(这个 13 张空历史的局面本身也不自洽,只看方向)。 */
+  check('2d','在外还有王 / 级数牌 / 另一张 A 时,接钓主不出主 K(产品方框架)',
+        ns(r.cards), g=>g!=='SK', '不是 SK');
   // 收官阶段（7 张）：AI 有 93% 的钓主发生在这里，而 takeOverScoped 在 end 阶段直接关闭
   const v2={seat:3,trump:T,declSeat:0,history:[],buriedKnown:[],
     hand:H(['SA','SK','C9','C8','H4','H3','D6'])};
