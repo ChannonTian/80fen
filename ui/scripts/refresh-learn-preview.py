@@ -44,7 +44,7 @@ if map_count != 1:
 # UI lifecycle and checkpoint adapter; course definitions and grading stay untouched.
 ui_replacements = [
     ("const QUI=['top','ask','board','hand','foot'];", (repo/'ui/scripts/study-session.js').read_text()+"\nconst QUI=['top','ask','board','hand','foot'];"),
-    ("const doneCount=k=>+(localStorage.getItem(LS+k)||0);", "const doneCount=k=>{const n=Number(studyStore.get(k));return Number.isInteger(n)&&n>=0?n:0;};"),
+    ("const doneCount=k=>+(localStorage.getItem(LS+k)||0);", "const doneCount=k=>{if(new URLSearchParams(location.search).has('course-preview'))return k===UNITS[0].key?3:0;const n=Number(studyStore.get(k));return Number.isInteger(n)&&n>=0?n:0;};"),
     ("function render(){\n  const q=L.qs[qi];", "function render(){\n  saveCheckpoint();\n  const q=L.qs[qi];\n  $('app').dataset.type=q.type;\n  $('app').dataset.evidence=String(!!(q.rows&&q.rows.length));\n  $('app').dataset.dense=String(!!(q.hand&&q.hand.length>5));"),
     ("qi=0;wrong=0;t0=Date.now();show('q');render();", "const saved=readCheckpoint();\n  const resume=saved&&saved.ui===u&&saved.li===i;\n  qi=resume?saved.qi:0;wrong=resume?saved.wrong:0;t0=Date.now()-(resume?saved.elapsed:0);show('q');render();"),
     ("if(m.turn!==0) line=`${m.goal}。<b>${nameOf(m.turn)}</b> 在出牌…`;", "if(m.turn!==0) line=`目前已抓 <b>${m.start+m.score[0]} 分</b>。<b>${nameOf(m.turn)}</b> 在出牌…`;"),
@@ -52,6 +52,7 @@ ui_replacements = [
     ("$('doneBtn').onclick=()=>show('map');", "$('doneBtn').onclick=()=>{const U=UNITS[ui];if(U.lessons[li+1])start(ui,li+1);else if(UNITS[ui+1])start(ui+1,0);else show('map');};\n$('doneMap').onclick=()=>show('map');"),
     ("$('barIn').style.width='100%';show('done');drawMap();", "$('doneBtn').textContent=nxt?'下一课 · '+nxt.name:nu?'开始下一单元':'回到课程';\n  $('barIn').style.width='100%';show('done');drawMap();"),
     ("'整个第一部都打完了'", "'所有课程都练过了，去牌桌试试吧'"),
+    ("function start(u,i){", "function start(u,i){\n  if(new URLSearchParams(location.search).has('course-preview')){location.assign('learn.html?template='+UNITS[u].lessons[i].qs[0].type);return;}"),
     ("function finish(){", "function finish(){\n  studyStore.remove('checkpoint');\n  if(mini)mini.gen++;"),
     ("localStorage.setItem(LS+U.key,String(li+1))", "studyStore.set(U.key,String(li+1))"),
     ("$('quit').onclick=()=>{ if(confirm('退出这一课?这次的进度不保存。'))show('map'); };", "$('quit').setAttribute('aria-label','保存进度，返回课程');\n$('quit').onclick=()=>{pauseLesson();drawMap();show('map');};"),

@@ -1,4 +1,5 @@
 const definitions=[
+ ['course','课程首页 · 完成状态',1,'展示已完成牌面、当前课程与待解锁牌背；不改变实际进度。'],
  ['seat','认座位',1,'点击一个座位；选择只改变描边和底色。'],
  ['multi','多选辨认牌',14,'候选牌保持同一网格；选中只抬起 10px。'],
  ['cardpick','单选辨认牌',3,'单选替换上次选择；确认前不改变证据区。'],
@@ -17,6 +18,6 @@ const $=id=>document.getElementById(id),params=new URLSearchParams(location.sear
 $('type').innerHTML=definitions.map(([id,name])=>`<option value="${id}">${name}</option>`).join('');
 if(definitions.some(d=>d[0]===params.get('type')))$('type').value=params.get('type');
 function variants(){const d=definitions.find(d=>d[0]===$('type').value);$('variant').innerHTML=Array.from({length:d[2]},(_,i)=>`<option value="${i}">样例 ${i+1} / ${d[2]}</option>`).join('');$('note').textContent=d[3];}
-function render(){const url='learn.html?'+new URLSearchParams({template:$('type').value,variant:$('variant').value,state:$('state').value});$('preview').src=url;$('open').href=url;history.replaceState(null,'','?'+new URLSearchParams({type:$('type').value}));}
+function render(){$('state').disabled=$('type').value==='course';$('variant').disabled=$('type').value==='course';const url=$('type').value==='course'?'learn.html?course-preview=1':'learn.html?'+new URLSearchParams({template:$('type').value,variant:$('variant').value,state:$('state').value});$('preview').src=url;$('open').href=url;history.replaceState(null,'','?'+new URLSearchParams({type:$('type').value}));}
 function size(){const dims={phone:[390,844],small:[320,568],landscape:[844,390],tablet:[1024,768]};const d=dims[$('size').value];$('preview').style.width=d?d[0]+'px':'100%';$('preview').style.height=d?d[1]+'px':'calc(100dvh - 48px)';}
 $('type').onchange=()=>{variants();render();};$('variant').onchange=$('state').onchange=render;$('size').onchange=size;variants();size();render();

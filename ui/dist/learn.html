@@ -1378,6 +1378,7 @@ const studyStore={
   remove(key){try{localStorage.removeItem(LS+key);}catch{}}
 };
 function readCheckpoint(){
+  if(new URLSearchParams(location.search).has('course-preview'))return null;
   try{
     const s=JSON.parse(studyStore.get('checkpoint'));
     if(!s||s.version!==1||![s.ui,s.li,s.qi,s.wrong,s.elapsed].every(Number.isInteger))return null;
@@ -1432,7 +1433,7 @@ function show(p){
   $('done').classList.toggle('hide',p!=='done');
   QUI.forEach(id=>$(id).style.visibility=p==='q'?'visible':'hidden');
 }
-const doneCount=k=>{const n=Number(studyStore.get(k));return Number.isInteger(n)&&n>=0?n:0;};
+const doneCount=k=>{if(new URLSearchParams(location.search).has('course-preview'))return k===UNITS[0].key?3:0;const n=Number(studyStore.get(k));return Number.isInteger(n)&&n>=0?n:0;};
 /* 上一个单元打完,下一个才解锁 */
 const unlocked=u=>u===0||doneCount(UNITS[u-1].key)>=UNITS[u-1].lessons.length;
 
@@ -1938,6 +1939,7 @@ function fitTable(){}
 
 /* ---------- 起止 ---------- */
 function start(u,i){
+  if(new URLSearchParams(location.search).has('course-preview')){location.assign('learn.html?template='+UNITS[u].lessons[i].qs[0].type);return;}
   if(mini)mini.gen++;
   ui=u; li=i; L=UNITS[u].lessons[i]; TR=L.tr;
   const saved=readCheckpoint();

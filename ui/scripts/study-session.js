@@ -5,6 +5,7 @@ const studyStore={
   remove(key){try{localStorage.removeItem(LS+key);}catch{}}
 };
 function readCheckpoint(){
+  if(new URLSearchParams(location.search).has('course-preview'))return null;
   try{
     const s=JSON.parse(studyStore.get('checkpoint'));
     if(!s||s.version!==1||![s.ui,s.li,s.qi,s.wrong,s.elapsed].every(Number.isInteger))return null;
