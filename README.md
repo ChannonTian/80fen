@@ -85,6 +85,7 @@ learn/
 | `test/audit-*.js` | 行为审计:统计某类错误发生了多少次 |
 | `test/audit-reason.js` | **教练理由的事实体检** —— 只查「理由说的和牌面对不对得上」,不评价棋力 |
 | `test/audit-coach.js` | **教练的同一标尺对账** —— 教练给你那手打的分必须等于 AI 自己给同一手的分;量口径差、判定翻转、推演改判时的漏报 |
+| `test/audit-coach-facts.js` | **教练建议单与相关事实的体检** —— 首选必须是 AI 的选择;「谁已断」要找得到没跟出来的那一墩;钢板口径、末家胜负与引擎一致。有不符退出码 1 |
 | `test/audit-dumpvoid.js` | 行为审计:「后手有已知断门的对手,我却把分贴过去」 |
 | `test/check-sync.js` | **三份 build 与文档的一致性体检** —— 晋级、推送之前跑一遍 |
 | `test/gen-switches.js` | 生成 `docs/SWITCHES.md` |
