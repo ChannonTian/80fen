@@ -370,7 +370,7 @@
 <div id="toast"></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.31(测试版)</div>
+<div id="versionTag">80分 v0.7.32(测试版)</div>
 
 <script>
 /* ============================================================
@@ -1124,6 +1124,8 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * stakeHold 把 ② 按座次 / 底分拆出来之后,可以直接换成这两个量的比较。见 DESIGN §7.13。 */
   trumpSealW: 0.5,             // (v0.7.22 测试版默认开)只在跟牌时生效
   trumpSealWPts: 1,            // (v0.7.26 测试版默认开)台面**有分**时的那一档(= trumpSealW 即旧行为);见 pSurvive
+  followBeatsCheck: 1,         // (v0.7.32 测试版默认开)1 = 贴分 / 跟小 / 垫牌候选按 currentWinner 判胜负(断门时它们常常其实毙下了这墩);0 = 一律按不赢墩打分
+  tempoKeepPlayed: 0,          // 1 = 压下这墩时牌权项不再扣掉打出去的这手(它已在 futureValue 里收过一次);0 = 旧行为
   lastOverW0: 0.5,             // (v0.7.29 测试版默认开)将牌墩末家台面 0 分时同门盖过来的意愿系数(0 = 不打折,旧行为);见 pSurvive
   lastRuffWill: 0.95,          // (v0.7.26 测试版默认开)后手是本墩最后一家时「断门有主肯不肯毙」(0 = 旧口径 ruffWill);见 pSurvive
   guardPlan: 2,                // (v0.7.26 测试版默认开)守底计划权重(0 = 旧行为);见 guardCost。系数 guardW 由 test/fit-guard.js 拟合
@@ -3352,7 +3354,13 @@ function scorePlay(X, cards, cat, beatsCur){
     // 我压下 → 我接着领;我没压、本队还是拿下 → 是队友拿的,他接着领
     const us=beatsCur?leadChainValue(X,cards):partnerCashValue(X);
     tempo=(p*us-(1-p)*oppChainValue(X))*AIP.tempoModelW;
-  }else tempo=(p*tempoValue(X,cards)-(1-p)*AIP.oppTempo)*(X.tempoW||AIP.tempoWeight);
+  }else{
+    /* tempoKeepPlayed(2026-09-28,场景 2b 拆分):打出去的这手牌已经由 futureValue 收过留手代价了,
+     * 牌权项再把它从「上手后能兑现的钢板」里扣掉,等于同一张牌收两次钱 —— 出 SA 时牌权项 +5.6 → −0.1。
+     * 打开后压下这墩时牌权项按整手算(这张牌的价值只在 futureValue 里收一次)。 */
+    const ex=AIP.tempoKeepPlayed&&beatsCur?[]:cards;
+    tempo=(p*tempoValue(X,ex)-(1-p)*AIP.oppTempo)*(X.tempoW||AIP.tempoWeight);
+  }
   // 我压下 → 下一墩我领,可以送队友毙(只在跟牌时;领出侧已有 feedRuffValue)
   if(AIP.feedTempo&&beatsCur&&X.lead) tempo+=AIP.feedTempo*p*feedTempoValue(X,cards);
   return (CAT_K[cat]||1)*ev*(X.pw||1)+tempo-futureValue(cards,X)+ladderCross(X,p,gain,loss);
@@ -3607,18 +3615,31 @@ function aiChooseFollow(view, plays){
    * 注意 buildFollow('dump') 只是「本门里分最多的那手」:这门一张分牌都没有时,
    * 它照样返回一手 0 分的牌。理由必须**看着结果说**,不能按意图说 —— 体检里
    * 「贴分」有六成落在 0 分的牌上,就是这么来的。下面的 discard 同理。 */
+  /* followBeatsCheck(教练线 v0.7.31 查出,2026-09-28 修):断门时「贴分 / 跟小 / 垫牌」挑出来的常常是一张主 ——
+   * 它实际上**毙下了这墩**,却以 beats=false 打分(audit-coach:40 局 52/52 次平均低估 25 分)。
+   * 打开后胜负按 currentWinner 判,赢下的按毙牌 / 压过来的口径打分。 */
+  const judge=(cards,cat)=>{
+    if(!AIP.followBeatsCheck||!cards) return [cat,false];
+    const w=currentWinner([...plays,{seat:view.seat,cards}],trump);
+    if(w.seat!==view.seat) return [cat,false];
+    const cl=classify(cards,trump);
+    return [cl&&cl.suit==='T'&&lead.suit!=='T'?'ruff':'over',true];
+  };
   const dump=buildFollow(view.hand,lead,trump,'dump',null);
   const dumpPts=dump?countPoints(dump):0;
-  push(dump,'dump',false, dumpPts===0 ? '这门没分可贴,跟一张'
+  const [dCat,dBeats]=judge(dump,'dump');
+  push(dump,dCat,dBeats, dumpPts===0 ? '这门没分可贴,跟一张'
     : X.partnerWinning ? (X.certainty>0.8?'队友稳赢,贴分':'队友只是暂大,试贴分')
     : '跟分(躲不掉的分先出)');
   // 3. 跟小 —— 保留实力
-  push(buildFollow(view.hand,lead,trump,'cheap',null),'cheap',false,'跟小,保留实力');
+  const cheapF=buildFollow(view.hand,lead,trump,'cheap',null); const [cCat,cBeats]=judge(cheapF,'cheap');
+  push(cheapF,cCat,cBeats,'跟小,保留实力');
   // 4. 垫牌 —— 断门时死保不出分、不出主(手上全是分或全是主时它也只能挑个最轻的)
   const disc=buildFollow(view.hand,lead,trump,'discard',null);
   const discPts=disc?countPoints(disc):0;
   const discTrump=disc&&disc.every(c=>effSuit(c,trump)==='T');
-  push(disc,'discard',false,
+  const [xCat,xBeats]=judge(disc,'discard');
+  push(disc,xCat,xBeats,
     discPts===0&&!discTrump ? '垫废牌,不送分也不拆主'
     : discTrump ? '没有废牌可垫,只能拆一张主'
     : '躲不掉,垫掉手上最轻的分牌');
