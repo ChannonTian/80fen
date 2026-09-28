@@ -5038,7 +5038,13 @@ function coachFacts(view, plays, cards){
   if(!f.wins&&before.cl.type==='single'){
     const cur=plays.find(p=>p.seat===before.seat).cards[0];
     if(f.partnerWinning){ f.partnerCard=cur; f.partnerBigger=coachBiggerUnseen(mem,before.cl.suit,t,before.cl.top); }
-    else f.beatCard=cur;
+    else{
+      // 对手暂大:「别家已无更大」≠「这墩压得过」—— 桌上可能已被毙,或已有同样大的先出(同样大先出者赢)
+      const mine=view.hand.filter(c=>effSuit(c,t)===lead.suit);
+      f.beatCard=cur; f.ruffed=before.cl.suit!==lead.suit;
+      f.myTop=mine.length?mine.reduce((a,b)=>ordIdx(b,t)>ordIdx(a,t)?b:a):null;
+      f.canBeat=!f.ruffed&&!!f.myTop&&ordIdx(f.myTop,t)>before.cl.top;
+    }
   }
   return f;
 }
@@ -7067,7 +7073,10 @@ function factText(f){
     if(f.behindOppVoid.length) P.push(`但${f.behindOppVoid.map(seatShort).join('、')}已断${s},可能毙`);
     P.push(f.pts?`贴 ${f.pts} 分`:'不贴分');
   }else{
-    P.push('对手暂大');
+    let a='对手暂大';
+    if(f.beatCard&&f.mineInSuit&&!f.canBeat)
+      a+=f.ruffed?`(已被 ${miniName(f.beatCard)} 毙)`:`,你这门压不过 ${miniName(f.beatCard)}`;
+    P.push(a);
     P.push(f.pts?`这手带 ${f.pts} 分`:'不送分');
   }
   return P.join(',');
@@ -7132,11 +7141,13 @@ function quizFor(view,plays,o){
     `${miniName(o.cards[0])} 在这门里别家已经压不过了`);
   if(f.partnerCard&&f.partnerBigger) return countQ(`队友的 ${miniName(f.partnerCard)},别家还有几张比它大?`,cntOf(f.partnerBigger),f.partnerBigger,
     `队友那张在这门里别家已经压不过了`+(f.behindOppVoid.length?`(但${f.behindOppVoid.map(seatShort).join('、')}已断${s},还是可能被毙)`:''));
-  if(f.leadType==='single'&&f.mineInSuit){
-    const my=topOf(view.hand.filter(c=>effSuit(c,t)===f.leadSuit),t);
-    const up=coachBiggerUnseen(makeMemory(view),f.leadSuit,t,ordIdx(my,t));
-    return countQ(`${s}里,别家还有几张比你最大的 ${miniName(my)} 大?`,cntOf(up),up,
-      `你的 ${miniName(my)} 在这门里别家已经压不过了`);
+  if(f.beatCard&&f.mineInSuit){
+    const cur=miniName(f.beatCard), my=miniName(f.myTop);
+    return {q:`这墩你手里有压得过桌上 ${cur} 的${s}吗?`,choices:['有','没有'],answer:f.canBeat?0:1,
+      reveal:f.ruffed?`没有:这墩已经被 ${cur} 毙了,${s}再大也压不过。`
+        :f.canBeat?`有:你的 ${my} 比它大。`
+        :ordIdx(f.myTop,t)===ordIdx(f.beatCard,t)?`没有:你的 ${my} 和它一样大,同样大先出者赢。`
+        :`没有:你这门最大的是 ${my},比它小。`};
   }
   return f.table>0?tableQ():null;
 }

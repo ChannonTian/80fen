@@ -11,6 +11,7 @@
  *   ④ 领出单张的「别家没有比它大的」与 isBossPlay 同一口径
  *   ⑤ 末家的「这墩归你」与引擎 resolveTrick 结算一致
  *   ⑥ 合并成「♦5 或 ♦6」的牌,事实必须和代表那一手逐字相同(否则那句事实只对其中一手成立)
+ *   ⑦ 对手暂大时的「你这门压不压得过桌上那张」:把我这门每张牌都放上桌让引擎判一次,有一张赢就算压得过
  *
  * 只查「说的和牌面对不对得上」,不评价棋力。有不符就以退出码 1 结束。
  */
@@ -44,6 +45,12 @@ function check(view,plays,J){
       fail('④ 单张「别家没有更大」与 isBossPlay 不一致','');
     for(const c of x.same)
       if(JSON.stringify(E.coachFacts(view,plays,c))!==JSON.stringify(f)) fail('⑥ 合并的牌事实不同','');
+    if(f.kind==='follow'&&f.beatCard&&f.mineInSuit){
+      const lead=E.classify(plays[0].cards,view.trump);
+      const truth=view.hand.filter(c=>E.effSuit(c,view.trump)===lead.suit)
+        .some(c=>E.currentWinner(plays.concat([{seat:view.seat,cards:[c]}]),view.trump).seat===view.seat);
+      if(truth!==f.canBeat) fail('⑦ 压不压得过桌上那张与引擎不一致',`canBeat=${f.canBeat} 引擎=${truth}`);
+    }
     if(f.kind==='follow'&&f.last){
       const r=E.resolveTrick(plays.concat([{seat:view.seat,cards:x.cards}]),view.trump);
       if((r.winner===view.seat)!==f.wins) fail('⑤ 末家胜负与结算不一致','');
@@ -82,6 +89,6 @@ for(let s=1;s<=N;s++){
 console.log(`${F} — ${N} 局,${n} 个决策点`);
 console.log(`建议单长度:1 条 ${len[1]} / 2 条 ${len[2]} / 3 条 ${len[3]};档次:最佳 ${tiers.best} / 并列 ${tiers.tie} / 也可以 ${tiers.ok}`);
 const ks=Object.keys(bad);
-if(!ks.length){ console.log('六类断言 0 不符'); process.exit(0); }
+if(!ks.length){ console.log('七类断言 0 不符'); process.exit(0); }
 for(const k of ks) console.log(`✗ ${k}:${bad[k]} 次  例:${first[k]}`);
 process.exit(1);
