@@ -5866,7 +5866,12 @@ const secs=(v,fallback)=>1000*Math.max(0,(typeof v==='number'&&isFinite(v))?v:fa
  * 甩牌检查、胜负结算)永远是当前版 —— 旧 AI 出了现行规则不认的牌,出牌处已有兜底。
  * 教练(问教练、失误反馈)也固定用当前版:它是标尺,不跟着座位换。
  * 选了还没加载完(或加载失败)的座位,这期间按最新版出,见 eng()。 */
-const ENGINE_VERSIONS=['v0.7.0','v0.5.7'];   // 内置最新版不在表里,用 '' 表示
+/* 正式版不要这一套(产品方,v0.7.30:「正式版不需要」)。跟 LSP 一样按**文件名**认身份,不写成常量 ——
+ * 晋级是整份复制 + 改两处标记,这里要是第三处得手改的东西,迟早有一次会忘。
+ * 正式版是 index.html(Pages 上根路径时文件名为空);其余(测试版、开发版、contest)照旧可选。 */
+const ENGINE_PICKER=(()=>{ const f=(String(typeof location!=='undefined'?location.pathname:'').match(/[^/]*$/)||[''])[0];
+  return !(f===''||f==='index.html'); })();
+const ENGINE_VERSIONS=ENGINE_PICKER?['v0.7.0','v0.5.7']:[];   // 内置最新版不在表里,用 '' 表示;正式版为空 → 各座位都回落到最新版
 // 老存档没有这一格、或存的版本已从 ENGINE_VERSIONS 里撤掉 → 回落到最新版
 S.engineVer=[0,1,2,3].map(i=>{ const v=(S.engineVer||[])[i]; return ENGINE_VERSIONS.includes(v)?v:''; });
 const CUR_ENGINE={aiChooseLead,aiChooseFollow,aiDeclDecide,scoreDeclOption,aiDiscard};
@@ -5974,12 +5979,12 @@ function openSettings(){
     `<div class="setRow" style="justify-content:center">
        <button class="minor" id="stUndoBtn">↩️ 悔回上一手</button></div>`+
     `<div class="setHint" id="stUndoHint"></div>`+
-    `<div class="setSection">AI 引擎版本(测试)</div>`+
+    (ENGINE_PICKER?`<div class="setSection">AI 引擎版本(测试)</div>`+
     [1,2,3,0].map(s=>`<div class="setRow"><label>${SEAT_NAME[s]}${s===HUMAN?'(托管时)':''}</label>
        <select id="stEng${s}"><option value="">最新版(内置)</option>${ENGINE_VERSIONS.map(v=>`<option value="${v}">${v}</option>`).join('')}</select></div>`).join('')+
     `<div class="setHint">每家可以单独换成历史版本的 AI,对比不同版本怎么打;你这一家的版本在开托管时生效。`+
     `只换出牌/亮主/扣底的决定,规则判定和教练都按最新版。v0.5.7 = 0.5 系列最后一版,v0.7.0 = 0.7 系列第一版(0.6.x 当年没有单独存下来)。</div>`+
-    `<div class="setHint" id="stEngHint"></div>`+
+    `<div class="setHint" id="stEngHint"></div>`:'')+
     `<div class="setSection">规则</div>`+
     `<div class="setRow"><label>低分/少${T('trump')}时</label>
        <select id="stRebel">
@@ -6011,9 +6016,11 @@ function openSettings(){
       '同一副牌、同一家先拿牌、同样的攻守方和级数(打完结算后也能重打刚才那一局)。必须粘贴完整的种子码(光一个数字不行)。'+
       '「交换队伍」:同一局牌两队角色互换再打一遍 —— 每人往下家挪一座,对方的牌、庄位、级数换给你们;再换一次换回来。';
     const canUndo=!!S.allowUndo&&!!G&&G.phase==='play'&&!G.ended&&G.undoStack.length>0;
-    for(const s of [0,1,2,3]) $('stEng'+s).value=S.engineVer[s];
-    const pend=[...new Set(S.engineVer.filter(v=>v&&!engReady(v)))];
-    $('stEngHint').textContent=pend.length?`加载中:${pend.join('、')}(加载完之前这些座位按最新版出)`:'';
+    if(ENGINE_PICKER){
+      for(const s of [0,1,2,3]) $('stEng'+s).value=S.engineVer[s];
+      const pend=[...new Set(S.engineVer.filter(v=>v&&!engReady(v)))];
+      $('stEngHint').textContent=pend.length?`加载中:${pend.join('、')}(加载完之前这些座位按最新版出)`:'';
+    }
     $('stUndo').checked=!!S.allowUndo;
     $('stUndoBtn').disabled=!canUndo;
     $('stUndoHint').textContent=!S.allowUndo?'(关闭时没有任何入口,牌桌上也不会出现悔牌按钮)'
@@ -6113,7 +6120,7 @@ function openSettings(){
   $('stRedoSwap').onclick=()=>window.__redoRound(true);
   $('stSeedGo').onclick=window.__seedRound;
   $('stUndo').onchange=e=>{ S.allowUndo=e.target.checked; saveS(); fill(); };
-  for(const s of [0,1,2,3]) $('stEng'+s).onchange=e=>{
+  if(ENGINE_PICKER) for(const s of [0,1,2,3]) $('stEng'+s).onchange=e=>{
     const v=e.target.value;
     S.engineVer=S.engineVer.map((x,i)=>i===s?v:x);   // 换新数组:S_DEFAULT 的那份不能被改到
     saveS(); fill(); if(G) render();
