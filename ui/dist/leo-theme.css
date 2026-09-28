@@ -22,3 +22,15 @@
 @media(max-height:700px) and (orientation:portrait){#game .status-main{height:43px}#game .leo-seat{width:36px;height:34px}#game .leo-seat .leo-avatar{width:35px}#game .player-label{margin-bottom:4px}#game .table-points{width:58px;height:58px;padding:5px;top:72%}#game .table-points strong{font-size:24px;line-height:25px}#game .table-edge{min-height:49px}#game .seat-avatar{display:none}}
 /* Short landscape: keep trick points beside the north play, never beneath it. */
 #game.wide.compact .table-points{left:calc(50% - 125px);top:34%}
+/* Small phones need a real table, not a miniature table behind the cards. */
+@media(max-height:660px) and (orientation:portrait){
+  #game .status-bar{padding-top:0;padding-bottom:4px}#game .status-main{height:40px}#game .score-line{height:21px}
+  #game .hand-area{height:188px}#game .table-edge{min-height:46px;padding:3px 12px 0;gap:10px}#game .turn-copy strong{font-size:15px}
+  #game .player.north{top:0}#game .player.north .player-label{margin-bottom:3px}#game .player.west,#game .player.east{top:45%}
+  #game .felt{inset:28px 3px 0;border-radius:38% 38% 22% 22% / 16% 16% 15% 15%}
+  #game .player-label{font-size:13px;line-height:17px}#game .seat-name small{font-size:11px}#game .winner-label{bottom:-11px;line-height:16px;font-size:11px}
+  #game .table-points{top:auto;bottom:7px;transform:translateX(-50%);width:auto;height:32px;padding:3px 9px;gap:4px;flex-wrap:nowrap;border-radius:10px}
+  #game .table-points>span:first-child{width:auto;font-size:11px;line-height:18px}#game .table-points strong{font-size:22px;line-height:24px}#game .table-points>span:last-child{font-size:11px}
+  #game .bottom-tools{height:52px;padding-top:3px;padding-bottom:max(4px,env(safe-area-inset-bottom))}#game .bottom-tools button{min-height:42px}
+  #game .arena.finished .table-points{display:none}#game .my-play{bottom:8px}
+}

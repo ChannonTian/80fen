@@ -6,8 +6,8 @@
   --pu:#7e5c99;--pu-bg:#f0eaf5;--gd:#edcf83;--gd-tx:#57431b;
   --tx:#33362e;--tx2:#71766a;--line:#d8dccf;--dis:#e5e7de;--dis-tx:#909586;
   --page:#fffcf6;--felt:#f0f2e9;--card-line:#aeb3a5;
-  --ui-font:ui-rounded,"Hiragino Maru Gothic ProN","PingFang SC",-apple-system,BlinkMacSystemFont,"Microsoft YaHei",sans-serif;
-  --card-font:"Arial Rounded MT Bold","Trebuchet MS",ui-rounded,"PingFang SC",sans-serif;
+  --ui-font:"PingFang SC","Noto Sans SC","Microsoft YaHei",-apple-system,BlinkMacSystemFont,sans-serif;
+  --card-font:"PingFang SC","Noto Sans SC",Arial,sans-serif;
   --ink:var(--tx);--muted:var(--tx2);--red:var(--rd);--gold:var(--ol);
   font-family:var(--ui-font);color:var(--tx);background:var(--page)
 }

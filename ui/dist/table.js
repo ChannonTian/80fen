@@ -4,7 +4,7 @@ const trump={suit:'H',rank:5},glyph={T:'主',H:'♥',S:'♠',D:'♦',C:'♣',X:'
 let hand=[],selected=new Set(),scene='follow',completed=false,plays=[],score=55,serial=0,resultCards=[],kittyCards=[],declaration=null,descending=true;
 let layoutMode=['auto','wide','portrait'].includes(new URLSearchParams(location.search).get('layout'))?new URLSearchParams(location.search).get('layout'):'auto';
 let wideLayout=false;
-let layouts=[],rowCards=[],gesture=null,toastTimer,framePending=false,sheetMode='';
+let layouts=[],rowCards=[],gesture=null,toastTimer,peekTimer,framePending=false,layoutDeferred=false,sheetMode='';
 const card=(s,r)=>({suit:s,rank:r,id:serial++});
 const rank=r=>({11:'J',12:'Q',13:'K',14:'A',15:'小王',16:'大王'}[r]||String(r));
 const label=c=>c.suit==='X'?rank(c.rank):names[c.suit]+rank(c.rank);
@@ -95,7 +95,7 @@ function updateSelection(){
     if(b.classList.contains('hand-card'))b.style.transform=`translateY(${s?-24:0}px) rotate(${b.style.getPropertyValue('--angle')})`;
   });
   const v=legality();$('instruction').textContent=v.text;
-  $('context').textContent=layoutMode==='wide'&&!wideLayout?'横过手机或加宽窗口，展开横屏':completed?'点击「再试一手」重新开始':isBidding()?'':scene==='bury'?'点选后在底部埋底':selected.size?'拖到牌桌，松手出牌':'点牌选中 · 按住滑动可看清';
+  $('context').textContent=layoutMode==='wide'&&!wideLayout?'横过手机或加宽窗口，展开横屏':completed?'点击「再试一手」重新开始':isBidding()?'':scene==='bury'?'选满 8 张后埋底':selected.size?(v.ok?'拖上牌桌，松手出牌':'选好符合要求的牌再出'):'点牌选中 · 向上拖出';
   $('tapPlay').hidden=isBidding()||scene==='bury'||!selected.size&&!completed;
   $('tapPlay').disabled=!v.ok;$('tapPlay').textContent=completed?'再试一手':`出牌 ${selected.size} 张`;
   $('clear').disabled=$('clearAll').disabled=!selected.size||completed;
@@ -166,8 +166,10 @@ function scrubId(x,row){
 }
 function startDrag(){
   if(!gesture)return;
-  if(!selected.has(gesture.card))selected.add(gesture.card);
-  gesture.mode='drag';$('loupe').hidden=true;updateSelection();
+  // Small sideways motion must not replace an already selected group with
+  // the neighbouring card that happened to be previewed during the motion.
+  if(!gesture.before.includes(gesture.startCard)&&!selected.has(gesture.card))selected.add(gesture.card);
+  clearTimeout(peekTimer);gesture.mode='drag';$('loupe').hidden=true;updateSelection();
   const cards=chosen(),visible=cards.slice(0,6);
   $('dragGhost').innerHTML=visible.map((c,i)=>`<div class="playing-card ${color(c)} ${c.suit==='X'?'joker':''}" style="--i:${i}">${face(c)}</div>`).join('')+`<span class="drag-count">${cards.length} 张</span>`;
   $('dragGhost').hidden=false;
@@ -175,29 +177,34 @@ function startDrag(){
 function moveDrag(x,y){
   const width=70+(Math.min(6,selected.size)-1)*26;
   $('dragGhost').style.left=(x-width/2)+'px';$('dragGhost').style.top=(y-76)+'px';
-  const valid=legality().ok,over=F.contains($('arena').getBoundingClientRect(),x,y);
+  const valid=legality().ok,over=F.canDrop($('arena').getBoundingClientRect(),x,y);
   $('arena').classList.toggle('drag-ready',valid);$('arena').classList.toggle('drag-over',valid&&over);$('arena').classList.toggle('drag-invalid',!valid);
   $('dropCue').firstElementChild.textContent=valid?(over?'松手出牌':'拖到牌桌出牌'):legality().text;
 }
 function stopGesture(restore=false){
+  clearTimeout(peekTimer);
   if(gesture&&restore){selected=new Set(gesture.before);}
   gesture=null;$('loupe').hidden=true;$('dragGhost').hidden=true;
   $('arena').classList.remove('drag-ready','drag-over','drag-invalid');
   document.querySelectorAll('.hand-card.peek').forEach(b=>b.classList.remove('peek'));
+  if(layoutDeferred){layoutDeferred=false;scheduleLayout();}
 }
 $('fanViewport').addEventListener('pointerdown',e=>{
   if(gesture||completed||e.button!==0)return;
   const b=e.target.closest('.hand-card');if(!b)return;
-  gesture={pointer:e.pointerId,startX:e.clientX,startY:e.clientY,row:Number(b.dataset.row),card:Number(b.dataset.card),before:[...selected],mode:'pending'};
-  $('fanViewport').setPointerCapture(e.pointerId);e.preventDefault();previewCard(gesture.card,e.clientX,e.clientY);
+  gesture={pointer:e.pointerId,startX:e.clientX,startY:e.clientY,row:Number(b.dataset.row),card:Number(b.dataset.card),startCard:Number(b.dataset.card),before:[...selected],mode:'pending'};
+  $('fanViewport').setPointerCapture(e.pointerId);e.preventDefault();
+  peekTimer=setTimeout(()=>{if(gesture?.mode==='pending')previewCard(gesture.card,e.clientX,e.clientY);},180);
 });
 $('fanViewport').addEventListener('pointermove',e=>{
   if(!gesture||gesture.pointer!==e.pointerId)return;
+  e.preventDefault();
   const dx=e.clientX-gesture.startX,dy=e.clientY-gesture.startY;
   if(gesture.mode!=='drag'){
-    const intent=F.intent(dx,dy);
+    const intent=gesture.before.includes(gesture.startCard)&&dy<-10&&-dy>Math.abs(dx)*.5?'drag':F.intent(dx,dy);
     if(intent==='drag'&&!isBidding()&&scene!=='bury')startDrag();
     else if(intent==='scrub'){
+      clearTimeout(peekTimer);
       gesture.mode='scrub';gesture.card=scrubId(e.clientX,gesture.row);previewCard(gesture.card,e.clientX,e.clientY);
       // At an overflow edge, let the same continuous scrub reveal the remaining cards.
       const rect=$('fanViewport').getBoundingClientRect();
@@ -210,7 +217,7 @@ $('fanViewport').addEventListener('pointermove',e=>{
 });
 $('fanViewport').addEventListener('pointerup',e=>{
   if(!gesture||gesture.pointer!==e.pointerId)return;
-  const g=gesture,drag=g.mode==='drag',inside=F.contains($('arena').getBoundingClientRect(),e.clientX,e.clientY),valid=legality().ok;
+  const g=gesture,drag=g.mode==='drag',inside=F.canDrop($('arena').getBoundingClientRect(),e.clientX,e.clientY),valid=legality().ok;
   stopGesture();
   if(drag){if(inside&&valid)submit();else{updateSelection();toast(inside?legality().text:'已收回手牌，选择保留');}}
   else if(Math.abs(e.clientY-g.startY)<65)toggle(g.card);
@@ -244,7 +251,14 @@ $('sort').onclick=()=>{descending=!descending;renderHand();$('sort').textContent
 $('kitty').onclick=()=>{if(scene!=='bury')return;openSheet(completed?'已埋底牌':'拿到的 8 张底牌',`<p class="sheet-copy">${completed?'你是庄家，可以查看已扣下的底牌。':'这些底牌已经加入手牌。选满 8 张，再在底部埋底。'}</p><div class="card-grid">${kittyCards.map(c=>`<div class="playing-card ${color(c)} ${c.suit==='X'?'joker':''}">${face(c)}</div>`).join('')}</div>`);};
 $('declare').onclick=()=>bid('declare');$('reinforce').onclick=()=>bid('reinforce');$('counter').onclick=()=>bid('counter');
 window.addEventListener('message',e=>{if(e.origin===location.origin&&e.source===parent&&e.data?.type==='scene')loadScene(e.data.scene);});
-function scheduleLayout(){if(framePending)return;framePending=true;requestAnimationFrame(()=>{framePending=false;if(gesture)stopGesture(true);renderHand();});}
+function scheduleLayout(){
+  // Mobile browser chrome can resize the viewport during a touch gesture.
+  // Replacing the hand DOM then loses capture and silently cancels the drag.
+  if(gesture){layoutDeferred=true;return;}
+  if(framePending)return;framePending=true;requestAnimationFrame(()=>{
+    framePending=false;if(gesture){layoutDeferred=true;return;}renderHand();
+  });
+}
 new ResizeObserver(scheduleLayout).observe($('handArea'));
 window.addEventListener('resize',scheduleLayout);
 loadScene(new URLSearchParams(location.search).get('scene')||'follow');

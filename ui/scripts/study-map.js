@@ -1,24 +1,35 @@
+function catSuit(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10 3 3l6 4a13 13 0 0 1 6 0l6-4-1 7c5 12-21 12-16 0Z" fill="currentColor"/></svg>';}
 function drawMap(){
   const total=UNITS.reduce((n,u)=>n+u.lessons.length,0);
   const finished=UNITS.reduce((n,u)=>n+Math.min(doneCount(u.key),u.lessons.length),0);
   const active=UNITS.findIndex((u,i)=>unlocked(i)&&doneCount(u.key)<u.lessons.length);
-  const next=active>=0?UNITS[active].lessons[doneCount(UNITS[active].key)]:null;
-  let html=`<header class="study-nav"><a class="study-brand" href="index.html">80<span>分</span></a><nav class="mode-nav" aria-label="模式"><a href="index.html">打牌</a><span aria-current="page">学一手</span></nav><span class="study-total">已学 ${finished} / ${total} 课</span></header>
-    <div class="study-content"><section class="study-welcome"><span class="leo-avatar" role="img" aria-label="六六"></span><div><span class="eyebrow">六六的牌桌小课</span><h1>一起学打牌</h1><p>先看牌，再动手。每次只练一个本领。</p></div></section>`;
-  if(next) html+=`<section class="next-lesson"><div class="next-top"><span>${finished?'接着练':'从这里开始'}</span><span>约 ${next.mins} 分钟</span></div><h2>${next.name}</h2><p>${UNITS[active].name} · 第 ${doneCount(UNITS[active].key)+1} 课</p><button class="btn" data-go="${active}">${finished?'继续这门课':'和六六练一手'} <span aria-hidden="true">→</span></button></section>`;
-  else html+=`<section class="next-lesson"><h2>这些本领，你都练过了。</h2><p>可以复习下面的课程，也可以去牌桌试一手。</p><a class="learn-link" href="index.html">去打牌 →</a></section>`;
-  html+='<div class="course-heading"><h2>你的牌技手册</h2><span>一步一步来</span></div><div class="course-list">';
+  const saved=readCheckpoint(),goUnit=saved?saved.ui:active,goLesson=saved?saved.li:active<0?0:doneCount(UNITS[active].key);
+  const next=goUnit>=0?UNITS[goUnit].lessons[goLesson]:null;
+  const percent=Math.round(finished/total*100);
+  let html=`<div class="course-home"><header class="course-intro"><div class="coach-progress"><div class="progress-ring" role="progressbar" aria-label="课程完成进度" aria-valuenow="${finished}" aria-valuemin="0" aria-valuemax="${total}"><svg viewBox="0 0 88 88" aria-hidden="true"><circle class="ring-track" cx="44" cy="44" r="40"/><circle class="ring-value" cx="44" cy="44" r="40" pathLength="100" stroke-dasharray="${percent} 100"/></svg><span class="leo-avatar" role="img" aria-label="六六"></span></div><div><span class="eyebrow">六六陪你学牌</span><h1>${finished?'手里又多了点本领':'从一手牌开始'}</h1><p>已完成 <b>${finished}</b> / ${total} 课</p></div></div><div class="continue-row"><span>${next?next.name:'全部课程已完成'}<small>${saved?'接着第 '+(saved.qi+1)+' 题':next?'每次练一个本领':'可以挑一课再练练'}</small></span><button class="btn" id="continueCourse">${next?'继续课程':'去打牌'} <span aria-hidden="true">→</span></button></div></header><div class="course-decks">`;
   UNITS.forEach((U,u)=>{
-    const dn=Math.min(doneCount(U.key),U.lessons.length),open=unlocked(u),full=dn===U.lessons.length;
-    html+=`<details class="course-unit ${open?'':'locked'}" ${open&&!full?'open':''}><summary><span class="unit-number">${String(u+1).padStart(2,'0')}</span><span class="unit-title"><small>${U.part}</small><strong>${U.name.split(' · ')[1]}</strong></span><span class="unit-progress">${open?dn+' / '+U.lessons.length:'未解锁'}</span><span class="unit-chevron" aria-hidden="true">⌄</span></summary><div class="lesson-list">`;
+    const dn=Math.min(doneCount(U.key),U.lessons.length),open=unlocked(u),chosen=open?Math.min(dn,U.lessons.length-1):0;
+    html+=`<section class="course-deck" data-deck="${u}" aria-labelledby="unit-${u}"><header><div><small>${U.part}</small><h2 id="unit-${u}">${U.name.split(' · ')[1]||U.name}</h2></div><span class="deck-progress">${dn} / ${U.lessons.length}</span></header><div class="lesson-fan" role="group" aria-label="${U.name}" style="--count:${U.lessons.length}">`;
     U.lessons.forEach((lesson,i)=>{
-      const done=open&&i<dn,current=open&&i===dn,available=done||current;
-      html+=`<button class="lesson-row ${current?'current':''} ${done?'completed':''}" data-unit="${u}" data-lesson="${i}" ${available?'':'disabled'} ${current?'aria-current="step"':''}><span class="lesson-card">${done?'✓':lesson.rank}</span><span class="lesson-title"><strong>${lesson.name}</strong><small>${done?'已学 · 可以再练':current?'现在可以开始':'完成前一课解锁'}</small></span><span class="lesson-meta">${lesson.mins} 分钟 ${available?'↗':''}</span></button>`;
+      const done=open&&i<dn,current=open&&i===dn,available=done||current,t=i-(U.lessons.length-1)/2;
+      html+=`<button class="course-card ${done?'face':'back'} ${current?'current':''} ${available?'':'locked'} ${i===chosen?'previewed':''}" data-unit="${u}" data-lesson="${i}" style="--i:${i};--angle:${t*3}deg;--arc:${t*t*1.4}px" aria-pressed="${i===chosen}" aria-label="第 ${i+1} 课，${lesson.name}，${done?'已完成':current?'待学习':'未解锁'}"><span class="course-art"><span class="course-corner"><b>${i+1}</b>${catSuit()}</span>${done?'<span class="course-check" aria-hidden="true">✓</span>':`<span class="back-cat">${catSuit()}</span>`}<span class="course-stamp">${done?'已完成':current?'学这一课':'待解锁'}</span></span></button>`;
     });
-    html+='</div></details>';
+    html+=`</div><div class="lesson-preview" aria-live="polite" aria-atomic="true"><div><h3></h3><p></p></div><button class="lesson-start"></button></div></section>`;
   });
-  html+='</div></div>';
+  html+=`</div><a class="template-link" href="templates.html">题型设计模板 ↗</a></div><nav class="study-bottom-nav" aria-label="模式"><a href="index.html"><span aria-hidden="true">♧</span>打牌</a><a href="learn.html" aria-current="page"><span class="nav-cat">${catSuit()}</span>学牌</a></nav>`;
   $('map').innerHTML=html;
-  $('map').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{const u=+b.dataset.go;start(u,doneCount(UNITS[u].key));});
-  $('map').querySelectorAll('[data-lesson]').forEach(b=>b.onclick=()=>{const u=+b.dataset.unit,i=+b.dataset.lesson;if(unlocked(u)&&i<=doneCount(UNITS[u].key))start(u,i);});
+  $('continueCourse').onclick=()=>next?start(goUnit,goLesson):location.assign('index.html');
+  function preview(b){
+    const u=+b.dataset.unit,i=+b.dataset.lesson,U=UNITS[u],lesson=U.lessons[i],dn=doneCount(U.key),open=unlocked(u),done=open&&i<dn,available=open&&i<=dn;
+    const deck=b.closest('.course-deck');
+    deck.querySelectorAll('.course-card').forEach(c=>{c.classList.toggle('previewed',c===b);c.setAttribute('aria-pressed',String(c===b));});
+    deck.querySelector('h3').textContent=lesson.name;
+    deck.querySelector('.lesson-preview p').textContent=(done?'已完成 · 可以复习':available?'待学习':'完成前面的课程后解锁')+' · '+lesson.mins+' 分钟';
+    const action=deck.querySelector('.lesson-start');action.textContent=done?'再练一遍':available?'开始':'未解锁';action.disabled=!available;action.onclick=()=>start(u,i);
+  }
+  $('map').querySelectorAll('.course-card').forEach(b=>{
+    b.onclick=()=>preview(b);b.onfocus=()=>preview(b);
+    b.onpointerenter=e=>{if(e.pointerType==='mouse')preview(b);};
+  });
+  $('map').querySelectorAll('.course-card.previewed').forEach(preview);
 }

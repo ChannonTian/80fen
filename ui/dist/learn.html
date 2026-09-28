@@ -306,10 +306,10 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
 .stat b{display:block;font-size:21px;color:#8A6510}
 .stat small{font-size:11px;color:var(--tx2);font-weight:800;letter-spacing:1px}
 </style>
-<link rel="stylesheet" href="theme.css">
-<link rel="stylesheet" href="learn-theme.css">
-<link rel="stylesheet" href="leo-theme.css">
-<link rel="stylesheet" href="study-layout.css">
+<link rel="stylesheet" href="theme.css?v=5989a8d21e5c">
+<link rel="stylesheet" href="learn-theme.css?v=e451990eae8f">
+<link rel="stylesheet" href="leo-theme.css?v=f6202a27e3d7">
+<link rel="stylesheet" href="study-layout.css?v=255f92b0a20b">
 </head>
 <body>
 <div id="app">
@@ -319,7 +319,7 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
   <!-- ① 进度条 -->
   <div id="top">
     <button id="quit" title="退出">&times;</button>
-    <span class="lesson-position" id="lessonPosition"></span><div id="bar"><div id="barIn"></div></div><a class="learn-link" href="index.html" aria-label="离开练习，去牌桌">打牌</a>
+    <span class="lesson-position" id="lessonPosition"></span><div id="bar"><div id="barIn"></div></div><span class="lesson-mode">学牌</span>
   </div>
 
   <!-- ② 出题区 -->
@@ -350,7 +350,7 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
       <div class="stat"><b id="sAcc">—</b><small>正确率</small></div>
       <div class="stat"><b id="sTime">—</b><small>用时</small></div>
     </div>
-    <button class="btn" id="doneBtn" style="max-width:300px">继续</button>
+    <button class="btn" id="doneBtn" style="max-width:300px">继续</button><button class="done-map" id="doneMap">返回课程</button>
   </div>
 </div>
 
@@ -1371,6 +1371,60 @@ const LS='80fen-ui-study-preview-';
 const addCls=(el,c)=>{ if(c) el.classList.add(c); };
 let ui=0,li=0,L=null,TR=null,qi=0,sel=null,selMulti=[],answered=false,wrong=0,t0=0,mini=null,hinted=false;
 
+// A checkpoint resumes the current question; an unfinished mini-game restarts its hand.
+const studyStore={
+  get(key){try{return localStorage.getItem(LS+key);}catch{return null;}},
+  set(key,value){try{localStorage.setItem(LS+key,value);}catch{}},
+  remove(key){try{localStorage.removeItem(LS+key);}catch{}}
+};
+function readCheckpoint(){
+  try{
+    const s=JSON.parse(studyStore.get('checkpoint'));
+    if(!s||s.version!==1||![s.ui,s.li,s.qi,s.wrong,s.elapsed].every(Number.isInteger))return null;
+    const unit=UNITS[s.ui],lesson=unit&&unit.lessons[s.li];
+    if(!lesson||!unlocked(s.ui)||s.li>doneCount(unit.key)||s.qi<0||s.qi>=lesson.qs.length||s.wrong<0||s.elapsed<0)return null;
+    return s;
+  }catch{return null;}
+}
+function saveCheckpoint(){
+  if(new URLSearchParams(location.search).has('template'))return;
+  if(!L||$('app').dataset.screen!=='q'||qi>=L.qs.length)return;
+  studyStore.set('checkpoint',JSON.stringify({version:1,ui,li,qi,wrong,elapsed:Math.max(0,Date.now()-t0)}));
+}
+function pauseLesson(){
+  saveCheckpoint();
+  if(mini)mini.gen++;
+  document.querySelectorAll('.flyer').forEach(n=>n.remove());
+}
+window.addEventListener('pagehide',pauseLesson);
+document.addEventListener('visibilitychange',()=>{if(document.hidden)saveCheckpoint();});
+// Make the existing selectable cards and seats usable with keyboards and screen readers.
+function syncStudyControls(){
+  ['table','hand'].forEach(id=>$(id).querySelectorAll('.card,.slot,.opt,.seatbtn').forEach(n=>{
+    if(typeof n.onclick!=='function')return;
+    const disabled=answered||n.classList.contains('dim')||(id==='hand'&&L&&L.qs[qi].type==='mini'&&(mini.turn!==0||mini.busy));
+    if(n.tagName!=='BUTTON'){
+      n.setAttribute('role','button');n.tabIndex=disabled?-1:0;
+      n.onkeydown=e=>{if(!disabled&&(e.key==='Enter'||e.key===' ')){e.preventDefault();n.click();}};
+    }
+    n.setAttribute('aria-disabled',String(disabled));
+    n.setAttribute('aria-pressed',String(n.classList.contains('sel')||n.classList.contains('selslot')));
+    if(n.classList.contains('card')){
+      const suit={sH:'红桃',sS:'黑桃',sD:'方块',sC:'梅花'};
+      const s=Object.keys(suit).find(c=>n.classList.contains(c));
+      const r=n.querySelector('.tl');
+      n.setAttribute('aria-label',(s?suit[s]:'')+(r?r.textContent:n.textContent.trim())+(n.classList.contains('jb')||n.classList.contains('js')?'王':''));
+    }
+  }));
+}
+const studyObserver=new MutationObserver(syncStudyControls);
+['table','hand'].forEach(id=>studyObserver.observe($(id),{childList:true,subtree:true,attributes:true,attributeFilter:['class']}));
+let fitQueued=false;
+new ResizeObserver(()=>{
+  if(fitQueued||$('app').dataset.screen!=='q')return;
+  fitQueued=true;requestAnimationFrame(()=>{fitQueued=false;fitTable();});
+}).observe($('board'));
+
 const QUI=['top','ask','board','hand','foot'];
 function show(p){
   $('app').dataset.screen=p;
@@ -1378,34 +1432,45 @@ function show(p){
   $('done').classList.toggle('hide',p!=='done');
   QUI.forEach(id=>$(id).style.visibility=p==='q'?'visible':'hidden');
 }
-const doneCount=k=>+(localStorage.getItem(LS+k)||0);
+const doneCount=k=>{const n=Number(studyStore.get(k));return Number.isInteger(n)&&n>=0?n:0;};
 /* 上一个单元打完,下一个才解锁 */
 const unlocked=u=>u===0||doneCount(UNITS[u-1].key)>=UNITS[u-1].lessons.length;
 
 /* ---------- 地图:一个单元 = 一「手」牌 ---------- */
+function catSuit(){return '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10 3 3l6 4a13 13 0 0 1 6 0l6-4-1 7c5 12-21 12-16 0Z" fill="currentColor"/></svg>';}
 function drawMap(){
   const total=UNITS.reduce((n,u)=>n+u.lessons.length,0);
   const finished=UNITS.reduce((n,u)=>n+Math.min(doneCount(u.key),u.lessons.length),0);
   const active=UNITS.findIndex((u,i)=>unlocked(i)&&doneCount(u.key)<u.lessons.length);
-  const next=active>=0?UNITS[active].lessons[doneCount(UNITS[active].key)]:null;
-  let html=`<header class="study-nav"><a class="study-brand" href="index.html">80<span>分</span></a><nav class="mode-nav" aria-label="模式"><a href="index.html">打牌</a><span aria-current="page">学一手</span></nav><span class="study-total">已学 ${finished} / ${total} 课</span></header>
-    <div class="study-content"><section class="study-welcome"><span class="leo-avatar" role="img" aria-label="六六"></span><div><span class="eyebrow">六六的牌桌小课</span><h1>一起学打牌</h1><p>先看牌，再动手。每次只练一个本领。</p></div></section>`;
-  if(next) html+=`<section class="next-lesson"><div class="next-top"><span>${finished?'接着练':'从这里开始'}</span><span>约 ${next.mins} 分钟</span></div><h2>${next.name}</h2><p>${UNITS[active].name} · 第 ${doneCount(UNITS[active].key)+1} 课</p><button class="btn" data-go="${active}">${finished?'继续这门课':'和六六练一手'} <span aria-hidden="true">→</span></button></section>`;
-  else html+=`<section class="next-lesson"><h2>这些本领，你都练过了。</h2><p>可以复习下面的课程，也可以去牌桌试一手。</p><a class="learn-link" href="index.html">去打牌 →</a></section>`;
-  html+='<div class="course-heading"><h2>你的牌技手册</h2><span>一步一步来</span></div><div class="course-list">';
+  const saved=readCheckpoint(),goUnit=saved?saved.ui:active,goLesson=saved?saved.li:active<0?0:doneCount(UNITS[active].key);
+  const next=goUnit>=0?UNITS[goUnit].lessons[goLesson]:null;
+  const percent=Math.round(finished/total*100);
+  let html=`<div class="course-home"><header class="course-intro"><div class="coach-progress"><div class="progress-ring" role="progressbar" aria-label="课程完成进度" aria-valuenow="${finished}" aria-valuemin="0" aria-valuemax="${total}"><svg viewBox="0 0 88 88" aria-hidden="true"><circle class="ring-track" cx="44" cy="44" r="40"/><circle class="ring-value" cx="44" cy="44" r="40" pathLength="100" stroke-dasharray="${percent} 100"/></svg><span class="leo-avatar" role="img" aria-label="六六"></span></div><div><span class="eyebrow">六六陪你学牌</span><h1>${finished?'手里又多了点本领':'从一手牌开始'}</h1><p>已完成 <b>${finished}</b> / ${total} 课</p></div></div><div class="continue-row"><span>${next?next.name:'全部课程已完成'}<small>${saved?'接着第 '+(saved.qi+1)+' 题':next?'每次练一个本领':'可以挑一课再练练'}</small></span><button class="btn" id="continueCourse">${next?'继续课程':'去打牌'} <span aria-hidden="true">→</span></button></div></header><div class="course-decks">`;
   UNITS.forEach((U,u)=>{
-    const dn=Math.min(doneCount(U.key),U.lessons.length),open=unlocked(u),full=dn===U.lessons.length;
-    html+=`<details class="course-unit ${open?'':'locked'}" ${open&&!full?'open':''}><summary><span class="unit-number">${String(u+1).padStart(2,'0')}</span><span class="unit-title"><small>${U.part}</small><strong>${U.name.split(' · ')[1]}</strong></span><span class="unit-progress">${open?dn+' / '+U.lessons.length:'未解锁'}</span><span class="unit-chevron" aria-hidden="true">⌄</span></summary><div class="lesson-list">`;
+    const dn=Math.min(doneCount(U.key),U.lessons.length),open=unlocked(u),chosen=open?Math.min(dn,U.lessons.length-1):0;
+    html+=`<section class="course-deck" data-deck="${u}" aria-labelledby="unit-${u}"><header><div><small>${U.part}</small><h2 id="unit-${u}">${U.name.split(' · ')[1]||U.name}</h2></div><span class="deck-progress">${dn} / ${U.lessons.length}</span></header><div class="lesson-fan" role="group" aria-label="${U.name}" style="--count:${U.lessons.length}">`;
     U.lessons.forEach((lesson,i)=>{
-      const done=open&&i<dn,current=open&&i===dn,available=done||current;
-      html+=`<button class="lesson-row ${current?'current':''} ${done?'completed':''}" data-unit="${u}" data-lesson="${i}" ${available?'':'disabled'} ${current?'aria-current="step"':''}><span class="lesson-card">${done?'✓':lesson.rank}</span><span class="lesson-title"><strong>${lesson.name}</strong><small>${done?'已学 · 可以再练':current?'现在可以开始':'完成前一课解锁'}</small></span><span class="lesson-meta">${lesson.mins} 分钟 ${available?'↗':''}</span></button>`;
+      const done=open&&i<dn,current=open&&i===dn,available=done||current,t=i-(U.lessons.length-1)/2;
+      html+=`<button class="course-card ${done?'face':'back'} ${current?'current':''} ${available?'':'locked'} ${i===chosen?'previewed':''}" data-unit="${u}" data-lesson="${i}" style="--i:${i};--angle:${t*3}deg;--arc:${t*t*1.4}px" aria-pressed="${i===chosen}" aria-label="第 ${i+1} 课，${lesson.name}，${done?'已完成':current?'待学习':'未解锁'}"><span class="course-art"><span class="course-corner"><b>${i+1}</b>${catSuit()}</span>${done?'<span class="course-check" aria-hidden="true">✓</span>':`<span class="back-cat">${catSuit()}</span>`}<span class="course-stamp">${done?'已完成':current?'学这一课':'待解锁'}</span></span></button>`;
     });
-    html+='</div></details>';
+    html+=`</div><div class="lesson-preview" aria-live="polite" aria-atomic="true"><div><h3></h3><p></p></div><button class="lesson-start"></button></div></section>`;
   });
-  html+='</div></div>';
+  html+=`</div><a class="template-link" href="templates.html">题型设计模板 ↗</a></div><nav class="study-bottom-nav" aria-label="模式"><a href="index.html"><span aria-hidden="true">♧</span>打牌</a><a href="learn.html" aria-current="page"><span class="nav-cat">${catSuit()}</span>学牌</a></nav>`;
   $('map').innerHTML=html;
-  $('map').querySelectorAll('[data-go]').forEach(b=>b.onclick=()=>{const u=+b.dataset.go;start(u,doneCount(UNITS[u].key));});
-  $('map').querySelectorAll('[data-lesson]').forEach(b=>b.onclick=()=>{const u=+b.dataset.unit,i=+b.dataset.lesson;if(unlocked(u)&&i<=doneCount(UNITS[u].key))start(u,i);});
+  $('continueCourse').onclick=()=>next?start(goUnit,goLesson):location.assign('index.html');
+  function preview(b){
+    const u=+b.dataset.unit,i=+b.dataset.lesson,U=UNITS[u],lesson=U.lessons[i],dn=doneCount(U.key),open=unlocked(u),done=open&&i<dn,available=open&&i<=dn;
+    const deck=b.closest('.course-deck');
+    deck.querySelectorAll('.course-card').forEach(c=>{c.classList.toggle('previewed',c===b);c.setAttribute('aria-pressed',String(c===b));});
+    deck.querySelector('h3').textContent=lesson.name;
+    deck.querySelector('.lesson-preview p').textContent=(done?'已完成 · 可以复习':available?'待学习':'完成前面的课程后解锁')+' · '+lesson.mins+' 分钟';
+    const action=deck.querySelector('.lesson-start');action.textContent=done?'再练一遍':available?'开始':'未解锁';action.disabled=!available;action.onclick=()=>start(u,i);
+  }
+  $('map').querySelectorAll('.course-card').forEach(b=>{
+    b.onclick=()=>preview(b);b.onfocus=()=>preview(b);
+    b.onpointerenter=e=>{if(e.pointerType==='mouse')preview(b);};
+  });
+  $('map').querySelectorAll('.course-card.previewed').forEach(preview);
 }
 
 /* ---------- 出牌区 ---------- */
@@ -1485,7 +1550,11 @@ function paintCtx(q){
 
 /* ---------- 渲染 ---------- */
 function render(){
+  saveCheckpoint();
   const q=L.qs[qi];
+  $('app').dataset.type=q.type;
+  $('app').dataset.evidence=String(!!(q.rows&&q.rows.length));
+  $('app').dataset.dense=String(!!(q.hand&&q.hand.length>5));
   TR = q.tr!==undefined ? q.tr : L.tr;                 // 题可以自带一局(用来演示「换级」)
   sel=null;selMulti=[];answered=false;hinted=false;
   $('barIn').style.width=(qi/L.qs.length*100)+'%';
@@ -1597,11 +1666,11 @@ function drawPlay(q,handOnly){
     const ready = multi ? selMulti.length===n : !!sel;
     $('cta').disabled=!ready;
     $('cta').textContent = ready ? (q.type==='discard'?`扣这 ${n} 张`:(n>1?`出这 ${n} 张`:'出牌')) : (q.type==='discard'?'扣底':'出牌');
-    drawPlay(q,multi);});
+    drawPlay(q,q.type!=="discard");});
   if($('cta').dataset.mode==='check')
     $('cta').textContent = q.type==='discard'
       ? (picked.length===n?`扣这 ${n} 张`:'扣底')
-      : (picked.length? (n>1?`出这 ${n} 张`:'出牌') : '出牌');
+      : (n>1?(picked.length===n?`出这 ${n} 张`:`已选 ${picked.length} / ${n} 张`):'出牌');
 }
 
 /* 甩牌题:四家的这一门牌全摊开(明牌),成不成立交给引擎的 checkThrow 算 */
@@ -1763,7 +1832,7 @@ function paintMini(){
   // 说清楚这一手在决定什么,而不是干巴巴报个比分
   const onTable=m.played.reduce((a,c)=>a+(c?pts(c):0),0);
   let line;
-  if(m.turn!==0) line=`${m.goal}。<b>${nameOf(m.turn)}</b> 在出牌…`;
+  if(m.turn!==0) line=`目前已抓 <b>${m.start+m.score[0]} 分</b>。<b>${nameOf(m.turn)}</b> 在出牌…`;
   else if(!m.played[m.lead]) line=`轮到你<b>领出</b> —— 这一墩由你起头。`;
   else{
     const w=partialWinner(m.played,m.lead,TR);
@@ -1846,6 +1915,7 @@ function endTrick(){
   });
 }
 function flyToWinner(win,cb){
+  const generation=mini&&mini.gen;
   const t=[...$('table').querySelectorAll('.slot')].find(s=>+s.dataset.seat===win).getBoundingClientRect();
   [...$('table').querySelectorAll('.slot .card')].forEach(c=>{
     const r=c.getBoundingClientRect(),f=c.cloneNode(true);
@@ -1857,66 +1927,77 @@ function flyToWinner(win,cb){
       f.style.opacity='0';});
     setTimeout(()=>f.remove(),PACE.fly+40);
   });
-  setTimeout(cb,PACE.fly+60);
+  setTimeout(()=>{if(mini&&mini.gen===generation&&$('app').dataset.screen==='q')cb();},PACE.fly+60);
 }
 
 /* 牌桌按剩下的高度缩放:反馈文字一长,气泡变高,三行的出牌区就装不下,
    底下那一格会被裁掉半张牌。CSS 里算不了(--cardW 是 clamp 表达式,
    getComputedStyle 只返回原始文本),只能渲染完量一次再定 —— 和正式版
    fitHandRow 是同一个套路。 */
-function fitTable(){
-  const tbl=$('table'), t=tbl.querySelector('.trick');
-  tbl.style.removeProperty('--cardW');
-  if(!t) return;
-  t.style.removeProperty('--cardW'); t.style.removeProperty('--cardH');
-  const card=t.querySelector('.card,.ph'); if(!card) return;
-  const r=card.getBoundingClientRect();
-  const need=t.getBoundingClientRect().height;
-  // 牌桌里除了这一墩,还可能有出牌记录行、可视条、图例 —— 它们也吃 board 的高度。
-  // 只拿 board 的高度当可用空间,牌就会算得太大,把这一墩挤出屏幕。
-  const others=Math.max(0, tbl.getBoundingClientRect().height-need);
-  const avail=$('board').clientHeight-others-4;
-  if(!need||need<=avail) return;
-  // 牌桌里除了牌还有座位名、内边距、行距 —— 这部分不跟着牌宽缩,
-  // 所以不能按比例乘,要先把它量出来,再解出放得下的牌宽。
-  const overhead=need-3*r.height;                 // 三行牌以外的固定高度
-  const ratio=r.height/r.width;                   // 牌的高宽比(含 clamp 之后的实际值)
-  const w=Math.max(28, Math.floor((avail-overhead)/(3*ratio)));
-  /* 两个都要设,而且要设在 .trick 上:
-     ① --cardH 是在 :root 上按当时的 --cardW 算好再继承下去的,只改 --cardW 不会让它跟着变;
-     ② .trick.m2 / .m4 这两个类也在覆盖 --cardW,同级选择器压不过,得用行内样式。 */
-  t.style.setProperty('--cardW', w+'px');
-  t.style.setProperty('--cardH', Math.round(w*ratio)+'px');
-  // 缩到下限还是装不下(四张一格的那种大墩 + 一段长反馈):
-  // 宁可让最上面的北家滚出去,也不能裁掉最下面自己那一行 —— 反馈讲的就是它。
-  requestAnimationFrame(()=>{
-    const bd=$('board');
-    if(bd.scrollHeight>bd.clientHeight+1) bd.scrollTop=bd.scrollHeight;
-  });
-}
+function fitTable(){}
 
 /* ---------- 起止 ---------- */
 function start(u,i){
   if(mini)mini.gen++;
   ui=u; li=i; L=UNITS[u].lessons[i]; TR=L.tr;
-  qi=0;wrong=0;t0=Date.now();show('q');render();
+  const saved=readCheckpoint();
+  const resume=saved&&saved.ui===u&&saved.li===i;
+  qi=resume?saved.qi:0;wrong=resume?saved.wrong:0;t0=Date.now()-(resume?saved.elapsed:0);show('q');render();
 }
 function finish(){
+  studyStore.remove('checkpoint');
+  if(mini)mini.gen++;
   const n=L.qs.length,sec=Math.round((Date.now()-t0)/1000);
   $('sAcc').textContent=Math.round(n/(n+wrong)*100)+'%';
   $('sTime').textContent=sec>=60?Math.floor(sec/60)+':'+String(sec%60).padStart(2,'0'):sec+'秒';
   const U=UNITS[ui];
-  if(li+1>doneCount(U.key)) localStorage.setItem(LS+U.key,String(li+1));
+  if(li+1>doneCount(U.key)) studyStore.set(U.key,String(li+1));
   const nxt=U.lessons[li+1], nu=UNITS[ui+1];
   $('done').querySelector('h2').textContent=nxt?'这一课通关了':`${U.name.split(' · ')[1]} 打完了`;
   $('done').querySelector('p').textContent=
-    nxt?`下一课:${nxt.name}`:(nu?`解锁:${nu.name}`:'整个第一部都打完了');
+    nxt?`下一课:${nxt.name}`:(nu?`解锁:${nu.name}`:'所有课程都练过了，去牌桌试试吧');
+  $('doneBtn').textContent=nxt?'下一课 · '+nxt.name:nu?'开始下一单元':'回到课程';
   $('barIn').style.width='100%';show('done');drawMap();
 }
-$('doneBtn').onclick=()=>show('map');
-$('quit').onclick=()=>{ if(confirm('退出这一课?这次的进度不保存。'))show('map'); };
+$('doneBtn').onclick=()=>{const U=UNITS[ui];if(U.lessons[li+1])start(ui,li+1);else if(UNITS[ui+1])start(ui+1,0);else show('map');};
+$('doneMap').onclick=()=>show('map');
+$('quit').setAttribute('aria-label','保存进度，返回课程');
+$('quit').onclick=()=>{pauseLesson();drawMap();show('map');};
 
-setCat('idle');drawMap();show('map');
+// Design review entry points. Fixtures never read/write real lesson completion.
+const templateParams=new URLSearchParams(location.search),templateType=templateParams.get('template');
+if(templateType){
+  const fixtures=[];
+  UNITS.forEach((u,unit)=>u.lessons.forEach((lesson,lessonIndex)=>lesson.qs.forEach((q,index)=>{if(q.type===templateType)fixtures.push({unit,lessonIndex,index});})));
+  const variant=Math.max(0,Math.min(fixtures.length-1,Number(templateParams.get('variant'))||0)),fixture=fixtures[variant];
+  if(fixture){
+    ui=fixture.unit;li=fixture.lessonIndex;L=UNITS[ui].lessons[li];qi=fixture.index;TR=L.tr;t0=Date.now();show('q');render();
+    $('quit').onclick=()=>location.assign('templates.html');$('quit').setAttribute('aria-label','返回题型模板');
+    $('lessonPosition').textContent='模板 '+(variant+1)+' / '+fixtures.length;
+    const state=templateParams.get('state')||'idle';
+    if(templateType==='mini'){if(mini)mini.gen++;}
+    if(state==='selected'){
+      const first=$('hand').querySelector('.card:not(.dim)')||$('table').querySelector('.pickset .card,.pile .card.pick,.slot.pickable,.seatbtn[data-s],.opt');
+      if(first)first.click();
+      if(mini)mini.gen++;
+    }
+    if(state==='correct'||state==='wrong'){
+      answered=true;if(mini){mini.gen++;const q=L.qs[qi],played=q.hands.map(h=>h[0]);$('table').innerHTML=trickHTML(played,q.lead,winnerOf(played,q.lead,TR),true);}
+      sayFeedback(state==='correct',state==='correct'?(L.qs[qi].good||'这一手完成了。看看桌上的牌，再继续下一题。'):(L.qs[qi].bad||'再看看领出的花色，想一想这一手该怎么跟。'));
+      $('btnRow').style.display='';syncStudyControls();
+    }
+    if(state==='waiting'){
+      if(mini)mini.gen++;
+      $('btnRow').style.display='none';$('verdict').textContent='对手正在出牌…';
+      $('hand').querySelectorAll('.card').forEach(n=>{n.onclick=null;n.tabIndex=-1;n.setAttribute('aria-disabled','true');});
+    }
+    // Template navigation stays in this fixture and cannot complete a real lesson.
+    $('cta').onclick=()=>{if(answered)render();else check();};
+    $('doneBtn').onclick=()=>location.assign('templates.html');
+    $('app').dataset.template='true';
+  }else{drawMap();show('map');}
+}else{setCat('idle');drawMap();show('map');}
+
 
 /* 给测试用的出口。整段代码在 IIFE 里,页面上看不见 —— 没有这个出口,
    走查脚本只能点界面,没法把每道题的标答拿去问引擎「这手合法吗、赢不赢」。

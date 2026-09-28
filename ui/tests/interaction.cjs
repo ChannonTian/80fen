@@ -57,6 +57,33 @@ test('valid selected pair can be dragged onto the table; points depend on actual
     assert.match(element('instruction').textContent,new RegExp('\\+'+points+' 分'));
   }
 });
+test('a visibly landed card is accepted at the table edge; distant drops are not',()=>{
+  const {run,pointer}=setup();
+  run("hand.filter(c=>c.suit==='D'&&c.rank===10).forEach(c=>toggle(c.id))");
+  const id=run('[...selected][0]');
+  pointer('pointerdown',id,180,600);pointer('pointermove',id,180,418);pointer('pointerup',id,180,418);
+  assert.equal(run('completed'),true);
+  assert.equal(F.canDrop({left:0,right:390,top:70,bottom:410},180,445),false);
+  assert.equal(F.canDrop({left:0,right:390,top:70,bottom:410},410,300),false);
+});
+test('mobile viewport resizing defers hand replacement until the active drag ends',()=>{
+  const {run,pointer}=setup();
+  run("hand.filter(c=>c.suit==='D'&&c.rank===10).forEach(c=>toggle(c.id))");
+  const id=run('[...selected][0]');
+  pointer('pointerdown',id,180,600);pointer('pointermove',id,180,350);
+  run('scheduleLayout()');
+  assert.equal(run('gesture.mode'),'drag');assert.equal(run('layoutDeferred'),true);
+  pointer('pointerup',id,180,350);
+  assert.equal(run('completed'),true);assert.equal(run('layoutDeferred'),false);
+});
+test('sideways preview before lifting a selected pair does not add an unwanted third card',()=>{
+  const {run,pointer}=setup();
+  run("hand.filter(c=>c.suit==='D'&&c.rank===10).forEach(c=>toggle(c.id))");
+  const id=run('[...selected][0]');
+  pointer('pointerdown',id,180,600);pointer('pointermove',id,235,600);pointer('pointermove',id,235,350);
+  assert.equal(run('selected.size'),2);
+  pointer('pointerup',id,235,350);assert.equal(run('completed'),true);
+});
 test('drop outside returns cards; illegal pair cannot play; pointer cancellation restores snapshot',()=>{
   const {run,pointer}=setup();
   run("hand.filter(c=>c.suit==='D'&&c.rank===10).forEach(c=>toggle(c.id))");
@@ -100,7 +127,7 @@ test('declaration, reinforcement and counter-declaration follow engine permissio
 test('geometry preserves a readable exposed edge and recoverable horizontal bounds at phone widths',()=>{
   const cards=Array.from({length:33},(_,i)=>({id:i,suit:'D',rank:2+Math.floor(i/2)}));
   const rows=F.split(cards);assert.equal(rows.flat().length,33);assert.ok(rows.every(r=>r.length<=17));
-  for(const [w,h] of [[320,210],[375,218],[390,261],[430,274]])for(let row=0;row<2;row++){
+  for(const [w,h] of [[320,188],[375,188],[390,188],[430,188],[320,210],[375,218],[390,261],[430,274]])for(let row=0;row<2;row++){
     const l=F.layout(rows[row],w,h,row);
     assert.ok(l.cards.slice(1).every((c,i)=>c.x-l.cards[i].x>=22.99));
     assert.ok(l.cards[0].x>=17);assert.ok(l.cards.at(-1).x+l.cardWidth<=l.width-17);
