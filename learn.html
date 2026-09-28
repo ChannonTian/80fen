@@ -899,6 +899,15 @@ const U1=[
         '<span class="sim">同样一手牌,能连出什么,取决于这一局打几 —— 牌序是会变的。</span>',
    bad:'♥5♥5 这次连不进来了 —— 打 2 的时候 <b>♥6 还是普通红桃</b>,5 和 7 中间隔着它。'+
        '能连的只有 <b>♥7♥7 + ♥8♥8</b>。上一题六张全连,这一题只连四张,差别只在<b>这一局打几</b>。' },
+ { type:'multi', badge:'主牌里也能连', task:'挑出拖拉机', tr:{suit:'S',rank:5},
+   prompt:'打 5、黑桃主。<b>主牌里的对子也能连成拖拉机</b> —— 按主牌的牌序挨着就行。能连的都点出来。',
+   hint:'主牌从大到小:… 副级 &gt; ♠A &gt; ♠K &gt; ♠Q … ♠A 上面挨着的是谁?',
+   cards:[S(12,0),S(12,1),S(14,0),S(14,1),H(5,0),H(5,1)], answer:['S140','S141','H50','H51'],
+   good:'对。副级 ♥5 就排在 ♠A 上面,<b>♠A♠A + ♥5♥5</b> 挨着,连得上。♠Q 和 ♠A 中间隔着 ♠K。'+
+        '<span class="sim">另外两条:正级对和副级对也挨着(♠5♠5 + ♥5♥5 能连);'+
+        '两门副级对一样大,<b>不算挨着</b>(♥5♥5 + ♣5♣5 连不上)。</span>',
+   bad:'按主牌的牌序看:副级 ♥5 紧挨在 ♠A 上面,所以 <b>♠A♠A + ♥5♥5</b> 是拖拉机;'+
+       '♠Q♠Q 和 ♠A♠A 中间隔着 ♠K,连不上。' },
  { type:'playset', badge:'新规则', task:'跟一手牌',
    prompt:'东家领出<b>一副拖拉机 ♦9♦9♦10♦10</b>。你该出哪四张?',
    hint:'你手上也有一副拖拉机。',
@@ -908,6 +917,15 @@ const U1=[
    illegal:'不行。<b>有拖拉机就必须跟拖拉机</b> —— 你手上的 ♦4♦4♦5♦5 正好是一副,得整副拿出来。',
    good:'对。领出拖拉机,你门里也有一副,就<b>必须整副跟出去</b>,不能拆。',
    bad:'你手上 <b>♦4♦4 + ♦5♦5</b> 正好连成一副拖拉机 —— 有拖拉机就得跟拖拉机。' },
+ { type:'playset', badge:'只有对子', task:'跟一手牌',
+   prompt:'东家又领出拖拉机 ♦9♦9♦10♦10。这次你<b>没有拖拉机</b>,但有两对 —— 出哪四张?',
+   hint:'领出里有几个对子?你手上有几对?',
+   played:[null,[D(9,0),D(9,1),D(10,0),D(10,1)],null,null], lead:1,
+   hand:[D(4,0),D(4,1),D(12,0),D(12,1),D(7)], answer:['D40','D41','D120','D121'], lose:true,
+   illegal:'不行。没有拖拉机也要跟对子:领出里有两对,你有两对,就得 ♦4♦4 + ♦Q♦Q 一起出。',
+   good:'对。没有拖拉机,对子也得跟:领出里有两对,你也有两对,就<b>两对都出</b>。'+
+        '<span class="sim">跟牌义务是一层一层叠上去的:先够张数,再够对子数,再管拖拉机。</span>',
+   bad:'领出里有两个对子,你手上也有两对(♦4♦4、♦Q♦Q)—— 就得两对都跟上,不能拆一对换 ♦7。' },
  { type:'winpick', task:'谁收这一墩',
    prompt:'东家领出拖拉机 <b>♦9♦9♦10♦10</b>,你用<b>主牌的拖拉机</b> ♠4♠4♠5♠5 毙。<b>点一下</b>谁收。',
    hint:'主牌盖副牌,但结构得对上。',
@@ -1132,6 +1150,21 @@ const U2=[
    cards:[BJ,C('X',16,1),SJ,S(5)], answer:['X160','X161'], noTrumpTag:true,
    good:'对,两张一起。小王对、大王对亮出来都是<b>无主</b>:只有王和级牌是主。',
    bad:'得<b>成对</b>:两张大王一起。单张王不能亮。' },
+
+ { type:'multi', badge:'加固', task:'还能拿什么反', phase:'发牌中',
+   prompt:'你先亮了单张 ♥5,又摸到一张 ♥5,<b>加固</b>成一对。别人还能拿什么反?',
+   hint:'加固只有亮主的人自己能做。反主要<b>严格</b>更强。',
+   cards:[Cl(5,0),Cl(5,1),SJ,C('X',15,1),S(14,0),S(14,1)], answer:['X150','X151'], noTrumpTag:true,
+   good:'对。加固成一对后,一对 ♣5 只是一样强,反不掉 —— 得用王对。',
+   bad:'一对 ♣5 和你加固后的一对 ♥5 一样强,反不掉;只剩小王对。' },
+
+ { type:'winpick', badge:'第一局', task:'谁坐庄', phase:'发牌中',
+   played:[null,D(2),[S(2,0),S(2,1)],null], lead:null,
+   prompt:'<b>整场第一局</b>还没有庄家。东家亮了 ♦2,北家拿一对 ♠2 反掉。这局谁坐庄?',
+   hint:'第一局没有现成的庄家 —— 谁的主最后定下来?',
+   answer:2,
+   good:'对。第一局最后亮成主的人坐庄 —— 北家。',
+   bad:'第一局没有庄家,最后亮成主的人坐庄:北家。' },
 ]},
 
 { id:'u2l6', rank:'6', name:'打完这一局', mins:5, sum:'一局 = 台面抓分 + 守住末墩抠底。', tr:{suit:'D',rank:8}, qs:[
@@ -1147,6 +1180,49 @@ const U2=[
    hint:'最后一墩一定要赢下来 —— 底分全押在上面。',
    hands:[[D(14),Cl(9)],[S(13),Cl(4)],[S(3),Cl(11)],[S(7),Cl(6)]], lead:1,
    good:'台面抓分 + 守末墩抠底 —— 这就是一局的骨架。' },
+]},
+
+/* 一局打完之后:轮庄、必打关卡、打过 A。这几条是「整场」的规则,牌桌上没有对应的一手牌 ——
+   谁坐庄做成点座位;关卡和打过 A 只能是选项题(DESIGN §9.17 记了这个取舍)。
+   关卡的两条都对着引擎 advanceMatch 跑过:跨过关卡停在关卡上;在关卡上当闲家上台也不算过。 */
+{ id:'u2l7', rank:'7', name:'打完之后', mins:3, tr:null,
+  sum:'守住连庄、上台换下家;关卡要坐庄守住才算过;打过 A 赢整场。', qs:[
+ { type:'winpick', badge:'新规则', task:'下一局谁坐庄', decl:1,
+   played:[null,null,null,null], lead:null,
+   prompt:'这一局<b>东家坐庄</b>,闲家只抓了 50 分 —— 守住了。下一局谁坐庄?',
+   hint:'守住了,庄还在他们队 —— 换成谁?',
+   answer:3,
+   good:'对。守住 → 庄家的对家接着坐(连庄)。',
+   bad:'守住了是连庄:东家的对家西家接着坐。' },
+
+ { type:'winpick', badge:'换个结局', task:'下一局谁坐庄', decl:1,
+   played:[null,null,null,null], lead:null,
+   prompt:'还是东家坐庄,这次闲家抓了 95 分 —— <b>上台</b>。下一局谁坐庄?',
+   hint:'上台就换你们队坐庄 —— 从东家往下数。',
+   answer:2,
+   good:'对。上台 → 庄家的下家坐庄,就是你的队友北家。',
+   bad:'上台是庄家的下家坐庄:东家的下家是北家。' },
+
+ { type:'numpick', badge:'必打关卡', task:'升到几',
+   prompt:'你们打 3 坐庄,把闲家关光,该升 3 级。<b>5 是必打关卡</b>(默认开:2 / 5 / 10 / K)。升到几?',
+   hint:'升级途中跨过关卡,会怎样?',
+   opts:['停在 5','升到 6'], answer:0,
+   good:'对。跨过关卡要停下:3 升 3 级也只到 5。',
+   bad:'3 升 3 级本该到 6,中间跨过关卡 5,就停在 5。' },
+
+ { type:'numpick', badge:'关卡', task:'过关了吗',
+   prompt:'你们停在关卡 5 上。这一局你们是<b>闲家</b>,抓了 120 分上台。升到几?',
+   hint:'过关的条件是什么?',
+   opts:['还在 5','升到 6'], answer:0,
+   good:'对。关卡要在这一级<b>坐庄守住</b>才算过 —— 上台只换庄。',
+   bad:'关卡得坐庄守住才算过;当闲家上台过不了,还在 5。' },
+
+ { type:'numpick', badge:'终点', task:'打过 A',
+   prompt:'你们打 A 坐庄,守住了。结果?',
+   hint:'打到 A 还不算完 —— 要「打过」。',
+   opts:['再打一局 A','打过 A,赢下整场'], answer:1,
+   good:'对。在 A 上坐庄守住就是打过 A,整场结束。',
+   bad:'在 A 上坐庄守住就是打过 A —— 整场结束,你们赢。' },
 ]},
 ];
 
@@ -2094,7 +2170,7 @@ function render(){
     const tag = q.type==='teampick' ? true : null;
     const draw=()=>{
       $('table').innerHTML=trickHTML(q.played,q.lead,null,q.showPt,
-        {pick:true, selSeat:(q.type==='teampick'&&sel!=null)?-1:sel, teamTag:tag});
+        {pick:true, selSeat:(q.type==='teampick'&&sel!=null)?-1:sel, teamTag:tag, decl:q.decl});
       if(q.type==='teampick'&&sel!=null)
         $('table').querySelectorAll('.slot').forEach(sl=>{ if(+sl.dataset.seat%2===sel) sl.classList.add('selslot'); });
       $('table').querySelectorAll('.slot').forEach(sl=>sl.onclick=()=>{
@@ -2218,7 +2294,7 @@ function check(){
     const hit=s=>q.type==='teampick'?s%2===q.answer:s===q.answer;
     const miss=s=>q.type==='teampick'?s%2===sel:s===sel;
     $('table').innerHTML=trickHTML(q.played,q.lead,q.type==='winpick'?q.answer:null,q.showPt,
-      {teamTag:q.type==='teampick'?true:null});
+      {teamTag:q.type==='teampick'?true:null, decl:q.decl});
     $('table').querySelectorAll('.slot').forEach(sl=>{
       const s=+sl.dataset.seat;
       if(hit(s))sl.classList.add('okslot'); else if(miss(s))sl.classList.add('noslot');});
