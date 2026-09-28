@@ -51,6 +51,11 @@ const PLANS=[
    [['play','S80'],['play','C40'],['play','X160']],
    [['ep',['C70','S50','S40','X150']],['ep',['H140','S90','S20','X150']]],
  ]},
+ { key:'u6', lessons:[
+   [['play','C40'],['play','D40'],['play','D130']],
+   [['play','D40'],['play','D130'],['play','D40']],
+   [['play','D40'],['play','C40'],['play','C100']],
+ ]},
 ];
 
 /* 每课小局打完之后应该给出的结算结论 —— 由「起始分 + 这两墩抓到的分 + 底」推出来的,
@@ -62,6 +67,7 @@ const SCORE={
  u3:[null,null,null,'一共 90 分,上台了'],
  u4:[null,null,null,null],
  u5:[null,null,null,null],
+ u6:[null,null,null],
 };
 
 const SHOTS=process.argv.some(a=>a.startsWith('--shots'));
