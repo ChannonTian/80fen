@@ -18,7 +18,11 @@ E.AIP.egSearch=0;
 if(process.env.OV) Object.assign(E.AIP,JSON.parse(process.env.OV));
 const N=+process.argv[3]||1500, S0=+(process.env.SEED0||0);
 const X=[], Y=[], KP=[];
-const feat=f=>[1,Math.min(f.b,1),Math.min(f.b,3),f.t,f.U,f.n,Math.min(f.b,1)*f.t];
+// FEAT=2:再加「被钓出来」的风险 —— 有钢板主时,在外主牌越多(对手越能把它钓出来)越危险:min(b,1)·U、min(b,1)·max(0,U/2−(t−1))
+const FEAT=+(process.env.FEAT||1);
+const feat=f=>{ const base=[1,Math.min(f.b,1),Math.min(f.b,3),f.t,f.U,f.n,Math.min(f.b,1)*f.t];
+  if(FEAT===2) base.push(Math.min(f.b,1)*f.U, Math.min(f.b,1)*Math.max(0,f.U/2-(f.t-1)));
+  return base; };
 for(let seed=S0+1;seed<=S0+N;seed++){
   const {first}=E.cutForFirst(seed); const {hands,kitty}=E.dealRound(seed,first);
   let best=null,declSeat=-1; for(let s=0;s<4;s++){const o=E.declOptions(hands[s],E.RULES.levelStart)[0]; if(o&&(!best||o.strength>best.strength)){best=o;declSeat=s;}}
