@@ -66,6 +66,7 @@ learn/
 | [`notes/negative-results.md`](docs/notes/negative-results.md) | 同上 | 试过、测了、否掉的改动。动那些默认关的开关之前先读 |
 | [`notes/release-log.md`](docs/notes/release-log.md) | 同上 | **v0.5.8~v0.7.0** 的上线备忘。v0.7.1 起上线前的检查固化成 `check-sync` 与 `docs/DESIGN.md` §12,这一页不再追加 |
 | [`notes/archive-plans.md`](docs/notes/archive-plans.md) | 同上 | 两份已实施的旧方案,存档 |
+| [`notes/llm-coach-plan.md`](docs/notes/llm-coach-plan.md) | 同上 | **教练接大模型(千问)的可行性与做法** —— 探索,未实施。说了算 ≠ 说得对:教练按可信度分层说话 |
 
 ## 代码文件
 
@@ -83,9 +84,11 @@ learn/
 | `test/cf-pair.js` | 同上,针对**拆对子**:「跟牌时把一个副花对子拆了,而手上有不拆的牌」。自带对照组(没拆对子时同样换最便宜的牌) |
 | `test/audit-*.js` | 行为审计:统计某类错误发生了多少次 |
 | `test/audit-reason.js` | **教练理由的事实体检** —— 只查「理由说的和牌面对不对得上」,不评价棋力 |
+| `test/audit-coach.js` | **教练的同一标尺对账** —— 教练给你那手打的分必须等于 AI 自己给同一手的分;量口径差、判定翻转、推演改判时的漏报 |
 | `test/audit-dumpvoid.js` | 行为审计:「后手有已知断门的对手,我却把分贴过去」 |
 | `test/check-sync.js` | **三份 build 与文档的一致性体检** —— 晋级、推送之前跑一遍 |
 | `test/gen-switches.js` | 生成 `docs/SWITCHES.md` |
+| `test/probe-llm.js` | **千问接入的可行性探针** —— 量 CORS、模型清单、改建议率/编事实率/延迟。不改任何 build,`--dump` 可离线看证据包 |
 | `test/rules-vectors.js` | 规则书 §S5 新增向量的可执行版 —— 写进规则书之前必须先在引擎上跑过 |
 | `test/league-resume.js` | 联赛断点续跑的回归测试:进程被杀之后记录还读不读得出来、续跑的结果和一口气跑的一不一样 |
 | `contest/engine.js` | 比赛用的引擎包:从 build 里**运行时抽取**块①,每个参赛者一个隔离 realm |
@@ -180,8 +183,8 @@ AI 只回答「合法之中选哪个」,规则判定全部交给引擎——所�
 场景库是回归网,不是尺子:
 
 ```
-node test/ai-scenarios.js 80fen-test.html   # 测试版:32/32(+1 待修)
-node test/ai-scenarios.js index.html        # 正式版:32/32(+1 待修)
+node test/ai-scenarios.js 80fen-test.html   # 测试版:32 过 / 2 败(2b、2d,见 ai-progress 第 9 项)/ 1 待修
+node test/ai-scenarios.js index.html        # 正式版:30 过 / 2 败(同上)/ 1 待修 —— 少的两条 H1c/H1d 是测试版的教练断言
 node test/audit-reason.js index.html 200    # 教练理由体检:16 类断言应全部 0 不符
 ```
 
