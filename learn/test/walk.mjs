@@ -45,6 +45,12 @@ const PLANS=[
    [['play','C141'],['play','C140'],['play','H30'],['play','H100']],
    [['play','C130'],['play','C130'],['play','C40'],['play','C130']],
  ]},
+ { key:'u5', lessons:[
+   [['play','C40'],['play','X160'],['play','X160'],['play','C40']],
+   [['play','X150'],['play','C40'],['play','X160']],
+   [['play','S80'],['play','C40'],['play','X160']],
+   [['ep',['C70','S50','S40','X150']],['ep',['H140','S90','S20','X150']]],
+ ]},
 ];
 
 /* 每课小局打完之后应该给出的结算结论 —— 由「起始分 + 这两墩抓到的分 + 底」推出来的,
@@ -55,6 +61,7 @@ const SCORE={
  u2:[null,null,null,null,null,'一共 105 分,上台了'],
  u3:[null,null,null,'一共 90 分,上台了'],
  u4:[null,null,null,null],
+ u5:[null,null,null,null],
 };
 
 const SHOTS=process.argv.some(a=>a.startsWith('--shots'));
@@ -94,6 +101,19 @@ for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
         else if(kind==='multi'){ for(const id of val) await p.click(`#table .card[data-id="${id}"]`); }
         else if(kind==='play') await p.click(`#hand .card[data-id="${val}"]`);
         else if(kind==='set'){ for(const id of val) await p.click(`#hand .card[data-id="${id}"]`); }
+        else if(kind==='ep'){
+          // 收官实战:轮到我(那张牌可点)就出;别人出牌有动画,要等
+          for(const id of val){
+            await p.waitForSelector(`#hand .card.pick[data-id="${id}"]`,{timeout:20000});
+            await p.click(`#hand .card[data-id="${id}"]`); await p.click('#cta');
+          }
+          await p.waitForFunction(()=>document.getElementById('verdict').textContent!=='',null,{timeout:20000});
+          const v=await p.evaluate(()=>document.getElementById('verdict').textContent);
+          if(v!=='答对了') errs.push(`${U.key} L${L+1} 收官判成「${v}」`);
+          if(SHOTQ===U.key){ qn=(qn||0)+1; await shot(`${tag}-${U.key}-l${L+1}-q${qn}-fb.png`); }
+          await p.click('#cta'); await p.waitForTimeout(250);
+          continue;
+        }
         else if(kind==='throwset'){ for(const id of val) await p.click(`#table .pickset .card[data-id="${id}"]`); }
         else if(kind==='mini'){
           // 轮询到小局结束:该我出就点第一张能出的,顺手连点几下压测 busy 闸

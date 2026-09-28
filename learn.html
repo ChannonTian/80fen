@@ -89,6 +89,7 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
 #bub .sim{display:block;margin-top:4px;font-size:.85em;color:var(--tx2);font-weight:600}
 #bub.good .sim,#bub.bad .sim{color:inherit;opacity:.78}
 /* 身后几家接着出完的那一句:是「这一回发生了什么」,不是讲道理,所以单独一行、放在最后 */
+#table .endno{font:700 11px/1.2 inherit;color:var(--tx2);text-align:center;margin:2px 0 -2px}
 #bub .res{display:block;margin-top:4px;padding-top:4px;border-top:1px dashed currentColor;
   font-size:.85em;font-weight:700}
 #bub .tip{display:block;margin-top:5px;color:var(--pu);font-size:.9em}
@@ -200,7 +201,14 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
 /* 跟牌位置课:还没出牌的座位要看得出「后面还有人」—— 这正是这一课要教的东西 */
 .slot .ph.wait{display:flex;align-items:center;justify-content:center;
   font:700 11px/1.2 inherit;color:var(--tx2);border-style:dashed}
-.slot .ph.wait::after{content:'还没出'}
+.slot .ph.wait::after{content:'还没出';white-space:nowrap;font-size:min(11px,calc(var(--cardW)*.27))}
+/* 残局题:另外三家剩的牌直接摆在他的座位下面(明牌),不再单独占三行 ——
+   单独三行在 375×667 上会把北家挤出屏幕 */
+.slot .mini{display:flex;gap:2px;justify-content:center;margin-top:2px;
+  --cardW:clamp(22px,7vw,30px);--cardH:calc(var(--cardW)*1.38)}
+.slot .mini .card{box-shadow:none}
+.slot .mini .card .trumpTag{display:none}
+.slot .mini.none{display:none}
 .slot .who.us{color:var(--ol-tx)} .slot .who.them{color:var(--rd-tx)}
 .trickWrap{position:relative;width:100%}
 /* 只有「算多少分」这类数值题还留选项,排成两列的短牌,不占竖向 */
@@ -1412,11 +1420,138 @@ const U4=[
 ]},
 ];
 
+/* ===== 单元 5 · 护底与抠底 =====
+   产品方要求:护底要和单元 2 的埋底呼应(埋了什么 → 末墩就守什么),
+   并且体现庄家、帮家、闲家的区别。
+   全部是**明牌残局**(另外三家的牌摊开,DESIGN §9.14 登记的简化),标答由 endSolve 穷举得出。
+   同一副牌(A 局)在三课里各出现一次:庄家知道底里几分,帮家、闲家只数得出个下限 ——
+   三个座位出的都是 ♣4,理由各不相同。 */
+// A 局:西家领 ♥K,你断红桃,手上 大王 ♠6 ♣4;东家 ♠J ♠A ♣9
+const A5=()=>({hand:[BJ,S(6),Cl(4)], played:[null,null,null,H(13)], lead:3,
+  hands:{1:[S(11),S(14),Cl(9)],2:[H(4),Cl(8),D(7)],3:[S(5),Cl(12)]}});
+// B 局:同 A,只是北家手上多了一张小王(和红桃一起)
+const B5=()=>({hand:[BJ,S(6),Cl(4)], played:[null,null,null,H(13)], lead:3,
+  hands:{1:[S(11),S(14),Cl(9)],2:[H(4),SJ,D(7)],3:[S(5),Cl(12)]}});
+const end5=(g,o)=>{ const x=g(); return {hand:x.hand,played:x.played,lead:x.lead,
+  end:{hands:x.hands,...o}}; };
+const K10=[10,15,20,25,30,40], KALL=[0,5,10,15,20,25,30,40];
+const U5=[
+
+{ id:'u5l1', rank:'A', name:'庄家:埋了什么就守什么', mins:4, tr:{suit:'S',rank:3},
+  sum:'底里埋了多少分,末墩就值多少分的两倍。', qs:[
+ { type:'trickpick', badge:'新概念', task:'守不守末墩', ...end5(A5,{decl:0,def:30,kitty:25}),
+   prompt:'<b>最后三墩</b>,剩下的牌都数清楚了(摊开给你看)。你扣的底里有 25 分。出哪张?',
+   hint:'大王现在用掉,末墩谁来守?',
+   answer:'C40',
+   good:'对。大王留给末墩,底里 25 分保住了。',
+   bad:'大王现在用掉,末墩就守不住 —— 底 25 × 2 送给闲家。' },
+
+ { type:'trickpick', badge:'换个底', task:'守不守末墩', ...end5(A5,{decl:0,def:30,kitty:0}),
+   prompt:'同一手牌,这次你扣的底<b>一分没有</b>。',
+   hint:'末墩输了,闲家能拿走什么?',
+   answer:'X160',
+   good:'对。底里没分,不用守 —— 大王现在就收这 10 分。',
+   bad:'底里没分,留着大王守末墩没意义,这 10 分现在就收。' },
+
+ { type:'trickpick', badge:'帮家有大主', task:'谁来守', ...end5(B5,{decl:0,def:30,kitty:25}),
+   prompt:'还是底里 25 分。这次<b>北家(帮家)有小王</b>。',
+   hint:'末墩一定要你自己守吗?',
+   answer:'X160',
+   good:'对。末墩有北家的小王守,大王现在收分。',
+   bad:'北家的小王守得住末墩,你的大王不用留。' },
+
+ { type:'trickpick', badge:'你来领', task:'先出哪张',
+   hand:[BJ,Cl(4)], played:[null,null,null,null], lead:0,
+   end:{decl:0,def:50,kitty:25,hands:{1:[S(14),Cl(9)],2:[Cl(8),D(7)],3:[S(5),Cl(12)]}},
+   prompt:'最后两墩,轮到你领。底里 25 分。',
+   hint:'两张牌,哪张留给最后一墩?',
+   answer:'C40',
+   good:'对。先出 ♣4,大王留到末墩。',
+   bad:'先出大王,末墩只剩 ♣4 —— 底送出去了。' },
+]},
+
+{ id:'u5l2', rank:'2', name:'帮家:替庄家守', mins:3, tr:{suit:'S',rank:3},
+  sum:'帮家不知道底里几分 —— 能替庄家守,就替他守。', qs:[
+ { type:'trickpick', badge:'新位置', task:'替庄家挡',
+   hand:[SJ,S(6),Cl(4)], played:[null,null,null,H(13)], lead:3,
+   end:{decl:2,def:30,kitty:25,kittyKnown:'?',kittys:KALL,
+        hands:{1:[S(11),S(14),Cl(9)],2:[H(4),BJ,D(7)],3:[S(5),Cl(12)]}},
+   prompt:'<b>北家是庄家</b>,手上有大王。你有小王。出哪张?',
+   hint:'这一墩谁来收,庄家的大王才能留到末墩?',
+   answer:'X150',
+   good:'对。你收这一墩,庄家的大王留着守末墩。',
+   bad:'你不收,东家毙走 10 分;你收了,庄家的大王照样守底。' },
+
+ { type:'trickpick', badge:'只有你能守', task:'守不守末墩', ...end5(A5,{decl:2,def:30,kitty:25,kittyKnown:'≥10',kittys:K10}),
+   prompt:'这次大王在你手上,北家(庄家)没有大主。底里几分你不知道,只数得出至少 10 分。',
+   hint:'末墩除了你,还有谁守得住?',
+   answer:'C40',
+   good:'对。末墩只有你守得住,大王留着。',
+   bad:'大王一用,末墩没人守 —— 底里的分翻倍送出去。' },
+
+ { type:'trickpick', badge:'庄家有大主', task:'谁来守', ...end5(B5,{decl:2,def:30,kitty:25,kittyKnown:'?',kittys:KALL}),
+   prompt:'这次<b>北家(庄家)有小王</b>,守得住末墩。你的大王呢?',
+   hint:'末墩有人守了,大王还用留吗?',
+   answer:'X160',
+   good:'对。末墩庄家自己守,大王现在收分。',
+   bad:'末墩有庄家的小王,你的大王该现在用。' },
+]},
+
+{ id:'u5l3', rank:'3', name:'闲家:把底抠出来', mins:3, tr:{suit:'S',rank:3},
+  sum:'闲家要抢末墩 —— 先把庄家的大主钓出来。', qs:[
+ { type:'trickpick', badge:'新位置', task:'怎么抢末墩',
+   hand:[SJ,S(8),D(4)], played:[null,null,null,null], lead:0,
+   end:{decl:1,def:60,kitty:20,kittyKnown:'?',kittys:KALL,
+        hands:{1:[BJ,H(6),H(11)],2:[D(9),Cl(5),H(8)],3:[S(5),D(6),H(9)]}},
+   prompt:'<b>东家是庄家</b>,只有一张主:大王。你有小王。领哪张?',
+   hint:'领一张主牌,庄家拿什么来跟?',
+   answer:'S80', accept:['X150'],
+   good:'对。领主牌,庄家只能拿大王来跟 —— 末墩就是你的了。',
+   bad:'领副牌,庄家的大王会留到末墩。先领主,逼他出。' },
+
+ { type:'trickpick', badge:'同一手牌', task:'守不守末墩', ...end5(A5,{decl:1,def:30,kitty:25,kittyKnown:'≥10',kittys:K10}),
+   prompt:'第一课那手牌,这次<b>你是闲家</b>(东家是庄家),底里至少 10 分。',
+   hint:'末墩归谁,底就归谁。',
+   answer:'C40',
+   good:'对。同一张 ♣4:庄家为了守底,你为了抠底。',
+   bad:'大王一用,末墩是东家的 ♠A —— 底抠不到。' },
+
+ { type:'trickpick', badge:'队友有大主', task:'谁来抢', ...end5(B5,{decl:1,def:30,kitty:25,kittyKnown:'?',kittys:KALL}),
+   prompt:'这次<b>北家(你的队友)有小王</b>。',
+   hint:'末墩一定要你自己抢吗?',
+   answer:'X160',
+   good:'对。末墩有队友的小王,大王现在收分。',
+   bad:'队友的小王抢得下末墩,大王该现在用。' },
+]},
+
+/* 收官实战:两副残局是在随机残局里筛出来的 —— 条件是沿最优打法走,
+   你至少有两手「出错就亏」的牌(learn/test/answers.mjs 会重新核一遍)。 */
+{ id:'u5l4', rank:'4', name:'收官:整个打完', mins:4, tr:{suit:'H',rank:5},
+  sum:'收官:大主留到最后一墩,前面的墩用小的。', qs:[
+ { type:'endplay', badge:'实战', task:'收官',
+   hand:[S(5),SJ,S(4),Cl(7)], played:[null,null,null,null], lead:0,
+   end:{decl:0,def:40,kitty:15,
+        hands:{1:[D(3),H(5),H(10),D(13)],2:[S(9),S(14),H(6),D(11)],3:[D(10),Cl(4),D(4),H(11)]}},
+   prompt:'<b>你是庄家</b>,底里 15 分。最后四墩你来打,每一手都算数。',
+   hint:'小王留给哪一墩?',
+   good:'四手都对:小的先走,小王守末墩。' },
+
+ { type:'endplay', badge:'实战', task:'收官',
+   hand:[S(9),S(2),H(14),SJ], played:[null,null,null,null], lead:0,
+   end:{decl:1,def:40,kitty:25,kittyKnown:'≥10',kittys:K10,
+        hands:{1:[S(4),S(5),H(13),D(11)],2:[S(8),S(10),S(12),Cl(13)],3:[Cl(9),H(6),D(10),Cl(6)]}},
+   prompt:'这次<b>你是闲家</b>,东家是庄家,底里至少 10 分。打完最后四墩。',
+   hint:'末墩要用哪张牌去抢?',
+   good:'四手都对:末墩是你的,底抠下来了。' },
+]},
+];
+
 const UNITS=[
  {key:'u1', part:'第一部 · 会打一墩',   name:'单元 1 · 一墩牌怎么打', lessons:U1},
  {key:'u2', part:'第一部 · 会打一墩',   name:'单元 2 · 一局怎么打完', lessons:U2},
  {key:'u3', part:'第二部 · 打得像个人', name:'单元 3 · 记牌与领出',   lessons:U3},
  {key:'u4', part:'第二部 · 打得像个人', name:'单元 4 · 跟牌的位置',   lessons:U4},
+ {key:'u5', part:'第二部 · 打得像个人', name:'单元 5 · 护底与抠底',   lessons:U5},
 ];
 
 /* 局末结算一律交给引擎的 scoreRound,教学版不另写一套阶梯。
@@ -1533,6 +1668,178 @@ function finishTrick(q,mine,tr){
   const got=P.reduce((a,c)=>a+(c?pts(c):0),0);
   return {P,after,win,got,done};
 }
+/* ===== 残局求解(单元 5 · 护底)=====
+   最后几墩(只出单张)穷举到底:每一家都按「对自己这队最好」出,算出闲家最后拿多少分。
+   这是 L2 真值(DESIGN §二):明牌、穷举,不用任何启发式。
+   目标不是「分数最多」,是**阶梯**:先比落在哪一档(关光 / 升 2 / 升 1 / 上台 / 升 1 …),
+   同一档里再比分数 —— 75 分和 60 分对庄家是一回事,79 和 80 是两个世界。
+   状态:hands[4](各家剩的牌)、lead、played(这一墩已出的)、def(闲家已有的分)、
+   declTeam(庄家那一队:0 = 南北)、kitty(底分)。 */
+function ladderKey(F){
+  const lv=F===0?-3:F<40?-2:F<80?-1:Math.floor((F-80)/40);
+  return lv*1000+F;
+}
+function endSolve(st,tr){
+  const {hands,lead,played,def,declTeam,kitty}=st;
+  const n=played.filter(Boolean).length;
+  if(n===4){
+    const w=winnerOf(played,lead,tr);
+    const got=played.reduce((a,c)=>a+pts(c),0);
+    const d=def+((w%2)!==declTeam?got:0);
+    if(hands.every(h=>!h.length)){
+      // 末墩归闲家:底分 × 2 × 末墩每人张数(这里只出单张 → ×2)
+      const F=d+((w%2)!==declTeam?kitty*2:0);
+      return {v:ladderKey(F),F,line:[{played,lead,win:w}]};
+    }
+    const r=endSolve({hands,lead:w,played:[null,null,null,null],def:d,declTeam,kitty},tr);
+    return {v:r.v,F:r.F,line:[{played,lead,win:w}].concat(r.line)};
+  }
+  const s=(lead+n)%4;
+  const led=n?effSuit(played[lead],tr):null;
+  const seen=new Set(); let best=null;
+  const defSide=(s%2)!==declTeam;
+  for(const c of legalSet(hands[s],led,tr)){
+    const k=c.suit+c.rank; if(seen.has(k)) continue; seen.add(k);   // 两张一样的牌,出哪张都一样
+    const h2=hands.slice(); h2[s]=hands[s].filter(x=>x!==c);
+    const p2=played.slice(); p2[s]=c;
+    const r=endSolve({hands:h2,lead,played:p2,def,declTeam,kitty},tr);
+    if(!best||(defSide?r.v>best.v:r.v<best.v)) best={v:r.v,F:r.F,line:r.line,card:c};
+  }
+  return best;
+}
+/* 我(南)这一手每张牌各自的结果:其余几手都按最优打完 */
+function endMoves(st,tr){
+  const n=st.played.filter(Boolean).length;
+  if((st.lead+n)%4!==0) throw new Error(`残局题:现在轮到${SEAT[(st.lead+n)%4]},不是你`);
+  const sz=st.hands.map((h,s)=>h.length+(st.played[s]?1:0));
+  if(sz.some(x=>x!==sz[0])) throw new Error('残局题:四家张数对不上 '+sz.join('/'));
+  const led=n?effSuit(st.played[st.lead],tr):null;
+  return legalSet(st.hands[0],led,tr).map(c=>{
+    const h2=st.hands.slice(); h2[0]=st.hands[0].filter(x=>x!==c);
+    const p2=st.played.slice(); p2[0]=c;
+    const r=endSolve({...st,hands:h2,played:p2},tr);
+    return {card:c,v:r.v,F:r.F,line:r.line};
+  });
+}
+
+/* 残局题(q.end):另外三家剩的牌摊在各自座位下面(明牌残局,DESIGN §9.14 登记的简化),
+   座位名写成「北 · 帮家」—— 同一个残局,坐不同的座位要的东西不一样。 */
+const roleOf=(s,decl)=>s===decl?'庄家':(s%2===decl%2?'帮家':'闲家');
+function endState(q){
+  const e=q.end;
+  return {hands:[q.hand,e.hands[1],e.hands[2],e.hands[3]],lead:q.lead,played:q.played.slice(),
+          def:e.def,declTeam:e.decl%2,kitty:e.kitty};
+}
+function ladderText(F){
+  return F===0?'庄家方升 3 级(关光)':F<40?'庄家方升 2 级':F<80?'庄家方升 1 级'
+       :F<120?'闲家上台':`闲家上台,还升 ${Math.floor((F-80)/40)} 级`;
+}
+let endGen=0;
+/* 答完之后,剩下几墩按最优打完,一墩一墩摆出来,最后报结算。
+   endGen 是代次令牌:换题 / 重做时自增,在途的定时器全部作废(DESIGN §9.3 那个坑)。 */
+function playOutEnd(q,mv,st0){
+  const g=++endGen, st=st0||endState(q), hands=st.hands.map(h=>h.slice());
+  const lineAll=mv.line, last=lineAll[lineAll.length-1];
+  const drop=t=>{ for(let s=0;s<4;s++) if(t.played[s]) hands[s]=hands[s].filter(c=>c.id!==t.played[s].id); };
+  const paint=(t,i)=>{
+    drop(t);
+    $('table').innerHTML=`<div class="endno">第 ${i+1} / ${lineAll.length} 墩</div>`+
+      trickHTML(t.played,t.lead,t.win,true,{open:hands,decl:q.end.decl});
+    if(i===0){ const m=$('table').querySelector('.slot[data-seat="0"]'); if(m) m.classList.add(q._ok?'okslot':'noslot'); }
+    $('hand').innerHTML=hands[0].map(c=>cardHTML(c,'dim',true,TR)).join('');
+    requestAnimationFrame(fitTable);
+  };
+  paint(lineAll[0],0);
+  lineAll.slice(1).forEach((t,k)=>setTimeout(()=>{ if(endGen===g) paint(t,k+1); },PACE.review*(k+1)));
+  setTimeout(()=>{
+    if(endGen!==g) return;
+    const defWon=(last.win%2)!==st.declTeam, K=st.kitty;
+    $('bub').innerHTML+=`<span class="res">末墩${defWon?'<b>闲家</b>':'<b>庄家方</b>'}收`+
+      (defWon&&K?`,底 ${K} × 2 = ${K*2}`:'')+` —— 闲家共 <b>${mv.F} 分</b>,${ladderText(mv.F)}。</span>`;
+    requestAnimationFrame(fitTable);
+  },PACE.review*(lineAll.length-1)+200);
+}
+
+/* ===== 收官实战(type:'endplay')=====
+   整个残局由你打完:轮到你就出,其余三家按 endSolve 的最优出。
+   你的每一手都当场交给 endSolve 判:和最优一样好就过,差了就停下来、把这一手的后果打完给你看。
+   判的是**每一手**,不是结果 —— 最优打法本来就可能守不住,那不算你错。 */
+function endplayStart(q){
+  const e=q.end;
+  q._st={hands:[q.hand.slice(),e.hands[1].slice(),e.hands[2].slice(),e.hands[3].slice()],
+         lead:q.lead,played:q.played.slice(),def:e.def,declTeam:e.decl%2,kitty:e.kitty};
+  q._n=q.hand.length; q._good=0;
+  endplayAdvance(q);
+}
+const trickNo=q=>q._n-q._st.hands[0].length+(q._st.played[0]?0:1);
+function endplayDraw(q,pick){
+  const st=q._st;
+  $('task').textContent=`第 ${Math.min(trickNo(q),q._n)} / ${q._n} 墩`;
+  $('table').innerHTML=trickHTML(st.played,st.lead,null,true,
+    {wait:true,open:{1:st.hands[1],2:st.hands[2],3:st.hands[3]},decl:q.end.decl});
+  const n=st.played.filter(Boolean).length;
+  const led=n?effSuit(st.played[st.lead],TR):null;
+  const legal=pick?legalSet(st.hands[0],led,TR).map(c=>c.id):[];
+  $('hand').innerHTML=st.hands[0].map(c=>cardHTML(c,legal.includes(c.id)?'pick'+(sel===c.id?' sel':''):'dim',true,TR)).join('');
+  if(pick) $('hand').querySelectorAll('.card.pick').forEach(el=>el.onclick=()=>{
+    if(answered)return; sel=(sel===el.dataset.id?null:el.dataset.id);
+    $('cta').disabled=!sel; $('cta').textContent='出牌'; endplayDraw(q,true);});
+  requestAnimationFrame(fitTable);
+}
+function endplayAdvance(q){
+  const g=++endGen;
+  const tick=()=>{
+    if(endGen!==g) return;
+    const st=q._st, n=st.played.filter(Boolean).length;
+    if(n===4){
+      const w=winnerOf(st.played,st.lead,TR), got=st.played.reduce((a,c)=>a+pts(c),0);
+      $('table').innerHTML=trickHTML(st.played,st.lead,w,true,
+        {open:{1:st.hands[1],2:st.hands[2],3:st.hands[3]},decl:q.end.decl});
+      setTimeout(()=>{
+        if(endGen!==g) return;
+        const last=st.hands.every(h=>!h.length);
+        q._st={...st,lead:w,played:[null,null,null,null],def:st.def+((w%2)!==st.declTeam?got:0)};
+        if(last){
+          const defWon=(w%2)!==st.declTeam, K=st.kitty, F=q._st.def+(defWon?K*2:0);
+          answered=true;
+          sayFeedback(true,q.good+`<span class="res">末墩${defWon?'<b>闲家</b>':'<b>庄家方</b>'}收`+
+            (defWon&&K?`,底 ${K} × 2 = ${K*2}`:'')+` —— 闲家共 <b>${F} 分</b>,${ladderText(F)}。</span>`);
+          return;
+        }
+        tick();
+      },PACE.review);
+      return;
+    }
+    const s=(st.lead+n)%4;
+    if(s===0){ sel=null; $('cta').disabled=true; $('cta').textContent='出牌'; $('cta').dataset.mode='check';
+               endplayDraw(q,true); return; }
+    const c=endSolve(st,TR).card;
+    const h2=st.hands.slice(); h2[s]=st.hands[s].filter(x=>x!==c);
+    const p2=st.played.slice(); p2[s]=c; q._st={...st,hands:h2,played:p2};
+    endplayDraw(q,false);
+    setTimeout(tick,PACE.step);
+  };
+  tick();
+}
+function endplayCheck(q){
+  const st=q._st;
+  if((st.lead+st.played.filter(Boolean).length)%4!==0) return;   // 不是我出牌的时候,点了不算
+  const mv=endMoves(st,TR), mine=(st.declTeam===0);
+  const best=mine?Math.min(...mv.map(m=>m.v)):Math.max(...mv.map(m=>m.v));
+  const ch=mv.find(m=>m.card.id===sel), bm=mv.find(m=>m.v===best);
+  if(ch.v===best){
+    const h2=st.hands.slice(); h2[0]=st.hands[0].filter(x=>x.id!==sel);
+    const p2=st.played.slice(); p2[0]=ch.card; q._st={...st,hands:h2,played:p2};
+    // 手牌马上重画成不可点:我这张要是正好补满一墩,下一步是收墩动画,
+    // 旧的手牌 DOM 还挂着点击 —— 别人出牌的时候还能点出一张,状态就乱了
+    sel=null; setCat('good'); $('cta').disabled=true; endplayDraw(q,false);
+    endplayAdvance(q); return;
+  }
+  answered=true; wrong++;
+  sayFeedback(false,(q.bad?q.bad+' ':'')+`出 ${cardName(ch.card)} 闲家最后 ${ch.F} 分;出 ${cardName(bm.card)} 是 ${bm.F} 分。`);
+  q._ok=false; playOutEnd(q,ch,st);
+}
+
 function restLine(r){
   if(!r.after.length||!r.done) return '';
   const who=r.after.map(s=>`${SEAT[s]}家出 ${cardName(r.P[s])}`).join(',');
@@ -1548,12 +1855,15 @@ function trickHTML(played,lead,winner,showPt,opt){
     const cls=[s===0?'mine':s===2?'mate':'', opt.pick?'pickable':'',
                opt.selSeat===s?'selslot':'', opt.okSeat===s?'okslot':'', opt.noSeat===s?'noslot':''].join(' ');
     // 队伍题:队伍直接写进座位名,不另加标签(加了会挡住座位名)
-    const who = opt.teamTag ? `${SEAT[s]} · ${isUs(s)?'你们队':'对手队'}` : nameOf(s);
+    const who = opt.teamTag ? `${SEAT[s]} · ${isUs(s)?'你们队':'对手队'}`
+              : opt.decl!=null ? `${SEAT[s]} · ${roleOf(s,opt.decl)}${s===0?'(你)':''}` : nameOf(s);
     const wcls = opt.teamTag ? (isUs(s)?'us':'them') : '';
     return `<div class="slot ${cls}" data-seat="${s}">`+
       `<div class="who ${wcls} ${winner===s?'win':''}">${who}</div>`+
       (a?`<div class="cards${a.length>1?' ov':''}">${a.map(c=>cardHTML(c,'played',showPt,TR)).join('')}</div>`
-         :`<div class="ph${opt.wait&&s!==0?' wait':''}"></div>`)+`</div>`;
+         :`<div class="ph${opt.wait&&s!==0?' wait':''}"></div>`)+
+      (opt.open&&s!==0?`<div class="mini${opt.open[s].length?'':' none'}">`+
+        opt.open[s].map(c=>cardHTML(c,'',false,TR)).join('')+`</div>`:'')+`</div>`;
   };
   const wcls=(wide>=3?' m4':wide===2?' m2':'')+(opt.solo?' solo':'');
   if(opt.solo) return `<div class="trickWrap"><div class="trick${wcls}">${cell(0)}</div></div>`;
@@ -1563,8 +1873,8 @@ function trickHTML(played,lead,winner,showPt,opt){
 }
 
 /* 摊开给你看的几行牌:出牌记录、明牌残局、自己手上剩什么 */
-function rowsHTML(q){
-  let h=(q.rows||[]).map(r=>
+function rowsHTML(q,rows){
+  let h=(rows||q.rows||[]).map(r=>
     `<div class="openrow ${r.me?'me':''}"><b>${r.who}</b><div class="opencards${r.spread?' spread':''}">`+
     r.cards.map(c=>cardHTML(c,'',true,TR)).join('')+`</div></div>`).join('');
   for(const bar of (q.bars||[])){
@@ -1606,6 +1916,8 @@ function paintCtx(q){
   if(TR&&TR.suit) h+=`<i>打 ${RS(TR.rank)} · ${SYM[TR.suit]}主</i>`;
   const sc=q&&q.score;
   if(sc!=null) h+=`<i class="pts">已抓 ${sc} 分</i>`;
+  // 残局题:比分写成「闲家 N 分」(你不一定是闲家);底分只有庄家知道
+  if(q&&q.end) h+=`<i class="pts">闲家 ${q.end.def} 分</i><i>底 ${q.end.kittyKnown||q.end.kitty} 分</i>`;
   $('ctx').innerHTML=h;
 }
 
@@ -1613,6 +1925,8 @@ function paintCtx(q){
 function render(){
   const q=L.qs[qi];
   TR = q.tr!==undefined ? q.tr : L.tr;                 // 题可以自带一局(用来演示「换级」)
+  endGen++;                                            // 上一题还在打的残局,作废
+  if(q.end&&!q.phase) q.phase='你是'+roleOf(0,q.end.decl);
   sel=null;selMulti=[];answered=false;hinted=false;
   $('barIn').style.width=(qi/L.qs.length*100)+'%';
   $('badge').textContent=q.badge||'';
@@ -1621,7 +1935,7 @@ function render(){
   $('hand').innerHTML='';$('table').innerHTML='';$('hand').style.minHeight='';
   $('foot').className='';$('verdict').textContent='';
   $('hintBtn').style.display='';$('hintBtn').disabled=!q.hint;
-  $('cta').textContent=q.type==='discard'?'扣底':(q.type==='trickpick'||q.type==='playset')?'出牌':'检查';
+  $('cta').textContent=q.type==='discard'?'扣底':(q.type==='trickpick'||q.type==='playset'||q.type==='endplay')?'出牌':'检查';
   $('cta').disabled=true;$('cta').className='btn';$('cta').dataset.mode='check';
   $('btnRow').style.display='';
 
@@ -1684,6 +1998,7 @@ function render(){
     draw();
   }
   else if(q.type==='trickpick'||q.type==='playset'||q.type==='discard'){ drawPlay(q); }
+  else if(q.type==='endplay'){ endplayStart(q); }
   else if(q.type==='throwjudge'||q.type==='forcedpick'){ drawThrow(q); }
   else if(q.type==='mini') startMini(q);
   if(!$('hand').children.length) $('hand').style.minHeight='0';
@@ -1705,7 +2020,8 @@ function drawPlay(q,handOnly){
   // 牌桌只画一次 —— 每点一张手牌就重建牌桌的话,别人已经出的牌会把 playIn 动画
   // 重放一遍(牌一直闪)。正式版 §11.3 早就写过这条,这里同样适用。
   if(!handOnly) $('table').innerHTML=rowsHTML(q)+
-    (q.played?trickHTML(q.played,q.lead,null,q.showPt,{...soloOpt(q),wait:q.type==='trickpick'})
+    (q.played?trickHTML(q.played,q.lead,null,q.showPt||!!q.end,
+       q.end?{wait:true,open:q.end.hands,decl:q.end.decl}:{...soloOpt(q),wait:q.type==='trickpick'})
              :`<div class="kittyBox">扣下去的 ${n} 张<div class="kittySlot">`+
               picked.map(id=>cardHTML(q.hand.find(c=>c.id===id),'',true,TR)).join('')+
               Array.from({length:Math.max(0,n-picked.length)},()=>'<i class="kph"></i>').join('')+
@@ -1760,6 +2076,7 @@ function drawThrow(q){
 /* ---------- 判分 ---------- */
 function check(){
   const q=L.qs[qi];let ok,msg=null,tail='';
+  if(q.type==='endplay'){ if(sel) endplayCheck(q); return; }
   if(q.type==='seat'){
     ok=sel===q.answer;
     $('table').querySelectorAll('.seatbtn[data-s]').forEach(b=>{
@@ -1844,6 +2161,15 @@ function check(){
     // accept:几张牌同样好的时候(比如两张都不带分的小牌)都算对,别为了唯一答案硬挑一张
     ok = q.anyLegal ? isLegal : (isLegal && (sel===q.answer || (q.accept||[]).includes(sel)));
     if(!isLegal&&q.illegal) msg=q.illegal;              // 违规牌:指着他手里剩的那张说
+    if(q.end&&isLegal){
+      // 残局:这一手之后,四家都按最优打完 —— 结果一墩一墩摆给他看
+      q._ok=ok;
+      const mv=endMoves(endState(q),TR).find(m=>m.card.id===sel);
+      answered=true;if(!ok)wrong++;
+      sayFeedback(ok, ok?q.good:(msg||q.bad));
+      playOutEnd(q,mv);
+      return;
+    }
     const r=finishTrick(q,q.hand.find(c=>c.id===sel));
     $('table').innerHTML=rowsHTML(q)+trickHTML(r.P,q.lead,r.done?r.win:null,q.showPt,soloOpt(q));
     if(isLegal) tail=restLine(r);
@@ -2051,7 +2377,7 @@ setCat('idle');drawMap();show('map');
 /* 给测试用的出口。整段代码在 IIFE 里,页面上看不见 —— 没有这个出口,
    走查脚本只能点界面,没法把每道题的标答拿去问引擎「这手合法吗、赢不赢」。
    ♥A♥A+♥J♥J 算不算拖拉机这种事,脑内推演是会推错的。 */
-window.__LEARN__={UNITS,winnerOf,isLegalFollow,legalSet,effSuit,classify,structMatches,countPoints,finishTrick};
+window.__LEARN__={UNITS,endSolve,endMoves,ladderKey,winnerOf,isLegalFollow,legalSet,effSuit,classify,structMatches,countPoints,finishTrick};
 })();
 </script>
 </body>
