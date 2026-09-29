@@ -6,6 +6,8 @@
  * 标签 = 这一局最后一墩是不是庄家方拿下。逻辑回归,特征与 guardP 一致:
  *   [1, min(b,1), min(b,3), t, U, n, min(b,1)·t]
  * 输出系数(贴进 AIP.guardW)与分箱校准表。标签依赖当前打法 —— 打法改了要重拟合。
+ * ROLE=opp:改拟合闲家的「抠底」概率(digPlan 的 AIP.digW)—— 闲家每一次出牌前记他看得到的 guardFeat,
+ *          标签 = 最后一墩是不是闲家方拿下(2026-09-29,产品方:王留到最后、末墩靠王或主级牌守)。
  */
 'use strict';
 const fs=require('fs'),vm=require('vm');
@@ -19,9 +21,10 @@ if(process.env.OV) Object.assign(E.AIP,JSON.parse(process.env.OV));
 const N=+process.argv[3]||1500, S0=+(process.env.SEED0||0);
 const X=[], Y=[], KP=[];
 // FEAT=2:再加「被钓出来」的风险 —— 有钢板主时,在外主牌越多(对手越能把它钓出来)越危险:min(b,1)·U、min(b,1)·max(0,U/2−(t−1))
-const FEAT=+(process.env.FEAT||1);
+const FEAT=+(process.env.FEAT||1), ROLE=process.env.ROLE||'decl';
 const feat=f=>{ const base=[1,Math.min(f.b,1),Math.min(f.b,3),f.t,f.U,f.n,Math.min(f.b,1)*f.t];
   if(FEAT===2) base.push(Math.min(f.b,1)*f.U, Math.min(f.b,1)*Math.max(0,f.U/2-(f.t-1)));
+  if(FEAT===3) base.push(Math.min(f.j,1), Math.min(f.j,2));   // 手里的王(产品方:末墩最可靠的是大王、其次小王)
   return base; };
 for(let seed=S0+1;seed<=S0+N;seed++){
   const {first}=E.cutForFirst(seed); const {hands,kitty}=E.dealRound(seed,first);
@@ -35,7 +38,7 @@ for(let seed=S0+1;seed<=S0+N;seed++){
     for(let i=0;i<4;i++){
       const seat=(leader+i)%4, hand=hands[seat];
       const view={seat,hand,trump,declSeat,history:[...history,...plays],buriedKnown:seat===declSeat?buried:[]};
-      if(seat===declSeat) rows.push(feat(E.guardFeat(hand,E.makeMemory(view),trump)));
+      if(ROLE==='opp'?seat%2!==declSeat%2:seat===declSeat) rows.push(feat({...E.guardFeat(hand,E.makeMemory(view),trump),j:hand.filter(x=>x.suit==='X').length}));
       let cards;
       if(i===0){ cards=E.aiChooseLead(view).cards; const chk=E.checkThrow(hands,seat,cards,trump); if(!chk.ok) cards=chk.forced; }
       else{ const lead=E.classify(plays[0].cards,trump); cards=E.aiChooseFollow(view,plays).cards;
@@ -44,7 +47,7 @@ for(let seed=S0+1;seed<=S0+N;seed++){
     }
     history.push(...plays); leader=E.resolveTrick(plays,trump).winner; last=leader;
   }
-  const y=last%2===declSeat%2?1:0;
+  const y=(last%2===declSeat%2)===(ROLE!=='opp')?1:0;
   for(const r of rows){ X.push(r); Y.push(y); KP.push(kp); }
 }
 // 逻辑回归(牛顿法,带一点 L2)
@@ -67,9 +70,9 @@ for(let it=0;it<30;it++){
 const P=X.map(x=>sig(x.reduce((a,v,j)=>a+v*w[j],0)));
 let ll=0,ll0=0; const yb=Y.reduce((a,b)=>a+b,0)/Y.length;
 for(let i=0;i<Y.length;i++){ ll-=Y[i]?Math.log(P[i]):Math.log(1-P[i]); ll0-=Y[i]?Math.log(yb):Math.log(1-yb); }
-console.log(`${FILE}${process.env.OV?' OV='+process.env.OV:''} —— ${N} 副,庄家决策点 ${X.length} 个,庄家方守住最后一墩 ${(100*yb).toFixed(1)}%`);
+console.log(`${FILE}${process.env.OV?' OV='+process.env.OV:''} —— ${N} 副,${ROLE==='opp'?'闲家':'庄家'}决策点 ${X.length} 个,${ROLE==='opp'?'闲家方拿下':'庄家方守住'}最后一墩 ${(100*yb).toFixed(1)}%`);
 console.log(`对数损失 ${(ll/Y.length).toFixed(4)}(只用均值 ${(ll0/Y.length).toFixed(4)})`);
-console.log('guardW: ['+w.map(v=>+v.toFixed(4)).join(',')+']');
+console.log((ROLE==='opp'?'digW':'guardW')+': ['+w.map(v=>+v.toFixed(4)).join(',')+']');
 console.log('   特征: [1, min(b,1), min(b,3), t, U, n, min(b,1)·t]');
 console.log('\n分箱校准:');
 for(let b=0;b<10;b++){ const lo=b/10,hi=(b+1)/10; const id=P.map((p,i)=>i).filter(i=>P[i]>=lo&&(b===9?P[i]<=hi:P[i]<hi)); if(id.length<50) continue;

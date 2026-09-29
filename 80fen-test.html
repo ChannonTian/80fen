@@ -1129,7 +1129,12 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   followBeatsCheck: 0,         // (v0.7.32 开,v0.7.34 关:它主要改成第 2 家用主分牌毙 0 分墩,后手更容易盖毙,见 test/diff-switch.js)1 = 贴分 / 跟小 / 垫牌候选按 currentWinner 判胜负(断门时它们常常其实毙下了这墩);0 = 一律按不赢墩打分
   tempoKeepPlayed: 0,          // 1 = 压下这墩时牌权项不再扣掉打出去的这手(它已在 futureValue 里收过一次);0 = 旧行为
   lastOverW0: 0.5,             // (v0.7.29 测试版默认开)将牌墩末家台面 0 分时同门盖过来的意愿系数(0 = 不打折,旧行为);见 pSurvive
-  ruff2Plan: 0,                // 1 = 第 2 家断门毙副牌单张时按后面两家断不断门挑毙牌(产品方 2026-09-29,见 aiChooseFollow 末尾);0 = 旧行为
+  digPlan: 0,                  // 闲家「抢末墩」的留手代价权重(0 = 旧行为);见 digCost。产品方 2026-09-29「王留到最后」
+  digW: [-1.1492,1.0759,0.0181,0.1937,-0.0332,-0.0233,-0.0687],  // fit-guard.js ROLE=opp,1000 副 / 36564 个闲家决策点(v0.7.34 打法),对数损失 0.607(均值 0.639)
+  guardJoker: 0,               // 1 = 守底 / 抠底概率再加「手里的王」两项(guardWJ / digWJ,fit-guard.js FEAT=3);0 = 旧式子
+  guardWJ: [-0.4435,1.1067,0.2845,0.2508,-0.0739,-0.0176,-0.1258,-0.6687,0.9532],   // fit-guard.js FEAT=3,600 副(v0.7.34 打法)
+  digWJ: [-1.108,1.0905,-0.1029,0.1788,-0.0387,-0.018,-0.0865,-0.2474,0.4433],      // fit-guard.js ROLE=opp FEAT=3,600 副
+  ruff2Plan: 0,               // 1 = 第 2 家断门毙副牌单张时按后面两家断不断门挑毙牌(产品方 2026-09-29,见 aiChooseFollow 末尾);0 = 旧行为
   ruff2Low: 0.1,               // 第 3 家断门概率低于它 = 「极高概率不断」,主分牌毙照旧
   ruff2Pt: 25,                 // 主分牌毙的罚分 × 第 3 家断门概率
   ruff2Low2: 10,               // 压不过在外主分牌的小主毙的罚分 × P(3 断) × P(4 不断)
@@ -2501,14 +2506,32 @@ function guardFeat(hand, mem, trump){
     if(effSuit(keyToCard(k),trump)==='T') U+=n; }
   for(const c of hand){ if(effSuit(c,trump)!=='T') continue; t++;
     if(unseenBeats(mem,{suit:'T',top:ordIdx(c,trump),type:'single'},trump).higher===0) b++; }
-  return {n:hand.length,t,b,U};
+  return {n:hand.length,t,b,U,j:hand.filter(c=>c.suit==='X').length};
 }
-function guardP(f){
-  const w=AIP.guardW;
-  const z=w[0]+w[1]*Math.min(f.b,1)+w[2]*Math.min(f.b,3)+w[3]*f.t+w[4]*f.U+w[5]*f.n+w[6]*Math.min(f.b,1)*f.t;
+/* guardJoker(2026-09-29):再加「手里的王」两项 [min(j,1), min(j,2)](fit-guard.js FEAT=3)。
+ * 拟合里王在「钢板主」之外还有额外的解释力 —— 庄家握两张王 +1.2(对数几率)、一张 +0.3;闲家两张 +0.64、一张 +0.20。
+ * 旧式子里 b 在 1 张封顶:手里两张钢板时打掉一张几乎不花钱,王就这么在中盘被一张张打掉。 */
+function logitP(w,f){
+  let z=w[0]+w[1]*Math.min(f.b,1)+w[2]*Math.min(f.b,3)+w[3]*f.t+w[4]*f.U+w[5]*f.n+w[6]*Math.min(f.b,1)*f.t;
+  if(w.length>=9) z+=w[7]*Math.min(f.j||0,1)+w[8]*Math.min(f.j||0,2);
   return 1/(1+Math.exp(-z));
 }
+function guardP(f){ return logitP(AIP.guardJoker?AIP.guardWJ:AIP.guardW,f); }
+/* digPlan(2026-09-29,产品方:「王留到最后、末墩靠王或主级牌守」)—— 闲家这一侧的同一件事。
+ * audit-lasttrick(400 副):最后 3 墩之前出掉的王里,闲家「能吃住,争这墩」跟主墩用王 0.67 次/局、单领王 0.38 次/局,
+ * 是最大的一块;末墩 31% 是副级数牌赢的。闲家以前没有任何「抢末墩」的留手代价 —— 收官视野(≈剩 8~10 张)之前一张王出掉不花钱。
+ * 抠底概率 P 用 fit-guard.js ROLE=opp 拟合(AIP.digW,同一组特征),代价 = 底分估计 × 倍数 × [P(现在) − P(打掉这手后)] × digPlan。
+ * 帮家不算(产品方:帮家不替庄家守底,中盘用王 / 级牌帮牌权过渡)。 */
+function digCost(X, cards){
+  if(!AIP.digPlan||seatRole(X)!=='opp'||!X.hand||!X.mem) return 0;
+  const kp=kittyPts(X); if(kp<=0) return 0;
+  const drop=new Set(cards.map(c=>c.id));
+  const f0=guardFeat(X.hand,X.mem,X.trump), f1=guardFeat(X.hand.filter(c=>!drop.has(c.id)),X.mem,X.trump);
+  const w=AIP.guardJoker?AIP.digWJ:AIP.digW;
+  return kp*kittyMultOf(X)*Math.max(0,logitP(w,f0)-logitP(w,f1))*AIP.digPlan;
+}
 function guardCost(X, cards){
+  if(AIP.digPlan&&seatRole(X)==='opp') return digCost(X,cards);
   if(!AIP.guardPlan||seatRole(X)!=='decl'||!X.hand||!X.mem) return 0;
   const kp=kittyPts(X); if(kp<=0) return 0;
   const drop=new Set(cards.map(c=>c.id));
@@ -2517,7 +2540,7 @@ function guardCost(X, cards){
   /* guardBossOnly:只对**钢板主**收守底代价。guardPlan=1 整局 −0.15 ±0.14 分/局 —— 拟合里
    * 「每少一张主守住率降一点」(t 的系数)多半是相关不是因果(主多的手本来就强),
    * 按它给每一张主都收代价,庄家连正常毙牌拿分都犹豫。钢板主那一项的因果是清楚的。 */
-  if(AIP.guardBossOnly) f1={...f0,b:f1.b};
+  if(AIP.guardBossOnly) f1={...f0,b:f1.b,j:f1.j};
   return kp*kittyMultOf(X)*Math.max(0,guardP(f0)-guardP(f1))*AIP.guardPlan;
 }
 
