@@ -310,6 +310,7 @@ body{background:var(--page);color:var(--tx);overflow:hidden;
 <link rel="stylesheet" href="learn-theme.css?v=e451990eae8f">
 <link rel="stylesheet" href="leo-theme.css?v=f6202a27e3d7">
 <link rel="stylesheet" href="study-layout.css?v=255f92b0a20b">
+<link rel="stylesheet" href="table-surface.css?v=05aeb5495423">
 </head>
 <body>
 <div id="app">
@@ -622,9 +623,9 @@ function winnerOf(played,leadSeat,tr){
 }
 function partialWinner(played,leadSeat,tr){ return winnerOf(played,leadSeat,tr); }
 
-const SEAT=['南','东','北','西'];
+const SEAT=['你','下家','对家','上家'];
 const isUs=s=>s%2===0;
-const nameOf=s=>SEAT[s]+(s===0?'(你)':s===2?'(队友)':'');
+const nameOf=s=>SEAT[s]+(s===0?'':s===2?'（队友）':'（对手）');
 
 /* ================= 课程 =================
    题型全部落在牌桌上:
@@ -1446,15 +1447,16 @@ function drawMap(){
   const saved=readCheckpoint(),goUnit=saved?saved.ui:active,goLesson=saved?saved.li:active<0?0:doneCount(UNITS[active].key);
   const next=goUnit>=0?UNITS[goUnit].lessons[goLesson]:null;
   const percent=Math.round(finished/total*100);
-  let html=`<div class="course-home"><header class="course-intro"><div class="coach-progress"><div class="progress-ring" role="progressbar" aria-label="课程完成进度" aria-valuenow="${finished}" aria-valuemin="0" aria-valuemax="${total}"><svg viewBox="0 0 88 88" aria-hidden="true"><circle class="ring-track" cx="44" cy="44" r="40"/><circle class="ring-value" cx="44" cy="44" r="40" pathLength="100" stroke-dasharray="${percent} 100"/></svg><span class="leo-avatar" role="img" aria-label="六六"></span></div><div><span class="eyebrow">六六陪你学牌</span><h1>${finished?'手里又多了点本领':'从一手牌开始'}</h1><p>已完成 <b>${finished}</b> / ${total} 课</p></div></div><div class="continue-row"><span>${next?next.name:'全部课程已完成'}<small>${saved?'接着第 '+(saved.qi+1)+' 题':next?'每次练一个本领':'可以挑一课再练练'}</small></span><button class="btn" id="continueCourse">${next?'继续课程':'去打牌'} <span aria-hidden="true">→</span></button></div></header><div class="course-decks">`;
+  let html=`<div class="course-home"><header class="course-intro"><div class="coach-progress"><div class="progress-ring" role="progressbar" aria-label="课程完成进度" aria-valuenow="${finished}" aria-valuemin="0" aria-valuemax="${total}"><svg viewBox="0 0 88 88" aria-hidden="true"><circle class="ring-track" cx="44" cy="44" r="40"/><circle class="ring-value" cx="44" cy="44" r="40" pathLength="100" stroke-dasharray="${percent} 100"/></svg><span class="leo-avatar" role="img" aria-label="六六"></span></div><div><span class="eyebrow">六六陪你学牌</span><h1>${finished?'手里又多了点本领':'从一手牌开始'}</h1><p>已完成 <b>${finished}</b> / ${total} 课</p></div></div><div class="continue-row"><button class="btn" id="continueCourse">${next?'继续课程':'去打牌'}</button></div></header><div class="course-decks">`;
   UNITS.forEach((U,u)=>{
     const dn=Math.min(doneCount(U.key),U.lessons.length),open=unlocked(u),chosen=open?Math.min(dn,U.lessons.length-1):0;
-    html+=`<section class="course-deck" data-deck="${u}" aria-labelledby="unit-${u}"><header><div><small>${U.part}</small><h2 id="unit-${u}">${U.name.split(' · ')[1]||U.name}</h2></div><span class="deck-progress">${dn} / ${U.lessons.length}</span></header><div class="lesson-fan" role="group" aria-label="${U.name}" style="--count:${U.lessons.length}">`;
+    html+=`<details class="course-deck ${open?'available':'locked-unit'}" ${open?'open':''} data-deck="${u}" aria-labelledby="unit-${u}"><summary><div><small>${U.part}</small><h2 id="unit-${u}">${U.name.split(' · ')[1]||U.name}</h2></div><span class="deck-progress">${dn} / ${U.lessons.length}<i aria-hidden="true">⌄</i></span></summary><div class="lesson-fan" role="group" aria-label="${U.name}" style="--count:${U.lessons.length}">`;
     U.lessons.forEach((lesson,i)=>{
       const done=open&&i<dn,current=open&&i===dn,available=done||current,t=i-(U.lessons.length-1)/2;
-      html+=`<button class="course-card ${done?'face':'back'} ${current?'current':''} ${available?'':'locked'} ${i===chosen?'previewed':''}" data-unit="${u}" data-lesson="${i}" style="--i:${i};--angle:${t*3}deg;--arc:${t*t*1.4}px" aria-pressed="${i===chosen}" aria-label="第 ${i+1} 课，${lesson.name}，${done?'已完成':current?'待学习':'未解锁'}"><span class="course-art"><span class="course-corner"><b>${i+1}</b>${catSuit()}</span>${done?'<span class="course-check" aria-hidden="true">✓</span>':`<span class="back-cat">${catSuit()}</span>`}<span class="course-stamp">${done?'已完成':current?'学这一课':'待解锁'}</span></span></button>`;
+      html+=`<div class="course-card ${done?'face':'back'} ${current?'current':''} ${available?'':'locked'} ${i===chosen?'previewed':''}" data-unit="${u}" data-lesson="${i}" style="--i:${i};--angle:${t*4}deg;--arc:${t*t*1.7}px"><span class="course-art"><span class="course-corner"><b>${i+1}</b>${catSuit()}</span>${done?'<span class="course-check" aria-hidden="true">✓</span>':`<span class="back-cat">${catSuit()}</span>`}<span class="course-stamp">${done?'已完成':current?'当前课程':'待解锁'}</span></span><button class="course-select" aria-pressed="${i===chosen}" aria-label="选择第 ${i+1} 课，${lesson.name}，${done?'已完成':current?'待学习':'未解锁'}"></button><button class="course-action" aria-label="${available?(done?'复习':'开始')+'：'+lesson.name:'未解锁：'+lesson.name}" ${available?'':'aria-disabled="true"'}>${available?(done?'复习':'开始'):'🔒'}</button></div>`;
+
     });
-    html+=`</div><div class="lesson-preview" aria-live="polite" aria-atomic="true"><div><h3></h3><p></p></div><button class="lesson-start"></button></div></section>`;
+    html+=`</div><div class="lesson-preview" aria-live="polite" aria-atomic="true"><div><h3></h3><p></p></div></div></details>`;
   });
   html+=`</div><a class="template-link" href="templates.html">题型设计模板 ↗</a></div><nav class="study-bottom-nav" aria-label="模式"><a href="index.html"><span aria-hidden="true">♧</span>打牌</a><a href="learn.html" aria-current="page"><span class="nav-cat">${catSuit()}</span>学牌</a></nav>`;
   $('map').innerHTML=html;
@@ -1462,14 +1464,17 @@ function drawMap(){
   function preview(b){
     const u=+b.dataset.unit,i=+b.dataset.lesson,U=UNITS[u],lesson=U.lessons[i],dn=doneCount(U.key),open=unlocked(u),done=open&&i<dn,available=open&&i<=dn;
     const deck=b.closest('.course-deck');
-    deck.querySelectorAll('.course-card').forEach(c=>{c.classList.toggle('previewed',c===b);c.setAttribute('aria-pressed',String(c===b));});
+    deck.querySelectorAll('.course-card').forEach(c=>{c.classList.toggle('previewed',c===b);c.querySelector('.course-select').setAttribute('aria-pressed',String(c===b));});
     deck.querySelector('h3').textContent=lesson.name;
     deck.querySelector('.lesson-preview p').textContent=(done?'已完成 · 可以复习':available?'待学习':'完成前面的课程后解锁')+' · '+lesson.mins+' 分钟';
-    const action=deck.querySelector('.lesson-start');action.textContent=done?'再练一遍':available?'开始':'未解锁';action.disabled=!available;action.onclick=()=>start(u,i);
+
   }
   $('map').querySelectorAll('.course-card').forEach(b=>{
-    b.onclick=()=>preview(b);b.onfocus=()=>preview(b);
+    b.querySelector('.course-select').onclick=()=>preview(b);
+    b.querySelector('.course-select').onfocus=()=>preview(b);
     b.onpointerenter=e=>{if(e.pointerType==='mouse')preview(b);};
+    b.querySelector('.course-action').onclick=()=>{const u=+b.dataset.unit,i=+b.dataset.lesson;if(unlocked(u)&&i<=doneCount(UNITS[u].key))start(u,i);else preview(b);};
+
   });
   $('map').querySelectorAll('.course-card.previewed').forEach(preview);
 }
@@ -1586,10 +1591,10 @@ function render(){
     const tr=q.noTrumpTag?'hide':TR;
     $('table').innerHTML=rowsHTML(q)+
       `<div class="pile">${q.cards.map(c=>cardHTML(c,'pick',q.showPt,tr)).join('')}</div>`;
-    $('table').querySelectorAll('.card').forEach(n=>n.onclick=()=>{
+    $('app').querySelectorAll('#hand .card, #table .pile .card').forEach(n=>n.onclick=()=>{
       if(answered)return;
       if(q.type==='cardpick'){
-        $('table').querySelectorAll('.card').forEach(x=>x.classList.remove('sel'));
+        $('app').querySelectorAll('#hand .card, #table .pile .card').forEach(x=>x.classList.remove('sel'));
         n.classList.add('sel');sel=n.dataset.id;$('cta').disabled=false;return;
       }
       const i=selMulti.indexOf(n.dataset.id);
@@ -1688,7 +1693,7 @@ function drawThrow(q){
     html += `<div class="chips" style="margin-top:8px">${q.opts.map((o,i)=>`<button class="opt" data-i="${i}">${o}</button>`).join('')}</div>`;
   $('table').innerHTML=html;
   if(pickable){
-    $('table').querySelectorAll('.pickset .card').forEach(n=>n.onclick=()=>{
+    $('hand').querySelectorAll('.card').forEach(n=>n.onclick=()=>{
       if(answered)return;
       const i=selMulti.indexOf(n.dataset.id);
       if(i<0){selMulti.push(n.dataset.id);n.classList.add('sel');}
@@ -1713,14 +1718,14 @@ function check(){
       b.querySelector('small').textContent=s===q.answer?'队友':'对手';});
   } else if(q.type==='multi'){
     ok=selMulti.length===q.answer.length&&q.answer.every(a=>selMulti.includes(a));
-    $('table').querySelectorAll('.card').forEach(n=>{
+    $('app').querySelectorAll('#hand .card, #table .pile .card').forEach(n=>{
       const isA=q.answer.includes(n.dataset.id);n.classList.remove('sel');
       addCls(n,isA?'ok':selMulti.includes(n.dataset.id)?'no':'dim');
       if(q.noTrumpTag&&TR){const c=q.cards.find(x=>x.id===n.dataset.id);
         if(effSuit(c,TR)==='T')n.insertAdjacentHTML('beforeend','<span class="trumpTag">主</span>');}});
   } else if(q.type==='cardpick'){
     ok=sel===q.answer;
-    $('table').querySelectorAll('.card').forEach(n=>{
+    $('app').querySelectorAll('#hand .card, #table .pile .card').forEach(n=>{
       n.classList.remove('sel');
       addCls(n,n.dataset.id===q.answer?'ok':n.dataset.id===sel?'no':'');});
   } else if(q.type==='ladder'){
@@ -1754,7 +1759,7 @@ function check(){
     const r=throwResult(q);
     const want=(r.forced||[]).map(c=>c.id);
     ok = want.length===selMulti.length && want.every(id=>selMulti.includes(id));
-    $('table').querySelectorAll('.pickset .card').forEach(n=>{
+    $('hand').querySelectorAll('.card').forEach(n=>{
       n.classList.remove('sel');
       addCls(n, want.includes(n.dataset.id)?'ok':selMulti.includes(n.dataset.id)?'no':'dim');});
   } else if(q.type==='discard'){
@@ -1807,7 +1812,7 @@ $('cta').onclick=()=>{
 };
 $('hintBtn').onclick=()=>{
   const q=L.qs[qi];if(!q.hint||hinted)return;hinted=true;
-  $('bub').innerHTML+=`<span class="tip">💡 ${q.hint}</span>`;
+  $('bub').innerHTML+=`<span class="tip">💡 ${relativeCopy(q.hint)}</span>`;
   $('hintBtn').disabled=true;
 };
 
@@ -1965,6 +1970,54 @@ $('doneBtn').onclick=()=>{const U=UNITS[ui];if(U.lessons[li+1])start(ui,li+1);el
 $('doneMap').onclick=()=>show('map');
 $('quit').setAttribute('aria-label','保存进度，返回课程');
 $('quit').onclick=()=>{pauseLesson();drawMap();show('map');};
+
+/* Presentation-only adapter. Course content and answer evaluation remain in the source lesson. */
+function relativeCopy(text){return String(text||'').replace(/你坐\s*<b>南<\/b>\s*边/g,'你在牌桌下方').replace(/[东南西北](?=<\/b>)/g,s=>({'东':'下家','西':'上家','北':'对家','南':'你'}[s])).replace(/南北/g,'你和对家').replace(/东西/g,'上家和下家').replace(/北家|北边/g,'对家').replace(/东家|东边/g,'下家').replace(/西家|西边/g,'上家').replace(/南家|南边/g,'你这边');}
+function surfaceTrick(played,lead,winner,showPt,opt={}){
+  const P=(played||[null,null,null,null]).map(asArr);
+  const points=countPoints(P.filter(Boolean).flat());
+  const cells=[2,3,1,0].map(s=>{
+    const cards=P[s]||[],team=s%2===0?'队友':'对手';
+    const cls=[opt.pick?'pickable':'',opt.selSeat===s?'selslot':'',opt.okSeat===s?'okslot':'',opt.noSeat===s?'noslot':'',winner===s?'winning':''].join(' ');
+    return `<div class="slot ${cls}" data-seat="${s}"><div class="who ${winner===s?'win':''}">${SEAT[s]}${s?` · ${opt.teamTag?(s%2===0?'我方':'对方'):team}`:''}</div>${cards.length?`<div class="cards ${cards.length>1?'ov':''}">${cards.map(c=>cardHTML(c,'played',showPt,TR)).join('')}</div>`:''}</div>`;
+  }).join('');
+  return `<div class="trickWrap"><div class="trick learning-table">${cells}<div class="tcenter"><span>${lead!=null?SEAT[lead]+'领出':'学习牌桌'}</span><b>本墩 ${points} 分</b></div></div></div>`;
+}
+trickHTML=surfaceTrick;
+function fanStudyHand(){
+  const cards=[...$('hand').querySelectorAll('.card')],n=cards.length;
+  $('hand').style.setProperty('--fan-count',Math.max(1,n));
+  cards.forEach((c,i)=>{const t=n<2?0:(i-(n-1)/2)/((n-1)/2);c.style.setProperty('--fan-i',i);c.style.setProperty('--fan-angle',(t*Math.min(18,n*2.4))+'deg');c.style.setProperty('--fan-arc',(t*t*10)+'px');});
+}
+function decorateStudy(){
+  if(!L)return;
+  const q=L.qs[qi],pickCards=q.type==='multi'||q.type==='cardpick';
+  $('app').dataset.surface=['ladder','discard'].includes(q.type)||(q.type==='numpick'&&!q.cards)?'focused':'table';
+  $('app').dataset.hasHand=String(pickCards||['trickpick','playset','discard','forcedpick','mini'].includes(q.type));
+  if(pickCards){const pile=$('table').querySelector('.pile');if(pile){$('hand').append(...pile.children);pile.remove();}
+    if(!$('table').querySelector('.learning-table'))$('table').insertAdjacentHTML('beforeend','<div class="learning-table recognition-table"><div class="table-prompt">'+(q.type==='multi'?'选出符合条件的牌':'选一张牌')+'<small>点选手牌，再检查答案</small></div></div>');}
+  if(q.type==='numpick'&&q.cards&&!$('table').querySelector('.learning-table')){
+    const board=document.createElement('div');board.className='learning-table number-table';
+    const pile=$('table').querySelector('.pile'),chips=$('table').querySelector('.chips');if(pile)board.append(pile);if(chips)board.append(chips);$('table').append(board);
+  }
+  if(q.type==='seat'){$('table').querySelector('.seatmap')?.classList.add('learning-table');const names={2:'对家',3:'上家',1:'下家'};$('table').querySelectorAll('.seatbtn[data-s]').forEach(b=>{b.firstChild.textContent=names[b.dataset.s];});const me=$('table').querySelector('.seatbtn.me');if(me){me.firstChild.textContent='你';me.querySelector('small').textContent='自己';}}
+  $('bub').innerHTML=relativeCopy($('bub').innerHTML);
+  $('table').querySelectorAll('.openrow>b').forEach(n=>{n.textContent=relativeCopy(n.textContent).replace(/^北(?=\s|$)/,'对家').replace(/^东(?=\s|$)/,'下家').replace(/^西(?=\s|$)/,'上家');});
+  fanStudyHand();
+}
+drawThrow=function(q){
+  const pick=q.type==='forcedpick',attempt=throwCards(q);
+  const evidence=[2,3,1].map(s=>`<div class="evidence-hand" data-seat="${s}"><span>${SEAT[s]} · ${s===2?'队友':'对手'}明牌</span><div class="evidence-cards">${q.hands[s].map(c=>cardHTML(c,'',true,TR)).join('')}</div></div>`).join('');
+  $('table').innerHTML=`<div class="learning-table throw-table">${evidence}<div class="throw-center">${pick?'<span>选出被迫出的牌</span>':`<div class="chips">${q.opts.map((o,i)=>`<button class="opt" data-i="${i}">${o}</button>`).join('')}</div>`}</div><div class="attempted-play"><span>你尝试甩出</span><div class="cards ov">${attempt.map(c=>cardHTML(c,'played',true,TR)).join('')}</div></div></div>`;
+  if(pick){$('hand').innerHTML=attempt.map(c=>cardHTML(c,'pick',true,TR)).join('');$('hand').querySelectorAll('.card').forEach(n=>n.onclick=()=>{if(answered)return;const i=selMulti.indexOf(n.dataset.id);if(i<0)selMulti.push(n.dataset.id);else selMulti.splice(i,1);n.classList.toggle('sel',i<0);$('cta').disabled=!selMulti.length;});}
+  else $('table').querySelectorAll('.opt').forEach(b=>b.onclick=()=>{if(answered)return;$('table').querySelectorAll('.opt').forEach(x=>x.classList.remove('sel'));b.classList.add('sel');sel=+b.dataset.i;$('cta').disabled=false;});
+};
+const sourceRender=render,sourceDrawPlay=drawPlay,sourceCheck=check,sourcePaintMini=paintMini,sourceFeedback=sayFeedback;
+render=function(){sourceRender();decorateStudy();};
+drawPlay=function(q,handOnly){sourceDrawPlay(q,handOnly);fanStudyHand();};
+check=function(){sourceCheck();decorateStudy();};
+paintMini=function(){sourcePaintMini();decorateStudy();};
+sayFeedback=function(ok,text){sourceFeedback(ok,relativeCopy(text));};
 
 // Design review entry points. Fixtures never read/write real lesson completion.
 const templateParams=new URLSearchParams(location.search),templateType=templateParams.get('template');

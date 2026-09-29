@@ -1,21 +1,22 @@
 const definitions=[
  ['course','课程首页 · 完成状态',1,'展示已完成牌面、当前课程与待解锁牌背；不改变实际进度。'],
  ['seat','认座位',1,'点击一个座位；选择只改变描边和底色。'],
- ['multi','多选辨认牌',14,'候选牌保持同一网格；选中只抬起 10px。'],
+ ['multi','多选辨认牌',14,'在大角度手牌扇形中辨认；选中抬起，尺寸不变。'],
  ['cardpick','单选辨认牌',3,'单选替换上次选择；确认前不改变证据区。'],
- ['numpick','数值 / 判断选项',5,'证据牌在上，固定高度选项在下。'],
+ ['numpick','数值 / 判断选项',5,'有牌时在学习牌桌中央作答；无牌时使用专注选择布局。'],
  ['ladder','升级阶梯',1,'结果选项统一 44px 起；分数信息不随选择改变。'],
  ['winpick','选收墩玩家',8,'四家牌面和座位固定，未选 / 选中 / 反馈尺寸一致。'],
  ['teampick','选得分队伍',1,'一选同时高亮同队两家，不改变座位布局。'],
  ['trickpick','选一张出牌',24,'候选区独立于牌桌，选择不重建牌桌。'],
  ['playset','对子 / 拖拉机出牌',5,'多选计数，达到要求才可提交；同门相邻。'],
  ['discard','选牌扣底',3,'底牌槽和候选手牌预留固定空间。'],
- ['throwjudge','判断甩牌',1,'四家明牌排列成对照行，下方给出判断选项。'],
- ['forcedpick','甩牌失败后选牌',1,'沿用四家明牌对照，只允许选择自己的候选牌。'],
+ ['throwjudge','判断甩牌',1,'相关三家明牌沿桌边展示，尝试甩出的牌在自己出牌区，桌心判断。'],
+ ['forcedpick','甩牌失败后选牌',1,'桌上保留甩出记录；从下方手牌选择被迫出的牌。'],
  ['mini','连续两墩练习',6,'手牌与底部操作区始终占位，等待时不收起。']
 ];
 const $=id=>document.getElementById(id),params=new URLSearchParams(location.search);
-$('type').innerHTML=definitions.map(([id,name])=>`<option value="${id}">${name}</option>`).join('');
+const families=[['课程首页',['course']],['有牌桌 · 情境练习',['seat','multi','cardpick','winpick','teampick','trickpick','playset','throwjudge','forcedpick','mini']],['无牌桌 · 专注练习',['ladder','discard']],['按内容切换布局',['numpick']]];
+$('type').innerHTML=families.map(([label,ids])=>`<optgroup label="${label}">${ids.map(id=>{const d=definitions.find(x=>x[0]===id);return `<option value="${id}">${d[1]}</option>`;}).join('')}</optgroup>`).join('');
 if(definitions.some(d=>d[0]===params.get('type')))$('type').value=params.get('type');
 function variants(){const d=definitions.find(d=>d[0]===$('type').value);$('variant').innerHTML=Array.from({length:d[2]},(_,i)=>`<option value="${i}">样例 ${i+1} / ${d[2]}</option>`).join('');$('note').textContent=d[3];}
 function render(){$('state').disabled=$('type').value==='course';$('variant').disabled=$('type').value==='course';const url=$('type').value==='course'?'learn.html?course-preview=1':'learn.html?'+new URLSearchParams({template:$('type').value,variant:$('variant').value,state:$('state').value});$('preview').src=url;$('open').href=url;history.replaceState(null,'','?'+new URLSearchParams({type:$('type').value}));}

@@ -77,7 +77,7 @@ function panHand(){const width=$('fanViewport').clientWidth||390;layouts.forEach
 function legality(){
   const cards=chosen();
   if(completed)return{ok:true,text:scene==='bury'?`扣底完成 · ${E.countPoints(kittyCards)} 分`:scene==='follow'?`对家收墩 · +${E.countPoints(plays.flatMap(p=>p.cards))} 分`:'这手牌已领出'};
-  if(isBidding())return{ok:false,text:declaration?`${declaration.seat===0?'你':'下家'}${declaration.strength===2?'加固':'亮主'} ${glyph[declaration.suit]||'无主'} · 打 5`:'发牌阶段 · 可以亮主'};
+  if(isBidding())return{ok:false,text:declaration?`${declaration.seat===0?'你':'下家'}${declaration.action==='counter'?'反主':declaration.strength===2?'加固':'亮主'} ${glyph[declaration.suit]||'无主'} · 打 5`:'发牌阶段 · 可以亮主'};
   if(scene==='bury')return{ok:cards.length===8,text:cards.length>8?`多选 ${cards.length-8} 张，请取消`:`选 ${cards.length} / 8 张 · 底分 ${E.countPoints(cards)}`};
   if(!cards.length)return{ok:false,text:scene==='follow'?'跟出一对方块':'轮到你领出'};
   if(scene==='follow'){
@@ -112,13 +112,17 @@ function render(){
   $('score').textContent=points;$('scoreFill').style.width=Math.min(100,points/80*100)+'%';$('scoreTrack').setAttribute('aria-valuenow',String(Math.min(80,points)));
   const winner=plays.length?E.resolveTrick(plays,trump).winner:-1;
   $('players').innerHTML=[{seat:2,pos:'north',name:'对家'},{seat:3,pos:'west',name:'上家'},{seat:1,pos:'east',name:'下家'}].map(p=>{
-    const cards=plays.find(x=>x.seat===p.seat)?.cards||[],win=winner===p.seat;
-    return `<div class="player ${p.pos} ${win?'winner':''}"><div class="player-label">${p.seat===2?'<button class="leo-seat" id="coachHelp" aria-label="问六六：这手怎么打"><span class="leo-avatar" aria-hidden="true"></span></button>':`<span class="seat-avatar" aria-hidden="true">${p.seat===3?'上':'下'}</span>`}<span class="seat-name">${p.seat===2?'六六 · 对家':p.name}<small>${scene==='follow'?'23':'25'} 张${p.seat===1&&!isBidding()&&scene!=='bury'?' · 庄':''}</small></span></div>${cards.length?pile(cards):'<div class="empty-opponent" aria-label="未出牌"></div>'}${win?`<span class="winner-label">${completed?'收墩':'暂大'}</span>`:''}</div>`;
+    const revealed=isBidding()&&declaration?.seat===p.seat;
+    const cards=revealed?declarationCards():plays.find(x=>x.seat===p.seat)?.cards||[],win=winner===p.seat||revealed;
+    return `<div class="player ${p.pos} ${win?'winner':''}"><div class="player-label"><span class="seat-name">${p.name}<small>${p.seat===2?'队友':'对手'} · ${scene==='follow'?'23':'25'} 张</small></span></div>${cards.length?pile(cards):''}${win?`<span class="winner-label">${revealed?'已亮主':completed?'收墩':'暂大'}</span>`:''}</div>`;
   }).join('');
   $('coachHelp').onclick=openCoach;
-  $('tablePoints').hidden=isBidding()||scene==='bury';$('trickPoints').textContent=E.countPoints(plays.flatMap(p=>p.cards));
-  $('myPlay').innerHTML=completed&&scene!=='bury'?pile(resultCards):'';
-  $('declarationPile').innerHTML=isBidding()&&declaration?pile(declarationCards())+`<p>${declaration.seat===0?'你':'下家'}已${declaration.strength===2?'亮对':'亮主'}</p>`:scene==='bury'?'<p>庄家拿底 · 选 8 张扣下</p>':'';
+  $('tablePoints').hidden=false;$('trickPoints').textContent=E.countPoints(plays.flatMap(p=>p.cards));
+  $('tablePoints').classList.toggle('no-points',isBidding()||scene==='bury');
+  const myDeclaration=isBidding()&&declaration?.seat===0;
+  $('myPlay').classList.toggle('declared',myDeclaration);
+  $('myPlay').innerHTML=myDeclaration?'<span class="my-seat-label">你 · 已亮主</span>'+pile(declarationCards()):completed&&scene!=='bury'?pile(resultCards):'';
+  $('declarationPile').innerHTML='';
   $('bidActions').hidden=!isBidding();$('tableEdge').classList.toggle('bidding',isBidding());
   $('declare').disabled=!!declaration;$('reinforce').disabled=!E.canReinforce2(declaration,0,hand,5,false);$('counter').disabled=!canCounter();
   $('kitty').disabled=scene!=='bury';$('buryConfirm').hidden=scene!=='bury';$('sort').hidden=$('expand').hidden=scene==='bury';$('sort').textContent='理牌 '+(descending?'↓':'↑');
@@ -135,7 +139,7 @@ function bid(action){
   let cards=hand.filter(c=>c.suit==='H'&&c.rank===5).slice(0,action==='declare'?1:2),next=E.declarationOf(cards,5);
   if(!next)return;
   if(action==='declare'&&declaration||action==='reinforce'&&!E.canReinforce2(declaration,0,hand,5,false)||action==='counter'&&!canCounter())return;
-  declaration={...next,seat:0};trump.suit=next.suit;selected.clear();render();toast(action==='reinforce'?'♥ 5 对加固成功':action==='counter'?'反主成功 · 红桃为主':'已亮 ♥ 5，可以加固');
+  declaration={...next,seat:0,action};trump.suit=next.suit;selected.clear();render();toast(action==='reinforce'?'♥ 5 对加固成功':action==='counter'?'反主成功 · 红桃为主':'已亮 ♥ 5，可以加固');
 }
 function toggle(id){if(completed||!hand.some(c=>c.id===id))return;selected.has(id)?selected.delete(id):selected.add(id);updateSelection();}
 function submit(){
