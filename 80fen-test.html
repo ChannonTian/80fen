@@ -3675,8 +3675,12 @@ function aiChooseFollow(view, plays){
       // 不拿王去封:0 分墩烧王与「王留到最后」相反(audit-lasttrick)
       const seal=view.hand.filter(c=>effSuit(c,trump)==='T'&&c.suit!=='X'&&cardPoints(c)===0&&ordIdx(c,trump)>topPt)
                           .sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump))[0];
+      /* 这条只管「毙的话用哪张」,不管「毙不毙」:加成只在本来就打算毙(原先第一名是一张主)时给。
+       * 第一版不设这道闸,diff-switch 量到「原来垫牌、改成拿主 A 毙」这墩守住 83% → 62%。 */
+      const pre=cands.reduce((a,c)=>!a||c.score>a.score?c:a,null);
+      const wantRuff=pre&&pre.cards.length===1&&effSuit(pre.cards[0],trump)==='T';
       if(seal) push([seal],'ruff',true,'下家多半也断这门 —— 毙到在外主分牌之上,他拿不到分、要牌权只能下更大的主',
-                    -AIP.ruff2Seal*p3*(1-p4));
+                    wantRuff?-AIP.ruff2Seal*p3*(1-p4):0);
       for(const c of cands){
         if(c.cards.length!==1) continue;
         const x=c.cards[0]; if(effSuit(x,trump)!=='T') continue;
