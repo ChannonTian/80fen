@@ -342,6 +342,11 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `followBeatsCheck` | `0` | (v0.7.32 开,v0.7.34 关:它主要改成第 2 家用主分牌毙 0 分墩,后手更容易盖毙,见 test/diff-switch.js)1 = 贴分 / 跟小 / 垫牌候选按 currentWinner 判胜负(断门时它们常常其实毙下了这墩);0 = 一律按不赢墩打分 | `aiChooseFollow` |
 | `tempoKeepPlayed` | `0` | 1 = 压下这墩时牌权项不再扣掉打出去的这手(它已在 futureValue 里收过一次);0 = 旧行为 | `scorePlay` |
 | `lastOverW0` | `0.5` | (v0.7.29 测试版默认开)将牌墩末家台面 0 分时同门盖过来的意愿系数(0 = 不打折,旧行为);见 pSurvive | `pSurvive` |
+| `ruff2Plan` | `0` | 1 = 第 2 家断门毙副牌单张时按后面两家断不断门挑毙牌(产品方 2026-09-29,见 aiChooseFollow 末尾);0 = 旧行为 | `aiChooseFollow` |
+| `ruff2Low` | `0.1` | 第 3 家断门概率低于它 = 「极高概率不断」,主分牌毙照旧 | `aiChooseFollow` |
+| `ruff2Pt` | `25` | 主分牌毙的罚分 × 第 3 家断门概率 | `aiChooseFollow` |
+| `ruff2Low2` | `10` | 压不过在外主分牌的小主毙的罚分 × P(3 断) × P(4 不断) | `aiChooseFollow` |
+| `ruff2Seal` | `20` | 「毙到在外主分牌之上」的加成 × P(3 断) × P(4 不断) | `aiChooseFollow` |
 | `sealOwnPts` | `1` | (v0.7.34 测试版默认开)1 = 上面两个「台面有没有分」的判断把我这手牌自己的分也算上(出主 K 时台面就不是 0 分);0 = 旧行为。见 pSurvive | `pSurvive` |
 | `lastRuffWill` | `0.95` | (v0.7.26 测试版默认开)后手是本墩最后一家时「断门有主肯不肯毙」(0 = 旧口径 ruffWill);见 pSurvive | `pSurvive` |
 | `guardPlan` | `2` | (v0.7.26 测试版默认开)守底计划权重(0 = 旧行为);见 guardCost。系数 guardW 由 test/fit-guard.js 拟合 | `guardCost` `futureValue` |
