@@ -372,7 +372,7 @@
 <div id="toast"></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.33(测试版)</div>
+<div id="versionTag">80分 v0.7.35(测试版)</div>
 
 <script>
 /* ============================================================
@@ -6378,13 +6378,13 @@ function openSettings(){
     $('stDeclWait').value=S.declWait;
     $('stManual').checked=!!S.manualNext;
     $('stAutoLast').checked=!!S.autoLast;
-    // 托管只在出牌阶段有意义:扣底/亮主/低分造反这些「一局只做一次」的决定仍然归你
-    const canAuto=!!G&&G.phase==='play'&&!G.ended;
+    // 托管从发牌起就能开,亮主/扣底/低分造反/出牌全部交给 AI
+    const canAuto=!!G&&G.phase!=='redealing'&&!G.ended;
     $('stAuto').checked=!!(G&&G.auto);
     $('stAuto').disabled=!canAuto;
     $('stAutoHint').textContent=canAuto
-      ? '本局有效,打完自动交还;托管的墩不计入教练的失误统计。牌桌上(扣底那一区)也有这颗按钮'
-      : '(要在出牌阶段才能托管)';
+      ? '本局有效,打完自动交还;托管的墩不计入教练的失误统计。牌桌上(扣底那一区)也有这颗按钮。从发牌起就能开,亮主、扣底、低分造反也由 AI 替你决定'
+      : '(这一局还没开始,或已经结束)';
     $('stHold').disabled=!!S.manualNext;
     $('stHoldHint').textContent=S.manualNext?'(手动模式下由你点「下一墩」决定)':'';
     $('stLang').value=lang; $('stSnd').checked=sndOn;
@@ -6592,6 +6592,7 @@ let logRound=null;
 let scrambleNext=false;   // 下一次发牌是否按无庄盘(完全造反后)
 let rotNext=0;            // 下一次发牌整桌转几个座位(种子局「交换队伍」,见 swapStart)
 let redealCount=0;        // 本局已重新发牌次数
+let autoCarry=false;      // 重新发牌(造反)时把托管带到新的一盘,否则开着托管的人一造反就被交还
 // 无庄盘里各家按自己队伍的级数抢亮;庄定盘全桌用庄家级数
 function rankOf(seat){ return G.dealerKnown?G.trumpRank:M.levels[seat%2]; }
 
@@ -6603,6 +6604,7 @@ function startRound(seed){
   // 上一盘可能还有在途的定时器(AI 思考 / 收墩 / 亮主倒计时),不清掉会打到新一盘的局面上
   if(G){ clearTimeout(G.aiTimer); clearTimeout(G.holdTimer); clearTimeout(G.declTimer);
          clearInterval(G.declTick); }
+  const carryAuto=autoCarry; autoCarry=false;
   const dealerKnown=M.dealer>=0 && !scrambleNext;   // 完全造反重发 → 本盘按无庄盘抢庄
   // 开局那一刻的整场状态,和 seed 一起才能完整复现这一局(见 seedCode / __redoRound)
   const start={seed, dealer:M.dealer, levels:M.levels.slice(), played:M.played.slice(),
@@ -6633,7 +6635,7 @@ function startRound(seed){
      coachNotes:[],hintCards:null,quiz:null,
      /* 托管挂在 G 上而不是 S 上 —— 它按局生效,不跟着设置一起存下来:
       * 新的一局必须从你自己的那一手开始,不能上次开着这次就替你打完。 */
-     auto:false, autoTricks:0,
+     auto:carryAuto, autoTricks:0,
      undoStack:[]};   // 悔牌(见 undoLastPlay):你每出一手前的整桌快照,悔一次弹一个
   if(cutsLog) log(cutsLog);
   if(S.engineVer.some(Boolean))
@@ -6666,10 +6668,12 @@ function stopDeclCountdown(){ clearInterval(G.declTick); G.declTick=null; }
 function dealTick(){
   if(G.phase!=='dealing') return;
   if(G.dealt>=100){ G.phase='finalDecl'; render();
-    startDeclCountdown(); return; }
+    startDeclCountdown();
+    if(G.auto) window.__skipDecl();      // 托管:AI 已在发牌中决定过了,不必再等倒计时
+    return; }
   const seat=(G.firstTaker+G.dealt)%4;
   G.visCount[seat]++; G.dealt++;
-  if(seat!==HUMAN) aiDeclThink(seat);
+  if(seat!==HUMAN||G.auto) aiDeclThink(seat);   // 托管:你这一家的抢亮/加固也交给 AI
   if(G.dealt%4===0||G.dealt>=100) render();
   setTimeout(dealTick,120);   // 100张 × 120ms ≈ 12秒发完
 }
@@ -6744,6 +6748,7 @@ function settleTrump(){
 const rebelName=()=>S.fullRebel==='redeal'?'重新发牌':`完全${T('counter')}(重新发牌,双方抢庄)`;
 function lowRebelPhase(){
   if(S.fullRebel==='off'){ afterTrumpSet(); return; }
+  if(G.auto){ aiLowRebel(); return; }     // 托管:你这一家也按 AI 的口径决定造不造反
   const my=canFullRebel(G.hands[HUMAN],G.trump);
   if(my.ok){
     G.phase='lowrebel'; render();
@@ -6761,7 +6766,7 @@ function humanLowRebel(yes){
 }
 function aiLowRebel(){
   const rand=rng(G.seed*17+5);
-  for(let s=1;s<4;s++){
+  for(const s of (G.auto?[1,2,3,HUMAN]:[1,2,3])){      // 托管时你排在最后,不改变三家 AI 原有的先后
     const r=canFullRebel(G.hands[s],G.trump);
     if(r.ok && s%2!==G.declSeat%2 && rand()<0.7){
       log(`${SEAT_NAME[s]} ${r.byPts?'手牌分数不足':T('trump')+'太少'},${rebelName()}`);
@@ -6778,6 +6783,7 @@ function doRebel(){
   }
   redealCount++;
   scrambleNext=(S.fullRebel==='scramble');
+  autoCarry=!!G.auto;
   G.phase='redealing'; render();
   setMsg('重新发牌…');
   setTimeout(newRound,1200);
@@ -6786,7 +6792,7 @@ function doRebel(){
 function afterTrumpSet(){
   G.leader=G.declSeat;
   G.hands[G.declSeat].push(...G.kittyOrig);
-  if(G.declSeat===HUMAN){
+  if(G.declSeat===HUMAN&&!G.auto){
     G.phase='kitty'; G.selected.clear();
     setMsg(`你是庄家:选 ${RULES.kittySize} 张牌${T('bury')}`); render();
   }else{
@@ -6916,7 +6922,15 @@ window.__setAuto=on=>{
   if(G.auto){ G.selected.clear(); G.hintCards=null; log('托管开始 —— AI 替你出牌'); }
   else if(G.autoTricks||G.phase==='play') log('托管结束');
   render();
-  if(G.auto) step();          // 可能正轮到你:立刻把这一手排上
+  if(G.auto){
+    // 托管从哪个阶段打开,就从那个阶段起接手:每个阶段的收尾都是「等你点一下」,得替你点
+    if(G.phase==='finalDecl') window.__skipDecl();
+    else if(G.phase==='lowrebel') aiLowRebel();
+    else if(G.phase==='kitty'){
+      G.selected=new Set(eng(HUMAN).aiDiscard(G.hands[HUMAN],G.trump).map(c=>c.id));
+      buryKitty();
+    }else step();             // 出牌阶段可能正轮到你:立刻把这一手排上
+  }
   else scheduleHumanAuto();   // 关掉托管后,「没得选」那条仍然生效
 };
 
@@ -7508,7 +7522,7 @@ function render(){
   // 本墩领出信息(更常用、更值得占牌桌中心)直接写进 #msg,替掉"轮到你跟牌"这类泛泛提示
   let phaseHint='', centerMsg='', winnerMsg='', winnerOurs=false;
   if(G.phase==='dealing'||G.phase==='finalDecl'){
-    phaseHint=`发牌中(${G.dealt}/100)… 当前:${G.decl?`${SEAT_NAME[G.decl.seat]} ${G.decl.suit?SUIT_SYM[G.decl.suit]+(G.decl.strength===2?'(一对)':''):T('noTrump')}`:'无人'+T('declare')}`;
+    phaseHint=`发牌中(${G.dealt}/100)${G.auto?'·托管中':''}… 当前:${G.decl?`${SEAT_NAME[G.decl.seat]} ${G.decl.suit?SUIT_SYM[G.decl.suit]+(G.decl.strength===2?'(一对)':''):T('noTrump')}`:'无人'+T('declare')}`;
   }else if(G.phase==='redealing') phaseHint='重新发牌中…';
   else if(G.phase==='lowrebel') phaseHint=`低分/少${T('trump')}:分数≤${RULES.pointRebelThreshold}或${T('trump')}≤${RULES.trumpRebelThreshold}张可${rebelName()}`;
   else if(G.phase==='kitty') phaseHint=`${T('bury')}阶段:庄家从手牌(含底牌)中选 ${RULES.kittySize} 张扣下`;
@@ -7635,11 +7649,11 @@ function render(){
    * 宽度:竖屏那一行原本按最长文案定死 min-width,五颗就挤爆了,所以竖屏改成按文案自适应
    * (见 @media 里的 #controls button)。托管中「出牌/重选/问教练」照旧灰掉 —— 不是不能点,
    * 是这时候本来就没有你要做的决定。 */
-  const auto=!!G.auto&&G.phase==='play'&&!G.ended;
+  const auto=!!G.auto&&!G.ended;
   const btnAuto=document.getElementById('btnAuto');
   btnAuto.textContent=auto?'停止托管':'托管';
   btnAuto.classList.toggle('minor',!auto);      // 托管中变成醒目色,一眼看得见它开着
-  btnAuto.hidden=!(G.phase==='play'&&!G.ended);
+  btnAuto.hidden=!(G.phase!=='redealing'&&!G.ended);   // 发牌一开始就在;只有重新发牌的空档收起来
   document.getElementById('btnPlay').disabled=auto||!myTurn;
   document.getElementById('btnClear').disabled=auto||!(G.selected.size>0);
   // 扣底:选够 8 张才可点
