@@ -178,6 +178,22 @@ console.log(`\n===== ${path.basename(file)} =====\n`);
    * 这一条改成只断言「不出 SK」;出 SA 还是跟小交给打分(这个 13 张空历史的局面本身也不自洽,只看方向)。 */
   check('2d','在外还有王 / 级数牌 / 另一张 A 时,接钓主不出主 K(产品方框架)',
         ns(r.cards), g=>g!=='SK', '不是 SK');
+  /* 2e 第 2 家毙牌用哪张(产品方 2026-09-29,ruff2Plan):对手领 ♥9(0 分),我 ♥ 已断;
+   * 下家 3 号(对手)前两轮 ♥ 都垫了梅花 —— 已知断门;队友 0 号两轮都跟了 ♥。
+   * 主分牌(SK / ST / S5)毙:3 号拿在外的 SK / ST 一盖,分和牌权都走 —— 纯送;小主毙同样被主分牌盖走。
+   * 该用**盖过在外所有主分牌**的一张:SA(在外最大的主分牌是另一张 SK)。
+   * 比的是开关打开时的选择,与默认值解耦;没有这个开关的版本跳过。 */
+  if('ruff2Plan' in E.AIP){
+    const hist=P([[1,'HA'],[2,'H3'],[3,'C4'],[0,'H5'],
+                  [1,'HK'],[2,'D4'],[3,'C5'],[0,'H6']]);
+    const v={seat:2,trump:T,declSeat:1,history:hist,buriedKnown:[],
+      hand:H(['SA','SK','ST','S5','S3','S4','C9','C8','C7','C6','CQ','CJ','CT',
+              'D9','D8','D7','D6','DQ','DJ','DT','DK','D5','D3'])};
+    const o=E.AIP.ruff2Plan; E.AIP.ruff2Plan=1;
+    let r; try{ r=E.aiChooseFollow(v,[{seat:1,cards:H(['H9'])}]); }finally{ E.AIP.ruff2Plan=o; }
+    check('2e','第 2 家断门要毙、下家已知也断、队友不断 → 毙到在外主分牌之上(SA),不拿主分牌 / 小主去送',
+          `${ns(r.cards)}（${r.reason}）`, ()=>ns(r.cards)==='SA'||!r.cards.some(x=>E.effSuit(x,T)==='T'), 'SA(或者不毙)');
+  }
   // 收官阶段（7 张）：AI 有 93% 的钓主发生在这里，而 takeOverScoped 在 end 阶段直接关闭
   const v2={seat:3,trump:T,declSeat:0,history:[],buriedKnown:[],
     hand:H(['SA','SK','C9','C8','H4','H3','D6'])};
