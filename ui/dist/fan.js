@@ -1,14 +1,13 @@
 /* Geometry and gesture thresholds are pure so they can be checked without a browser. */
 (function(root){
-  function split(cards){
+  function split(cards,groupKey=c=>c.suit){
     if(cards.length<=16)return [cards,[]];
-    let cut=Math.ceil(cards.length/2);
-    // Keep a physical pair together if moving the cut leaves at most 17 cards in each fan.
-    const same=(a,b)=>a&&b&&a.suit===b.suit&&a.rank===b.rank;
-    if(same(cards[cut-1],cards[cut])){
-      const candidates=[cut-1,cut+1].filter(n=>n<=17&&cards.length-n<=17&&!same(cards[n-1],cards[n]));
-      if(candidates.length)cut=candidates[0];
-    }
+    // Preserve an entire effective suit (including its tractors) in one fan.
+    // A long suit uses horizontal browsing instead of breaking combinations.
+    const cuts=[];
+    for(let i=1;i<cards.length;i++)if(groupKey(cards[i-1])!==groupKey(cards[i]))cuts.push(i);
+    if(!cuts.length)return [cards,[]];
+    const cut=cuts.sort((a,b)=>Math.abs(cards.length-2*a)-Math.abs(cards.length-2*b))[0];
     return [cards.slice(0,cut),cards.slice(cut)];
   }
   function layout(cards,width,height,row){
@@ -27,14 +26,14 @@
     if(mode==='wide')return width>=560;
     return width>=700||width>=560&&width>height*1.2;
   }
-  function widePlan(cards,width,viewportHeight){
-    const compact=viewportHeight<=520,short=viewportHeight<=360;
+  function widePlan(cards,width,viewportHeight,groupKey){
+    const compact=viewportHeight<=720,short=viewportHeight<=360;
     const cw=compact?(short?66:74):(width>=1100?98:88),ch=cw*1.48;
     const pad=compact?20:26,minStep=compact?24:(width>=1100?28:26),maxStep=compact?32:46;
     const curve=compact?(short?8:12):20,top=compact?26:32;
     const required=cw+Math.max(0,cards.length-1)*minStep+pad*2;
     // A short landscape phone needs one layer; overflow is handled by the hand wheel.
-    const rows=compact||required<=width?[cards,[]]:split(cards);
+    const rows=compact||required<=width?[cards,[]]:split(cards,groupKey);
     const twoRows=rows[1].length>0;
     const stride=twoRows?Math.round(ch*.83):0;
     const height=Math.ceil(top+curve+ch+stride+(short?6:8));
@@ -49,7 +48,7 @@
     });
     return{rows,layouts,height,compact,twoRows};
   }
-  function intent(dx,dy){return dy < -20&&-dy>Math.abs(dx)*.75?'drag':Math.abs(dx)>12?'scrub':'pending';}
+  function intent(dx,dy){return dy < -20&&-dy>Math.abs(dx)*.35?'drag':Math.abs(dx)>12?'scrub':'pending';}
   function contains(rect,x,y){return x>=rect.left+8&&x<=rect.right-8&&y>=rect.top+8&&y<=rect.bottom-8;}
   // The dragged cards sit above the finger. Accept their visible centre as well
   // as the pointer; otherwise a card visibly on the table can be rejected.

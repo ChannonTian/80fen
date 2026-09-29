@@ -35,7 +35,7 @@ test('25 and 33 cards stay in two fans with unique IDs; main and counter suits l
     assert.equal(run('rowCards.length'),2);
     assert.equal(run('rowCards.flat().length'),scene==='bury'?33:25);
     assert.equal(run('new Set(rowCards.flat().map(c=>c.id)).size'),scene==='bury'?33:25);
-    assert.equal(run('rowCards.every(r=>r.length<=17)'),true);
+    assert.equal(run('groups().every(g=>g.cards.every(c=>rowCards.find(r=>r.some(x=>x.id===g.cards[0].id)).some(x=>x.id===c.id)))'),true);
   }
 });
 test('same cards independently selected; sort and full hand preserve selection',()=>{
@@ -54,7 +54,7 @@ test('valid selected pair can be dragged onto the table; points depend on actual
     assert.equal(element('dragGhost').hidden,false);
     pointer('pointerup',id,180,350);
     assert.equal(run('completed'),true);assert.equal(run('score'),score);assert.equal(run('hand.length'),23);
-    assert.match(element('instruction').textContent,new RegExp('\\+'+points+' 分'));
+    assert.match(element('players').innerHTML,new RegExp('收墩 \\+'+points+'分'));
   }
 });
 test('a visibly landed card is accepted at the table edge; distant drops are not',()=>{
@@ -116,19 +116,49 @@ test('bury requires exactly eight and makes the actual buried cards viewable',()
   run('toggle([...selected].at(-1))');const buried=run('JSON.stringify(chosen().map(c=>c.id))');run('submit()');
   assert.equal(run('hand.length'),25);assert.equal(run('JSON.stringify(kittyCards.map(c=>c.id))'),buried);assert.equal(element('kitty').disabled,false);
 });
-test('declaration, reinforcement and counter-declaration follow engine permissions',()=>{
-  const {run,element}=setup();run("loadScene('declare')");assert.equal(element('declare').disabled,false);assert.equal(element('reinforce').disabled,true);
-  run("bid('declare')");assert.equal(run('declaration.strength'),1);assert.equal(element('reinforce').disabled,false);assert.equal(element('counter').disabled,true);
-  run("bid('counter')");assert.equal(run('declaration.strength'),1);
-  run("bid('reinforce')");assert.equal(run('declaration.strength'),2);assert.equal(run('hand.length'),25);
-  run("loadScene('counter')");assert.equal(run('trump.suit'),'S');assert.equal(element('counter').disabled,false);
-  run("bid('counter')");assert.equal(run('declaration.seat'),0);assert.equal(run('trump.suit'),'H');assert.equal(run('declaration.strength'),2);assert.equal(run('rowCards.flat().length'),25);
+test('single bid control never chooses among alternatives; selected pairs retain their suit',()=>{
+  const {run,element}=setup();run("loadScene('declare')");
+  assert.equal(element('bidAction').disabled,false);assert.ok(run('bidOptions().length')>1);
+  run('bid()');assert.equal(run('declaration'),null);
+  run("toggle(hand.find(c=>c.suit==='D'&&c.rank===5).id);bid()");
+  assert.equal(run('declaration.suit'),'D');assert.equal(run('declaration.strength'),1);
+  run("selected.clear();hand.filter(c=>c.suit==='H'&&c.rank===5).forEach(c=>toggle(c.id));bid()");
+  assert.equal(run('declaration.suit'),'D','cannot counter own declaration');
+  run("loadScene('counter');bid()");assert.equal(run('declaration.seat'),1,'ambiguous counter must wait');
+  run("hand.filter(c=>c.suit==='X'&&c.rank===15).forEach(c=>toggle(c.id));bid()");
+  assert.equal(run('declaration.strength'),3);assert.equal(run('declaration.suit'),null);
+  assert.equal(run('hand.length'),25);
+});
+test('unique bid is immediate and selected level pairs can reinforce',()=>{
+  const {run}=setup();run("loadScene('declare');toggle(hand.find(c=>c.suit==='H'&&c.rank===5).id);bid()");
+  assert.equal(run('declaration.strength'),1);assert.equal(run('bidOptions().length'),1);
+  run('bid()');assert.equal(run('declaration.strength'),2);assert.equal(run('declaration.action'),'reinforce');
+});
+test('dragging a single or pair declares without consuming hand cards',()=>{
+  for(const [scene,suit,rank,count,strength] of [['declare','D',5,1,1],['declare','H',5,2,2],['counter','S',5,2,2],['counter','X',15,2,3]]){
+    const {run,pointer}=setup();run(`loadScene('${scene}');hand.filter(c=>c.suit==='${suit}'&&c.rank===${rank}).slice(0,${count}).forEach(c=>toggle(c.id))`);
+    const id=run('[...selected][0]');pointer('pointerdown',id,180,600);pointer('pointermove',id,180,300);pointer('pointerup',id,180,300);
+    assert.equal(run('declaration.seat'),0);assert.equal(run('declaration.strength'),strength);assert.equal(run('hand.length'),25);assert.equal(run('completed'),false);
+  }
+});
+test('selected bidding pairs accept diagonal upward drags into the table',()=>{
+  const {run,pointer}=setup();run("loadScene('counter');hand.filter(c=>c.suit==='H'&&c.rank===5).forEach(c=>toggle(c.id))");
+  const id=run('[...selected][0]');pointer('pointerdown',id,100,450);pointer('pointermove',id,340,350);pointer('pointerup',id,340,350);
+  assert.equal(run('declaration.seat'),0);assert.equal(run('declaration.suit'),'H');
+});
+test('tractor stays in one fan when sorting either direction',()=>{
+  const {run,element}=setup();run("loadScene('lead')");
+  for(let i=0;i<2;i++){
+    assert.equal(run('new Set(hand.filter(c=>c.suit==="S"&&[11,12].includes(c.rank)).map(c=>rowCards.findIndex(r=>r.some(x=>x.id===c.id)))).size'),1);
+    element('sort').onclick();
+  }
 });
 test('geometry preserves a readable exposed edge and recoverable horizontal bounds at phone widths',()=>{
   const cards=Array.from({length:33},(_,i)=>({id:i,suit:'D',rank:2+Math.floor(i/2)}));
-  const rows=F.split(cards);assert.equal(rows.flat().length,33);assert.ok(rows.every(r=>r.length<=17));
+  const rows=F.split(cards);assert.equal(rows.flat().length,33);assert.equal(rows[0].length,33,'one long suit stays intact and scrolls');
   for(const [w,h] of [[320,188],[375,188],[390,188],[430,188],[320,210],[375,218],[390,261],[430,274]])for(let row=0;row<2;row++){
     const l=F.layout(rows[row],w,h,row);
+    if(!rows[row].length)continue;
     assert.ok(l.cards.slice(1).every((c,i)=>c.x-l.cards[i].x>=22.99));
     assert.ok(l.cards[0].x>=17);assert.ok(l.cards.at(-1).x+l.cardWidth<=l.width-17);
     assert.ok(l.cards.every(c=>c.y+c.height<=h+1));
@@ -138,7 +168,7 @@ test('geometry preserves a readable exposed edge and recoverable horizontal boun
 
 
 test('wide plan fits 25 cards on a phone and 33 on tablet/desktop without shrinking exposed edges',()=>{
-  const cards=Array.from({length:33},(_,id)=>({id,suit:'S',rank:2+Math.floor(id/2)}));
+  const cards=Array.from({length:33},(_,id)=>({id,suit:id<16?'S':'H',rank:2+Math.floor(id/2)}));
   for(const [width,height,count,expectedTwo] of [[568,320,25,false],[750,390,25,false],[844,390,33,false],[768,1024,33,true],[1024,768,33,false],[1320,900,33,false]]){
     const plan=F.widePlan(cards.slice(0,count),width,height);
     assert.equal(plan.twoRows,expectedTwo);assert.equal(plan.rows.flat().length,count);

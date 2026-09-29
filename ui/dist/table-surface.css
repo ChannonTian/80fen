@@ -101,3 +101,92 @@
 #game.wide.compact .table-points #instruction{line-height:1.2;font-size:13px}#game.wide.compact .table-points div{font-size:12px;line-height:1.2}#game.wide.compact .table-points b{font-size:15px}
 /* Compact history chips are evidence labels, not full playing cards. */
 #app[data-evidence=true] .openrow .card .tl,#app[data-evidence=true] .openrow .card .bl{font-size:14px!important;position:static;letter-spacing:0}
+/* Course cards use one stacking context each: buttons are occluded with their card. */
+.course-home{margin:0 auto}.course-decks{align-items:start;align-content:start}
+.course-card,.course-card:last-child{display:block;transform:translateY(var(--arc)) rotate(var(--angle))!important;z-index:var(--i)}
+.course-card.current{transform:translateY(calc(var(--arc) - 14px)) rotate(var(--angle))!important;z-index:20}
+.course-card.previewed{z-index:30}
+.course-card .course-art,.course-card.previewed .course-art{left:0;top:0;width:100%;height:100%;transform:none!important;z-index:0}
+.course-card .course-select{left:0;top:0;transform:none;z-index:1}
+.course-card .course-action,.course-card.current .course-action,.course-card.previewed .course-action{left:10px;top:auto;bottom:8px;transform:none;z-index:2}
+/* Recognition is a reversible hand-to-table selection, with opaque cards. */
+#app .card,#app .card.dim,#app .card.no{opacity:1}
+#app .card.dim{background:#eae6de;color:#89867e;border-color:#cbc7be}
+#app .recognition-table{display:flex;flex-direction:column;justify-content:center;align-items:center;padding:15px;gap:20px}
+.recognition-caption{font-size:15px;color:#53674a;text-align:center}
+#app .picked-cards{display:flex;flex-wrap:wrap;gap:9px;justify-content:center;align-items:center;max-width:100%;margin:0;min-height:90px}
+#app .picked-cards .card.sel{transform:none;background:#fff;border:2px solid #87acbb;box-shadow:none}
+/* Hands sit beyond the three table edges. Their card tops point toward the center. */
+#app .throw-table{overflow:hidden}
+#app .evidence-hand{position:absolute;width:112px;height:100px;gap:0;display:block}
+#app .evidence-cards{height:84px;width:112px;display:flex;justify-content:center;align-items:center;transform-origin:center}
+#app .evidence-cards .card,#app .evidence-back{--cardW:58px;--cardH:84px;width:58px;height:84px;margin-left:-30px;flex:none}
+#app .evidence-cards>:first-child{margin-left:0}
+#app .evidence-back{background:#becdac;border:1px solid #94a785;border-radius:8px;position:relative}
+#app .evidence-back:after{content:'';position:absolute;inset:6px;border:1px solid #8ca17b;border-radius:4px}
+#app .evidence-hand[data-seat="2"]{top:-37px;left:calc(50% - 56px);transform:none}
+#app .evidence-hand[data-seat="2"] .evidence-cards{transform:rotate(180deg)}
+#app .evidence-hand[data-seat="3"]{top:48%;left:-47px;transform:translateY(-50%)}
+#app .evidence-hand[data-seat="3"] .evidence-cards{transform:rotate(90deg)}
+#app .evidence-hand[data-seat="1"]{top:48%;right:-47px;transform:translateY(-50%)}
+#app .evidence-hand[data-seat="1"] .evidence-cards{transform:rotate(-90deg)}
+#app .evidence-hand>span{position:absolute;top:-32px;left:0;width:112px;text-align:center;font-size:12px}
+#app .evidence-hand[data-seat="2"]>span{top:88px}
+#app .evidence-hand[data-seat="3"]>span{left:42px}
+#app .evidence-hand[data-seat="1"]>span{left:-42px}
+#app .throw-center,#app[data-type=forcedpick] .throw-center{top:42%;width:48%}
+#app .attempted-play{bottom:13%;gap:7px}
+#app .attempted-play .card{--cardW:58px;--cardH:84px;margin-left:-26px}
+#app .attempted-play .pickset .card{cursor:pointer}
+#app .attempted-play .pickset .card.sel{background:#fff;border-color:#87acbb;transform:translateY(-8px);box-shadow:0 0 0 2px #87acbb}
+/**** Eight-slot kitty display, with part of the task already completed. ****/
+#app .kitty-display{width:100%;max-width:420px;margin:0 auto;padding:14px;background:#eee8da;border:1px solid #d4c9b6;border-radius:20px}
+.kitty-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}.kitty-heading strong{font-size:18px}.kitty-heading>span{font-size:12px;color:#7d725f}
+#app .eight-kitty{display:grid;grid-template-columns:repeat(4,58px);gap:9px;justify-content:center}
+#app .eight-kitty>.card,#app .kitty-fixed,#app .kitty-empty{--cardW:58px;--cardH:84px;width:58px;height:84px;transform:none!important;margin:0;border-radius:8px}
+.kitty-fixed{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:#c9d5b9;border:1px solid #a6b497;color:#5a6f49}.kitty-fixed>span{font-size:20px}.kitty-fixed small{font-size:11px}
+.kitty-empty{display:grid;place-items:center;border:1px dashed #b9ae98;color:#a99b81;font-size:23px;background:#f7f3e9}
+#app .eight-kitty .card.sel{background:white;box-shadow:none;border:2px solid #89aebf}
+@media(max-height:700px) and (orientation:portrait){#app .kitty-display{padding:10px}.kitty-heading{margin-bottom:8px}.kitty-heading strong{font-size:16px}#app .eight-kitty{grid-template-columns:repeat(4,44px);gap:6px}#app .eight-kitty>.card,#app .kitty-fixed,#app .kitty-empty{--cardW:44px;--cardH:62px;width:44px;height:62px}#app .picked-cards{gap:6px;min-height:66px}#app .recognition-table{gap:12px;padding:10px}#app .attempted-play .card{--cardW:48px;--cardH:70px}#app .attempted-play{bottom:11%}}
+@media(min-width:640px) and (max-height:500px) and (orientation:landscape){#app .kitty-display{max-width:none;padding:12px}.kitty-heading{margin-bottom:10px}#app .eight-kitty{grid-template-columns:repeat(8,44px);gap:7px}#app .eight-kitty>.card,#app .kitty-fixed,#app .kitty-empty{--cardW:44px;--cardH:64px;width:44px;height:64px}#app .throw-center,#app[data-type=forcedpick] .throw-center{top:42%}#app .attempted-play{bottom:8%}#app .attempted-play .card{--cardW:44px;--cardH:64px}#app .evidence-cards .card,#app .evidence-back{--cardW:52px;--cardH:74px;width:52px;height:74px;margin-left:-28px}#app .evidence-cards>:first-child{margin-left:0}#app .evidence-hand[data-seat="2"]{top:-38px}#app .evidence-hand[data-seat="2"]>span{top:87px}#app .recognition-table{gap:10px}#app .picked-cards{min-height:64px}}
+/* A receipt may cover the winning pile briefly; permanent center instructions may not. */
+#game .player .winner-label{bottom:13px;left:50%;transform:translateX(-50%);background:#f0f9e7;white-space:nowrap;border:1px solid #98ae80;border-radius:8px;z-index:5;line-height:22px;padding:0 7px}
+#game .arena.finished .winner-label{animation:receipt 3s forwards}
+@keyframes receipt{0%,85%{opacity:1}100%{opacity:0}}
+#game .is-bidding .winner-label{animation:none}
+#game .table-edge.bidding{min-height:56px;padding:4px 12px;justify-content:center}
+#game .bid-actions{display:flex;justify-content:center;width:auto}
+#game .bid-actions #bidAction{min-width:176px;min-height:48px;height:48px;padding:0 20px}
+#game.is-bidding .table-points{display:none!important}
+#game.is-bidding .my-play.declared{top:38%;bottom:auto;left:50%;transform:translateX(-50%);padding:5px 10px;background:#f3fae9;display:flex;flex-direction:column;gap:5px;z-index:3}
+#game.is-bidding .my-play.declared .played-hand{height:84px}
+#game.is-bidding .my-play.declared .playing-card{width:58px;height:84px}
+#game.choosing-bid .hand-card.bid-eligible{border-color:#6f9957;box-shadow:0 0 0 2px #91b779}
+#game.wide.compact .table-edge.bidding{min-height:48px;width:200px;padding:0;bottom:calc(var(--toolbar-height) + var(--hand-height) + env(safe-area-inset-bottom));left:50%;transform:translateX(-50%)}
+#game.wide.compact.is-bidding .my-play.declared{top:33px;padding:3px 8px;flex-direction:row;gap:6px;border-radius:10px}
+#game.wide.compact.is-bidding .my-play.declared .played-hand{height:52px}
+#game.wide.compact.is-bidding .my-play.declared .playing-card{width:38px;height:52px}
+#game.wide.compact .my-seat-label{font-size:12px}
+#game.wide.compact .table-points{top:calc(100% - 10px);min-height:20px;height:20px}
+@media(max-height:660px) and (orientation:portrait){#game.is-bidding .my-play.declared{top:31%;padding:3px 8px;flex-direction:row;gap:5px}#game.is-bidding .my-play.declared .playing-card{width:44px;height:62px}#game.is-bidding .my-play.declared .played-hand{height:62px}#game .bid-actions #bidAction{min-height:44px;height:44px}#game .table-edge.bidding{min-height:50px}}
+#game.wide:not(.compact) .table-points{top:48%}
+#game.wide:not(.compact) .my-play:not(.declared){bottom:16px}
+#game.wide.compact.is-bidding .my-play.declared{top:28px}
+@media(max-height:700px) and (orientation:portrait){#app[data-type=discard] #table{padding:0;gap:8px}#app .kitty-display{padding:6px}.kitty-heading{margin-bottom:6px}.kitty-heading strong{font-size:15px}#app .eight-kitty>.card,#app .kitty-fixed,#app .kitty-empty{--cardH:60px;height:60px}}
+#game.wide:not(.compact) .my-play:not(.declared){bottom:80px}
+#game.wide:not(.compact) .my-play:not(.declared){bottom:60px}
+.course-card,.course-card.current,.course-card.previewed,.course-card:last-child{display:block;position:absolute;left:calc(var(--i)*(100% - var(--cw))/(var(--count) - 1));top:30px;width:var(--cw);height:var(--ch);transform:translateY(var(--arc)) rotate(var(--angle))!important}
+.course-card.current{transform:translateY(calc(var(--arc) - 14px)) rotate(var(--angle))!important}
+#game.wide:not(.compact) .table-edge:not(.bidding){left:auto;right:32px;transform:none;width:auto}
+#game.wide:not(.compact) .table-edge:not(.bidding) .turn-copy{display:none}
+#game.wide.compact.is-bidding .my-play.declared{top:auto;bottom:52px}
+@media(max-height:360px) and (orientation:landscape){#game.wide.compact.is-bidding .my-play.declared{bottom:0}#game.wide.compact .table-edge.bidding{left:24px;transform:none;width:150px;bottom:calc(var(--toolbar-height) + var(--hand-height) + env(safe-area-inset-bottom) + 4px)}#game.wide.compact .bid-actions #bidAction{min-width:150px}}
+/* Short landscape has a dedicated footer action slot, never over another seat. */
+#game.wide.compact .table-edge:not(.bidding){height:0;min-height:0;padding:0;pointer-events:none}
+#game.wide.compact #tapPlay{position:fixed;left:auto;right:max(14px,calc((100vw - 1600px)/2 + 14px));bottom:calc(3px + env(safe-area-inset-bottom));width:118px;min-width:118px;height:44px;min-height:44px;pointer-events:auto;z-index:40}
+#game.wide.compact.has-play-action .bottom-tools{padding-right:142px}
+#game.wide.compact.has-play-action .bottom-tools #expand{display:none}
+#game.wide.compact .my-play:not(.declared){top:30px;bottom:auto}
+@media(max-height:360px) and (orientation:landscape){#game.wide.compact .table-points{top:calc(100% + 12px)}}
+#game.wide.compact .table-edge:not(.bidding){z-index:30}
+#game .my-play-owner{position:absolute;left:50%;top:-20px;transform:translateX(-50%);font-size:12px;color:#526246;white-space:nowrap}
