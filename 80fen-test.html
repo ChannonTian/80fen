@@ -372,7 +372,7 @@
 <div id="toast"></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.36(测试版)</div>
+<div id="versionTag">80分 v0.7.37(测试版)</div>
 
 <script>
 /* ============================================================
@@ -1126,20 +1126,20 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * stakeHold 把 ② 按座次 / 底分拆出来之后,可以直接换成这两个量的比较。见 DESIGN §7.13。 */
   trumpSealW: 0.5,             // (v0.7.22 测试版默认开)只在跟牌时生效
   trumpSealWPts: 1,            // (v0.7.26 测试版默认开)台面**有分**时的那一档(= trumpSealW 即旧行为);见 pSurvive
-  followBeatsCheck: 0,         // (v0.7.32 开,v0.7.36 关:它主要改成第 2 家用主分牌毙 0 分墩,后手更容易盖毙,见 test/diff-switch.js)1 = 贴分 / 跟小 / 垫牌候选按 currentWinner 判胜负(断门时它们常常其实毙下了这墩);0 = 一律按不赢墩打分
+  followBeatsCheck: 0,         // (v0.7.32 开,v0.7.37 关:它主要改成第 2 家用主分牌毙 0 分墩,后手更容易盖毙,见 test/diff-switch.js)1 = 贴分 / 跟小 / 垫牌候选按 currentWinner 判胜负(断门时它们常常其实毙下了这墩);0 = 一律按不赢墩打分
   tempoKeepPlayed: 0,          // 1 = 压下这墩时牌权项不再扣掉打出去的这手(它已在 futureValue 里收过一次);0 = 旧行为
   lastOverW0: 0.5,             // (v0.7.29 测试版默认开)将牌墩末家台面 0 分时同门盖过来的意愿系数(0 = 不打折,旧行为);见 pSurvive
-  digPlan: 4,                  // (v0.7.36 测试版默认开)闲家「抢末墩」的留手代价权重(0 = 旧行为);见 digCost。产品方 2026-09-29「王留到最后」
-  digW: [-1.1492,1.0759,0.0181,0.1937,-0.0332,-0.0233,-0.0687],  // fit-guard.js ROLE=opp,1000 副 / 36564 个闲家决策点(v0.7.36 之前的打法),对数损失 0.607(均值 0.639)
-  guardJoker: 1,               // (v0.7.36 测试版默认开)1 = 守底 / 抠底概率再加「手里的王」两项(guardWJ / digWJ,fit-guard.js FEAT=3);0 = 旧式子
-  guardWJ: [-0.4435,1.1067,0.2845,0.2508,-0.0739,-0.0176,-0.1258,-0.6687,0.9532],   // fit-guard.js FEAT=3,600 副(v0.7.36 之前的打法)
+  digPlan: 4,                  // (v0.7.37 测试版默认开)闲家「抢末墩」的留手代价权重(0 = 旧行为);见 digCost。产品方 2026-09-29「王留到最后」
+  digW: [-1.1492,1.0759,0.0181,0.1937,-0.0332,-0.0233,-0.0687],  // fit-guard.js ROLE=opp,1000 副 / 36564 个闲家决策点(v0.7.37 之前的打法),对数损失 0.607(均值 0.639)
+  guardJoker: 1,               // (v0.7.37 测试版默认开)1 = 守底 / 抠底概率再加「手里的王」两项(guardWJ / digWJ,fit-guard.js FEAT=3);0 = 旧式子
+  guardWJ: [-0.4435,1.1067,0.2845,0.2508,-0.0739,-0.0176,-0.1258,-0.6687,0.9532],   // fit-guard.js FEAT=3,600 副(v0.7.37 之前的打法)
   digWJ: [-1.108,1.0905,-0.1029,0.1788,-0.0387,-0.018,-0.0865,-0.2474,0.4433],      // fit-guard.js ROLE=opp FEAT=3,600 副
   ruff2Plan: 0,               // 1 = 第 2 家断门毙副牌单张时按后面两家断不断门挑毙牌(产品方 2026-09-29,见 aiChooseFollow 末尾);0 = 旧行为
   ruff2Low: 0.1,               // 第 3 家断门概率低于它 = 「极高概率不断」,主分牌毙照旧
   ruff2Pt: 25,                 // 主分牌毙的罚分 × 第 3 家断门概率
   ruff2Low2: 10,               // 压不过在外主分牌的小主毙的罚分 × P(3 断) × P(4 不断)
   ruff2Seal: 20,               // 「毙到在外主分牌之上」的加成 × P(3 断) × P(4 不断)
-  sealOwnPts: 1,             // (v0.7.36 测试版默认开)1 = 上面两个「台面有没有分」的判断把我这手牌自己的分也算上(出主 K 时台面就不是 0 分);0 = 旧行为。见 pSurvive
+  sealOwnPts: 1,             // (v0.7.37 测试版默认开)1 = 上面两个「台面有没有分」的判断把我这手牌自己的分也算上(出主 K 时台面就不是 0 分);0 = 旧行为。见 pSurvive
   lastRuffWill: 0.95,          // (v0.7.26 测试版默认开)后手是本墩最后一家时「断门有主肯不肯毙」(0 = 旧口径 ruffWill);见 pSurvive
   guardPlan: 2,                // (v0.7.26 测试版默认开)守底计划权重(0 = 旧行为);见 guardCost。系数 guardW 由 test/fit-guard.js 拟合
   guardW: [-0.5023,1.04,0.4033,0.314,-0.0896,-0.0221,-0.1022],   // fit-guard.js,1500 副 / 27219 个庄家决策点(v0.7.23 打法),对数损失 0.586(均值 0.652)
@@ -5119,10 +5119,197 @@ function coachFacts(view, plays, cards){
 /* 建议单:最佳(可并列)+ 与首选相差不超过 okThr 的可选项(= 出了也不会被报失误),最多 max 个。
  * 首选永远是 AI 自己的选择(约束 6);同门、同牌型、同样带几分、同一句理由、同一档的牌合并成一条「或」。 */
 function coachReasonCore(r){
-  return String(r||'').replace(/^收官推演:/,'').replace(/(收官推演[^)]*)/,'');
+  // 收官推演的后缀有两种:「(收官推演确认,净升 0.12 级)」「(44样本,净升 -0.41 级)」—— 玩家看不懂,整段去掉
+  return String(r||'').replace(/^收官推演:/,'').replace(/\((收官推演|\d+样本)[^)]*\)/g,'');
 }
-function coachOptions(view, plays, J, okThr, max){
+/* ---- 教练说的理由(v0.7.36)----
+ * 候选自带的 reason 是 AI 候选**生成器的标签**,不是这一手的解释:「贴分」那条生成器没挑到分牌时
+ * 一律说「这门没分可贴,跟一张」—— 不看谁暂大(对手暂大谈不上「贴」),也不看领的是几张;
+ * 断门时才该用的「垫废牌」在有这门时照样挂着;v0.7.32 followBeatsCheck 之后「跟小」也可能其实毙下了。
+ * test/audit-coach-text.js 在 60 局里量到:说「贴」而这墩归对手 50.5%、「跟一张」而领的是对子 28.4%、
+ * 「垫」而其实有这门 100%、「躲不掉的分」而手里有更小又不带分的同门牌 53.8%。
+ * 做法:AI 的原句**和局面对得上就照用**(它常常带着真正的考虑,如「下家已知在这门断门 —— 毙到……」);
+ * 对不上就按事实重写。只改说法,不改选择 —— 首选仍是 AI 的。 */
+const COACH_OK=6;      // 「也可以」:与首选相差不到 6 分(v0.7.33 用失误门槛 12,太松,把白送 10 分也列了进来)
+function coachOkThr(gapThr){ return Math.min(isFinite(gapThr)?gapThr:12,COACH_OK); }
+
+/* 这一手带了分:有没有「一分不带、又不动更大的牌」的合法跟法 ——「躲不掉的分」要它为假才成立。
+ *   这门够跟:这门里挑同样张数、不带分、最大那张不比出的大,还要合法(有对必对、有拖拉机跟拖拉机);
+ *   这门不够(含断门):这门全跟上,补的那几张换成不带分的副牌小牌(10 以下)。
+ * 拿小王 / 副 A 去省一个 5 分不算「便宜」—— 那是另一种取舍。组合多到数不过来时返回 null(不下结论)。 */
+function coachCheapZeroAlt(view, plays, cards){
+  const t=view.trump, lead=classify(plays[0].cards,t), need=lead.cards.length;
+  if(!countPoints(cards)) return false;
+  const suit=view.hand.filter(c=>effSuit(c,t)===lead.suit);
+  if(suit.length<need){
+    if(countPoints(suit)) return false;          // 这门的分是被迫跟出去的
+    return view.hand.filter(c=>effSuit(c,t)!==lead.suit&&cardPoints(c)===0&&effSuit(c,t)!=='T'&&c.rank<=10)
+      .length>=need-suit.length;
+  }
+  const top=Math.max(...cards.filter(c=>effSuit(c,t)===lead.suit).map(c=>ordIdx(c,t)));
+  const pool=suit.filter(c=>cardPoints(c)===0&&ordIdx(c,t)<=top);
+  let tried=0, found=false;
+  const pick=[], rec=i=>{
+    if(found||tried>4000) return;
+    if(pick.length===need){ tried++; found=isLegalFollow(view.hand,lead,pick,t); return; }
+    for(let j=i;j<=pool.length-(need-pick.length)&&!found;j++){ pick.push(pool[j]); rec(j+1); pick.pop(); }
+  };
+  rec(0);
+  return found||(tried>4000?null:false);
+}
+// 真是小牌:9 以下、不是级牌也不是王 ——「跟小」「小牌探路」「垫小主」都要它
+function coachSmall(c, t){ return c.suit!=='X'&&c.rank!==t.rank&&c.rank<=9; }
+// 这张在它那门里已是最大一档(副牌 A、大王):「别家还有几张比它大」答案恒为 0,不值得问
+function coachTopRank(c, t){
+  const s=effSuit(c,t), o=ordIdx(c,t);
+  return !makeDeck().some(x=>effSuit(x,t)===s&&ordIdx(x,t)>o);
+}
+// 队友这张赢定了吗:我是末家;或者单张墩里别家已没有更大的、后面的对手也没露出断门(与 factText 同一口径)
+function coachPartnerSure(f){
+  return f.last||(!!f.partnerBigger&&!f.partnerBigger.length&&!f.behindOppVoid.length);
+}
+
+/* 这一手是不是只有一种合法出法。只认得出最常见的三种,认不出的一律当「有得选」:
+ *   last:手里剩的正好是要出的张数;all:这门只剩要跟的张数(全跟上);
+ *   pair:领一对、这门张数够、手里这门恰好只有一对(有对必对)。 */
+function coachForced(view, plays){
+  const t=view.trump, h=view.hand;
+  if(!plays||!plays.length) return h.length===1?'last':null;
+  const lead=classify(plays[0].cards,t), need=lead.cards.length;
+  if(h.length===need) return 'last';
+  const mine=h.filter(c=>effSuit(c,t)===lead.suit);
+  if(mine.length===need) return 'all';
+  if(lead.type==='pair'&&mine.length>need){
+    const cnt={}; for(const c of mine){ const k=pairKey(c); cnt[k]=(cnt[k]||0)+1; }
+    if(Object.values(cnt).filter(n=>n>=2).length===1) return 'pair';
+  }
+  return null;
+}
+
+/* 这门里还有没有「更小、又不更带分」、而且**能替它出**的牌:领对子时只和对子比
+ * (领 ♥K♥K、我出 ♥7♥7,手里的单张 ♥4 替代不了一对,所以 ♥7♥7 就是「跟小的」)。 */
+function coachCheaperLeft(view, lead, cards){
   const t=view.trump;
+  const played=cards.filter(c=>effSuit(c,t)===lead.suit);
+  const unplayed=view.hand.filter(c=>effSuit(c,t)===lead.suit&&!cards.some(x=>x.id===c.id));
+  const pcl=played.length?classify(played,t):null;
+  if(lead.type==='pair'&&pcl&&pcl.type==='pair'){
+    const by={}; for(const c of unplayed)(by[pairKey(c)]=by[pairKey(c)]||[]).push(c);
+    return Object.values(by).some(v=>v.length>=2&&ordIdx(v[0],t)<pcl.top&&cardPoints(v[0])*2<=countPoints(played));
+  }
+  return unplayed.some(u=>played.some(p=>ordIdx(u,t)<ordIdx(p,t)&&cardPoints(u)<=cardPoints(p)));
+}
+// 跟牌:AI 原句和这一手对得上吗(与 test/audit-coach-text.js 同一套判据)
+function coachFollowReasonOK(view, plays, cards, f, r){
+  const t=view.trump, lead=classify(plays[0].cards,t), need=lead.cards.length;
+  const iWin=f.wins, partnerWins=!iWin&&f.partnerWinning;
+  const mine=view.hand.filter(c=>effSuit(c,t)===lead.suit);
+  const played=cards.filter(c=>effSuit(c,t)===lead.suit);
+  const partnerAfter=plays.length<2&&!plays.some(p=>p.seat===(view.seat+2)%4);   // 队友还没出
+  const big=c=>cardPoints(c)>0||c.rank>=12||c.suit==='X'||(effSuit(c,t)==='T'&&lead.suit!=='T');
+  // 「贴」:这墩最后归队友;或者队友还没出、理由明说在等他毙 —— 两种都要求我自己没赢(我毙下了就不叫贴)
+  if(/贴/.test(r)&&(iWin||!(partnerWins||(/队友多半断|会毙/.test(r)&&partnerAfter)))) return false;
+  if(/跟一张/.test(r)&&(need!==1||!mine.length)) return false;   // 领的不是单张、或者断了这门(那叫垫)
+  if(/垫/.test(r)&&!cards.some(c=>effSuit(c,t)!==lead.suit)) return false;
+  if(/跟小|保留实力/.test(r)){
+    if(iWin||!mine.length) return false;      // 毙下了、或者断了这门(那叫垫,不叫跟)
+    if(coachCheaperLeft(view,lead,cards)) return false;
+    if(mine.length&&played.length===mine.length&&played.some(big)) return false;
+    if(!played.every(c=>coachSmall(c,t))) return false;   // ♠Q♠A、主 A 不叫「跟小」
+  }
+  if(/跟分/.test(r)&&(iWin||!mine.length)) return false;  // 毙下了是收分;断了这门是垫分
+  if(/毙/.test(r)&&!/被毙|来毙|会毙|能毙|可能毙|让他毙|再毙/.test(r)&&!f.ruff) return false;
+  if(/我断门|断门毙/.test(r)&&mine.length) return false;
+  if(/下家已知在这门断门/.test(r)&&!f.behindOppVoid.length) return false;
+  if(/躲不掉/.test(r)&&(iWin||coachCheapZeroAlt(view,plays,cards))) return false;
+  if(/最后一手/.test(r)&&!f.last) return false;
+  if(/能吃住|压住|稳吃|稳拿|尝试吃|争这墩|接过|拿牌权|压到|吃到/.test(r)&&!/被/.test(r)&&!iWin) return false;
+  if(/收分|抢分|争这墩分/.test(r)&&f.table+f.pts<=0) return false;
+  if(/队友稳赢|队友只是暂大/.test(r)&&!f.partnerWinning) return false;
+  if(/队友稳赢/.test(r)&&!coachPartnerSure(f)) return false;   // 事实那句会说「别家还有 N 张比他那张大」
+  if(/台面有分/.test(r)&&!f.table) return false;
+  if(/而对手暂大/.test(r)&&f.partnerWinning) return false;
+  if(/队友那张并非稳赢/.test(r)&&!f.partnerWinning) return false;
+  return true;
+}
+// 跟牌:按事实写一句(对不上时用)
+function coachFollowReasonRewrite(view, plays, cards, f, tier, r){
+  const t=view.trump, lead=classify(plays[0].cards,t), need=lead.cards.length;
+  const mine=view.hand.filter(c=>effSuit(c,t)===lead.suit);
+  const played=cards.filter(c=>effSuit(c,t)===lead.suit);
+  const big=c=>cardPoints(c)>0||c.rank>=12||c.suit==='X'||(effSuit(c,t)==='T'&&lead.suit!=='T');
+  // 只说意图 —— 事实(压没压住、台面几分、带几分)由后面那句 factText 说,两边不要重复
+  if(f.wins) return f.last?(f.ruff?'毙下来':'拿下这墩')
+                          :(f.ruff?'毙下来,先把牌权拿住':'压上去,争这墩');
+  const allForced=mine.length&&played.length===mine.length&&played.some(big);
+  const cheaper=coachCheaperLeft(view,lead,cards);
+  const noSuit=!mine.length;
+  const dumpTrump=cards.filter(c=>effSuit(c,t)==='T'&&lead.suit!=='T');
+  if(f.partnerWinning){
+    // AI 说「队友稳赢」是它的把握(certainty>0.8),不是硬事实 —— 事实那句还挂着「别家还有 N 张比他那张大」
+    if(f.pts) return /队友稳赢/.test(r||'')?'队友多半赢得下,贴分':'给队友贴分';
+    return noSuit?'垫不带分的':'不带分跟上';
+  }
+  if(f.pts){
+    const alt=coachCheapZeroAlt(view,plays,cards);
+    // 首选本身白送(AI 生成器「躲不掉的分先出」):不替它说「躲不掉」,如实说是它估计留着也保不住
+    if(alt) return tier!=='best'?`这手送对手 ${f.pts} 分`
+      :noSuit?`先把这 ${f.pts} 分垫掉 —— 我估计这张分牌留着也保不住`
+      :`先把这 ${f.pts} 分出掉 —— 我估计这门的分留着也保不住`;
+    if(alt===false) return allForced?'这门只剩这几张,带分也只能跟上':'躲不掉,只能带分';
+    return '带分跟上';
+  }
+  if(allForced) return '这门只剩这几张,只能全跟上';
+  if(noSuit) return !dumpTrump.length?'垫不带分的':dumpTrump.every(c=>coachSmall(c,t))?'垫小主':'垫主';
+  // 手里更小的都带分(♠Q♠A 跟、♠5♠10 留着)—— 那叫「不带分跟上」,不叫「跟小」
+  if(cheaper||!played.every(c=>coachSmall(c,t))) return '不带分跟上';
+  return need>1?'跟小的':'跟一张小的';
+}
+/* 领出要改口的几处:
+ *   ① 有几条标签是 AI 用来解释「这手为什么扣分」的(「主牌不占优,先不动主」挂在大怪上、「分对慎出」挂在分对上),
+ *      这手照样当选时,当成推荐理由读就是反话 —— 改成「这手能做到什么 + 代价」;
+ *   ② 钢板怕被毙:「对手多半断这门」在已有对手确定断了、甚至别家一张都没有时,按硬事实说;
+ *   ③「小主」其实不小、「小牌」其实是 Q/K 或这门最大、「队友的断门」其实只是推测。 */
+function coachLeadReason(view, cards, f, r, tier){
+  const t=view.trump, cl=classify(cards,t);
+  let risky=false;
+  if(/^主牌不占优,先不动主/.test(r)) r='主牌不占优,本不想动主 —— 但这手稳拿这墩';
+  else if(/^大主牌留作后手/.test(r)) r='大主本想留到收官 —— 但这手稳拿这墩';
+  else if(/^分对慎出/.test(r)){ r='分对,有被压的风险'; risky=true; }
+  else if(/压不住场,吊不出对手的大主/.test(r)){ r='小主压不住场,多半把牌权交出去'; risky=true; }
+  else if(/下策/.test(r)){ r='探路,把牌权交出去'; risky=true; }
+  else if(/^甩牌有风险/.test(r)){ r='甩牌,有被拦下的风险'; risky=true; }
+  // 「压得住」是 AI 的把握(p>0.6),不是硬事实 —— 事实那句还挂着「别家还有 1 张比它大」
+  if(/^压得住/.test(r)&&f.boss===false) r=r.replace(/^压得住/,'多半压得住');
+  if(/对手多半断这门|对手可能缺门来毙/.test(r)&&f.suit!=='T'){
+    if(f.out===0) r='这门别家都没有了 —— 对手可以用主毙,也可以垫牌';
+    else if(f.oppVoid.length) r=r.replace(/对手多半断这门 —— 按被毙的概率算|对手多半断这门|对手可能缺门来毙/,
+      `${f.oppVoid.length>1?'两家对手都':'已有对手'}断了这门,可能被毙`);
+    else r=r.replace(' —— 按被毙的概率算',',可能被毙');
+  }
+  // 「小主」:在外的主至少一半比它大才算小(单张、对子同一口径)
+  if(cl&&cl.suit==='T'&&/小主/.test(r)){
+    const up=coachBiggerUnseen(makeMemory(view),'T',t,cl.top).reduce((a,x)=>a+x.n,0);
+    if(!(f.out>0&&up/f.out>=0.5)) r=r.replace('小主换牌权','用主换牌权').replace('小主','领主');
+  }
+  if(cl&&cl.type==='single'){
+    const suitCards=view.hand.filter(c=>effSuit(c,t)===cl.suit);
+    if(/小牌探路/.test(r)&&(!coachSmall(cards[0],t)||suitCards.length>1&&!suitCards.some(c=>ordIdx(c,t)>cl.top)))
+      r=r.replace('小牌探路','探路');
+    if(/队友的断门/.test(r)&&!f.partnerVoid) r=r.replace('主打队友的断门','队友多半断这门');
+  }
+  // 当选的是一手有风险的:把「为什么还选它」说出来(AI 的估算里,其他领法更亏)
+  if(risky&&tier==='best') r+=',但其他领法更亏';
+  return r;
+}
+function coachReason(view, plays, o){
+  const r=coachReasonCore(o.reason), f=o.facts||coachFacts(view,plays,o.cards);
+  if(!plays||!plays.length) return coachLeadReason(view,o.cards,f,r,o.tier);
+  return coachFollowReasonOK(view,plays,o.cards,f,r)?r:coachFollowReasonRewrite(view,plays,o.cards,f,o.tier,r);
+}
+
+function coachOptions(view, plays, J, okThr, max){
+  const t=view.trump, follow=!!(plays&&plays.length);
   const list=[{cards:J.adv.cards,reason:J.adv.reason,delta:0,tier:'best'}];
   for(const a of J.alts){
     if(!(a.delta<=okThr)) continue;
@@ -5130,16 +5317,21 @@ function coachOptions(view, plays, J, okThr, max){
   }
   list.sort((a,b)=>(a.tier==='best'?-1:0)-(b.tier==='best'?-1:0)||a.delta-b.delta);
   const out=[];
+  let bestPts=0;
   for(const o of list){
     const cl=classify(o.cards,t), facts=coachFacts(view,plays,o.cards);
+    if(o.tier==='best') bestPts=facts.pts||0;
+    // 白送对手分的不列(v0.7.36):这墩归对手,这一手又比首选多带分 —— 分差再小也不该叫「也可以」
+    else if(follow&&!facts.wins&&!facts.partnerWinning&&facts.pts>bestPts) continue;
+    const say=coachReason(view,plays,{...o,facts});
     // 事实也要一模一样才合并:♠9♠9 和 ♠J♠J 理由相同,但「比它大、两张都在别家」的不是同一批牌。
     // 真正等价的是中间没有别家牌隔着的那种(♦5 与 ♦6),它们的事实逐字相同。
     const key=[cl?cl.suit:'?',cl?cl.type:'?',o.cards.length,countPoints(o.cards),
-               coachReasonCore(o.reason),o.tier==='ok'?'ok':'top',JSON.stringify(facts)].join('|');
+               say,o.tier==='ok'?'ok':'top',JSON.stringify(facts)].join('|');
     // 只合并价值也差不多的(相差不到 COACH_TIE),否则「♠J 或 ♠4」会把两手不一样好的牌说成一样
     const hit=out.find(x=>x.key===key&&Math.abs(x.delta-o.delta)<=COACH_TIE);
     if(hit){ hit.same.push(o.cards); continue; }
-    out.push({...o,key,same:[],facts});
+    out.push({...o,key,same:[],facts,say});
   }
   return out.slice(0,max||3);
 }
@@ -7041,25 +7233,26 @@ function humanPlay(){
     const isLead=G.trick.length===0;
     const ev=isLead?coachEvalLead(view,sel):coachEvalFollow(view,G.trick,sel);
     const best=ev.adv, thr=GAP_THR[C.gapSens];
+    const bestSay=coachReason(view,G.trick,{cards:best.cards,reason:best.reason,tier:'best'});
     if(ev.gap>thr){
       const no=G.tricks.length+1;
       /* 跨阶梯线(§7 第一行、场景 H1 仍未修):首选不抢、你抢了、抢下正好过线 ——
        * 这种点上评分器系统性偏保守,你多半是对的。记下来,但不算你的失误。 */
       const youTake=!isLead&&currentWinner(G.trick.concat([{seat:HUMAN,cards:sel}]),G.trump).seat%2===HUMAN%2;
       const doubt=!!(ev.ladder&&youTake);
-      G.coachNotes.push({no,my:sel.slice(),best:best.cards.slice(),gap:ev.gap,reason:best.reason,
+      G.coachNotes.push({no,my:sel.slice(),best:best.cards.slice(),gap:ev.gap,reason:bestSay,
                          unit:ev.unit,doubt,ladder:ev.ladder});
       if(doubt){
-        coachSay(no,`🤔 你出 ${desc(sel)},我会出 <b>${desc(best.cards)}</b> —— ${best.reason}。<br>`+
+        coachSay(no,`🤔 你出 ${desc(sel)},我会出 <b>${desc(best.cards)}</b> —— ${bestSay}。<br>`+
           `但${ladderLine(ev.ladder)}。「抢不抢过线」正是我已知的短板,<b>这一手存疑,不计入你的失误</b>。`,'doubt');
       }else{
         if(C.strict && ev.gap>thr*1.6 &&
-           !confirm(`教练:更好的是 ${desc(best.cards)} —— ${best.reason}\n仍要出这手吗?`)){ G.coachNotes.pop(); return; }
+           !confirm(`教练:更好的是 ${desc(best.cards)} —— ${bestSay}\n仍要出这手吗?`)){ G.coachNotes.pop(); return; }
         sndOops();
-        coachSay(no,`⚠️ 你出 ${desc(sel)},更好的是 <b>${desc(best.cards)}</b> —— ${best.reason}`+
+        coachSay(no,`⚠️ 你出 ${desc(sel)},更好的是 <b>${desc(best.cards)}</b> —— ${bestSay}`+
           `<div class="dim">按我的估算,比建议的那手约亏 ${Math.round(ev.gap)} 分${ev.unit==='eg'?'(收官按推演折算)':''}</div>`,'warn');
       }
-      log(`教练(第${no}墩):你出 ${desc(sel)},建议 ${desc(best.cards)} — ${best.reason}${doubt?'(存疑)':''}`);
+      log(`教练(第${no}墩):你出 ${desc(sel)},建议 ${desc(best.cards)} — ${bestSay}${doubt?'(存疑)':''}`);
     }
   }
   G.selected.clear(); G.hintCards=null;
@@ -7120,16 +7313,18 @@ function factText(f){
   if(f.kind==='lead'){
     const s=SN(f.suit);
     if(f.suit==='T'){
-      P.push(`${T('trump')}别家还剩 ${f.out} 张,你有 ${f.mine} 张`);
-      if(f.type==='single') P.push(f.boss?'别家没有比它大的':`别家还有 ${cntOf(f.bigger)} 张比它大`);
+      P.push(`${T('trump')}别家${f.out?`还剩 ${f.out} 张`:'一张都没有了'},你有 ${f.mine} 张`);
+      if(f.type==='single'&&f.out) P.push(f.boss?'别家没有比它大的':`别家还有 ${cntOf(f.bigger)} 张比它大`);
       return P.join(',');
     }
+    if(!f.out) return `${s}别家一张都没有了`;      // 谁大、谁断都不用再说
     if(f.type==='single'){
       const n=cntOf(f.bigger);
       P.push(f.boss?`别家没有比它大的${s}`:`别家还有 ${n} 张比它大${n<=3?`(${cardsLine(f.bigger)})`:''}`);
     }else if(f.pairAbove){
+      // 「♦9两张都在别家」读起来像是在说两张牌 —— 说清楚是「可能有的更大对子」
       P.push(f.boss?`别家没有能压过它的${s}对子`
-        :`${f.pairAbove.slice(0,2).map(miniName).join('、')}${f.pairAbove.length>2?' 等':''}两张都在别家,同在一家才压得过`);
+        :`别家可能有更大的对子:${f.pairAbove.slice(0,3).map(miniName).join('、')}${f.pairAbove.length>3?' 等':''}(各两张都在别家,同在一家才成对)`);
     }
     P.push(`${s}别家还剩 ${f.out} 张`);
     if(f.oppVoid.length) P.push(`${f.oppVoid.map(seatShort).join('、')}已断${s}`);
@@ -7147,12 +7342,20 @@ function factText(f){
     P.push(`先压住${f.table?`(台面 ${f.table} 分)`:''}`);
     if(f.bigger) P.push(cntOf(f.bigger)?`别家还有 ${cntOf(f.bigger)} 张比它大`:`别家没有比它大的${s}`);
     if(f.behindOppVoid.length) P.push(`${f.behindOppVoid.map(seatShort).join('、')}已断${s},可能毙`);
+  }else if(f.partnerWinning&&f.last){
+    // 你是最后一手:后面没人了,这墩就是队友的 —— 再说「别家还有几张比他大」只会和「稳赢」打架
+    P.push('你最后出,这墩归队友');
+    P.push(f.pts?`贴 ${f.pts} 分`:'不贴分');
   }else if(f.partnerWinning){
     P.push(!f.partnerBigger?'队友暂大'
       :cntOf(f.partnerBigger)?`队友暂大,别家还有 ${cntOf(f.partnerBigger)} 张比他那张大`:'别家没有比队友那张更大的');
     // 这门里最大 ≠ 稳:后面的对手已经断了这门,照样能毙
     if(f.behindOppVoid.length) P.push(`但${f.behindOppVoid.map(seatShort).join('、')}已断${s},可能毙`);
     P.push(f.pts?`贴 ${f.pts} 分`:'不贴分');
+  }else if(f.last){
+    // 台面上的分也跟着归对手 —— 只说「不送分」会让人以为这手没代价
+    if(f.table){ P.push(`你最后出,这墩连台面 ${f.table} 分归对手`); P.push(f.pts?`你这手再添 ${f.pts} 分`:'你不再添分'); }
+    else{ P.push('你最后出,这墩归对手'); P.push(f.pts?`这手带 ${f.pts} 分`:'不送分'); }
   }else{
     let a='对手暂大';
     if(f.beatCard&&f.mineInSuit&&!f.canBeat)
@@ -7168,15 +7371,24 @@ function obligationNote(view,plays){
   if(!plays.length) return '';
   const t=view.trump, lead=classify(plays[0].cards,t), s=SN(lead.suit);
   const mine=view.hand.filter(c=>effSuit(c,t)===lead.suit).length, n=lead.cards.length;
-  if(!mine) return `你没有${s}:可以用${T('trump')}毙,也可以垫别的`;
+  const hasTrump=view.hand.some(c=>effSuit(c,t)==='T');
+  // 领的是主、或者手里已经没有主:「可以用主毙」就是空话
+  if(!mine) return lead.suit==='T'?`你没有${T('trump')}了:垫别门的牌`
+    :hasTrump?`你没有${s}:可以用${T('trump')}毙,也可以垫别的`:`你没有${s},也没有${T('trump')}了:只能垫别门的牌`;
   if(mine<n) return `${s}只剩 ${mine} 张,全出,不够的用别门补`;
-  if(lead.type!=='single') return `要跟 ${n} 张${s},门内有对必对`;
+  // 甩的全是单张就没有「有对必对」这回事
+  if(lead.type!=='single') return !pairsInLead(lead)?`要跟 ${n} 张${s}`
+    :lead.type==='tractor'?`要跟 ${n} 张${s},有拖拉机跟拖拉机,再有对必对`:`要跟 ${n} 张${s},门内有对必对`;
   return '';
 }
 
+// 没得选时说一句为什么(块① coachForced)
+const FORCED_WHY={last:'手里就剩这几张',all:'这门只剩这几张,全要跟上',pair:'有对必须出对,你这门只有这一对'};
 function suggestHTML(view,plays,J){
-  const thr=isFinite(GAP_THR[C.gapSens])?GAP_THR[C.gapSens]:GAP_THR['中'];
-  const opts=coachOptions(view,plays,J,thr,3);
+  const forced=coachForced(view,plays);
+  if(forced) return `<div class="cSec">没得选</div><div>${FORCED_WHY[forced]},只能出 <b>${desc(J.adv.cards)}</b>。</div>`;
+  // 「也可以」:与首选相差不到 6 分(且不超过失误门槛),白送对手分的不列 —— 见块① coachOptions
+  const opts=coachOptions(view,plays,J,coachOkThr(GAP_THR[C.gapSens]),3);
   const tied=opts.some(o=>o.tier==='tie');
   const tagOf=o=>o.tier==='ok'?'也可以':(tied?'并列最佳':'最佳');
   const ob=obligationNote(view,plays);
@@ -7185,10 +7397,9 @@ function suggestHTML(view,plays,J){
     const names=[o.cards,...o.same].map(desc).join(' 或 ');
     const ft=factText(o.facts);
     return `<div class="opt"><b>${names}</b> <span class="tag ${o.tier==='ok'?'ok':'top'}">${tagOf(o)}</span>`+
-      `<div class="dim">${coachReasonCore(o.reason)}${ft?`。${ft}`:''}</div></div>`;
+      `<div class="dim">${o.say}${ft?`。${ft}`:''}</div></div>`;
   }).join('');
-  if(opts.length===1&&J.alts.length)
-    h+=`<div class="dim">别的出法都比它差一截${isFinite(GAP_THR[C.gapSens])?',出了会被我记成失误':''}。</div>`;
+  if(opts.length===1&&J.alts.length) h+=`<div class="dim">其他出法我都不推荐。</div>`;
   if(J.ladder) h+=`<div class="dim" style="margin-top:4px">⚠️ ${ladderLine(J.ladder)}。「抢不抢过线」是我已知的短板,这类局面你的判断可能比我准。</div>`;
   return h;
 }
@@ -7200,37 +7411,45 @@ function quizFor(view,plays,o){
   const countQ=(q,n,list,zero)=>({q,choices:B4,answer:Math.min(n,3),
     reveal:n?`还有 <b>${n}</b> 张:${cardsLine(list,6)}。`:`<b>一张都没有</b> —— ${zero}。`});
   const suitCountQ=(suit,out,extra)=>({q:`${SN(suit)}别家还剩几张?`,choices:['0–2','3–5','6–9','10+'],
-    answer:bucketOf(out,[2,5,9]),reveal:`${SN(suit)}别家还剩 <b>${out}</b> 张${extra}。`});
+    answer:bucketOf(out,[2,5,9]),reveal:out?`${SN(suit)}别家还剩 <b>${out}</b> 张${extra}。`
+      :`${SN(suit)}别家<b>一张都没有了</b> —— 这门领出去,谁都可以拿${T('trump')}毙,也可以垫牌。`});
   const tableQ=()=>{ const pc=plays.flatMap(p=>p.cards).filter(c=>cardPoints(c)>0);
     return {q:'台面上现在一共几分?',choices:['5','10','15','20+'],answer:Math.min(f.table/5-1,3),
       reveal:`台面 <b>${f.table}</b> 分:${pc.map(miniName).join('、')}。`}; };
   if(f.kind==='lead'){
     if(f.suit==='T') return {q:`${T('trump')}别家还剩几张?`,choices:['0–4','5–9','10–15','16+'],answer:bucketOf(f.out,[4,9,15]),
-      reveal:`${T('trump')}别家还剩 <b>${f.out}</b> 张${f.top?`,最大的是 ${miniName(f.top)}`:''};你手里有 ${f.mine} 张。`};
+      reveal:f.out?`${T('trump')}别家还剩 <b>${f.out}</b> 张${f.top?`,最大的是 ${miniName(f.top)}`:''};你手里有 ${f.mine} 张。`
+        :`${T('trump')}别家<b>一张都没有了</b>;你手里有 ${f.mine} 张。`};
     if(f.type==='single'&&!f.boss) return countQ(`${SN(f.suit)}里,别家还有几张比 ${miniName(o.cards[0])} 大?`,cntOf(f.bigger),f.bigger,'');
     return suitCountQ(f.suit,f.out,
       (f.oppVoid.length?`;${voidWho(view,f.oppVoid,f.suit)}已经断了`:';还没有对手露出断这门')+
       `。剩得越少,越可能有人已经没有这门、拿${T('trump')}来毙`);
   }
   const s=SN(f.leadSuit);
+  // 后面的对手有没有确定断这门(副牌墩才有意义:领的是主,断了也只是垫牌)
+  const voidQ=what=>f.leadSuit==='T'||!f.behindOpp.length?null:
+    {q:`你后面的对手里,有人已经确定断了${s}吗?`,choices:['有','没有'],answer:f.behindOppVoid.length?0:1,
+     reveal:f.behindOppVoid.length
+       ?`有:${voidWho(view,f.behindOppVoid,f.leadSuit)}。他手里还有${T('trump')}的话,可能${what}。`
+       :`没有:后面的${f.behindOpp.map(seatShort).join('、')}${f.behindOpp.length>1?'都':''}还没露出断${s}。`};
   if(f.wins&&f.last) return f.table>0?tableQ():null;
-  if(f.ruff) return {q:`你后面的对手里,有人已经确定断了${s}吗?`,choices:['有','没有'],answer:f.behindOppVoid.length?0:1,
-    reveal:f.behindOppVoid.length
-      ?`有:${voidWho(view,f.behindOppVoid,f.leadSuit)}。他手里还有${T('trump')}的话,可能盖过你。`
-      :`没有:后面的${f.behindOpp.map(seatShort).join('、')}都还没露出断${s}。`};
-  if(f.wins&&f.bigger) return countQ(`${s}里,别家还有几张比 ${miniName(o.cards[0])} 大?`,cntOf(f.bigger),f.bigger,
-    `${miniName(o.cards[0])} 在这门里别家已经压不过了`);
-  if(f.partnerCard&&f.partnerBigger) return countQ(`队友的 ${miniName(f.partnerCard)},别家还有几张比它大?`,cntOf(f.partnerBigger),f.partnerBigger,
-    `队友那张在这门里别家已经压不过了`+(f.behindOppVoid.length?`(但${f.behindOppVoid.map(seatShort).join('、')}已断${s},还是可能被毙)`:''));
-  if(f.beatCard&&f.mineInSuit){
+  if(f.ruff) return voidQ('盖过你');
+  // 「别家还有几张比 ♠A / 大王大」答案恒为 0 —— 副牌 A 该问的是后面有没有人能毙它
+  if(f.wins&&f.bigger) return coachTopRank(o.cards[0],t)?voidQ('毙掉你这张')
+    :countQ(`${s}里,别家还有几张比 ${miniName(o.cards[0])} 大?`,cntOf(f.bigger),f.bigger,
+      `${miniName(o.cards[0])} 在这门里别家已经压不过了`);
+  if(f.partnerCard&&f.partnerBigger&&!f.last) return coachTopRank(f.partnerCard,t)?voidQ('毙掉队友这张')
+    :countQ(`队友的 ${miniName(f.partnerCard)},别家还有几张比它大?`,cntOf(f.partnerBigger),f.partnerBigger,
+      `队友那张在这门里别家已经压不过了`+(f.behindOppVoid.length?`(但${f.behindOppVoid.map(seatShort).join('、')}已断${s},还是可能被毙)`:''));
+  // 已经被毙的墩不问「你的♣压不压得过桌上那张主」—— 答案永远是没有,问了像在考脑筋急转弯
+  if(f.beatCard&&f.mineInSuit&&!f.ruffed){
     const cur=miniName(f.beatCard), my=miniName(f.myTop);
     return {q:`这墩你手里有压得过桌上 ${cur} 的${s}吗?`,choices:['有','没有'],answer:f.canBeat?0:1,
-      reveal:f.ruffed?`没有:这墩已经被 ${cur} 毙了,${s}再大也压不过。`
-        :f.canBeat?`有:你的 ${my} 比它大。`
+      reveal:f.canBeat?`有:你的 ${my} 比它大。`
         :ordIdx(f.myTop,t)===ordIdx(f.beatCard,t)?`没有:你的 ${my} 和它一样大,同样大先出者赢。`
         :`没有:你这门最大的是 ${my},比它小。`};
   }
-  return f.table>0?tableQ():null;
+  return null;      // 「台面几分」只在「你最后出、这墩归你」时才和怎么出有关,别的时候不问
 }
 
 const canAskCoach=()=>!!G&&C.on&&!G.ended&&G.phase==='play'&&!G.auto&&G.trick.length<4
@@ -7243,7 +7462,7 @@ function askCoach(){
   const view=viewFor(HUMAN), plays=G.trick.slice(), no=G.tricks.length+1;
   const J=plays.length?coachJudgeFollow(view,plays):coachJudgeLead(view);
   const advice=suggestHTML(view,plays,J), hint=J.adv.cards.map(c=>c.id);
-  const Q=C.quiz?quizFor(view,plays,{cards:J.adv.cards,facts:coachFacts(view,plays,J.adv.cards)}):null;
+  const Q=C.quiz&&!coachForced(view,plays)?quizFor(view,plays,{cards:J.adv.cards,facts:coachFacts(view,plays,J.adv.cards)}):null;
   if(Q){
     const m=coachSay(no,`先考你:${Q.q}`,'quiz');
     m.quiz={...Q,advice,hint,state:'open'};
@@ -7276,7 +7495,7 @@ function reviewHTML(autoNote){
   let h='';
   if(real.length){
     const top=real.slice().sort((a,b)=>b.gap-a.gap).slice(0,3);
-    h+=top.map(n=>`<div>第${n.no}墩:你出 ${desc(n.my)} → 我建议 ${desc(n.best)} · 约亏 ${Math.round(n.gap)} 分<div class="dim">${coachReasonCore(n.reason)}</div></div>`).join('');
+    h+=top.map(n=>`<div>第${n.no}墩:你出 ${desc(n.my)} → 我建议 ${desc(n.best)} · 约亏 ${Math.round(n.gap)} 分<div class="dim">${n.reason}</div></div>`).join('');
     if(real.length>3) h+=`<div class="dim">另有 ${real.length-3} 手差得少一些,不一一列了</div>`;
   }else{
     h+=`<div>${G.autoTricks?'你自己出的那几墩没有明显失误':'本局没有明显失误,漂亮!'}</div>`;

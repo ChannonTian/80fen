@@ -86,6 +86,7 @@ learn/
 | `test/audit-reason.js` | **教练理由的事实体检** —— 只查「理由说的和牌面对不对得上」,不评价棋力 |
 | `test/audit-coach.js` | **教练的同一标尺对账** —— 教练给你那手打的分必须等于 AI 自己给同一手的分;量口径差、判定翻转、推演改判时的漏报 |
 | `test/audit-coach-facts.js` | **教练建议单与相关事实的体检** —— 首选必须是 AI 的选择;「谁已断」要找得到没跟出来的那一墩;钢板口径、末家胜负与引擎一致。有不符退出码 1 |
+| `test/audit-coach-text.js` | **教练说的话和牌面对不对得上** —— 建议单每条理由(「贴」要归队友、「跟一张」要领单张、「躲不掉」要真没有不带分的跟法……)、「也可以」不白送分、跟牌提示、题目与答案、事实那句;连同 v0.7.33 试玩报障的复现。有不符退出码 1 |
 | `test/audit-dumpvoid.js` | 行为审计:「后手有已知断门的对手,我却把分贴过去」 |
 | `test/check-sync.js` | **三份 build 与文档的一致性体检** —— 晋级、推送之前跑一遍 |
 | `test/gen-switches.js` | 生成 `docs/SWITCHES.md` |
@@ -184,7 +185,7 @@ AI 只回答「合法之中选哪个」,规则判定全部交给引擎——所�
 场景库是回归网,不是尺子:
 
 ```
-node test/ai-scenarios.js 80fen-test.html   # 测试版:36 过 / 0 败 / 1 待修(v0.7.36:2b 换成真实局面、新增 2b′ / 2e)
+node test/ai-scenarios.js 80fen-test.html   # 测试版:36 过 / 0 败 / 1 待修(v0.7.37:2b 换成真实局面、新增 2b′ / 2e)
 node test/ai-scenarios.js index.html        # 正式版:33 过 / 0 败 / 1 待修 —— 少的两条 H1c/H1d 是测试版的教练断言
 node test/audit-reason.js index.html 200    # 教练理由体检:16 类断言应全部 0 不符
 ```

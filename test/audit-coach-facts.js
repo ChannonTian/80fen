@@ -24,20 +24,22 @@ C0.globalThis=C0; vm.createContext(C0); vm.runInContext(b[0],C0);
 const E=Object.assign({},C0,C0.module.exports);
 if(typeof E.coachOptions!=='function'){ console.log(`${F}:没有 coachOptions(v0.7.33 之前的 build),跳过`); process.exit(0); }
 E.AIP.egSearch=+(process.env.EG||0);
+// 「也可以」的门槛与界面一致:v0.7.36 起是 coachOkThr(失误门槛)= 6,之前直接用失误门槛 12
+const OK=typeof E.coachOkThr==='function'?E.coachOkThr(THR):THR;
 
 const same=(a,b)=>a.length===b.length&&a.every(x=>b.some(y=>y.id===x.id));
 let n=0; const bad={}, first={}, len=[0,0,0,0], tiers={best:0,tie:0,ok:0};
 const fail=(k,d)=>{ bad[k]=(bad[k]||0)+1; if(!first[k]) first[k]=d; };
 
 function check(view,plays,J){
-  const o=E.coachOptions(view,plays,J,THR,3); n++; len[o.length]++;
+  const o=E.coachOptions(view,plays,J,OK,3); n++; len[o.length]++;
   if(!o.length||!same(o[0].cards,J.adv.cards)) fail('① 首选 ≠ AI 的选择','');
   const ts=o.map(x=>x.tier).join(',');
   if(!/^best(,tie)*(,ok)*$/.test(ts)) fail('② 档次顺序',ts);
   for(let i=2;i<o.length;i++) if(o[i].delta<o[i-1].delta-1e-9) fail('② 没按价值降序',o.map(x=>x.delta.toFixed(1)).join(','));
   for(const x of o){
     tiers[x.tier]++;
-    if(x.tier!=='best'&&x.delta>THR) fail('② 超过门槛的也列了',x.delta);
+    if(x.tier!=='best'&&x.delta>OK) fail('② 超过门槛的也列了',x.delta);
     const f=x.facts, su=f.kind==='lead'?f.suit:f.leadSuit;
     for(const s of (f.kind==='lead'?f.oppVoid:f.behindOppVoid))
       if(!E.coachVoidTrick(view.history,s,su,view.trump)) fail('③ 说已断却找不到那一墩',`座位${s} 门${su}`);
