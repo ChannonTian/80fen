@@ -148,7 +148,10 @@ function checkFollow(view,plays,o,best,r){
   // 建议单层面:「也可以」不该是白送对手分(同一墩里首选送得更少)
   if(o.tier!=='best') note('也可以:不白送对手分', !(oppWins&&pts>E.countPoints(best.cards)), d);
   // 首选本身白送分:对手赢、这手带分、手里却有合法又不带分的跟法 —— 这是 AI 的打法,不只是措辞
-  if(o.tier==='best'&&oppWins&&pts>0&&cheapZeroAlt(view,plays,o.cards)){
+  /* 队友还在后面(我是第 2 家)时不算:diag-gift 300 副,这类 90 次里分跟上去这墩本队拿下 62% vs 换成不带分的 51%,
+   * 整局 +1.1 ±1.5 分 —— 是给队友送分,不是白送(AI 线 v0.7.37,ai-progress 第 10 项);AI 的理由也改成了「队友还在后面」。 */
+  const partnerLater=plays.length<2;
+  if(o.tier==='best'&&oppWins&&!partnerLater&&pts>0&&cheapZeroAlt(view,plays,o.cards)){
     aiGift++; if(aiGiftEx.length<3) aiGiftEx.push(d());
     // 首选是 AI 的打法,教练改不了;但不许再说「躲不掉」,要如实说在送分
     note('首选送分:如实说是送分', /出掉|垫掉|送/.test(r)&&!/躲不掉/.test(r), d);
@@ -249,7 +252,7 @@ const keys=Object.keys(hits).sort((a,b)=>(bad[b]||0)-(bad[a]||0));
 console.log(`${F} — ${N} 局,${points} 个决策点,显示出来的候选 ${opts} 条(理由:${HAVE_REWRITE?'教练改写后':'AI 原句'};「也可以」门槛 ${OK_THR})\n`);
 console.log('断言'.padEnd(24)+'触发'.padStart(7)+'不符'.padStart(7)+'占比'.padStart(8));
 for(const k of keys){ const n=bad[k]||0; console.log(k.padEnd(24)+String(hits[k]).padStart(7)+String(n).padStart(7)+((100*n/hits[k]).toFixed(1)+'%').padStart(8)); }
-console.log(`\n(记给 AI 线,不算教练说错)首选本身白送分:对手赢、这手带分,手里却有不带分又不动大牌的合法跟法 —— ${aiGift} 次`);
+console.log(`\n(记给 AI 线,不算教练说错)首选本身白送分:对手赢、队友已出过、这手带分,手里却有不带分又不动大牌的合法跟法 —— ${aiGift} 次`);
 if(aiGiftEx.length) console.log('  '+aiGiftEx.join('\n  '));
 const bk=keys.filter(k=>bad[k]);
 if(bk.length){ console.log('\n---- 例子 ----'); for(const k of bk) console.log(`\n[${k}]\n  `+ex[k].join('\n  ')); process.exit(1); }

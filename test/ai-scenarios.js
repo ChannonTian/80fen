@@ -142,22 +142,58 @@ console.log(`\n===== ${path.basename(file)} =====\n`);
   check('2a','中盘：队友领小主钓主、对手跟小 → 我应当接过牌权',
         `${ns(r.cards)}（${r.reason}）`, ()=>E.ordIdx(r.cards[0],T)>E.ordIdx(C('S4'),T),
         '出比 S4 大的主牌');
-  /* 2b 换成一个**中盘真实**的局面：大小王与正/副常主大都已现身，SA 已接近钢板。
-   * 原来那版是一个 13 张手牌 + 空历史的合成局面，在外还有 12 张主压得住 SA ——
-   * 那种情况下用 SA 去接本来就是坏棋，AI 选 S8 是对的。
-   * 「接得够高」要在 SA 真的守得住的时候成立才算数。 */
-  const hist=[
-   {seat:0,cards:H(['XB'])},{seat:1,cards:H(['S3'])},{seat:2,cards:H(['XS'])},{seat:3,cards:H(['S6'])},
-   {seat:0,cards:H(['XB'])},{seat:1,cards:H(['S7'])},{seat:2,cards:H(['XS'])},{seat:3,cards:H(['S5'])},
-   {seat:0,cards:H(['S2'])},{seat:1,cards:H(['C2'])},{seat:2,cards:H(['S2'])},{seat:3,cards:H(['D2'])},
-   {seat:0,cards:H(['H2'])},{seat:1,cards:H(['C2'])},{seat:2,cards:H(['D2'])},{seat:3,cards:H(['H2'])}];
-  const v3={seat:3,trump:T,declSeat:0,history:hist,buriedKnown:[],
-    hand:H(['SA','SK','S9','S8','C9','C8','C7','H4','H3'])};
-  const r3=E.aiChooseFollow(v3,[{seat:1,cards:H(['S4'])},{seat:2,cards:H(['S3'])}]);
-  check('2b','大牌已现身、SA 接近钢板时，接就要接得够高（别让末家用主10/主K掀走）',
-        `${ns(r3.cards)}（${r3.reason}）`, ()=>ns(r3.cards)==='SA', 'SA');
-  check('2d','反过来：在外还有十几张主压得住 SA 时，不该硬接（对照组）',
-        ns(r.cards), g=>g!=='SA', '不是 SA');
+  /* 2b「钓主墩 0 分,接就用主 A(非级数牌)接,别出 K、别跟小」—— 自对弈真实局面(test/find-tiao.js KIND=2b1,种子 186 第 2 墩,
+   * ♠ 作主打 2):队友 1 号领 ♠7 钓主,对手 2 号跟 ♠3,我 3 号握大王、红桃 2、方块 2、♠A、♠K 和几张小主,末家是庄家。
+   * 产品方(2026-09-29):**非级数牌的主 A 上面还压着 12 张,实战里算不上「大牌」,只是「刚好压过主分 K 的牌」,
+   * 0 分墩用它拿牌权成本很低;副级数牌拿牌权也几乎是常规操作。** 抢末墩现实里靠的是大王、其次小王、主级数牌。
+   * roll-pos 150 份:♠A 比 ♠K 多 10.6 ±2.6 分、+0.37 级,比跟小(♠4)多 6.2 ±2.7 分、+0.15 级。
+   *
+   * 旧版 2b(「王和级数牌都已出完、SA 接近钢板」)历史只有 4 墩、手里 9 张,牌数不自洽。2026-09-28 补成完整 16 墩后
+   * AI 出 SK,roll-pos 量出「留 SA 守末墩」反而更好 —— **那是自对弈世界的假象**:引擎中盘就把王打掉
+   * (audit-lasttrick:大王 41% 在中盘出掉,末墩 32% 是副级数牌赢的),大家拿小牌抢底互掐,SA 才显得能守末墩。
+   * 那种局面实战几乎不出现(find-tiao 4000 副 3 个),不留作场景。见 notes/negative-results.md 十七。 */
+  {
+    const v3={seat:3,trump:T,declSeat:0,buriedKnown:[],
+      history:P([[0,'HT','HT'],[1,'HQ','HQ'],[2,'H3','H4'],[3,'HK','H5']]),
+      hand:H(['SA','XB','C7','C5','CA','H2','C3','DT','D8','S5','D3','SK','D2','S4','S8','DA','C7','CQ','D3','D4','S4','HJ','C3'])};
+    const r3=E.aiChooseFollow(v3,[{seat:1,cards:H(['S7'])},{seat:2,cards:H(['S3'])}]);
+    check('2b','队友钓小主、台面 0 分:用主 A(非级数牌)接过牌权,不出主 K、不跟小',
+          `${ns(r3.cards)}（${r3.reason}）`, ()=>ns(r3.cards)==='SA', 'SA');
+  }
+  /* 2b′ 产品方的设想(2026-09-28):「外面还剩两大王、两小王,以及一 A、一 K 不在自己手里,手里有一 K,
+   * 这时候应该会不出 K」—— 出 K 被末家的 A / 王连分带牌权拿走。自对弈真实局面(test/find-tiao.js KIND=2b1,
+   * 种子 217 的第一墩):♦ 作主,庄家 0 号领 ♦4 钓主,我是帮家,主牌只有 ♦A ♦K ♦9 ♦5 ♦4 ♦3,王和级数牌全在外。
+   * 随机补发 150 份(roll-pos):♦A 比 ♦K 多 4.7 ±2.5 分、+0.25 ±0.10 级,比跟小(♦3)多 5.2 分、+0.24 级。
+   * 同类 111 个真实局面(find-tiao):出 A 比出 K 平均 +7.4 分、+0.33 级,AI 从不出 K。 */
+  {
+    const TDm={suit:'D',rank:2};
+    const vp={seat:2,trump:TDm,declSeat:0,history:[],buriedKnown:[],
+      hand:H(['D5','S8','H3','H3','SK','D3','HK','D9','C4','S5','H9','C3','D4','H4','DK','H4','HT','DA','ST','H8','CT','H9','S4','HT','C7'])};
+    const rp=E.aiChooseFollow(vp,[{seat:0,cards:H(['D4'])},{seat:1,cards:H(['D3'])}]);
+    check("2b′",'队友钓小主,王 / 级数牌 / 另一张 A、K 都在外,我握 ♦A ♦K → 出 A,不出 K',
+          `${ns(rp.cards)}（${rp.reason}）`, ()=>ns(rp.cards)==='DA', 'DA');
+  }
+  /* 2d 原来的期望是「在外还有十几张主压得住 SA 时不该硬接」。产品方框架(2026-09-28):出 K 几乎不合理
+   * (对手出 A 或副级数牌就连分带牌权拿走),出 A 较合理 —— 被级数牌压了当下默认是均势。
+   * 这一条改成只断言「不出 SK」;出 SA 还是跟小交给打分(这个 13 张空历史的局面本身也不自洽,只看方向)。 */
+  check('2d','在外还有王 / 级数牌 / 另一张 A 时,接钓主不出主 K(产品方框架)',
+        ns(r.cards), g=>g!=='SK', '不是 SK');
+  /* 2e 第 2 家毙牌用哪张(产品方 2026-09-29,ruff2Plan):对手领 ♥9(0 分),我 ♥ 已断;
+   * 下家 3 号(对手)前两轮 ♥ 都垫了梅花 —— 已知断门;队友 0 号两轮都跟了 ♥。
+   * 主分牌(SK / ST / S5)毙:3 号拿在外的 SK / ST 一盖,分和牌权都走 —— 纯送;小主毙同样被主分牌盖走。
+   * 该用**盖过在外所有主分牌**的一张:SA(在外最大的主分牌是另一张 SK)。
+   * 比的是开关打开时的选择,与默认值解耦;没有这个开关的版本跳过。 */
+  if('ruff2Plan' in E.AIP){
+    const hist=P([[1,'HA'],[2,'H3'],[3,'C4'],[0,'H5'],
+                  [1,'HK'],[2,'D4'],[3,'C5'],[0,'H6']]);
+    const v={seat:2,trump:T,declSeat:1,history:hist,buriedKnown:[],
+      hand:H(['SA','SK','ST','S5','S3','S4','C9','C8','C7','C6','CQ','CJ','CT',
+              'D9','D8','D7','D6','DQ','DJ','DT','DK','D5','D3'])};
+    const o=E.AIP.ruff2Plan; E.AIP.ruff2Plan=1;
+    let r; try{ r=E.aiChooseFollow(v,[{seat:1,cards:H(['H9'])}]); }finally{ E.AIP.ruff2Plan=o; }
+    check('2e','第 2 家断门要毙、下家已知也断、队友不断 → 毙到在外主分牌之上(SA),不拿主分牌 / 小主去送',
+          `${ns(r.cards)}（${r.reason}）`, ()=>ns(r.cards)==='SA'||!r.cards.some(x=>E.effSuit(x,T)==='T'), 'SA(或者不毙)');
+  }
   // 收官阶段（7 张）：AI 有 93% 的钓主发生在这里，而 takeOverScoped 在 end 阶段直接关闭
   const v2={seat:3,trump:T,declSeat:0,history:[],buriedKnown:[],
     hand:H(['SA','SK','C9','C8','H4','H3','D6'])};

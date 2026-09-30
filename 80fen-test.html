@@ -372,7 +372,7 @@
 <div id="toast"></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.36(测试版)</div>
+<div id="versionTag">80分 v0.7.37(测试版)</div>
 
 <script>
 /* ============================================================
@@ -1126,9 +1126,20 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * stakeHold 把 ② 按座次 / 底分拆出来之后,可以直接换成这两个量的比较。见 DESIGN §7.13。 */
   trumpSealW: 0.5,             // (v0.7.22 测试版默认开)只在跟牌时生效
   trumpSealWPts: 1,            // (v0.7.26 测试版默认开)台面**有分**时的那一档(= trumpSealW 即旧行为);见 pSurvive
-  followBeatsCheck: 1,         // (v0.7.32 测试版默认开)1 = 贴分 / 跟小 / 垫牌候选按 currentWinner 判胜负(断门时它们常常其实毙下了这墩);0 = 一律按不赢墩打分
+  followBeatsCheck: 0,         // (v0.7.32 开,v0.7.37 关:它主要改成第 2 家用主分牌毙 0 分墩,后手更容易盖毙,见 test/diff-switch.js)1 = 贴分 / 跟小 / 垫牌候选按 currentWinner 判胜负(断门时它们常常其实毙下了这墩);0 = 一律按不赢墩打分
   tempoKeepPlayed: 0,          // 1 = 压下这墩时牌权项不再扣掉打出去的这手(它已在 futureValue 里收过一次);0 = 旧行为
   lastOverW0: 0.5,             // (v0.7.29 测试版默认开)将牌墩末家台面 0 分时同门盖过来的意愿系数(0 = 不打折,旧行为);见 pSurvive
+  digPlan: 4,                  // (v0.7.37 测试版默认开)闲家「抢末墩」的留手代价权重(0 = 旧行为);见 digCost。产品方 2026-09-29「王留到最后」
+  digW: [-1.1492,1.0759,0.0181,0.1937,-0.0332,-0.0233,-0.0687],  // fit-guard.js ROLE=opp,1000 副 / 36564 个闲家决策点(v0.7.37 之前的打法),对数损失 0.607(均值 0.639)
+  guardJoker: 1,               // (v0.7.37 测试版默认开)1 = 守底 / 抠底概率再加「手里的王」两项(guardWJ / digWJ,fit-guard.js FEAT=3);0 = 旧式子
+  guardWJ: [-0.4435,1.1067,0.2845,0.2508,-0.0739,-0.0176,-0.1258,-0.6687,0.9532],   // fit-guard.js FEAT=3,600 副(v0.7.37 之前的打法)
+  digWJ: [-1.108,1.0905,-0.1029,0.1788,-0.0387,-0.018,-0.0865,-0.2474,0.4433],      // fit-guard.js ROLE=opp FEAT=3,600 副
+  ruff2Plan: 0,               // 1 = 第 2 家断门毙副牌单张时按后面两家断不断门挑毙牌(产品方 2026-09-29,见 aiChooseFollow 末尾);0 = 旧行为
+  ruff2Low: 0.1,               // 第 3 家断门概率低于它 = 「极高概率不断」,主分牌毙照旧
+  ruff2Pt: 25,                 // 主分牌毙的罚分 × 第 3 家断门概率
+  ruff2Low2: 10,               // 压不过在外主分牌的小主毙的罚分 × P(3 断) × P(4 不断)
+  ruff2Seal: 20,               // 「毙到在外主分牌之上」的加成 × P(3 断) × P(4 不断)
+  sealOwnPts: 1,             // (v0.7.37 测试版默认开)1 = 上面两个「台面有没有分」的判断把我这手牌自己的分也算上(出主 K 时台面就不是 0 分);0 = 旧行为。见 pSurvive
   lastRuffWill: 0.95,          // (v0.7.26 测试版默认开)后手是本墩最后一家时「断门有主肯不肯毙」(0 = 旧口径 ruffWill);见 pSurvive
   guardPlan: 2,                // (v0.7.26 测试版默认开)守底计划权重(0 = 旧行为);见 guardCost。系数 guardW 由 test/fit-guard.js 拟合
   guardW: [-0.5023,1.04,0.4033,0.314,-0.0896,-0.0221,-0.1022],   // fit-guard.js,1500 副 / 27219 个庄家决策点(v0.7.23 打法),对数损失 0.586(均值 0.652)
@@ -2495,14 +2506,32 @@ function guardFeat(hand, mem, trump){
     if(effSuit(keyToCard(k),trump)==='T') U+=n; }
   for(const c of hand){ if(effSuit(c,trump)!=='T') continue; t++;
     if(unseenBeats(mem,{suit:'T',top:ordIdx(c,trump),type:'single'},trump).higher===0) b++; }
-  return {n:hand.length,t,b,U};
+  return {n:hand.length,t,b,U,j:hand.filter(c=>c.suit==='X').length};
 }
-function guardP(f){
-  const w=AIP.guardW;
-  const z=w[0]+w[1]*Math.min(f.b,1)+w[2]*Math.min(f.b,3)+w[3]*f.t+w[4]*f.U+w[5]*f.n+w[6]*Math.min(f.b,1)*f.t;
+/* guardJoker(2026-09-29):再加「手里的王」两项 [min(j,1), min(j,2)](fit-guard.js FEAT=3)。
+ * 拟合里王在「钢板主」之外还有额外的解释力 —— 庄家握两张王 +1.2(对数几率)、一张 +0.3;闲家两张 +0.64、一张 +0.20。
+ * 旧式子里 b 在 1 张封顶:手里两张钢板时打掉一张几乎不花钱,王就这么在中盘被一张张打掉。 */
+function logitP(w,f){
+  let z=w[0]+w[1]*Math.min(f.b,1)+w[2]*Math.min(f.b,3)+w[3]*f.t+w[4]*f.U+w[5]*f.n+w[6]*Math.min(f.b,1)*f.t;
+  if(w.length>=9) z+=w[7]*Math.min(f.j||0,1)+w[8]*Math.min(f.j||0,2);
   return 1/(1+Math.exp(-z));
 }
+function guardP(f){ return logitP(AIP.guardJoker?AIP.guardWJ:AIP.guardW,f); }
+/* digPlan(2026-09-29,产品方:「王留到最后、末墩靠王或主级牌守」)—— 闲家这一侧的同一件事。
+ * audit-lasttrick(400 副):最后 3 墩之前出掉的王里,闲家「能吃住,争这墩」跟主墩用王 0.67 次/局、单领王 0.38 次/局,
+ * 是最大的一块;末墩 31% 是副级数牌赢的。闲家以前没有任何「抢末墩」的留手代价 —— 收官视野(≈剩 8~10 张)之前一张王出掉不花钱。
+ * 抠底概率 P 用 fit-guard.js ROLE=opp 拟合(AIP.digW,同一组特征),代价 = 底分估计 × 倍数 × [P(现在) − P(打掉这手后)] × digPlan。
+ * 帮家不算(产品方:帮家不替庄家守底,中盘用王 / 级牌帮牌权过渡)。 */
+function digCost(X, cards){
+  if(!AIP.digPlan||seatRole(X)!=='opp'||!X.hand||!X.mem) return 0;
+  const kp=kittyPts(X); if(kp<=0) return 0;
+  const drop=new Set(cards.map(c=>c.id));
+  const f0=guardFeat(X.hand,X.mem,X.trump), f1=guardFeat(X.hand.filter(c=>!drop.has(c.id)),X.mem,X.trump);
+  const w=AIP.guardJoker?AIP.digWJ:AIP.digW;
+  return kp*kittyMultOf(X)*Math.max(0,logitP(w,f0)-logitP(w,f1))*AIP.digPlan;
+}
 function guardCost(X, cards){
+  if(AIP.digPlan&&seatRole(X)==='opp') return digCost(X,cards);
   if(!AIP.guardPlan||seatRole(X)!=='decl'||!X.hand||!X.mem) return 0;
   const kp=kittyPts(X); if(kp<=0) return 0;
   const drop=new Set(cards.map(c=>c.id));
@@ -2511,7 +2540,7 @@ function guardCost(X, cards){
   /* guardBossOnly:只对**钢板主**收守底代价。guardPlan=1 整局 −0.15 ±0.14 分/局 —— 拟合里
    * 「每少一张主守住率降一点」(t 的系数)多半是相关不是因果(主多的手本来就强),
    * 按它给每一张主都收代价,庄家连正常毙牌拿分都犹豫。钢板主那一项的因果是清楚的。 */
-  if(AIP.guardBossOnly) f1={...f0,b:f1.b};
+  if(AIP.guardBossOnly) f1={...f0,b:f1.b,j:f1.j};
   return kp*kittyMultOf(X)*Math.max(0,guardP(f0)-guardP(f1))*AIP.guardPlan;
 }
 
@@ -2861,12 +2890,17 @@ function pSurvive(X, cl, seats){
        * 这墩不值他一张大主。产品方的第 1 条:肯不肯盖取决于这墩的分 + 牌权 vs 那张主的留手价值;先按台面有没有分两档。 */
       // 只在「他只能用不带分的大主来盖」(我这张已压过在外所有主分牌,sealed)时打折 ——
       // 比在外主分牌还小的那张,他用主分牌连分带牌权拿走是很愿意的(便宜接 0 分台面实际只守住 13~39%)
-      const overW=AIP.lastOverW0&&lastW&&sealed&&!(X.ptsTable>0)?AIP.lastOverW0:1;
+      /* sealOwnPts(2026-09-28,场景 2b 补齐历史后查出):「台面有没有分」原来只看我出牌之前的台面。
+       * 我出的是主 K 时,我一放下去台面就有 10 分 —— 末家为这墩花一张主 A 连分带牌权拿走是很愿意的,
+       * 旧口径却按 0 分台面打了两道折(lastOverW0 × trumpSealW = 0.25),把被盖的概率从 ~26% 压到 3.6%,
+       * 于是接钓主时 AI 敢出 K(产品方:出 K 几乎不合理)。 */
+      const tblPts=(X.ptsTable||0)+(AIP.sealOwnPts?countPoints(cl.cards||[]):0);
+      const overW=AIP.lastOverW0&&lastW&&sealed&&!(tblPts>0)?AIP.lastOverW0:1;
       pBeat=(1-pVoidLead)*pHasS*overW
            +pVoidLead*rw*(trAvail>0?0.85:0);
       /* 台面有分时他肯花(diag-third,2026-09-26):「封分接」估 60%、实际只守住 18~25%;
        * 台面 0 分时估 58%、实际 67~73%。常数一刀切两头都错,按台面分两档(trumpSealWPts)。 */
-      if(sealed) pBeat*=X.ptsTable>0&&AIP.trumpSealWPts!==undefined?AIP.trumpSealWPts:AIP.trumpSealW;
+      if(sealed) pBeat*=tblPts>0&&AIP.trumpSealWPts!==undefined?AIP.trumpSealWPts:AIP.trumpSealW;
     }
     p*=1-clamp(pBeat,0,0.97);
   }
@@ -3630,8 +3664,14 @@ function aiChooseFollow(view, plays){
   const dump=buildFollow(view.hand,lead,trump,'dump',null);
   const dumpPts=dump?countPoints(dump):0;
   const [dCat,dBeats]=judge(dump,'dump');
+  /* 对手暂大时「跟分」的理由按实情说(ai-progress 第 10 项,教练线 v0.7.36 查出):diag-gift 300 副里这类首选 95 次,
+   * 90 次是第 2 家、队友还在后面 —— 分跟上去,队友压得住 / 毙得下就是我们的(这墩本队拿下 62% vs 换成不带分的 51%,
+   * 整局 +1.1 ±1.5 分),不是「躲不掉」。只有队友已经出过、这墩归对手时,才是真的在送分。 */
+  const partnerAfter=plays.length<2;   // 我是第 2 家:队友(第 4 家)还没出
   push(dump,dCat,dBeats, dumpPts===0 ? '这门没分可贴,跟一张'
     : X.partnerWinning ? (X.certainty>0.8?'队友稳赢,贴分':'队友只是暂大,试贴分')
+    : partnerAfter ? (view.hand.some(c=>effSuit(c,trump)===lead.suit)?'队友还在后面 —— 先把分跟上,他压得住就是我们的'
+                                                                  :'队友还在后面 —— 先把分垫上,他毙得下 / 压得住就是我们的')
     : '跟分(躲不掉的分先出)');
   // 3. 跟小 —— 保留实力
   const cheapF=buildFollow(view.hand,lead,trump,'cheap',null); const [cCat,cBeats]=judge(cheapF,'cheap');
@@ -3645,6 +3685,39 @@ function aiChooseFollow(view, plays){
     discPts===0&&!discTrump ? '垫废牌,不送分也不拆主'
     : discTrump ? '没有废牌可垫,只能拆一张主'
     : '躲不掉,垫掉手上最轻的分牌');
+  /* ruff2Plan(产品方 2026-09-29):第 2 家在副牌单张墩断门要毙时,用哪张主毙,先看后面两家这门断不断。
+   *   · 第 3 家(对手)极高概率不断 → 用主分牌毙没问题(阈值要高:这门在外还多,倒推他断门概率极低);
+   *   · 第 3 家断、第 4 家(队友)不断 → 主分牌毙是纯送:第 3 家拿主分牌一盖,分和牌权都走了。
+   *     该用**盖过在外所有主分牌**的一张主,让他拿不到分、要牌权只能下更大的牌;小主毙同样会被主分牌盖走;
+   *   · 两家都断 → 看队友够不够实力盖回来:贴副花分、氽废牌、或同样用盖过主分的主(交给打分,这里只不让主分牌去送)。
+   * v0.7.32 的 followBeatsCheck 把「第 2 家用主分牌毙」变多了(test/diff-switch.js),这条把它按上面的口径管住。
+   * 罚分 / 加成都乘「第 3 家断门的概率」(已知断门 = 1):他多半不断时几乎不起作用。 */
+  if(AIP.ruff2Plan&&plays.length===1&&lead.type==='single'&&lead.suit!=='T'
+     &&!view.hand.some(c=>effSuit(c,trump)===lead.suit)&&view.hand.some(c=>effSuit(c,trump)==='T')){
+    const s3=(view.seat+1)%4, s4=(view.seat+2)%4;
+    const pv=s=>X.voids[s]&&X.voids[s][lead.suit]?1:X.pVoidOf(s,lead.suit);
+    const p3=pv(s3), p4=pv(s4);
+    if(p3>=AIP.ruff2Low){
+      let topPt=-1;
+      for(const k in X.mem.unseen){ if(X.mem.unseen[k]<=0) continue; const u=keyToCard(k);
+        if(effSuit(u,trump)==='T'&&cardPoints(u)>0) topPt=Math.max(topPt,ordIdx(u,trump)); }
+      // 不拿王去封:0 分墩烧王与「王留到最后」相反(audit-lasttrick)
+      const seal=view.hand.filter(c=>effSuit(c,trump)==='T'&&c.suit!=='X'&&cardPoints(c)===0&&ordIdx(c,trump)>topPt)
+                          .sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump))[0];
+      /* 这条只管「毙的话用哪张」,不管「毙不毙」:加成只在本来就打算毙(原先第一名是一张主)时给。
+       * 第一版不设这道闸,diff-switch 量到「原来垫牌、改成拿主 A 毙」这墩守住 83% → 62%。 */
+      const pre=cands.reduce((a,c)=>!a||c.score>a.score?c:a,null);
+      const wantRuff=pre&&pre.cards.length===1&&effSuit(pre.cards[0],trump)==='T';
+      if(seal) push([seal],'ruff',true,'下家多半也断这门 —— 毙到在外主分牌之上,他拿不到分、要牌权只能下更大的主',
+                    wantRuff?-AIP.ruff2Seal*p3*(1-p4):0);
+      for(const c of cands){
+        if(c.cards.length!==1) continue;
+        const x=c.cards[0]; if(effSuit(x,trump)!=='T') continue;
+        if(cardPoints(x)>0) c.score-=AIP.ruff2Pt*p3;                     // 主分牌毙:下家一盖,连这张的分一起走
+        else if(ordIdx(x,trump)<=topPt) c.score-=AIP.ruff2Low2*p3*(1-p4); // 小主毙:下家拿主分牌盖,分和牌权都是他的
+      }
+    }
+  }
   cands.sort((a,b)=>b.score-a.score);
   const ctx={partnerWinning:X.partnerWinning,isLast:X.isLast,ptsTable:X.ptsTable,
              curSeat:X.cur.seat,curBoss:X.curBoss,leadSuit:lead.suit,phase:X.phase};
@@ -5151,6 +5224,9 @@ function coachFollowReasonOK(view, plays, cards, f, r){
     if(!played.every(c=>coachSmall(c,t))) return false;   // ♠Q♠A、主 A 不叫「跟小」
   }
   if(/跟分/.test(r)&&(iWin||!mine.length)) return false;  // 毙下了是收分;断了这门是垫分
+  if(/队友还在后面/.test(r)&&(iWin||!partnerAfter)) return false;   // AI 第 2 家带分跟 / 垫(v0.7.37,ai-progress 第 10 项)
+  if(/先把分跟上/.test(r)&&!mine.length) return false;
+  if(/先把分垫上/.test(r)&&mine.length) return false;
   if(/毙/.test(r)&&!/被毙|来毙|会毙|能毙|可能毙|让他毙|再毙/.test(r)&&!f.ruff) return false;
   if(/我断门|断门毙/.test(r)&&mine.length) return false;
   if(/下家已知在这门断门/.test(r)&&!f.behindOppVoid.length) return false;
