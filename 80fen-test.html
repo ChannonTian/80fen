@@ -3664,8 +3664,14 @@ function aiChooseFollow(view, plays){
   const dump=buildFollow(view.hand,lead,trump,'dump',null);
   const dumpPts=dump?countPoints(dump):0;
   const [dCat,dBeats]=judge(dump,'dump');
+  /* 对手暂大时「跟分」的理由按实情说(ai-progress 第 10 项,教练线 v0.7.36 查出):diag-gift 300 副里这类首选 95 次,
+   * 90 次是第 2 家、队友还在后面 —— 分跟上去,队友压得住 / 毙得下就是我们的(这墩本队拿下 62% vs 换成不带分的 51%,
+   * 整局 +1.1 ±1.5 分),不是「躲不掉」。只有队友已经出过、这墩归对手时,才是真的在送分。 */
+  const partnerAfter=plays.length<2;   // 我是第 2 家:队友(第 4 家)还没出
   push(dump,dCat,dBeats, dumpPts===0 ? '这门没分可贴,跟一张'
     : X.partnerWinning ? (X.certainty>0.8?'队友稳赢,贴分':'队友只是暂大,试贴分')
+    : partnerAfter ? (view.hand.some(c=>effSuit(c,trump)===lead.suit)?'队友还在后面 —— 先把分跟上,他压得住就是我们的'
+                                                                  :'队友还在后面 —— 先把分垫上,他毙得下 / 压得住就是我们的')
     : '跟分(躲不掉的分先出)');
   // 3. 跟小 —— 保留实力
   const cheapF=buildFollow(view.hand,lead,trump,'cheap',null); const [cCat,cBeats]=judge(cheapF,'cheap');
@@ -5218,6 +5224,9 @@ function coachFollowReasonOK(view, plays, cards, f, r){
     if(!played.every(c=>coachSmall(c,t))) return false;   // ♠Q♠A、主 A 不叫「跟小」
   }
   if(/跟分/.test(r)&&(iWin||!mine.length)) return false;  // 毙下了是收分;断了这门是垫分
+  if(/队友还在后面/.test(r)&&(iWin||!partnerAfter)) return false;   // AI 第 2 家带分跟 / 垫(v0.7.37,ai-progress 第 10 项)
+  if(/先把分跟上/.test(r)&&!mine.length) return false;
+  if(/先把分垫上/.test(r)&&mine.length) return false;
   if(/毙/.test(r)&&!/被毙|来毙|会毙|能毙|可能毙|让他毙|再毙/.test(r)&&!f.ruff) return false;
   if(/我断门|断门毙/.test(r)&&mine.length) return false;
   if(/下家已知在这门断门/.test(r)&&!f.behindOppVoid.length) return false;
