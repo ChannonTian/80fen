@@ -1129,6 +1129,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   followBeatsCheck: 0,         // (v0.7.32 开,v0.7.37 关:它主要改成第 2 家用主分牌毙 0 分墩,后手更容易盖毙,见 test/diff-switch.js)1 = 贴分 / 跟小 / 垫牌候选按 currentWinner 判胜负(断门时它们常常其实毙下了这墩);0 = 一律按不赢墩打分
   tempoKeepPlayed: 0,          // 1 = 压下这墩时牌权项不再扣掉打出去的这手(它已在 futureValue 里收过一次);0 = 旧行为
   lastOverW0: 0.5,             // (v0.7.29 测试版默认开)将牌墩末家台面 0 分时同门盖过来的意愿系数(0 = 不打折,旧行为);见 pSurvive
+  ruffDumpGate: 0,             // >0 = 「队友多半断门会毙,先贴分」这条规则要求贴后本队拿下这墩的估计 ≥ 它(含第 3 家断门盖毙);0 = 旧行为
   digPlan: 4,                  // (v0.7.37 测试版默认开)闲家「抢末墩」的留手代价权重(0 = 旧行为);见 digCost。产品方 2026-09-29「王留到最后」
   digW: [-1.1492,1.0759,0.0181,0.1937,-0.0332,-0.0233,-0.0687],  // fit-guard.js ROLE=opp,1000 副 / 36564 个闲家决策点(v0.7.37 之前的打法),对数损失 0.607(均值 0.639)
   guardJoker: 1,               // (v0.7.37 测试版默认开)1 = 守底 / 抠底概率再加「手里的王」两项(guardWJ / digWJ,fit-guard.js FEAT=3);0 = 旧式子
@@ -3728,7 +3729,11 @@ function aiChooseFollow(view, plays){
        &&!X.partnerWinning&&X.partnerRemaining&&view.hand.length>AIP.egMaxCards
        &&countPoints(best.cards)===0
        &&X.pVoidOf(X.partnerSeat,lead.suit)>AIP.partnerRuffDumpPV){
+      /* ruffDumpGate(产品方 2026-09-30):这条规则只看「队友多半断门会毙」,从不看**夹在中间的第 3 家** ——
+       * 他也断门的话,他先毙,贴上去的分连同队友被迫出的牌一起白送;谁做庄(庄家多半断门)也不看。
+       * 打开后要求「贴上之后本队拿下这墩」的估计(pTeamWin:含第 3 家断门盖毙、庄家断门先验)不低于门槛,否则不贴。 */
       const dumps=view.hand.filter(x=>cardPoints(x)>0&&isLegalFollow(view.hand,lead,[x],trump))
+        .filter(x=>!AIP.ruffDumpGate||pTeamWin(X,[x],false)>=AIP.ruffDumpGate)
         .map(x=>({x,s:coachScoreFollow(view,plays,[x])})).sort((a,b)=>b.s-a.s);
       if(dumps.length) best={cards:[dumps[0].x],cat:'dump',score:dumps[0].s,
         reason:`队友多半断这门、会毙 —— 先把这 ${cardPoints(dumps[0].x)} 分贴上去`};
