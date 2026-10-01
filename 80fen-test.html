@@ -372,7 +372,7 @@
 <div id="toast"></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.37(测试版)</div>
+<div id="versionTag">80分 v0.7.38(测试版)</div>
 
 <script>
 /* ============================================================
@@ -6600,6 +6600,15 @@ function openSettings(){
     `<div class="setHint">每家可以单独换成历史版本的 AI,对比不同版本怎么打;你这一家的版本在开托管时生效。`+
     `只换出牌/亮主/扣底的决定,规则判定和教练都按最新版。v0.5.7 = 0.5 系列最后一版,v0.7.0 = 0.7 系列第一版(0.6.x 当年没有单独存下来)。</div>`+
     `<div class="setHint" id="stEngHint"></div>`:'')+
+    `<div class="setSection">牌谱</div>`+
+    `<div class="setRow"><label><input type="checkbox" id="stUpload"> 自动上传牌谱,帮开发者改进 AI</label></div>`+
+    `<div class="setHint" id="stUpHint"></div>`+
+    `<div class="setRow"><label>昵称(可不填)</label>
+       <input type="text" id="stNick" maxlength="20" style="width:120px" autocomplete="off" placeholder="让开发者认得你"></div>`+
+    `<div class="setRow" style="justify-content:center">
+       <button class="minor" id="stExport">📤 导出全部牌谱</button>
+       <button class="minor" id="stRecClear">清空本机牌谱</button></div>`+
+    `<div class="setHint" id="stRecHint"></div>`+
     `<div class="setSection">规则</div>`+
     `<div class="setRow"><label>低分/少${T('trump')}时</label>
        <select id="stRebel">
@@ -6637,6 +6646,12 @@ function openSettings(){
       $('stEngHint').textContent=pend.length?`加载中:${pend.join('、')}(加载完之前这些座位按最新版出)`:'';
     }
     $('stUndo').checked=!!S.allowUndo;
+    $('stUpload').checked=uploadOn(); $('stUpload').disabled=!UPLOAD_URL;
+    $('stUpHint').textContent=UPLOAD_URL
+      ?'每局打完自动上传:发牌、叫牌、扣底、每一手出牌、规则设置,附一个随机的匿名编号;不含任何个人信息。'
+      :'(上传地址还没配置,牌谱只存在本机,可以用下面的「导出」发给开发者)';
+    $('stNick').value=lsGet('nick','')||'';
+    $('stRecHint').textContent=recStatus();
     $('stUndoBtn').disabled=!canUndo;
     $('stUndoHint').textContent=!S.allowUndo?'(关闭时没有任何入口,牌桌上也不会出现悔牌按钮)'
       :canUndo?`可以悔回你上一手出牌之前(之后各家跟的牌一起撤掉);本局还能连续悔 ${G.undoStack.length} 手`
@@ -6735,6 +6750,10 @@ function openSettings(){
   $('stRedoSwap').onclick=()=>window.__redoRound(true);
   $('stSeedGo').onclick=window.__seedRound;
   $('stUndo').onchange=e=>{ S.allowUndo=e.target.checked; saveS(); fill(); };
+  $('stUpload').onchange=e=>{ lsSet('upload',e.target.checked); if(e.target.checked) flushUploads(); fill(); };
+  $('stNick').onchange=e=>lsSet('nick',e.target.value.trim().slice(0,20));
+  $('stExport').onclick=window.__exportRecords;
+  $('stRecClear').onclick=window.__clearRecords;
   if(ENGINE_PICKER) for(const s of [0,1,2,3]) $('stEng'+s).onchange=e=>{
     const v=e.target.value;
     S.engineVer=S.engineVer.map((x,i)=>i===s?v:x);   // 换新数组:S_DEFAULT 的那份不能被改到
@@ -6860,6 +6879,7 @@ let logRound=null;
 let scrambleNext=false;   // 下一次发牌是否按无庄盘(完全造反后)
 let rotNext=0;            // 下一次发牌整桌转几个座位(种子局「交换队伍」,见 swapStart)
 let redealCount=0;        // 本局已重新发牌次数
+let replayNext=false;     // 下一次发牌是「重打 / 用种子开局」—— 牌谱里要标出来:人可能已经见过这副牌
 let autoCarry=false;      // 重新发牌(造反)时把托管带到新的一盘,否则开着托管的人一造反就被交还
 // 无庄盘里各家按自己队伍的级数抢亮;庄定盘全桌用庄家级数
 function rankOf(seat){ return G.dealerKnown?G.trumpRank:M.levels[seat%2]; }
@@ -6872,6 +6892,7 @@ function startRound(seed){
   // 上一盘可能还有在途的定时器(AI 思考 / 收墩 / 亮主倒计时),不清掉会打到新一盘的局面上
   if(G){ clearTimeout(G.aiTimer); clearTimeout(G.holdTimer); clearTimeout(G.declTimer);
          clearInterval(G.declTick); }
+  promoteCheckpoint();      // 上一局没打完就开了新局(重打 / 种子 / 重开整场):那一局存成残局
   const carryAuto=autoCarry; autoCarry=false;
   const dealerKnown=M.dealer>=0 && !scrambleNext;   // 完全造反重发 → 本盘按无庄盘抢庄
   // 开局那一刻的整场状态,和 seed 一起才能完整复现这一局(见 seedCode / __redoRound)
@@ -6904,7 +6925,11 @@ function startRound(seed){
      /* 托管挂在 G 上而不是 S 上 —— 它按局生效,不跟着设置一起存下来:
       * 新的一局必须从你自己的那一手开始,不能上次开着这次就替你打完。 */
      auto:carryAuto, autoTricks:0,
-     undoStack:[]};   // 悔牌(见 undoLastPlay):你每出一手前的整桌快照,悔一次弹一个
+     undoStack:[],   // 悔牌(见 undoLastPlay):你每出一手前的整桌快照,悔一次弹一个
+     // 牌谱(见 makeRecord):开局时刻、叫牌过程、是不是重打的局、各座位引擎、悔了几次
+     recId:randId(), t0:Date.now(), declLog:[], replay:replayNext, redeals:redealCount,
+     engines:S.engineVer.slice(), undos:0, undoNext:false};
+  replayNext=false;
   if(cutsLog) log(cutsLog);
   if(S.engineVer.some(Boolean))
     log('AI 引擎:'+[1,2,3,0].map(s=>`${SEAT_NAME[s]}${s===HUMAN?'(托管)':''} ${engName(s)||'最新版'}`).join('、'));
@@ -6936,6 +6961,7 @@ function stopDeclCountdown(){ clearInterval(G.declTick); G.declTick=null; }
 function dealTick(){
   if(G.phase!=='dealing') return;
   if(G.dealt>=100){ G.phase='finalDecl'; render();
+    saveCheckpoint();
     startDeclCountdown();
     if(G.auto) window.__skipDecl();      // 托管:AI 已在发牌中决定过了,不必再等倒计时
     return; }
@@ -6975,6 +7001,9 @@ function aiDeclThink(seat){
 function applyDecl(seat,opt,isReinforce){
   if(!G.dealerKnown) G.trumpRank=rankOf(seat);   // 无庄盘:主牌级数跟着亮主者走
   G.decl={seat,suit:opt.suit,strength:opt.strength};
+  // 叫牌过程进牌谱:at = 当时发到第几张;你这一家的亮主若是托管替你亮的,标 a
+  G.declLog.push({seat,suit:opt.suit,strength:opt.strength,at:G.dealt,
+                  ...(isReinforce?{re:1}:{}),...(seat===HUMAN&&G.auto?{a:1}:{})});
   // 亮出的级数牌/王对立即在桌上可见
   const vis=visHand(seat);
   G.declCards={seat, cards: opt.suit
@@ -7050,6 +7079,7 @@ function doRebel(){
     afterTrumpSet(); return;
   }
   redealCount++;
+  dropCheckpoint();       // 按规则重发的那副牌没打,不算残局(打完的那局会在 redeals 里记重发了几次)
   scrambleNext=(S.fullRebel==='scramble');
   autoCarry=!!G.auto;
   G.phase='redealing'; render();
@@ -7082,7 +7112,9 @@ function buryKitty(){
 }
 
 // 开打瞬间存一份四家手牌,供局末复盘回看(局中不给看,免得成了透视)
-function snapshotHands(){ G.initialHands=G.hands.map(h=>h.slice()); }
+function snapshotHands(){ G.initialHands=G.hands.map(h=>h.slice());
+  G.buryBy=G.declSeat===HUMAN?(G.auto?'a':'h'):null;
+  saveCheckpoint(); }   // 你坐庄时,底是你扣的还是托管扣的
 
 // ================= 出牌循环 =================
 // step() 可能被重复调用(典型:收墩后排的 setTimeout(step,400) 还没跑,玩家已抢先出牌
@@ -7177,7 +7209,7 @@ function scheduleHumanAuto(){
       G.autoTricks++;                       // 只数「AI 真替你做了选择」的那几墩
     }
     G.selected.clear(); G.hintCards=null;
-    playCards(HUMAN,cards);
+    playCards(HUMAN,cards,forced?'f':'a');
   }, forced?FORCED_MS:aiThinkMs());
 }
 
@@ -7207,6 +7239,7 @@ function humanPlay(){
   if(G.phase!=='play'||G.trick.length>=4||(G.leader+G.trick.length)%4!==HUMAN) return;
   const sel=G.hands[HUMAN].filter(c=>G.selected.has(c.id));
   if(!sel.length){ setMsg('请先选牌'); return; }
+  const meta=humanMeta(sel);
   if(G.trick.length===0){
     const cl=classify(sel,G.trump);
     if(!cl){ setMsg(T('lead')+`必须是同一门(${T('trump')}算一门)`); return; }
@@ -7225,7 +7258,7 @@ function humanPlay(){
           `${T('throwP')}没成:你想一次出 ${desc(sel)},但别家有压得住其中一组的牌,`+
           `按规则只出了最小的那一组 <b>${desc(chk.forced)}</b>。<br><span class="dim">`+
           `${T('throwP')}要每一组在别家都压不住才成立 —— 出之前看一眼记牌表里那门「别家还剩」的最大牌。</span>`,'warn');
-        G.selected.clear(); recordUndoPoint(); playCards(HUMAN,chk.forced); return;
+        G.selected.clear(); recordUndoPoint(); playCards(HUMAN,chk.forced,'h',meta); return;
       }
       log(T('throwP')+'成功');
     }
@@ -7266,7 +7299,12 @@ function humanPlay(){
   }
   G.selected.clear(); G.hintCards=null;
   recordUndoPoint();
-  playCards(HUMAN,sel);
+  playCards(HUMAN,sel,'h',meta);
+}
+function humanMeta(sel){
+  const m={};
+  if(G.hintCards&&G.hintCards.size===sel.length&&sel.every(c=>G.hintCards.has(c.id))) m.hint=1;
+  return m;
 }
 
 /* 悔牌(设置里开关默认关):与教练撤回(严格模式的出牌前确认)完全独立、不依赖它。
@@ -7281,9 +7319,11 @@ function recordUndoPoint(){
 function undoLastPlay(){
   if(!G||G.phase!=='play'||G.ended||!G.undoStack.length) return false;
   clearTimeout(G.aiTimer); clearTimeout(G.holdTimer);
-  const stack=G.undoStack, snap=stack.pop();
-  G=Object.assign(snap,{undoStack:stack,aiTimer:null,holdTimer:null,declTimer:null,declTick:null});
+  const stack=G.undoStack, snap=stack.pop(), undos=G.undos+1;
+  G=Object.assign(snap,{undoStack:stack,aiTimer:null,holdTimer:null,declTimer:null,declTick:null,
+                        undos, undoNext:true});    // 悔牌次数要跨过快照记下来,快照里的是旧值
   G.selected=new Set(); G.hintCards=null; G.quiz=null; G.awaitNext=false;
+  saveCheckpoint();      // 悔回去可能跨过了收墩,进度里不能留着已经撤掉的墩
   render(); setMsg('已悔回上一手出牌前,重新选牌');
   return true;
 }
@@ -7517,9 +7557,12 @@ function reviewHTML(autoNote){
   return h;
 }
 
-function playCards(seat,cards){
+/* by(只标你这一家):h = 你自己出的,a = 托管替你选的,f = 没得选自动出的;
+ * meta 里 hint = 出的正是教练提示的那手,u = 悔牌之后重出的。牌谱靠它把「真人的决定」挑出来。 */
+function playCards(seat,cards,by,meta){
   cards.forEach(c=>removeCard(G.hands[seat],c));
-  G.trick.push({seat,cards});
+  if(by&&G.undoNext){ meta={...meta,u:1}; G.undoNext=false; }
+  G.trick.push(by?{seat,cards,by,...meta}:{seat,cards});
   sndPlay();
   render();
   if(G.trick.length===4) holdTrick();
@@ -7562,7 +7605,7 @@ function finishTrick(){
   const nEl=document.getElementById('n'+res.winner);
   if(nEl){ nEl.classList.add('won'); setTimeout(()=>nEl.classList.remove('won'),1900); }
   if(G.hands.every(h=>h.length===0)) endRound();
-  else { render(); setMsg(''); setTimeout(step,400); }
+  else { saveCheckpoint(); render(); setMsg(''); setTimeout(step,400); }
 }
 
 function endRound(){
@@ -7609,6 +7652,12 @@ function endRound(){
                levelsBefore:before, levelsAfter:adv.levels.slice(),
                initialHands:G.initialHands, buried:G.buried.slice(),
                tricks:G.tricks, log:G.log});
+  {  // 牌谱:存本机,同意过就顺手上传(没传上的下次再补)
+    const r=M.past[M.past.length-1];
+    try{ r.rec=makeRecord(r); storeRecord(r.rec); }catch(e){ console.error('牌谱存档失败',e); }
+    dropCheckpoint();
+    flushUploads();
+  }
   // 整场推进(adv 在上面已经算好)
   M.levels=adv.levels; M.dealer=adv.dealer; M.round++;
   if(adv.played) M.played=adv.played;
@@ -7631,6 +7680,7 @@ function endRound(){
     html+=`<div style="font-size:14px">下一局 ${SEAT_NAME[M.dealer]} 坐庄,打${rankName(M.levels[M.dealer%2])}</div>`;
     html+=`<div style="margin-top:14px"><button onclick="window.__next()">下一局</button> <button class="minor" onclick="window.__review()">复盘本局</button> <button class="minor" onclick="window.__copyRecord()">复制牌谱</button></div>`;
   }
+  html+=uploadAskHTML();
   // 弹层之下的牌桌也要跟着进「已结束」态(托管按钮收起、发牌区改成「复盘中」),
   // 否则点「复盘本局」把弹层关掉之前,底下还留着上一秒的按钮
   render();
@@ -7676,6 +7726,147 @@ window.__importRecord=()=>{
     }catch(e){ document.getElementById('impMsg').textContent='读不懂这段文字:'+e.message; }
   };
 };
+/* ================= 牌谱:每局自动存本机 + 自动上传(v0.7.38) =================
+ * 起因:AI 线要真人牌谱跳出自对弈的偏差,但不能指望试玩的人每局手动「复制牌谱」再发过来。
+ * · 每打完一局(endRound)写一份 80fen-record-2,存进本机(localStorage,最多 REC_MAX 局);
+ *   设置里「导出全部牌谱」一次导出成一个文件(手机上走系统分享)—— 上传不通时的备用路。
+ * · 玩家同意后(第一局结算时问一次,设置里随时可关)自动上传到开发者的收集表
+ *   (Google Apps Script + Google 表格,服务端代码和部署步骤见 docs/upload/)。
+ *   传不上的(离线、被墙、地址没配)留在本机,下次打完一局 / 下次打开页面再补;服务端按 id 去重。
+ * 格式是 80fen-record-1 的超集(字段说明见 docs/upload/README.md),「导入牌谱」和
+ * test/replay-record.js 照样能读。 */
+const UPLOAD_URL='https://script.google.com/macros/s/AKfycbw7wsJ-VDNMwAWNuW41b3DLjI2_g23U7fi9aI71NnHgst8SL2MJXsYGyC2nt8fi4PAQbw/exec';   // Apps Script 部署后的 …/exec 地址;空 = 只存本机、不上传
+const REC_MAX=300;     // 一局约 5KB,300 局 ≈ 1.5MB,离 localStorage 的 5MB 上限留足余量
+const lsGet=(k,d)=>{ try{ const v=localStorage.getItem(LSP+k); return v==null?d:JSON.parse(v); }catch(e){ return d; } };
+const lsSet=(k,v)=>{ try{ localStorage.setItem(LSP+k,JSON.stringify(v)); return true; }catch(e){ return false; } };
+// file:// 打开时 crypto.randomUUID 不可用(非安全上下文),退回时间戳 + 随机串
+function randId(){ try{ return crypto.randomUUID(); }catch(e){ return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,12); } }
+// 匿名玩家编号:随机生成、只存在本机,用来把同一个人的局归到一起(水平分层),不含任何个人信息
+function playerId(){ let id=lsGet('pid',null); if(!id){ id=randId(); lsSet('pid',id); } return id; }
+const uploadOn=()=>!!UPLOAD_URL&&lsGet('upload',null)===true;
+
+/* r = 刚打完、push 进 M.past 的那一局 → 完整牌谱;r 省略 → 按当前 G 写一份残局(partial,见 saveCheckpoint)。
+ * 两种共用一个 id(G.recId):同一局要么留下完整的,要么留下残局,不会两份都有。 */
+function makeRecord(r){
+  const cs=c=>c.suit+c.rank, css=a=>(a||[]).map(cs);
+  const nick=String(lsGet('nick','')||'').slice(0,20);
+  const part=!r;
+  const tricks=(part?G.tricks:r.tricks)||[];
+  return {fmt:'80fen-record-2', id:G.recId, pid:playerId(), ...(nick?{nick}:{}),
+    version:(document.getElementById('versionTag')||{}).textContent||'',
+    t:new Date().toISOString(), dur:Math.round((Date.now()-G.t0)/1000),
+    // 残局:stage = 停在哪个阶段(dealing 发牌中 / finalDecl 亮主等待 / lowrebel 造反 / kitty 扣底 / play 出牌),
+    // tricks 只有已经收掉的墩,defPoints 是到那时为止闲家的墩上分
+    ...(part?{partial:true, stage:G.phase, tricksDone:tricks.length}:{}),
+    human:HUMAN, no:part?G.start.round+1:r.no, seed:seedCode(G.start), replay:!!G.replay, redeals:G.redeals,
+    dealer:G.start.dealer, firstTaker:G.firstTaker,
+    declSeat:part?G.declSeat:r.declSeat, trump:part?G.trump:r.trump,
+    levelsBefore:part?G.start.levels.slice():r.levelsBefore,
+    ...(part?{defPoints:G.defPoints}:{levelsAfter:r.levelsAfter, defPoints:r.defPoints,
+      defendersWin:r.defendersWin, kittyPts:r.kittyPts, mult:r.mult}),
+    rules:{...S.rules, fullRebel:S.fullRebel, speedRun:!!S.speedRun, gates:S.gatesOn?S.gates.slice():[]},
+    engines:G.engines.map(v=>v||'latest'), coach:C.on?C.gapSens:'off',
+    undos:G.undos, autoTricks:G.autoTricks,
+    decl:G.declLog.map(d=>({...d})), kitty:css(G.kittyOrig), buryBy:G.buryBy??null,
+    ...(part&&!G.initialHands?{}:{initialHands:(part?G.initialHands:r.initialHands||[]).map(css),
+                                   buried:css(part?G.buried:r.buried)}),
+    tricks:tricks.map(t=>({plays:t.plays.map(p=>({seat:p.seat,cards:css(p.cards),
+      ...(p.by?{by:p.by}:{}),...(p.hint?{hint:1}:{}),...(p.u?{u:1}:{})})),winner:t.winner,points:t.points}))};
+}
+/* 残局进度:发完牌、开打、每收一墩、悔牌之后各覆盖写一次(本机一格 'cur')。正常打完就清掉;
+ * 没打完就离开了(刷新 / 关页面 / 被系统杀掉 / 重打 / 用种子开局 / 重开整场),
+ * 下一次开局或下次打开页面时把它转成一份残局牌谱(promoteCheckpoint)。
+ * 不在「关页面那一刻」存 —— 手机上那一刻经常不给执行代码的机会。 */
+function saveCheckpoint(){
+  if(!G||G.ended||G.dealt<100) return;      // 发完牌才算一局开始
+  try{ lsSet('cur',makeRecord()); }catch(e){ console.error('残局进度存档失败',e); }
+}
+function dropCheckpoint(){ try{ localStorage.removeItem(LSP+'cur'); }catch(e){} }
+function promoteCheckpoint(){
+  const c=lsGet('cur',null);
+  if(!c) return;
+  dropCheckpoint();
+  if(!lsGet('recs',[]).some(x=>x.id===c.id)) storeRecord(c);
+}
+function storeRecord(rec){
+  let all=lsGet('recs',[]);
+  all.push(rec);
+  if(all.length>REC_MAX) all=all.slice(-REC_MAX);
+  // 存不下(别的页面也占着 localStorage):先丢已上传过的,再丢最旧的
+  while(!lsSet('recs',all)&&all.length>1){
+    const up=all.filter(x=>x.up);
+    all=up.length?all.filter(x=>!x.up):all.slice(Math.ceil(all.length/4));
+  }
+}
+let upBusy=false;
+async function flushUploads(){
+  if(!uploadOn()||upBusy||typeof fetch!=='function') return;
+  upBusy=true;
+  try{
+    for(let n=0;n<30;n++){
+      const batch=lsGet('recs',[]).filter(x=>!x.up).slice(0,8);
+      if(!batch.length) break;
+      // text/plain 是「简单请求」,不发预检 —— Apps Script 不回应 OPTIONS
+      const res=await fetch(UPLOAD_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+                                        body:JSON.stringify(batch)});
+      const j=await res.json()||{};
+      // saved / dup = 收到了;bad = 服务端不收(格式不对等),也不再重传 —— 只有 'rate'(传太快)下次再试
+      const done=new Set([...(j.saved||[]),...(j.dup||[])]);
+      const rej=new Set((j.bad||[]).filter(b=>b&&b.why!=='rate').map(b=>b.id));
+      if(!done.size&&!rej.size) break;
+      const all=lsGet('recs',[]);
+      all.forEach(x=>{ if(done.has(x.id)) x.up=1; else if(rej.has(x.id)) x.up=2; });
+      lsSet('recs',all);
+    }
+  }catch(e){ /* 离线 / 被墙 / 地址失效:留在本机,下次再传 */ }
+  upBusy=false;
+  const h=document.getElementById('stRecHint'); if(h) h.textContent=recStatus();
+}
+function recStatus(){
+  const all=lsGet('recs',[]), pend=all.filter(x=>!x.up).length;
+  return `本机存了 ${all.length} 局`+(UPLOAD_URL?(uploadOn()?(pend?`,${pend} 局还没传上去(下次打完一局会再试)`:',都已上传'):',自动上传没开'):'')+
+    `(最多保留最近 ${REC_MAX} 局)。你的匿名编号:${playerId().slice(0,8)}`;
+}
+window.__setUpload=on=>{
+  lsSet('upload',!!on);
+  const ask=document.getElementById('upAsk'); if(ask) ask.remove();
+  if(on){ showToast('谢谢!之后每局打完会自动上传'); flushUploads(); }
+};
+// 第一次结算时问一次;答过就不再问(设置里随时可改)
+function uploadAskHTML(){
+  if(!UPLOAD_URL||lsGet('upload',null)!==null) return '';
+  return `<div id="upAsk" style="margin-top:12px;font-size:13px;background:rgba(255,255,255,.08);border-radius:8px;padding:8px 10px">`+
+    `📤 允许把你打的牌局自动上传给开发者,用来改进 AI 吗?<div class="dim" style="font-size:12px;margin:4px 0">`+
+    `只传牌局本身(发牌、叫牌、扣底、每一手出牌、规则设置)和一个随机的匿名编号,不含任何个人信息;设置里随时可以关。</div>`+
+    `<button onclick="window.__setUpload(true)">允许</button> <button class="minor" onclick="window.__setUpload(false)">不了</button></div>`;
+}
+window.__exportRecords=()=>{
+  const all=lsGet('recs',[]);
+  if(!all.length){ showToast('本机还没有存下的牌谱'); return; }
+  const txt=all.map(({up,...x})=>JSON.stringify(x)).join('\n')+'\n';   // 一行一局(JSONL)
+  const d=new Date(), p2=n=>String(n).padStart(2,'0');
+  // 文件名只用 ASCII:Chromium 遇到中文文件名会退回成「download」
+  const name=`80fen-records-${d.getFullYear()}${p2(d.getMonth()+1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}-${all.length}.txt`;
+  // 手机上直接走系统分享(发微信 / 邮件),电脑上下载文件
+  try{
+    const f=new File([txt],name,{type:'text/plain'});
+    if(matchMedia('(pointer:coarse)').matches&&navigator.canShare&&navigator.canShare({files:[f]})){
+      navigator.share({files:[f],title:'80分牌谱'}).catch(()=>{}); return;
+    }
+  }catch(e){}
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain'})); a.download=name;
+  document.body.appendChild(a); a.click();
+  setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },60000);   // 撤早了有的浏览器会丢文件名
+};
+window.__clearRecords=()=>{
+  const all=lsGet('recs',[]), pend=uploadOn()?all.filter(x=>!x.up).length:0;
+  if(!all.length) return;
+  if(!confirm(`清空本机存的 ${all.length} 局牌谱?`+(pend?`其中 ${pend} 局还没上传,清掉就没了。`:'')+'建议先导出。')) return;
+  lsSet('recs',[]);
+  const h=document.getElementById('stRecHint'); if(h) h.textContent=recStatus();
+};
+
 /* 复制牌谱(v0.7.22):把刚打完的这一局原样导出,供开发者逐手还原 AI 的决定。
  * 牌写成「花色 + 点数」:S/H/D/C,11~14 = J Q K A;X15 小王、X16 大王。
  * initialHands 是扣底之后、开打之前四家的手牌;buried 是庄家扣的 8 张;tricks 是每一墩四家按出牌顺序出的牌。
@@ -7683,7 +7874,8 @@ window.__importRecord=()=>{
 window.__copyRecord=()=>{
   const r=M.past[M.past.length-1]; if(!r) return;
   const cs=c=>c.suit+c.rank;
-  const rec={fmt:'80fen-record-1', version:(document.getElementById('versionTag')||{}).textContent||'',
+  // v0.7.38 起结算时已经存了一份完整的 80fen-record-2(见 makeRecord),有就直接用它
+  const rec=r.rec||{fmt:'80fen-record-1', version:(document.getElementById('versionTag')||{}).textContent||'',
     human:HUMAN, no:r.no, declSeat:r.declSeat, trump:r.trump, levelsBefore:r.levelsBefore, levelsAfter:r.levelsAfter,
     defPoints:r.defPoints, kittyPts:r.kittyPts, mult:r.mult,
     initialHands:(r.initialHands||[]).map(h=>h.map(cs)), buried:(r.buried||[]).map(cs),
@@ -7754,7 +7946,7 @@ function swapStart(st){
 function startFromState(st){
   M.levels=st.levels.slice(); M.dealer=st.dealer; M.round=st.round; M.played=st.played.slice();
   scrambleNext=!!st.scramble; rotNext=st.rot||0;
-  redealCount=0;
+  redealCount=0; replayNext=true;
   document.getElementById('overlay').style.display='none';
   startRound(st.seed);
 }
@@ -8278,6 +8470,8 @@ function trackPointerType(){
 }
 trackPointerType();
 
+promoteCheckpoint();  // 上次打到一半就离开了(刷新 / 关页面):存成残局
+flushUploads();      // 上次没传上去的牌谱,打开页面时补传
 showStartScreen();
 function showStartScreen(){
   document.getElementById('overlayContent').innerHTML=
