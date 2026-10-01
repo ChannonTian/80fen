@@ -6530,7 +6530,7 @@ function openSettings(){
                   auto:!!(G&&G.auto)};
   const el=document.getElementById('setContent');
   el.innerHTML=
-    `<div class="setHeader"><b>⚙ 设置</b>
+    `<div class="setHeader"><b>⚙ 设置</b> <span style="font-size:12px;opacity:.6">${(document.getElementById('versionTag')||{}).textContent||''}</span>
        <div class="setHeaderBtns">
          <button id="stClose">完成</button>
          <button class="minor" id="stCancel">取消</button>
@@ -7743,7 +7743,9 @@ const lsSet=(k,v)=>{ try{ localStorage.setItem(LSP+k,JSON.stringify(v)); return 
 function randId(){ try{ return crypto.randomUUID(); }catch(e){ return Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,12); } }
 // 匿名玩家编号:随机生成、只存在本机,用来把同一个人的局归到一起(水平分层),不含任何个人信息
 function playerId(){ let id=lsGet('pid',null); if(!id){ id=randId(); lsSet('pid',id); } return id; }
-const uploadOn=()=>!!UPLOAD_URL&&lsGet('upload',null)===true;
+// 测试版默认上传、正式版默认不传:按文件名认身份,同 ENGINE_PICKER(正式版 = index.html)。设置里改过就按改过的
+const UPLOAD_DEFAULT=ENGINE_PICKER;
+const uploadOn=()=>{ const v=lsGet('upload',null); return !!UPLOAD_URL&&(v===null?UPLOAD_DEFAULT:v===true); };
 
 /* r = 刚打完、push 进 M.past 的那一局 → 完整牌谱;r 省略 → 按当前 G 写一份残局(partial,见 saveCheckpoint)。
  * 两种共用一个 id(G.recId):同一局要么留下完整的,要么留下残局,不会两份都有。 */
@@ -7834,11 +7836,11 @@ window.__setUpload=on=>{
 };
 // 第一次结算时问一次;答过就不再问(设置里随时可改)
 function uploadAskHTML(){
-  if(!UPLOAD_URL||lsGet('upload',null)!==null) return '';
+  if(!UPLOAD_URL||!UPLOAD_DEFAULT||lsGet('upload',null)!==null) return '';
   return `<div id="upAsk" style="margin-top:12px;font-size:13px;background:rgba(255,255,255,.08);border-radius:8px;padding:8px 10px">`+
-    `📤 允许把你打的牌局自动上传给开发者,用来改进 AI 吗?<div class="dim" style="font-size:12px;margin:4px 0">`+
+    `📤 测试版会把打过的牌局自动上传给开发者,用来改进 AI。<div class="dim" style="font-size:12px;margin:4px 0">`+
     `只传牌局本身(发牌、叫牌、扣底、每一手出牌、规则设置)和一个随机的匿名编号,不含任何个人信息;设置里随时可以关。</div>`+
-    `<button onclick="window.__setUpload(true)">允许</button> <button class="minor" onclick="window.__setUpload(false)">不了</button></div>`;
+    `<button onclick="window.__setUpload(true)">知道了</button> <button class="minor" onclick="window.__setUpload(false)">不要上传</button></div>`;
 }
 window.__exportRecords=()=>{
   const all=lsGet('recs',[]);
@@ -8476,6 +8478,7 @@ showStartScreen();
 function showStartScreen(){
   document.getElementById('overlayContent').innerHTML=
     `<div style="font-size:22px;color:var(--gold)">80分(上海规则)</div>`+
+    `<div style="margin-top:4px;font-size:12px;opacity:.6">${(document.getElementById('versionTag')||{}).textContent||''}</div>`+
     `<div style="margin-top:8px;font-size:14px">启发式 AI 队友与对手 · 教练模式</div>`+
     `<div style="margin-top:16px"><button onclick="window.__start()">开始游戏</button>`+
     `<button class="minor" style="margin-left:10px" onclick="window.__openSet()">⚙ 设置</button></div>`;
