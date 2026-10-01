@@ -1129,6 +1129,11 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   followBeatsCheck: 0,         // (v0.7.32 开,v0.7.37 关:它主要改成第 2 家用主分牌毙 0 分墩,后手更容易盖毙,见 test/diff-switch.js)1 = 贴分 / 跟小 / 垫牌候选按 currentWinner 判胜负(断门时它们常常其实毙下了这墩);0 = 一律按不赢墩打分
   tempoKeepPlayed: 0,          // 1 = 压下这墩时牌权项不再扣掉打出去的这手(它已在 futureValue 里收过一次);0 = 旧行为
   lastOverW0: 0.5,             // (v0.7.29 测试版默认开)将牌墩末家台面 0 分时同门盖过来的意愿系数(0 = 不打折,旧行为);见 pSurvive
+  feedPlan: 0,                 // 1 = 第 2 家贴分按「贴后本队拿下」的估计分档(见 aiChooseFollow 末尾);0 = 旧行为
+  feedLo: 0.45,                // 低于它不贴(p 用 feedP 的校准模型)
+  feedHi: 0.65,                // 低于它最多贴 5
+  feedW: [0.5389,1.0697,-1.1227,4.5772,0.2817,-0.6256,-0.4377,-0.1403,-0.3448,0.3121],   // fit-feed.js,自对弈 500 副 + 池子 700 副,3522 个样本
+  feedPen: 40,                 // 超档的贴分扣多少(够大 = 换成不带分的跟法)
   holdTopSignal: 0,            // 1 = 用领出信号(有机会领这门却没领 / 庄家)修正「他握着这门更大的牌」的概率;0 = 旧行为。见 leadSkipSignals
   holdTopW: [0.2544,0.7696,-0.3764,-0.8544,-0.1422,-0.1975],   // fit-holdtop.js,43713 个样本(自对弈 + 池子各 300 副);只用 [2..5] 信号项
   ruffDumpGate: 0,             // >0 = 「队友多半断门会毙,先贴分」这条规则要求贴后本队拿下这墩的估计 ≥ 它(含第 3 家断门盖毙);0 = 旧行为
@@ -1891,7 +1896,7 @@ function makeReads(history, trump){
       }
     }
   }
-  return {fCheap,fDump,hard,skip:AIP.holdTopSignal?leadSkipSignals(history,trump):null};
+  return {fCheap,fDump,hard,skip:AIP.holdTopSignal||AIP.feedPlan?leadSkipSignals(history,trump):null};
 }
 
 // 结合两条演绎下界与记牌,算他在这门最多还能有几张。
@@ -3476,6 +3481,21 @@ function takeOverScoped(X, view){
   return X.lead.suit==='T' || voidRuff;
 }
 
+/* 第 2 家「贴上这手之后本队拿下这墩」的校准模型(路线 ③,2026-10-01,test/fit-feed.js)。
+ * 旧估计 pTeamWin 在这里整体偏低(对数损失 0.546):它把「队友断门 → 毙回来」压得太轻。
+ * 小模型以旧估计为底,加 #3 / #4 断门概率、谁做庄、贴后台面分、两家的领出信号 —— 自对弈和池子混打 3522 个样本,
+ * 对数损失 0.334,各档、各庄家位置都校准(庄 #4 57%、庄 #3 25%、庄 #1 31%、我是庄 30%)。两个数据源单独拟合的系数几乎一样。 */
+function feedP(X, view, plays, cards){
+  const p0=pTeamWin(X,cards,false), w=AIP.feedW;
+  const s3=(view.seat+1)%4, s4=(view.seat+2)%4, ls=X.lead.suit;
+  const sk=X.reads&&X.reads.skip, d=view.declSeat;
+  const lg=Math.log(Math.min(0.995,Math.max(0.005,p0))/(1-Math.min(0.995,Math.max(0.005,p0))));
+  const tbl=countPoints(plays.flatMap(p=>p.cards))+countPoints(cards);
+  const z=w[0]+w[1]*lg+w[2]*X.pVoidOf(s3,ls)+w[3]*X.pVoidOf(s4,ls)+w[4]*(d===s3?1:0)+w[5]*(d===s4?1:0)+w[6]*(d===view.seat?1:0)
+         +w[7]*tbl/10+w[8]*(sk&&sk[s3][ls]?1:0)+w[9]*(sk&&sk[s4][ls]?1:0);
+  return 1/(1+Math.exp(-z));
+}
+
 // 跟牌决策
 function aiChooseFollow(view, plays){
   const X=followCtx(view,plays);
@@ -3755,6 +3775,34 @@ function aiChooseFollow(view, plays){
       }
     }
   }
+  /* feedPlan(产品方 2026-09-30「跟分需要一个对队友有大牌不仅盖过 #1、还能盖过 #3 的判断」):
+   * 第 2 家、对手领副牌单张、我这手带分又不赢墩,而手里有便宜的不带分跟法(同门更小的 0 分牌;断门时 10 以下的 0 分副牌)时,
+   * 贴不贴、贴多少按「贴上之后本队拿下这墩」的估计 p 决定 —— p 里有 #3 断门盖毙、庄家断门先验、领出信号(holdTopSignal)。
+   *   p < feedLo:不贴;feedLo ≤ p < feedHi:最多贴 5;p ≥ feedHi:10 / K 也可以贴。
+   * calib-feed 量过:旧打法跟不跟分几乎不随庄家位置变(16% / 18% / 18%),低 p 也跟 —— 跟分的选择不是由 p 驱动的。 */
+  if(AIP.feedPlan&&plays.length===1&&lead.type==='single'&&lead.suit!=='T'&&X.partnerRemaining){
+    const inLead=c=>effSuit(c,trump)===lead.suit;
+    const haveSuit=view.hand.some(inLead);
+    const cheapZero=view.hand.some(c=>cardPoints(c)===0&&(haveSuit?inLead(c)&&ordIdx(c,trump)<X.cur.cl.top:effSuit(c,trump)!=='T'&&c.rank<=10));
+    /* 期望分那一项也换成校准过的 p:旧打分器用 pTeamWin 算 ev = p·gain − (1−p)·loss,在这里整体偏低,
+     * 所以队友很可能拿下时(比如 #4 做庄、多半断门)它也不贴。不赢墩的单张候选(带不带分都算)按 Δp × (gain+loss) 补回;
+     * gain、loss 都约等于贴后台面分。 */
+    for(const c of cands){
+      if(c.cards.length!==1||effSuit(c.cards[0],trump)==='T') continue;
+      if(currentWinner([...plays,{seat:view.seat,cards:c.cards}],trump).seat===view.seat) continue;
+      const tbl=X.ptsTable+countPoints(c.cards);
+      c.score+=(feedP(X,view,plays,c.cards)-pTeamWin(X,c.cards,false))*2*tbl*(X.pw||1);
+    }
+    if(cheapZero){
+      for(const c of cands){
+        const pts=countPoints(c.cards); if(!pts||c.cards.length!==1||effSuit(c.cards[0],trump)==='T') continue;
+        if(currentWinner([...plays,{seat:view.seat,cards:c.cards}],trump).seat===view.seat) continue;
+        const p=feedP(X,view,plays,c.cards);
+        const cap=p<AIP.feedLo?0:p<AIP.feedHi?5:99;
+        if(pts>cap) c.score-=AIP.feedPen;
+      }
+    }
+  }
   cands.sort((a,b)=>b.score-a.score);
   const ctx={partnerWinning:X.partnerWinning,isLast:X.isLast,ptsTable:X.ptsTable,
              curSeat:X.cur.seat,curBoss:X.curBoss,leadSuit:lead.suit,phase:X.phase};
@@ -3770,6 +3818,8 @@ function aiChooseFollow(view, plays){
        * 打开后要求「贴上之后本队拿下这墩」的估计(pTeamWin:含第 3 家断门盖毙、庄家断门先验)不低于门槛,否则不贴。 */
       const dumps=view.hand.filter(x=>cardPoints(x)>0&&isLegalFollow(view.hand,lead,[x],trump))
         .filter(x=>!AIP.ruffDumpGate||pTeamWin(X,[x],false)>=AIP.ruffDumpGate)
+        .filter(x=>{ if(!AIP.feedPlan) return true;            // 同 feedPlan 的分档:p 不够不贴,不够高只贴 5
+          const p=feedP(X,view,plays,[x]); return p>=AIP.feedLo&&(cardPoints(x)<=5||p>=AIP.feedHi); })
         .map(x=>({x,s:coachScoreFollow(view,plays,[x])})).sort((a,b)=>b.s-a.s);
       if(dumps.length) best={cards:[dumps[0].x],cat:'dump',score:dumps[0].s,
         reason:`队友多半断这门、会毙 —— 先把这 ${cardPoints(dumps[0].x)} 分贴上去`};

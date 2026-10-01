@@ -342,6 +342,10 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `followBeatsCheck` | `0` | (v0.7.32 开,v0.7.37 关:它主要改成第 2 家用主分牌毙 0 分墩,后手更容易盖毙,见 test/diff-switch.js)1 = 贴分 / 跟小 / 垫牌候选按 currentWinner 判胜负(断门时它们常常其实毙下了这墩);0 = 一律按不赢墩打分 | `aiChooseFollow` |
 | `tempoKeepPlayed` | `0` | 1 = 压下这墩时牌权项不再扣掉打出去的这手(它已在 futureValue 里收过一次);0 = 旧行为 | `scorePlay` |
 | `lastOverW0` | `0.5` | (v0.7.29 测试版默认开)将牌墩末家台面 0 分时同门盖过来的意愿系数(0 = 不打折,旧行为);见 pSurvive | `pSurvive` |
+| `feedPlan` | `0` | 1 = 第 2 家贴分按「贴后本队拿下」的估计分档(见 aiChooseFollow 末尾);0 = 旧行为 | `makeReads` `aiChooseFollow` |
+| `feedLo` | `0.45` | 低于它不贴(p 用 feedP 的校准模型) | `aiChooseFollow` |
+| `feedHi` | `0.65` | 低于它最多贴 5 | `aiChooseFollow` |
+| `feedPen` | `40` | 超档的贴分扣多少(够大 = 换成不带分的跟法) | `aiChooseFollow` |
 | `holdTopSignal` | `0` | 1 = 用领出信号(有机会领这门却没领 / 庄家)修正「他握着这门更大的牌」的概率;0 = 旧行为。见 leadSkipSignals | `holdTopShift` `makeReads` |
 | `ruffDumpGate` | `0` | >0 = 「队友多半断门会毙,先贴分」这条规则要求贴后本队拿下这墩的估计 ≥ 它(含第 3 家断门盖毙);0 = 旧行为 | `aiChooseFollow` |
 | `digPlan` | `4` | (v0.7.37 测试版默认开)闲家「抢末墩」的留手代价权重(0 = 旧行为);见 digCost。产品方 2026-09-29「王留到最后」 | `digCost` `guardCost` |
