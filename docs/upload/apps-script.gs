@@ -1,3 +1,8 @@
+/**
+ * @OnlyCurrentDoc
+ * ↑ 授权范围只限这一张表:部署时 Google 只会请求「查看和管理这一份表格」,
+ *   而不是「你所有的 Google 表格」。网页应用设成「任何人可访问、以我的身份执行」也碰不到你别的文件。
+ */
 /* 80分牌谱收集表 —— 接收测试版上传的牌谱(80fen-record-2),一局一行写进这张 Google 表格。
  * 部署步骤、字段说明见同目录 README.md。
  *
@@ -17,6 +22,8 @@ const COL_JSON = HEAD.length;          // JSON 在最后一列
 const MAX_BODY = 400000;               // 一次请求的上限(8 局 × 约 5KB 绰绰有余)
 const MAX_REC = 45000;                 // 单元格上限 50000 字符
 const MAX_PER_HOUR = 120;              // 每个匿名玩家每小时最多收多少局,防刷
+const MAX_ALL_HOUR = 2000;             // 全部玩家加起来每小时最多收多少局 —— 匿名编号是网页自报的,
+                                       // 换编号就能绕过上一条,这条兜底防有人灌满表格
 
 function doPost(e) {
   const body = (e && e.postData && e.postData.contents) || '';
@@ -36,9 +43,10 @@ function doPost(e) {
       if (rows.some(x => x[1] === r.id) || seen_(sh, r.id)) { dup.push(r.id); continue; }
       const json = JSON.stringify(r);
       if (json.length > MAX_REC) { bad.push({ id: r.id, why: 'big' }); continue; }
-      const k = 'n:' + r.pid, n = +(cache.get(k) || 0);
-      if (n >= MAX_PER_HOUR) { bad.push({ id: r.id, why: 'rate' }); continue; }
+      const k = 'n:' + r.pid, n = +(cache.get(k) || 0), all = +(cache.get('n:*') || 0);
+      if (n >= MAX_PER_HOUR || all >= MAX_ALL_HOUR) { bad.push({ id: r.id, why: 'rate' }); continue; }
       cache.put(k, String(n + 1), 3600);
+      cache.put('n:*', String(all + 1), 3600);
       const humanPlays = r.tricks.reduce((a, t) =>
         a + t.plays.filter(p => p.seat === r.human && (!p.by || p.by === 'h')).length, 0);
       rows.push([new Date(), r.id, r.pid, txt_(r.nick), txt_(r.version), txt_(r.t), num_(r.dur),
