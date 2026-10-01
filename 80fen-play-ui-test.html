@@ -488,6 +488,20 @@ html.hasHover #game #hand .card:hover{border-color:#8fb4c5}
 .pass{color:var(--ol-tx)}.fail{color:var(--rd-tx);font-weight:bold}
 
 /* ---------- 产品弹窗/设置/吐司(重上色) ---------- */
+/* 弹窗/面板/sheet 里的按钮基础样式(v2 换掉了产品整块 CSS,这些上下文
+   在原型按钮规则的作用域之外,不补就是浏览器默认灰) */
+#overlay .panel button,#setOverlay .panel button,#sheet .sheet-actions button,#sheetFooter button{
+  background:var(--leo-brown);color:#fff;border:0;border-bottom:3px solid #583920;
+  border-radius:12px;padding:8px 18px;font-size:15px;font-weight:700;cursor:pointer;margin:2px}
+#overlay .panel button.minor,#setOverlay .panel button.minor,
+#sheet .sheet-actions button.minor,#sheetFooter button.minor,.setHeaderBtns button{
+  background:#fffdf8;color:var(--leo-brown);border:1.5px solid var(--line);
+  border-bottom:3px solid #c9b99f}
+#overlay .panel button:disabled,#setOverlay .panel button:disabled{opacity:.4;cursor:default}
+#sheet .menu-option{width:100%;text-align:left;display:block;margin:8px 0}
+/* 右栏面板里的操作按钮(页签切换/测验选项/发送)走次要样式,选中态橄榄绿 */
+#panel button{background:#fffdf8;color:var(--tx);border:1.5px solid var(--line);
+  border-bottom:3px solid #c9b99f;border-radius:10px;padding:5px 12px;font-size:13px;font-weight:650;cursor:pointer}
 #overlay,#setOverlay{position:fixed;inset:0;background:rgba(68,54,41,.45);display:none;
   align-items:center;justify-content:center;z-index:70}
 #setOverlay{z-index:71}
@@ -538,6 +552,14 @@ html.hasHover #game #hand .card:hover{border-color:#8fb4c5}
 /* ---------- 动画 ---------- */
 @keyframes playIn{from{opacity:0;transform:translateY(-14px) scale(.88)}to{opacity:1;transform:none}}
 #game .played .card{animation:playIn .25s ease-out}
+
+/* ---------- 拖拽幽灵与放大镜里的克隆牌:统一尺寸,别带着手牌的内联宽高 ---------- */
+#dragGhost .card{width:70px!important;height:103px!important;position:relative!important;
+  margin:0 0 0 -30px!important;transform:none!important}
+#dragGhost .card:first-child{margin-left:0!important}
+#dragGhost .drag-count{background:var(--bl-bg);color:var(--bl-tx);border:1px solid var(--bl);
+  border-radius:8px;font-weight:700;padding:1px 7px;font-size:13px}
+#loupe .card{box-shadow:none}
 
 /* ---------- 残留元素 ---------- */
 #appStub{display:none}
@@ -7972,7 +7994,10 @@ function stampPiles(){
   Array.prototype.forEach.call(document.querySelectorAll('.played'),function(p){
     var cards=p.children,n=cards.length;
     p.style.width=n?('calc(var(--pile-cw,56px) + '+(n-1)+' * var(--pile-step,20px))'):'0px';
-    Array.prototype.forEach.call(cards,function(c,i){c.style.setProperty('--i',i);});
+    Array.prototype.forEach.call(cards,function(c,i){
+      c.style.setProperty('--i',i);
+      decorateCard(c);   /* 桌面牌同样要 two 类与分牌角标,否则 10 会挤出左列 */
+    });
   });
 }
 var stampQueued=false;
@@ -8062,11 +8087,11 @@ function cardAtX(px){
 }
 function showLoupe(card,x,y){
   loupe.innerHTML=card.outerHTML;
-  loupe.querySelector('.card').style.cssText='position:static;transform:none!important;width:91px;height:134px;margin:0';
+  loupe.querySelector('.card').style.cssText='position:fixed;transform:none!important;width:91px;height:134px;margin:0';
   loupe.hidden=false;
-  var gr=game.getBoundingClientRect();
-  loupe.style.left=clamp(x-gr.left-46,6,gr.width-100)+'px';
-  loupe.style.top=clamp(y-gr.top-150,6,gr.height-146)+'px';
+  /* loupe/.drag-ghost 都是 position:fixed —— 直接用视口坐标,别再按 #game 内部坐标换算 */
+  loupe.style.left=clamp(x-46,8,window.innerWidth-100)+'px';
+  loupe.style.top=clamp(y-150,8,window.innerHeight-146)+'px';
   card.classList.add('peek');
 }
 function hideLoupe(){
@@ -8087,9 +8112,8 @@ function buildGhost(){
   ghost.hidden=false;
 }
 function moveGhost(x,y){
-  var gr=game.getBoundingClientRect();
-  ghost.style.left=clamp(x-gr.left-70,4,gr.width-150)+'px';
-  ghost.style.top=clamp(y-gr.top-120,4,gr.height-160)+'px';
+  ghost.style.left=clamp(x-70,4,window.innerWidth-150)+'px';
+  ghost.style.top=clamp(y-120,4,window.innerHeight-160)+'px';
 }
 function hideGhost(){ghost.hidden=true;}
 function commitDrag(g){
@@ -8129,7 +8153,7 @@ function parseStatus(){
   $('scoreFill').style.width=clamp(score/80*100,0,100)+'%';
   var ph=$('status').querySelector('.phaseHint');
   $('phaseLine').textContent=ph?ph.textContent:'';
-  $('instruction').textContent=spans[5].textContent.replace(/第/,'第').trim();
+  $('instruction').textContent=spans[5].textContent.trim();
 }
 new MutationObserver(parseStatus).observe($('status'),{childList:true});
 function parseMsg(){
@@ -8157,6 +8181,12 @@ function closeSide(){$('side').classList.remove('open');$('side-backdrop').class
 $('recordsBtn').onclick=openSide;
 $('sideClose').onclick=closeSide;
 $('side-backdrop').onclick=closeSide;
+/* Esc 关抽屉/收 sheet —— 弹层开着时 Esc 不应无处可去 */
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape')return;
+  if($('side').classList.contains('open')){closeSide();e.stopPropagation();}
+  else if(sheet&&sheet.open){sheet.close();e.stopPropagation();}
+});
 /* 问六六:产品的 askCoach 会切到教练页签,面板在抽屉里,顺手拉开 */
 $('btnHint').addEventListener('click',function(){setTimeout(openSide,60);});
 
