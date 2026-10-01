@@ -1129,6 +1129,8 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   followBeatsCheck: 0,         // (v0.7.32 开,v0.7.37 关:它主要改成第 2 家用主分牌毙 0 分墩,后手更容易盖毙,见 test/diff-switch.js)1 = 贴分 / 跟小 / 垫牌候选按 currentWinner 判胜负(断门时它们常常其实毙下了这墩);0 = 一律按不赢墩打分
   tempoKeepPlayed: 0,          // 1 = 压下这墩时牌权项不再扣掉打出去的这手(它已在 futureValue 里收过一次);0 = 旧行为
   lastOverW0: 0.5,             // (v0.7.29 测试版默认开)将牌墩末家台面 0 分时同门盖过来的意愿系数(0 = 不打折,旧行为);见 pSurvive
+  holdTopSignal: 0,            // 1 = 用领出信号(有机会领这门却没领 / 庄家)修正「他握着这门更大的牌」的概率;0 = 旧行为。见 leadSkipSignals
+  holdTopW: [0.2544,0.7696,-0.3764,-0.8544,-0.1422,-0.1975],   // fit-holdtop.js,43713 个样本(自对弈 + 池子各 300 副);只用 [2..5] 信号项
   ruffDumpGate: 0,             // >0 = 「队友多半断门会毙,先贴分」这条规则要求贴后本队拿下这墩的估计 ≥ 它(含第 3 家断门盖毙);0 = 旧行为
   digPlan: 4,                  // (v0.7.37 测试版默认开)闲家「抢末墩」的留手代价权重(0 = 旧行为);见 digCost。产品方 2026-09-29「王留到最后」
   digW: [-1.1492,1.0759,0.0181,0.1937,-0.0332,-0.0233,-0.0687],  // fit-guard.js ROLE=opp,1000 副 / 36564 个闲家决策点(v0.7.37 之前的打法),对数损失 0.607(均值 0.639)
@@ -1825,6 +1827,36 @@ function cheapKey(c, trump){ return globalIdx(c,trump)+(cardPoints(c)?8:0)+contr
 // 贴分序的排序键,与 dumpSort 一致:分大的排前,同分值挑小的
 function dumpKey(c, trump){ return -cardPoints(c)*100+globalIdx(c,trump); }
 
+/* 领出信号(路线 ②,2026-10-01,产品方:「#3 有机会领出却没出过本门大牌,反而出了胜率更低的牌 → 大概率没有本门大牌」)。
+ * skip[s][S] = 这门「在外最大的那个点数」上一次变化之后,s 领过牌、却一次都没领这门。
+ * test/calib-holds.js(自对弈 + 池子混打):握着这门在外最大那张的真实频率 —— 对手没领 21.9%(均匀估 25.7%)、
+ * 庄家没领 10.3%(均匀估 21.8%),对手无信号 47.7%(均匀估 40.1%)。系数见 AIP.holdTopW(test/fit-holdtop.js)。
+ * 「在外最大」按公开信息算:这个点数两张还没都出完(观察者自己的手牌不参与,信号是领出者当时的视角)。 */
+function leadSkipSignals(history, trump){
+  const skip=[{},{},{},{}], lastTop={}, played={};
+  const sides=['S','H','D','C'].filter(su=>su!==trump.suit);
+  const topOf=S=>{ let t=-1; for(const r of [14,13,12,11,10,9,8,7,6,5,4,3,2]){ if(r===trump.rank) continue;
+      if((played[S+r]||0)<2){ t=r; break; } } return t; };
+  for(let i=0;i+3<history.length;i+=4){
+    const trick=history.slice(i,i+4), ls=effSuit(trick[0].cards[0],trump), leader=trick[0].seat;
+    for(const S of sides){
+      const t=topOf(S);
+      if(lastTop[S]!==t){ lastTop[S]=t; for(let z=0;z<4;z++) skip[z][S]=false; }
+      skip[leader][S]=S!==ls;
+    }
+    for(const p of trick) for(const c of p.cards) if(c.suit!=='X'&&c.rank!==trump.rank) played[c.suit+c.rank]=(played[c.suit+c.rank]||0)+1;
+  }
+  return skip;
+}
+/* 「他握着这门更大的牌」的对数几率修正:只加信号项(没领 / 没领·庄家 / 没领·队友 / 庄家),底下的估计不动。 */
+function holdTopShift(X, seat, S){
+  if(!AIP.holdTopSignal||!X.reads||!X.reads.skip||S==='T') return 0;
+  const w=AIP.holdTopW, sk=X.reads.skip[seat]&&X.reads.skip[seat][S]?1:0;
+  const decl=X.declSeat!==undefined&&seat===X.declSeat?1:0, partner=X.seat!==undefined&&seat%2===X.seat%2?1:0;
+  return w[2]*sk+w[3]*sk*decl+w[4]*sk*partner+w[5]*decl;
+}
+const shiftP=(p,d)=>{ if(!d||p<=0||p>=1) return p; const z=Math.log(p/(1-p))+d; return 1/(1+Math.exp(-z)); };
+
 function makeReads(history, trump){
   // 两种「他会先出什么」的序,对应两种局面,各自留一条下界
   const fCheap=[{},{},{},{}];     // 他那队不是暂大 → 出最便宜的
@@ -1859,7 +1891,7 @@ function makeReads(history, trump){
       }
     }
   }
-  return {fCheap,fDump,hard};
+  return {fCheap,fDump,hard,skip:AIP.holdTopSignal?leadSkipSignals(history,trump):null};
 }
 
 // 结合两条演绎下界与记牌,算他在这门最多还能有几张。
@@ -2926,7 +2958,9 @@ function pPartnerTakes(X){
   const {total}=beats;
   const denom=X.shareDenom||AIP.handShare;
   const k=total>0?Math.max(1,total/denom):0;
-  const pHas=pBeaterIn(X.cur.cl,beats,k);                // 队友手上压得住的密度
+  let pHas=pBeaterIn(X.cur.cl,beats,k);                // 队友手上压得住的密度
+  // holdTopSignal:队友有机会领这门却没领 / 是庄家 → 他握大牌的概率按对数几率往下修(见 leadSkipSignals)
+  if(X.partnerSeat!==undefined) pHas=shiftP(pHas,holdTopShift(X,X.partnerSeat,leadSuit));
   const pVoid=leadSuit==='T'?0
     :(X.partnerSeat!==undefined&&X.pVoidOf?X.pVoidOf(X.partnerSeat,leadSuit):0.12);
   const trAvail=unseenBeats(mem,{suit:'T',top:-1,type:'single'},trump).total;
@@ -2940,7 +2974,9 @@ function pPartnerTakes(X){
     if(mids.length&&X.pVoidOf){
       const m=mids[0];
       const pn=expHoldIn(X,X.partnerSeat,leadSuit), on=expHoldIn(X,m,leadSuit);
-      const pTop=pn+on>0?pn/(pn+on):0;
+      let pTop=pn+on>0?pn/(pn+on):0;
+      // 夹在中间的那家(#3)有机会领这门却没领 → 更大的牌更可能在队友那边;队友没领则反过来
+      pTop=shiftP(pTop,holdTopShift(X,X.partnerSeat,leadSuit)-holdTopShift(X,m,leadSuit));
       // 主牌墩(钓主)里中间那家不存在「毙」,只有压不压得过
       const pMidRuff=leadSuit==='T'?0:X.pVoidOf(m,leadSuit)*(trAvail>0?0.85:0)*ruffWill(X.ptsTable);
       const takeMid=((1-pVoid)*Math.min(pHas,pTop)+pVoid*pRuff*(1-0.5*pMidRuff))*(1-pMidRuff);
