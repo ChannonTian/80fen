@@ -2960,6 +2960,17 @@ function fanStudyHand(){
   $('hand').style.setProperty('--fan-count',Math.max(1,n));
   cards.forEach((c,i)=>{const t=n<2?0:(i-(n-1)/2)/((n-1)/2);c.style.setProperty('--fan-i',i);c.style.setProperty('--fan-angle',(t*Math.min(18,n*2.4))+'deg');c.style.setProperty('--fan-arc',(t*t*10)+'px');});
 }
+/* 换肤钩子(关键):直接包一层 trickHTML,把 learning-table 类写进生成产物。
+   winpick/teampick 点座位、mini 收墩、残局逐墩推进都会**绕过 render()** 局部重写
+   #table.innerHTML —— 事后由 decorateStudy 补类的方案在这些路径上会让新一帧
+   牌桌短暂失去毡面/槽位布局(用户看到的"牌桌变形、检查后又变回")。
+   在函数产出上注入,任何调用方、任何时机都带上换肤。 */
+const sourceTrickHTML=trickHTML;
+trickHTML=function(played,lead,winner,showPt,opt){
+  return sourceTrickHTML(played,lead,winner,showPt,opt)
+    .replace('class="trick"','class="trick learning-table"')
+    .replace('class="trick ','class="trick learning-table ');
+};
 function decorateStudy(){
   if(!L)return;
   const q=L.qs[qi],pickCards=q.type==='multi'||q.type==='cardpick';
