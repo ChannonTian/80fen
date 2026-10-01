@@ -1129,6 +1129,8 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   followBeatsCheck: 0,         // (v0.7.32 开,v0.7.37 关:它主要改成第 2 家用主分牌毙 0 分墩,后手更容易盖毙,见 test/diff-switch.js)1 = 贴分 / 跟小 / 垫牌候选按 currentWinner 判胜负(断门时它们常常其实毙下了这墩);0 = 一律按不赢墩打分
   tempoKeepPlayed: 0,          // 1 = 压下这墩时牌权项不再扣掉打出去的这手(它已在 futureValue 里收过一次);0 = 旧行为
   lastOverW0: 0.5,             // (v0.7.29 测试版默认开)将牌墩末家台面 0 分时同门盖过来的意愿系数(0 = 不打折,旧行为);见 pSurvive
+  survPlan: 0,                 // 1 = 第 2 / 3 家压下单张的存活率用拟合的小模型(survW)代替 pSurvive 里三个手调常数的结果;0 = 旧行为
+  survW: [0.2167,0.4971,-0.2967,0.6259,2.193,-0.327,-1.6405,-0.2967,1.4383,-0.1217,-0.1034],   // fit-survive.js,自对弈 400 副 + 池子 500 副,13629 个样本
   feedPlan: 1,                 // (v0.7.39 测试版默认开)1 = 第 2 家贴分按「贴后本队拿下」的估计分档(见 aiChooseFollow 末尾);0 = 旧行为
   feedLo: 0.45,                // 低于它不贴(p 用 feedP 的校准模型)
   feedHi: 0.65,                // 低于它最多贴 5
@@ -3019,7 +3021,23 @@ function pTeamWin(X, cards, beatsCur){
   }
   if(X.isLast) return 1;
   if(!cl) return 0.5;
-  return pSurvive(X,cl,X.remainingOpp);
+  const p0=pSurvive(X,cl,X.remainingOpp);
+  /* survPlan(路线 ③ 第二个小模型,2026-10-01,test/fit-survive.js):pSurvive 里「后手肯不肯盖 / 毙」是三个手调常数
+   * (lastOverW0、trumpSealW、lastRuffWill),在自对弈里校准、跟着引擎的打法走。以它为底再加几样能看到的特征,
+   * 用自对弈 400 副 + 池子 500 副(13629 个第 2 / 3 家压下的单张)拟合:对数损失 0.408 → 0.361。
+   * 修得最多的两处:跟本门压过去(旧估 64% 实 50%)、毙(旧估 73% 实 79%)。只管单张。 */
+  if(AIP.survPlan&&cl.type==='single'&&X.lead&&X.lead.type==='single'){
+    const w=AIP.survW, tr=X.trump, ls=X.lead.suit, opps=X.remainingOpp||[];
+    const lg=Math.log(Math.min(0.995,Math.max(0.005,p0))/(1-Math.min(0.995,Math.max(0.005,p0))));
+    const ruff=cl.suit==='T'&&ls!=='T'?1:0, tbl=(X.ptsTable||0)+countPoints(cards);
+    const vMax=ls==='T'||!X.pVoidOf?0:Math.max(0,...opps.map(s=>X.pVoidOf(s,ls)));
+    const third=X.remaining&&X.remaining.length===1?1:0;
+    const lastOpp=X.remaining&&X.remaining.length&&X.remaining[X.remaining.length-1]%2!==X.seat%2?1:0;
+    const boss=isBossPlay(cl,X.mem,tr)?1:0, pts=countPoints(cards)>0?1:0, mid=X.hand&&X.hand.length>8?1:0;
+    const z=w[0]+w[1]*lg+w[2]*third+w[3]*(ls==='T'?1:0)+w[4]*ruff+w[5]*tbl/10+w[6]*vMax+w[7]*lastOpp+w[8]*boss+w[9]*pts+w[10]*mid;
+    return 1/(1+Math.exp(-z));
+  }
+  return p0;
 }
 
 // 从出牌历史还原本局比分:闲家已抓多少分,场上还剩多少分没定归属
