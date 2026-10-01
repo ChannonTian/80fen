@@ -17,7 +17,7 @@
 
 const SHEET_NAME = '牌谱';
 const HEAD = ['收到时间', 'id', '玩家', '昵称', '版本', '打完时间', '用时(秒)', '局号', '人坐', '庄家',
-              '主', '闲家得分', '重打', '托管墩数', '悔牌次数', '真人出牌手数', 'JSON'];
+              '主', '闲家得分', '重打', '残局', '托管墩数', '悔牌次数', '真人出牌手数', 'JSON'];
 const COL_JSON = HEAD.length;          // JSON 在最后一列
 const MAX_BODY = 400000;               // 一次请求的上限(8 局 × 约 5KB 绰绰有余)
 const MAX_REC = 45000;                 // 单元格上限 50000 字符
@@ -51,7 +51,7 @@ function doPost(e) {
         a + t.plays.filter(p => p.seat === r.human && (!p.by || p.by === 'h')).length, 0);
       rows.push([new Date(), r.id, r.pid, txt_(r.nick), txt_(r.version), txt_(r.t), num_(r.dur),
                  txt_(r.no), num_(r.human), num_(r.declSeat), trump_(r.trump), num_(r.defPoints),
-                 r.replay ? '是' : '', num_(r.autoTricks), num_(r.undos), humanPlays, json]);
+                 r.replay ? '是' : '', r.partial ? `${txt_(r.stage)} · ${num_(r.tricksDone)} 墩` : '', num_(r.autoTricks), num_(r.undos), humanPlays, json]);
       saved.push(r.id);
     }
     if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, HEAD.length).setValues(rows);
@@ -80,10 +80,15 @@ function check_(r) {
   if (!str_(r.id, 64) || !str_(r.pid, 64)) return 'id';
   if (r.nick != null && !str_(r.nick, 20)) return 'nick';
   const cards = a => Array.isArray(a) && a.every(c => typeof c === 'string' && CARD.test(c));
-  if (!Array.isArray(r.initialHands) || r.initialHands.length !== 4 || !r.initialHands.every(cards)) return 'hands';
-  if (r.initialHands.reduce((a, h) => a + h.length, 0) !== 100) return 'hands';
-  if (!cards(r.buried) || r.buried.length !== 8) return 'buried';
+  // 残局(partial):开打之前离开的没有 initialHands / buried,tricks 只有已经收掉的墩
+  const part = r.partial === true;
+  if (!(part && r.initialHands == null)) {
+    if (!Array.isArray(r.initialHands) || r.initialHands.length !== 4 || !r.initialHands.every(cards)) return 'hands';
+    if (r.initialHands.reduce((a, h) => a + h.length, 0) !== 100) return 'hands';
+    if (!cards(r.buried) || r.buried.length !== 8) return 'buried';
+  }
   if (!Array.isArray(r.tricks) || r.tricks.length > 30) return 'tricks';
+  if (part && r.initialHands == null && r.tricks.length) return 'tricks';
   let n = 0;
   for (const t of r.tricks) {
     if (!t || !Array.isArray(t.plays) || t.plays.length !== 4) return 'tricks';
@@ -92,7 +97,7 @@ function check_(r) {
       n += p.cards.length;
     }
   }
-  if (n !== 100) return 'tricks';
+  if (part ? n >= 100 : n !== 100) return 'tricks';
   return '';
 }
 
@@ -103,6 +108,9 @@ function sheet_() {
     sh = ss.insertSheet(SHEET_NAME);
     sh.appendRow(HEAD);
     sh.setFrozenRows(1);
+  } else if (sh.getLastRow() <= 1) {
+    // 还没有数据时表头跟着脚本走(改过列之后重新部署,空表自动换成新表头)
+    sh.getRange(1, 1, 1, HEAD.length).setValues([HEAD]);
   }
   return sh;
 }

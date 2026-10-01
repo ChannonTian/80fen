@@ -6892,6 +6892,7 @@ function startRound(seed){
   // 上一盘可能还有在途的定时器(AI 思考 / 收墩 / 亮主倒计时),不清掉会打到新一盘的局面上
   if(G){ clearTimeout(G.aiTimer); clearTimeout(G.holdTimer); clearTimeout(G.declTimer);
          clearInterval(G.declTick); }
+  promoteCheckpoint();      // 上一局没打完就开了新局(重打 / 种子 / 重开整场):那一局存成残局
   const carryAuto=autoCarry; autoCarry=false;
   const dealerKnown=M.dealer>=0 && !scrambleNext;   // 完全造反重发 → 本盘按无庄盘抢庄
   // 开局那一刻的整场状态,和 seed 一起才能完整复现这一局(见 seedCode / __redoRound)
@@ -6926,7 +6927,7 @@ function startRound(seed){
      auto:carryAuto, autoTricks:0,
      undoStack:[],   // 悔牌(见 undoLastPlay):你每出一手前的整桌快照,悔一次弹一个
      // 牌谱(见 makeRecord):开局时刻、叫牌过程、是不是重打的局、各座位引擎、悔了几次
-     t0:Date.now(), declLog:[], replay:replayNext, redeals:redealCount,
+     recId:randId(), t0:Date.now(), declLog:[], replay:replayNext, redeals:redealCount,
      engines:S.engineVer.slice(), undos:0, undoNext:false};
   replayNext=false;
   if(cutsLog) log(cutsLog);
@@ -6960,6 +6961,7 @@ function stopDeclCountdown(){ clearInterval(G.declTick); G.declTick=null; }
 function dealTick(){
   if(G.phase!=='dealing') return;
   if(G.dealt>=100){ G.phase='finalDecl'; render();
+    saveCheckpoint();
     startDeclCountdown();
     if(G.auto) window.__skipDecl();      // 托管:AI 已在发牌中决定过了,不必再等倒计时
     return; }
@@ -7077,6 +7079,7 @@ function doRebel(){
     afterTrumpSet(); return;
   }
   redealCount++;
+  dropCheckpoint();       // 按规则重发的那副牌没打,不算残局(打完的那局会在 redeals 里记重发了几次)
   scrambleNext=(S.fullRebel==='scramble');
   autoCarry=!!G.auto;
   G.phase='redealing'; render();
@@ -7110,7 +7113,8 @@ function buryKitty(){
 
 // 开打瞬间存一份四家手牌,供局末复盘回看(局中不给看,免得成了透视)
 function snapshotHands(){ G.initialHands=G.hands.map(h=>h.slice());
-  G.buryBy=G.declSeat===HUMAN?(G.auto?'a':'h'):null; }   // 你坐庄时,底是你扣的还是托管扣的
+  G.buryBy=G.declSeat===HUMAN?(G.auto?'a':'h'):null;
+  saveCheckpoint(); }   // 你坐庄时,底是你扣的还是托管扣的
 
 // ================= 出牌循环 =================
 // step() 可能被重复调用(典型:收墩后排的 setTimeout(step,400) 还没跑,玩家已抢先出牌
@@ -7319,6 +7323,7 @@ function undoLastPlay(){
   G=Object.assign(snap,{undoStack:stack,aiTimer:null,holdTimer:null,declTimer:null,declTick:null,
                         undos, undoNext:true});    // 悔牌次数要跨过快照记下来,快照里的是旧值
   G.selected=new Set(); G.hintCards=null; G.quiz=null; G.awaitNext=false;
+  saveCheckpoint();      // 悔回去可能跨过了收墩,进度里不能留着已经撤掉的墩
   render(); setMsg('已悔回上一手出牌前,重新选牌');
   return true;
 }
@@ -7600,7 +7605,7 @@ function finishTrick(){
   const nEl=document.getElementById('n'+res.winner);
   if(nEl){ nEl.classList.add('won'); setTimeout(()=>nEl.classList.remove('won'),1900); }
   if(G.hands.every(h=>h.length===0)) endRound();
-  else { render(); setMsg(''); setTimeout(step,400); }
+  else { saveCheckpoint(); render(); setMsg(''); setTimeout(step,400); }
 }
 
 function endRound(){
@@ -7650,6 +7655,7 @@ function endRound(){
   {  // 牌谱:存本机,同意过就顺手上传(没传上的下次再补)
     const r=M.past[M.past.length-1];
     try{ r.rec=makeRecord(r); storeRecord(r.rec); }catch(e){ console.error('牌谱存档失败',e); }
+    dropCheckpoint();
     flushUploads();
   }
   // 整场推进(adv 在上面已经算好)
@@ -7729,7 +7735,7 @@ window.__importRecord=()=>{
  *   传不上的(离线、被墙、地址没配)留在本机,下次打完一局 / 下次打开页面再补;服务端按 id 去重。
  * 格式是 80fen-record-1 的超集(字段说明见 docs/upload/README.md),「导入牌谱」和
  * test/replay-record.js 照样能读。 */
-const UPLOAD_URL='';   // Apps Script 部署后的 …/exec 地址;空 = 只存本机、不上传
+const UPLOAD_URL='https://script.google.com/macros/s/AKfycbw7wsJ-VDNMwAWNuW41b3DLjI2_g23U7fi9aI71NnHgst8SL2MJXsYGyC2nt8fi4PAQbw/exec';   // Apps Script 部署后的 …/exec 地址;空 = 只存本机、不上传
 const REC_MAX=300;     // 一局约 5KB,300 局 ≈ 1.5MB,离 localStorage 的 5MB 上限留足余量
 const lsGet=(k,d)=>{ try{ const v=localStorage.getItem(LSP+k); return v==null?d:JSON.parse(v); }catch(e){ return d; } };
 const lsSet=(k,v)=>{ try{ localStorage.setItem(LSP+k,JSON.stringify(v)); return true; }catch(e){ return false; } };
@@ -7739,23 +7745,48 @@ function randId(){ try{ return crypto.randomUUID(); }catch(e){ return Date.now()
 function playerId(){ let id=lsGet('pid',null); if(!id){ id=randId(); lsSet('pid',id); } return id; }
 const uploadOn=()=>!!UPLOAD_URL&&lsGet('upload',null)===true;
 
+/* r = 刚打完、push 进 M.past 的那一局 → 完整牌谱;r 省略 → 按当前 G 写一份残局(partial,见 saveCheckpoint)。
+ * 两种共用一个 id(G.recId):同一局要么留下完整的,要么留下残局,不会两份都有。 */
 function makeRecord(r){
   const cs=c=>c.suit+c.rank, css=a=>(a||[]).map(cs);
   const nick=String(lsGet('nick','')||'').slice(0,20);
-  return {fmt:'80fen-record-2', id:randId(), pid:playerId(), ...(nick?{nick}:{}),
+  const part=!r;
+  const tricks=(part?G.tricks:r.tricks)||[];
+  return {fmt:'80fen-record-2', id:G.recId, pid:playerId(), ...(nick?{nick}:{}),
     version:(document.getElementById('versionTag')||{}).textContent||'',
     t:new Date().toISOString(), dur:Math.round((Date.now()-G.t0)/1000),
-    human:HUMAN, no:r.no, seed:seedCode(G.start), replay:!!G.replay, redeals:G.redeals,
+    // 残局:stage = 停在哪个阶段(dealing 发牌中 / finalDecl 亮主等待 / lowrebel 造反 / kitty 扣底 / play 出牌),
+    // tricks 只有已经收掉的墩,defPoints 是到那时为止闲家的墩上分
+    ...(part?{partial:true, stage:G.phase, tricksDone:tricks.length}:{}),
+    human:HUMAN, no:part?G.start.round+1:r.no, seed:seedCode(G.start), replay:!!G.replay, redeals:G.redeals,
     dealer:G.start.dealer, firstTaker:G.firstTaker,
-    declSeat:r.declSeat, trump:r.trump, levelsBefore:r.levelsBefore, levelsAfter:r.levelsAfter,
-    defPoints:r.defPoints, defendersWin:r.defendersWin, kittyPts:r.kittyPts, mult:r.mult,
+    declSeat:part?G.declSeat:r.declSeat, trump:part?G.trump:r.trump,
+    levelsBefore:part?G.start.levels.slice():r.levelsBefore,
+    ...(part?{defPoints:G.defPoints}:{levelsAfter:r.levelsAfter, defPoints:r.defPoints,
+      defendersWin:r.defendersWin, kittyPts:r.kittyPts, mult:r.mult}),
     rules:{...S.rules, fullRebel:S.fullRebel, speedRun:!!S.speedRun, gates:S.gatesOn?S.gates.slice():[]},
     engines:G.engines.map(v=>v||'latest'), coach:C.on?C.gapSens:'off',
     undos:G.undos, autoTricks:G.autoTricks,
-    decl:G.declLog.map(d=>({...d})), kitty:css(G.kittyOrig), buryBy:G.buryBy,
-    initialHands:(r.initialHands||[]).map(css), buried:css(r.buried),
-    tricks:(r.tricks||[]).map(t=>({plays:t.plays.map(p=>({seat:p.seat,cards:css(p.cards),
+    decl:G.declLog.map(d=>({...d})), kitty:css(G.kittyOrig), buryBy:G.buryBy??null,
+    ...(part&&!G.initialHands?{}:{initialHands:(part?G.initialHands:r.initialHands||[]).map(css),
+                                   buried:css(part?G.buried:r.buried)}),
+    tricks:tricks.map(t=>({plays:t.plays.map(p=>({seat:p.seat,cards:css(p.cards),
       ...(p.by?{by:p.by}:{}),...(p.hint?{hint:1}:{}),...(p.u?{u:1}:{})})),winner:t.winner,points:t.points}))};
+}
+/* 残局进度:发完牌、开打、每收一墩、悔牌之后各覆盖写一次(本机一格 'cur')。正常打完就清掉;
+ * 没打完就离开了(刷新 / 关页面 / 被系统杀掉 / 重打 / 用种子开局 / 重开整场),
+ * 下一次开局或下次打开页面时把它转成一份残局牌谱(promoteCheckpoint)。
+ * 不在「关页面那一刻」存 —— 手机上那一刻经常不给执行代码的机会。 */
+function saveCheckpoint(){
+  if(!G||G.ended||G.dealt<100) return;      // 发完牌才算一局开始
+  try{ lsSet('cur',makeRecord()); }catch(e){ console.error('残局进度存档失败',e); }
+}
+function dropCheckpoint(){ try{ localStorage.removeItem(LSP+'cur'); }catch(e){} }
+function promoteCheckpoint(){
+  const c=lsGet('cur',null);
+  if(!c) return;
+  dropCheckpoint();
+  if(!lsGet('recs',[]).some(x=>x.id===c.id)) storeRecord(c);
 }
 function storeRecord(rec){
   let all=lsGet('recs',[]);
@@ -8439,6 +8470,7 @@ function trackPointerType(){
 }
 trackPointerType();
 
+promoteCheckpoint();  // 上次打到一半就离开了(刷新 / 关页面):存成残局
 flushUploads();      // 上次没传上去的牌谱,打开页面时补传
 showStartScreen();
 function showStartScreen(){

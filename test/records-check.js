@@ -10,6 +10,8 @@
  *      = 发到的 25 张 + 原底牌)—— 挡掉手改过的、拼凑的局;
  *   ② 出牌:按引擎规则逐手重放,领出要成牌型、甩牌要成立、跟牌要合法,牌要真在那一家手里;
  *   ③ 每墩赢家和分数、闲家总分要和引擎算的一致。
+ * 残局(partial:没打完就离开了)按同样的规矩核对已经发生的部分:开打前离开的只有种子(能重发出手牌),
+ * 打了几墩的核对这几墩,闲家分只核对到那时的墩上分。
  * 然后按「谁做的决定」(by:h 你 / a 托管 / f 没得选)数手数,按玩家、版本、重打与否分组 ——
  * AI 线拿去用之前,先看这张表决定哪些能当「真人数据」。 */
 'use strict';
@@ -35,6 +37,7 @@ for(const f of files){
 const code=c=>c.suit+c.rank;
 const sortKey=a=>a.slice().sort().join(',');
 function verify(r){
+  if(r.partial&&r.initialHands==null) return Array.isArray(r.tricks)&&!r.tricks.length?'':'残局没开打却有出牌';
   if(!Array.isArray(r.initialHands)||r.initialHands.length!==4||!Array.isArray(r.tricks)) return '缺手牌或出牌记录';
   // ① 发牌
   if(r.seed!=null&&r.firstTaker!=null){
@@ -79,6 +82,10 @@ function verify(r){
     if(res.winner%2!==r.declSeat%2) def+=res.points;
     leader=lastWin=res.winner;
   }
+  if(r.partial){
+    if(r.defPoints!=null&&def!==r.defPoints) return `残局闲家墩上分对不上(重算 ${def},记录 ${r.defPoints})`;
+    return '';
+  }
   if(hands.some(h=>h.length)) return '打完还有牌没出';
   if(r.defPoints!=null){
     // 闲家得分 = 墩上分 + 抠底(末墩闲家赢时底分 × 倍数,见 scoreRound)
@@ -92,23 +99,28 @@ const bad=[], good=[];
 for(const r of recs.values()){ let why; try{ why=verify(r); }catch(e){ why='重放出错:'+e.message; } (why?bad:good).push({r,why}); }
 
 const pct=(a,b)=>b?(100*a/b).toFixed(0)+'%':'-';
-console.log(`读入 ${recs.size} 局(${files.length} 个文件${unreadable?`,${unreadable} 行读不懂`:''}):有效 ${good.length},坏局 ${bad.length}`);
+const nPart=good.filter(x=>x.r.partial).length;
+console.log(`读入 ${recs.size} 局(${files.length} 个文件${unreadable?`,${unreadable} 行读不懂`:''}):有效 ${good.length}`+
+  `(完整 ${good.length-nPart}、残局 ${nPart}),坏局 ${bad.length}`);
+if(nPart){
+  const st={}; for(const {r} of good) if(r.partial){ const k=r.stage==='play'?`出牌·${r.tricksDone} 墩`:r.stage; st[k]=(st[k]||0)+1; }
+  console.log('  残局停在:'+Object.entries(st).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`${k} ${v}`).join(',')); }
 if(bad.length&&args.includes('--bad')) for(const {r,why} of bad) console.log(`  ✗ ${String(r.id).slice(0,8)} ${r.nick||String(r.pid||'').slice(0,8)} 第 ${r.no} 局:${why}`);
 else if(bad.length) console.log('  (加 --bad 看原因)');
 
 // 概况:按玩家
 const by={};
 for(const {r} of good){
-  const k=r.pid||'?'; const o=by[k]||(by[k]={nick:r.nick||'',games:0,replay:0,h:0,a:0,f:0,hint:0,u:0,undos:0,ver:new Set(),eng:new Set()});
-  o.games++; if(r.replay) o.replay++; o.undos+=r.undos||0; o.ver.add(r.version); 
+  const k=r.pid||'?'; const o=by[k]||(by[k]={nick:r.nick||'',games:0,part:0,replay:0,h:0,a:0,f:0,hint:0,u:0,undos:0,ver:new Set(),eng:new Set()});
+  o.games++; if(r.partial) o.part++; if(r.replay) o.replay++; o.undos+=r.undos||0; o.ver.add(r.version); 
   (r.engines||[]).forEach((v,s)=>{ if(s!==r.human&&v!=='latest') o.eng.add(v); });
   for(const t of r.tricks) for(const p of t.plays) if(p.seat===r.human){
     const w=p.by||'h'; o[w]=(o[w]||0)+1; if(p.hint) o.hint++; if(p.u) o.u++; }
 }
-console.log('\n玩家           局数  重打  真人手数  托管  没得选  照提示出  悔后重出  版本');
+console.log('\n玩家           局数  残局  重打  真人手数  托管  没得选  照提示出  悔后重出  版本');
 for(const [k,o] of Object.entries(by).sort((a,b)=>b[1].games-a[1].games)){
   const all=o.h+o.a+o.f;
-  console.log(`${(o.nick||k.slice(0,8)).padEnd(14)} ${String(o.games).padStart(4)}  ${String(o.replay).padStart(4)}  `+
+  console.log(`${(o.nick||k.slice(0,8)).padEnd(14)} ${String(o.games).padStart(4)}  ${String(o.part).padStart(4)}  ${String(o.replay).padStart(4)}  `+
     `${String(o.h).padStart(8)}  ${pct(o.a,all).padStart(4)}  ${pct(o.f,all).padStart(6)}  ${pct(o.hint,o.h).padStart(8)}  ${String(o.u).padStart(8)}  `+
     [...o.ver].map(v=>v.replace(/^80分 |\(测试版\)$/g,'')).join(' ')+(o.eng.size?`  旧引擎:${[...o.eng].join(',')}`:''));
 }

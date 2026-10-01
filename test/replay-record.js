@@ -37,6 +37,10 @@ const rec=g===null?recs[0]:/^\d+$/.test(g)&&+g<=recs.length?recs[+g-1]:recs.find
 if(!rec){ console.log(`文件里找不到第 ${g} 局(共 ${recs.length} 局)`); process.exit(1); }
 if(recs.length>1) console.log(`(文件里共 ${recs.length} 局,这是第 ${recs.indexOf(rec)+1} 局${rec.id?' id '+rec.id.slice(0,8):''})`);
 if(!/^80fen-record-[12]$/.test(rec.fmt)) console.log('⚠️ 格式标记不是 80fen-record-1/2,照样试着读');
+if(rec.partial){
+  console.log(`残局:停在 ${rec.stage}${rec.stage==='play'?`,已收 ${rec.tricksDone} 墩`:''}`);
+  if(!rec.initialHands){ console.log('开打之前就离开了,没有出牌可还原(手牌可按 seed + firstTaker 用 dealRound 重发)'); process.exit(0); }
+}
 const NAME=['南','东','北','西'];
 const nm=c=>c.suit==='X'?(c.rank===16?'大王':'小王'):c.suit+({11:'J',12:'Q',13:'K',14:'A'}[c.rank]||c.rank);
 const ns=cs=>cs.map(nm).join(' ');
