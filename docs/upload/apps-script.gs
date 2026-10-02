@@ -18,7 +18,6 @@
 const SHEET_NAME = '牌谱';
 const HEAD = ['收到时间', 'id', '玩家', '昵称', '版本', '打完时间', '用时(秒)', '局号', '人坐', '庄家',
               '主', '闲家得分', '重打', '残局', '托管墩数', '悔牌次数', '真人出牌手数', 'JSON'];
-const COL_JSON = HEAD.length;          // JSON 在最后一列
 const MAX_BODY = 400000;               // 一次请求的上限(8 局 × 约 5KB 绰绰有余)
 const MAX_REC = 45000;                 // 单元格上限 50000 字符
 const MAX_PER_HOUR = 120;              // 每个匿名玩家每小时最多收多少局,防刷
@@ -65,11 +64,17 @@ function doGet(e) {
   const key = PropertiesService.getScriptProperties().getProperty('READ_KEY');
   const p = (e && e.parameter) || {};
   if (!key || p.key !== key) return ContentService.createTextOutput('ok');
-  const sh = sheet_(), last = sh.getLastRow();
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  let sh;
+  try { sh = sheet_(); } finally { lock.releaseLock(); }   // sheet_ 可能要挪旧表,别和上传同时写
+  const last = sh.getLastRow();
   const from = Math.max(2, +p.from || 2);
   if (last < from) return ContentService.createTextOutput('');
-  const vals = sh.getRange(from, COL_JSON, last - from + 1, 1).getValues();
-  return ContentService.createTextOutput(vals.map(v => v[0]).filter(Boolean).join('\n') + '\n');
+  // 按内容找牌谱那一格,不按列号:列的位置变过一次(加了「残局」),不能再让下载跟着列号出错
+  const vals = sh.getRange(from, 1, last - from + 1, sh.getLastColumn()).getValues();
+  const json = vals.map(row => row.find(v => typeof v === 'string' && v.startsWith('{"fmt"')) || '').filter(Boolean);
+  return ContentService.createTextOutput(json.join('\n') + (json.length ? '\n' : ''));
 }
 
 // ---------- 校验:只挡格式明显不对的;合不合规则由 AI 线的 test/records-check.js 逐手重放 ----------
@@ -108,11 +113,28 @@ function sheet_() {
     sh = ss.insertSheet(SHEET_NAME);
     sh.appendRow(HEAD);
     sh.setFrozenRows(1);
-  } else if (sh.getLastRow() <= 1) {
-    // 还没有数据时表头跟着脚本走(改过列之后重新部署,空表自动换成新表头)
-    sh.getRange(1, 1, 1, HEAD.length).setValues([HEAD]);
+  } else if (sh.getRange(1, 1, 1, HEAD.length).getValues()[0].join('|') !== HEAD.join('|')) {
+    migrate_(sh);
   }
   return sh;
+}
+/* 表头和脚本对不上 = 旧版脚本建的表(没有「残局」列,牌谱 JSON 在第 16 列)。
+ * 逐行挪:JSON 还在旧位置的行在「重打」后面补一个空的「残局」格;已经是新排法的行不动。再换上新表头。 */
+function migrate_(sh) {
+  const last = sh.getLastRow();
+  if (last >= 2) {
+    const width = Math.max(sh.getLastColumn(), HEAD.length);
+    const rows = sh.getRange(2, 1, last - 1, width).getValues().map(row => {
+      const j = row.findIndex(v => typeof v === 'string' && v.startsWith('{"fmt"'));
+      if (j === HEAD.length - 2) row = row.slice(0, 13).concat([''], row.slice(13, j + 1));   // 旧排法:第 14 列起右移一格
+      row = row.slice(0, HEAD.length);
+      while (row.length < HEAD.length) row.push('');
+      return row;
+    });
+    sh.getRange(2, 1, rows.length, HEAD.length).setValues(rows);
+    if (width > HEAD.length) sh.getRange(2, HEAD.length + 1, rows.length, width - HEAD.length).clearContent();
+  }
+  sh.getRange(1, 1, 1, HEAD.length).setValues([HEAD]);
 }
 function seen_(sh, id) {
   const last = sh.getLastRow();
