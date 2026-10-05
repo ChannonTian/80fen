@@ -444,6 +444,15 @@ html.hasHover #game #hand .card:hover{border-color:#8fb4c5}
 #game .bid-actions span{color:var(--tx2);font-size:13px}
 
 /* ---------- 底部工具 ---------- */
+/* 原型只有 5 颗按钮且无 wrap;本页 7~8 颗,窄屏必须允许换行,否则横向溢出 */
+#game .bottom-tools{flex-wrap:wrap;row-gap:5px;height:auto;
+  min-height:calc(53px + env(safe-area-inset-bottom));padding-top:4px}
+#game .bottom-tools button{flex:0 1 auto;height:44px;min-height:44px;
+  display:inline-flex;align-items:center;justify-content:center}
+@media (max-width:420px){
+  #game .bottom-tools{gap:6px;padding-left:8px;padding-right:8px}
+  #game .bottom-tools button{font-size:13px;padding:8px 10px}
+}
 #game .bottom-tools{gap:8px}
 #game .bottom-tools button{min-height:44px}
 #game .bottom-tools #btnBury{background:var(--leo-brown);color:#fff;border:0;border-bottom:3px solid #583920;border-radius:14px}
@@ -7923,12 +7932,21 @@ function layoutHand(){
     });
   });
   hand.style.width=W+'px';hand.style.height=H+'px';
-  panRange=Math.max(0,maxRight+10-W);
+  /* 行超出时 x0 为负:给一个基准偏移,让 pan=0 时最左那张完整可见(8px 边距),
+     否则发牌期一开始就有一截牌裁在屏幕外 */
+  var minX=1e9;
+  Array.prototype.forEach.call(hand.children,function(c){
+    var mm=c.style.transform.match(/translateX\\(([-\\d.]+)px\\)/);
+    if(mm)minX=Math.min(minX,+mm[1]);
+  });
+  panBase=minX<8?(8-minX):0;
+  panRange=Math.max(0,maxRight+panBase+10-W);
   setPan(panRange<=0?0:null);
   $('pan').disabled=panRange<=0;
   $('panHint').textContent=panRange<=0?'已全部展开':'左右拨牌';
   $('handCount').textContent=cards.length+' 张';
 }
+var panBase=0;
 function decorateCard(c){
   var r=rankText(c);
   c.classList.toggle('two',r==='10');
@@ -7939,7 +7957,7 @@ function decorateCard(c){
 function setPan(v){
   var pan=$('pan');
   if(v===null)v=+pan.value;
-  hand.style.transform='translateX('+(-(v/100)*panRange)+'px)';
+  hand.style.transform='translateX('+(panBase-(v/100)*panRange)+'px)';
 }
 $('pan').addEventListener('input',function(){setPan(+this.value);});
 
