@@ -398,7 +398,8 @@ button,input,select{font-family:inherit}
 #game .player.winning .played .card,#game .my-play.winning .played .card{
   border-color:var(--win);animation:winBreathe 1.8s ease-in-out infinite}
 #game .player.collect .player-label,#game .my-play.collect .player-label{
-  background:var(--ol-bg);outline:2px solid var(--win)}
+  background:var(--win);color:#fff;outline:2px solid var(--win);
+  box-shadow:0 0 0 4px rgba(76,175,80,.20)}
 #game .winner-label{position:absolute;left:50%;transform:translateX(-50%);bottom:-4px;
   background:#f0f9e7;border:1.5px solid var(--win);color:#2f5a3a;border-radius:10px;
   font-size:12px;font-weight:750;padding:1px 9px;white-space:nowrap;z-index:5}
@@ -419,7 +420,7 @@ button,input,select{font-family:inherit}
 #game .arena.drag-invalid .drop-cue{display:flex;border-color:var(--rd);background:#f9e3dc66}
 
 /* ============ 3. 操作行 + 手牌 ============ */
-#game .action-bar{flex:none;display:flex;align-items:center;gap:8px;padding:4px 10px;min-height:46px}
+#game .action-bar{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:8px;row-gap:5px;padding:4px 10px;min-height:46px}
 #game .decl-stack{flex:1 1 auto;min-width:0;display:flex;flex-wrap:wrap;justify-content:flex-end;
   align-items:center;gap:6px}
 #game .decl-stack button{font-size:13px;padding:7px 11px;min-width:0}
@@ -431,7 +432,7 @@ button,input,select{font-family:inherit}
 #game #btnPlay:disabled{background:var(--dis);color:var(--dis-tx);border-bottom-color:#cdd2c3}
 #game button.minor{background:#fffdf8;color:var(--leo-brown);border:1.5px solid var(--line);
   border-bottom:3px solid #c9b99f;border-radius:12px;font-weight:700;cursor:pointer}
-#game .main-actions #btnHint .leo-avatar{width:1.15em;height:1.15em}
+#game .main-actions #btnHint .leo-avatar{width:1.15em;height:1.15em;margin-right:.32em;flex:none}
 button{background:var(--leo-brown);color:#fff;border:0;border-bottom:3px solid #583920;border-radius:12px;
   font-weight:700;cursor:pointer}
 button:disabled{opacity:.4;cursor:default}
@@ -7957,8 +7958,11 @@ function decorateCard(c){
   c.classList.toggle('two',r==='10');
   var pm=c.querySelector('.point-mark');
   if(r==='5'||r==='10'||r==='K'){
-    if(!pm){pm=document.createElement('span');pm.className='point-mark';c.appendChild(pm);}
-    pm.textContent=(r==='5'?'5分':'10分');
+    var txt=(r==='5'?'5分':'10分');
+    if(!pm){pm=document.createElement('span');pm.className='point-mark';pm.textContent=txt;c.appendChild(pm);}
+    /* 值相同就一个字都不写:textContent 赋值必换文本节点,
+       会在 #players 观察器(subtree)里自激成无限微任务循环,把渲染线程饿死 */
+    else if(pm.textContent!==txt)pm.textContent=txt;
   }else if(pm)pm.remove();
 }
 /* 可见即同步排布;后台走队列;1 秒自愈(张数/首牌/布局类任一变化) */
