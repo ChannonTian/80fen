@@ -3093,6 +3093,7 @@ sayFeedback=function(ok,text){sourceFeedback(ok,relativeCopy(text));};
    包装式接法会漏 —— 任何路径改了手牌,这里都能跟上(review 反馈的必修项 1) */
 new MutationObserver(function(){fanStudyHand();}).observe($('hand'),{childList:true});
 
+setCat('idle');drawMap();show('map');
 
 /* 给测试用的出口。整段代码在 IIFE 里,页面上看不见 —— 没有这个出口,
    走查脚本只能点界面,没法把每道题的标答拿去问引擎「这手合法吗、赢不赢」。

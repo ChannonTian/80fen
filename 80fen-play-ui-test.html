@@ -7961,17 +7961,29 @@ function setPan(v){
 }
 $('pan').addEventListener('input',function(){setPan(+this.value);});
 
-/* 手牌重渲染(产品 render() 重建 innerHTML)→ 重排;
-   队列用 rAF+定时器双通道:后台标签 rAF 会被冻结,只剩定时器兜底,
-   否则切回来会看到一叠未排布的牌;一帧只排一次,避免回流风暴 */
+/* 手牌重渲染(产品 render() 重建 innerHTML)→ 重排。
+   可见状态下同步排布(25~33 个节点,代价微小),不留"牌已重建、排布还在队列里"
+   的空窗 —— 空窗里新牌没有 transform 会叠在左上角;隐藏/后台才走 rAF+定时器 */
 var layoutQueued=false;
 function queueLayout(){
+  if(document.visibilityState==='visible'){layoutHand();return;}
   if(layoutQueued)return;layoutQueued=true;
   var done=false,run=function(){if(done)return;done=true;layoutQueued=false;layoutHand();};
   requestAnimationFrame(run);
   setTimeout(run,40);
 }
 new MutationObserver(queueLayout).observe(hand,{childList:true});
+/* 自愈巡检:任何绘制路径被跳过(视口抖动、节流、异常),最多 1 秒内补排 */
+var lastLaidN=-1,lastLaidCls='';
+setInterval(function(){
+  if(document.visibilityState!=='visible')return;
+  var cs=hand.children;
+  if(!cs.length){if(lastLaidN!==0){lastLaidN=0;}return;}
+  var first=cs[0],cls=game.className;
+  if(cs.length!==lastLaidN||first.style.transform.length<10||cls!==lastLaidCls){
+    lastLaidN=cs.length;lastLaidCls=cls;layoutHand();
+  }
+},1000);
 document.addEventListener('visibilitychange',function(){
   if(document.visibilityState==='visible'){queueLayout();queueStamp();}
 });
