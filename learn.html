@@ -699,9 +699,7 @@ body{font-weight:400}#app{max-width:1080px;height:100dvh;padding:env(safe-area-i
 .capstone-link{display:flex;align-items:center;gap:14px;margin:10px 2px 26px;padding:14px 16px;
   background:#fffdf8;border:1.5px solid var(--line);border-bottom:3px solid #c9b99f;
   border-radius:16px;color:var(--tx);text-decoration:none}
-.capstone-link:not(.locked):active{translate:0 2px}
-.capstone-link.locked{background:var(--dis);border-color:var(--line);color:var(--dis-tx)}
-.capstone-link.locked .capstone-art{background:#f1f2eb;border-color:var(--line);color:var(--dis-tx)}
+.capstone-link:active{translate:0 2px}
 .capstone-art{display:grid;place-items:center;width:44px;height:44px;flex:none;
   background:var(--ol-bg);border:1.5px solid #b6ce85;border-radius:12px;color:var(--ol-tx)}
 .capstone-art svg{width:24px;height:24px}
@@ -2171,12 +2169,6 @@ function syncStudyControls(){
 }
 const studyObserver=new MutationObserver(syncStudyControls);
 ['table','hand'].forEach(id=>studyObserver.observe($(id),{childList:true,subtree:true,attributes:true,attributeFilter:['class']}));
-let fitQueued=false;
-new ResizeObserver(()=>{
-  if(fitQueued||$('app').dataset.screen!=='q')return;
-  fitQueued=true;requestAnimationFrame(()=>{fitQueued=false;fitTable();});
-}).observe($('board'));
-
 const QUI=['top','ask','board','hand','foot'];
 function show(p){
   $('app').dataset.screen=p;
@@ -2208,8 +2200,7 @@ function drawMap(){
     });
     html+=`</div><div class="lesson-preview" aria-live="polite" aria-atomic="true"><div><h3></h3><p></p></div></div></details>`;
   });
-  const allDone=finished===total;
-  html+=`</div><${allDone?'a href="index.html"':'div'} class="capstone-link${allDone?'':' locked'}"><span class="capstone-art" aria-hidden="true">${catSuit()}</span><span class="capstone-copy"><b>打一整场</b><small>${allDone?'从发牌打到结算':'完成所有单元后解锁'}</small></span><span class="capstone-arrow" aria-hidden="true">${allDone?'↗':'🔒'}</span></${allDone?'a':'div'}></div><nav class="study-bottom-nav" aria-label="模式"><a href="index.html"><span aria-hidden="true">♧</span>打牌</a><a href="learn.html" aria-current="page"><span class="nav-cat">${catSuit()}</span>学牌</a></nav>`;
+  html+=`</div><a class="capstone-link" href="index.html"><span class="capstone-art" aria-hidden="true">${catSuit()}</span><span class="capstone-copy"><b>打一整场</b><small>课程练完的最后一关 —— 带着读牌与配合上真牌桌</small></span><span class="capstone-arrow" aria-hidden="true">↗</span></a></div><nav class="study-bottom-nav" aria-label="模式"><a href="index.html"><span aria-hidden="true">♧</span>打牌</a><a href="learn.html" aria-current="page"><span class="nav-cat">${catSuit()}</span>学牌</a></nav>`;
   $('map').innerHTML=html;
   $('continueCourse').onclick=()=>next?start(goUnit,goLesson):location.assign('index.html');
   function preview(b){
@@ -2347,7 +2338,6 @@ function playOutEnd(q,mv,st0){
       trickHTML(t.played,t.lead,t.win,true,{open:hands,decl:q.end.decl});
     if(i===0){ const m=$('table').querySelector('.slot[data-seat="0"]'); if(m) m.classList.add(q._ok?'okslot':'noslot'); }
     $('hand').innerHTML=hands[0].map(c=>cardHTML(c,'dim',true,TR)).join('');
-    requestAnimationFrame(fitTable);
   };
   paint(lineAll[0],0);
   lineAll.slice(1).forEach((t,k)=>setTimeout(()=>{ if(endGen===g) paint(t,k+1); },PACE.review*(k+1)));
@@ -2356,7 +2346,6 @@ function playOutEnd(q,mv,st0){
     const defWon=(last.win%2)!==st.declTeam, K=st.kitty;
     $('bub').innerHTML+=`<span class="res">末墩${defWon?'<b>闲家</b>':'<b>庄家方</b>'}收`+
       (defWon&&K?`,底 ${K} × 2 = ${K*2}`:'')+` —— 闲家共 <b>${mv.F} 分</b>,${ladderText(mv.F)}。</span>`;
-    requestAnimationFrame(fitTable);
   },PACE.review*(lineAll.length-1)+200);
 }
 
@@ -2384,7 +2373,6 @@ function endplayDraw(q,pick){
   if(pick) $('hand').querySelectorAll('.card.pick').forEach(el=>el.onclick=()=>{
     if(answered)return; sel=(sel===el.dataset.id?null:el.dataset.id);
     $('cta').disabled=!sel; $('cta').textContent='出牌'; endplayDraw(q,true);});
-  requestAnimationFrame(fitTable);
 }
 function endplayAdvance(q){
   const g=++endGen;
@@ -2509,7 +2497,6 @@ function sayFeedback(ok,text){
   $('cta').disabled=false;
   $('cta').className='btn'+(ok?'':' red');
   $('cta').dataset.mode=ok?'next':'retry';
-  requestAnimationFrame(()=>requestAnimationFrame(fitTable));   // 气泡变高了,牌桌要跟着让位
 }
 function paintCtx(q){
   let h='';
@@ -2608,7 +2595,6 @@ function render(){
   else if(q.type==='throwjudge'||q.type==='forcedpick'){ drawThrow(q); }
   else if(q.type==='mini') startMini(q);
   if(!$('hand').children.length) $('hand').style.minHeight='0';
-  requestAnimationFrame(()=>requestAnimationFrame(fitTable));   // 等布局落定再量
 }
 
 /* 出牌题:点手牌 → 牌直接打到你的位子上,手牌里那张就不留空位了。
@@ -2921,12 +2907,6 @@ function flyToWinner(win,cb){
   });
   setTimeout(()=>{if(mini&&mini.gen===generation&&$('app').dataset.screen==='q')cb();},PACE.fly+60);
 }
-
-/* 牌桌按剩下的高度缩放:反馈文字一长,气泡变高,三行的出牌区就装不下,
-   底下那一格会被裁掉半张牌。CSS 里算不了(--cardW 是 clamp 表达式,
-   getComputedStyle 只返回原始文本),只能渲染完量一次再定 —— 和正式版
-   fitHandRow 是同一个套路。 */
-function fitTable(){}
 
 /* ---------- 起止 ---------- */
 function start(u,i){

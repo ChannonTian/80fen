@@ -180,7 +180,7 @@ body { font: 400 16px/1.45 var(--font-sans); }
 #app #foot, #app #foot.good, #app #foot.bad {
   background: var(--paper); border-top: 2px solid var(--ink);
 }
-#app #verdict { color: var(--ink); font-weight: 800; }
+#app #verdict { color: var(--ink); font-size: 16px; font-weight: 800; }
 .ll .btn, #app #cta {
   min-height: 48px; background: var(--honey); color: var(--ink);
   border: 2px solid var(--ink); border-radius: var(--radius-pill);
