@@ -1,0 +1,272 @@
+/* Visual adapter for the independent learning test page.
+   The question data, grading and layout states remain in 80fen-learn-ui-test.html.
+   Tokens and components come from the Leo-Leo design-system artifact. */
+:root {
+  /* Break the legacy --ink ↔ --tx alias cycle in the inline theme. */
+  --ink: #24180F;
+  --felt: #2E5B45;
+  --line: #E6DCC8;
+  --cream-deep: #E8DCC6;
+  --ol: var(--felt);
+  --ol-rim: var(--felt-deep);
+  --ol-bg: var(--ok-tint);
+  --ol-tx: var(--felt-deep);
+  --rd: var(--brick-deep);
+  --rd-rim: var(--ink);
+  --rd-bg: var(--err-tint);
+  --rd-tx: var(--brick-deep);
+  --bl: var(--teal);
+  --bl-rim: var(--ink);
+  --bl-bg: var(--teal-tint);
+  --bl-tx: var(--teal);
+  --gd: var(--honey);
+  --gd-tx: var(--ink);
+  --tx: var(--ink);
+  --tx2: var(--ink-soft);
+  --dis: var(--cream-deep);
+  --dis-tx: var(--ink-faint);
+  --page: var(--paper);
+  --table-felt: var(--felt-table);
+  --table-rim: var(--ink);
+  --table-ink: var(--cream);
+  --ui-font: var(--font-sans);
+  --card-font: var(--font-num);
+}
+html, body { background: var(--paper); color: var(--ink); }
+body { font: 400 16px/1.45 var(--font-sans); }
+.ll button, .ll a { -webkit-tap-highlight-color: transparent; }
+.ll :focus-visible { outline: 3px solid var(--teal); outline-offset: 3px; }
+
+/* Home: one warm, clearly actionable deck. Card stacking stays intact. */
+#app #map { background: var(--cream); }
+.study-nav { border-bottom: 2px solid var(--ink); }
+.study-brand { color: var(--ink) !important; font: 900 25px/1 var(--font-num) !important; }
+.study-current { font-weight: 900; }
+.learn-link { border: 2px solid var(--ink); box-shadow: 0 3px 0 var(--ink); color: var(--ink); }
+.course-home { max-width: 960px; }
+.course-intro {
+  padding: 18px; border: 2px solid var(--ink);
+  border-radius: var(--radius-lg); background: var(--paper);
+  box-shadow: var(--shadow-card);
+}
+.coach-progress h1, .course-deck h2, #app #done h2 {
+  font-family: var(--font-heading); font-weight: 900; color: var(--ink);
+}
+.eyebrow, .course-deck summary small { color: var(--ink-soft); }
+.progress-ring circle.ring-track { stroke: var(--cream-deep); stroke-width: 8px; }
+.progress-ring circle.ring-value { stroke: var(--honey); stroke-width: 8px; }
+.progress-ring .leo-avatar { border: 2px solid var(--ink); }
+.course-decks { gap: 20px; }
+.course-deck { border-top: 2px solid var(--ink); padding-top: 12px; }
+.course-deck summary { min-height: 48px; }
+.deck-progress { border: 2px solid var(--ink); background: var(--paper); color: var(--ink); }
+.course-card .course-art {
+  border: 2px solid var(--ink); border-radius: var(--radius-card);
+  box-shadow: 0 4px 0 var(--ink); background: var(--card-face);
+}
+.course-card.back .course-art { background: var(--brick); color: var(--cream); }
+.course-card.locked .course-art { background: var(--lock-face); color: var(--lock-ink); }
+.course-card.current .course-art { background: var(--honey); color: var(--ink); }
+.course-card.previewed:not(.locked) .course-art { box-shadow: 0 4px 0 var(--ink), 0 0 0 3px var(--teal); }
+.course-corner b { font: 900 29px/1 var(--font-num); }
+.course-action {
+  border: 2px solid var(--ink); border-radius: 9px; color: var(--ink);
+  background: var(--paper); box-shadow: 0 3px 0 var(--ink); font-weight: 800;
+}
+.course-card.current .course-action { background: var(--ink); color: var(--honey); }
+.course-card.locked .course-action { color: var(--lock-ink); border-color: var(--lock-ink); box-shadow: none; }
+.lesson-preview { color: var(--ink); }
+.study-bottom-nav {
+  border-top: 2px solid var(--ink); background: var(--paper);
+}
+.study-bottom-nav a[aria-current=page] { background: var(--honey); color: var(--ink); border: 2px solid var(--ink); }
+.capstone-link {
+  background: var(--paper); border: 2px solid var(--ink); border-bottom: 2px solid var(--ink);
+  box-shadow: 0 4px 0 var(--ink); color: var(--ink);
+}
+.capstone-art { background: var(--honey); border: 2px solid var(--ink); color: var(--ink); }
+
+/* Questions retain fixed grid tracks between idle, selected and feedback states. */
+#app[data-screen=q] { background: var(--paper); color: var(--ink); }
+@media (orientation: portrait) {
+  #app[data-screen=q] { --ask-height: 160px; }
+}
+@media (max-height: 700px) and (orientation: portrait) {
+  #app[data-screen=q] { --ask-height: 150px; }
+}
+#app #top { border-bottom: 2px solid var(--ink); }
+#app #bar { height: 8px; background: var(--cream-deep); border-radius: 999px; }
+#app #barIn { background: var(--honey); border-radius: inherit; }
+#app #task { font-family: var(--font-heading); font-weight: 900; }
+#app #badge { background: var(--honey); color: var(--ink); border: 1.5px solid var(--ink); }
+#app #ctx i {
+  color: var(--ink); background: var(--cream);
+  border: 1px solid var(--ink); border-radius: 7px;
+}
+#app #bub {
+  background: var(--cream); border: 2px solid var(--ink);
+  border-radius: var(--radius-md); box-shadow: 0 3px 0 var(--ink); color: var(--ink);
+  max-height: 112px; overflow-y: auto; overscroll-behavior: contain;
+  scrollbar-width: thin; scrollbar-color: var(--ink-soft) transparent;
+}
+#app #bub.good { background: var(--ok-tint); }
+#app #bub.bad { background: var(--err-tint); }
+#app .coach-identity>span:last-child { color: var(--ink-soft); }
+
+/* A plain green table gives the card decisions a stable focal surface. */
+#app .learning-table, #app .trick.learning-table:not(.solo) {
+  background: var(--felt-table); border: 3px solid var(--ink);
+  border-radius: var(--radius-lg); box-shadow: 0 4px 0 var(--ink);
+}
+#app .slot .who, #app .tcenter, #app .tcenter b,
+#app .table-prompt, #app .table-prompt small,
+#app .recognition-caption, #app .evidence-hand>span,
+#app .attempted-play>span, #app .throw-center { color: var(--cream); }
+#app .slot .who { font-weight: 800; }
+#app .slot .ph { border-color: rgba(251,246,236,.65); }
+#app .slot.selslot { background: rgba(47,111,117,.55); border-color: var(--cream) !important; }
+#app .slot.okslot, #app .slot.winning { background: rgba(237,185,79,.34); border-color: var(--honey) !important; }
+#app .slot.noslot { background: rgba(201,71,47,.38); border-color: var(--cream) !important; }
+#app .seatmap .seatbtn {
+  background: var(--paper); color: var(--ink);
+  border: 2px solid var(--ink); box-shadow: 0 3px 0 var(--ink);
+}
+#app .seatmap .seatbtn.sel { background: var(--teal-tint); border-color: var(--teal); }
+#app .seatmap .seatbtn.ok { background: var(--ok-tint); }
+#app .seatmap .arrowbox { color: var(--cream); }
+#app .evidence-back { background: var(--brick); border-color: var(--ink); }
+
+/* Card hierarchy: a large uniform rank and suit on one exposed edge. */
+#app .card {
+  background: var(--card-face); border: 2px solid var(--ink);
+  border-radius: var(--radius-card); box-shadow: 0 3px 0 var(--ink);
+  color: var(--ink); font-family: var(--font-num);
+}
+#app .card.sS { color: var(--suit-spade); }
+#app .card.sH { color: var(--suit-heart); }
+#app .card.sD { color: var(--suit-diamond); }
+#app .card.sC { color: var(--suit-club); }
+#app .card .tl { font-family: var(--font-num); font-weight: 900; }
+#app .card .bl { font-family: var(--font-suit); }
+#app .card.js .tl, #app .card.jb .tl,
+#app .card.js .bl, #app .card.jb .bl { font-family: "Noto Sans SC", var(--font-sans); font-weight: 900; }
+#app .card.sel, #app #hand .card.sel {
+  background: var(--teal-tint); border-color: var(--teal);
+  box-shadow: 0 3px 0 var(--ink), 0 0 0 2px var(--teal);
+}
+#app .card.ok { background: var(--ok-tint); border-color: var(--felt-table); }
+#app .card.no { background: var(--err-tint); border-color: var(--brick-deep); }
+#app .card.dim { background: var(--lock-face); color: var(--lock-ink); border-color: var(--lock-ink); }
+#app .picked-cards .card.sel { background: var(--card-face); border-color: var(--teal); }
+#app .opt {
+  min-height: 48px; background: var(--paper); color: var(--ink);
+  border: 2px solid var(--ink); border-radius: var(--radius-md);
+  box-shadow: 0 3px 0 var(--ink); font-weight: 800;
+}
+#app .opt.sel { background: var(--teal-tint); border-color: var(--teal); }
+#app .opt.ok { background: var(--ok-tint); border-color: var(--felt-table); }
+#app .opt.no { background: var(--err-tint); border-color: var(--brick-deep); }
+#app[data-surface=focused] #table {
+  color: var(--ink); justify-content: flex-start;
+  padding-top: clamp(20px, 6dvh, 52px);
+}
+#app[data-surface=focused] .number-table,
+#app[data-surface=focused] .kitty-display { background: var(--cream); color: var(--ink); }
+#app .kitty-display { border: 2px solid var(--ink); box-shadow: 0 4px 0 var(--ink); }
+#app .kitty-fixed { background: var(--felt); border: 2px solid var(--ink); color: var(--cream); }
+#app .kitty-empty { background: var(--paper); border-color: var(--ink); color: var(--ink-soft); }
+
+/* Footer action never moves or shrinks on feedback. */
+#app #foot, #app #foot.good, #app #foot.bad {
+  background: var(--paper); border-top: 2px solid var(--ink);
+}
+#app #verdict { color: var(--ink); font-weight: 800; }
+.ll .btn, #app #cta {
+  min-height: 48px; background: var(--honey); color: var(--ink);
+  border: 2px solid var(--ink); border-radius: var(--radius-pill);
+  box-shadow: 0 4px 0 var(--ink); font-family: var(--font-sans); font-weight: 800;
+}
+.ll .btn:disabled, #app #cta:disabled { background: var(--cream-deep); color: var(--ink-faint); }
+#app #cta.red { background: var(--brick); color: var(--paper); }
+#app .rnd { border: 2px solid var(--ink); background: var(--cream); color: var(--ink); box-shadow: 0 3px 0 var(--ink); }
+#app #done { background: var(--cream); }
+.stat { border: 2px solid var(--ink); background: var(--paper); box-shadow: 0 3px 0 var(--ink); }
+.stat b { color: var(--ink); font-family: var(--font-num); }
+
+@media (max-width: 700px) {
+  .course-intro { padding: 12px; }
+  .course-home { padding-left: 14px; padding-right: 14px; }
+  .course-decks { gap: 16px; }
+  #app .learning-table, #app .trick.learning-table:not(.solo) { border-width: 2px; box-shadow: 0 3px 0 var(--ink); }
+}
+@media (max-height: 700px) and (orientation: portrait) {
+  #app #bub { max-height: 102px; }
+  #app[data-surface=focused] #table { padding-top: 4px; gap: 8px; }
+  #app[data-type=discard] #table { padding: 0!important; gap: 0; }
+}
+@media (max-width: 350px) and (orientation: portrait) {
+  #app .slot .mini { gap: 0; }
+  #app .slot .mini .card {
+    --cardW: 40px; --cardH: 57px; width: 40px; height: 57px;
+    margin-left: -22px;
+  }
+  #app .slot .mini .card:first-child { margin-left: 0; }
+}
+@media (max-height: 580px) and (orientation: landscape) {
+  #app #bub { box-shadow: none; }
+  #app .learning-table, #app .trick.learning-table:not(.solo) { box-shadow: none; }
+}
+/* 568×320 and similar phones are landscape, even though they miss the
+   former 640px compact breakpoint. Give the table a real grid track. */
+@media (min-width: 480px) and (max-width: 639px) and (max-height: 500px) and (orientation: landscape) {
+  #app[data-screen=q] {
+    max-width: none; display: grid; padding: 0 8px; gap: 0 8px;
+    --cardW: 38px; --cardH: 54px; --hand-height: 66px; --foot-height: 56px;
+    grid-template-columns: 166px minmax(0,1fr);
+    grid-template-rows: 36px minmax(0,1fr) var(--hand-height) var(--foot-height);
+  }
+  #app[data-has-hand=false] { --hand-height: 12px; }
+  #app[data-type=discard] { --hand-height: 76px; }
+  #app #top { grid-column: 1/-1; grid-row: 1; padding: 0 4px; }
+  #app #ask { grid-column: 1; grid-row: 2/4; padding: 6px 0; overflow: auto; }
+  #app #head { flex-wrap: wrap; gap: 3px; }
+  #app #task { font-size: 15px; }
+  #app #coach { flex-direction: column; gap: 5px; }
+  #app .coach-identity { flex-direction: row; }
+  #app #face { width: 40px; height: 40px; }
+  #app #bub { width: 100%; max-height: none; padding: 6px; font-size: 12px; line-height: 1.35; }
+  #app #board { grid-column: 2; grid-row: 2; min-height: 0; padding: 4px 0; }
+  #app #table { min-height: 0; }
+  #app .trick.learning-table:not(.solo) { height: 100%; }
+  #app .trick.learning-table>.slot { padding: 2px!important; min-height: 28px; }
+  #app .slot .who { height: 15px; line-height: 15px; font-size: 10px; }
+  #app .slot .cards.ov .card { margin-left: -24px; }
+  #app .slot .mini { gap: 0; }
+  #app .slot .mini .card {
+    --cardW: 38px; --cardH: 54px; width: 38px; height: 54px;
+    margin-left: -24px;
+  }
+  #app .slot .mini .card:first-child { margin-left: 0; }
+  #app .tcenter b { font-size: 11px; }
+  #app #hand { grid-column: 2; grid-row: 3; }
+  #app #hand .card { --cardW: 46px; --cardH: 66px; top: 0; }
+  #app #foot {
+    grid-column: 1/-1; grid-row: 4; height: var(--foot-height);
+    min-height: var(--foot-height); padding: 3px 8px;
+  }
+  #app #verdict { height: 0; min-height: 0; overflow: hidden; }
+  #app #btnRow, #app #cta, #app #hintBtn { min-height: 44px; height: 44px; }
+  #app[data-surface=focused] #table {
+    padding: 4px 10px!important; gap: 8px!important;
+  }
+  #app[data-surface=focused] .chips { gap: 5px; }
+  #app[data-surface=focused] .opt { min-height: 44px; padding: 5px 7px; font-size: 14px; }
+  #app[data-surface=focused] .ladderHead { font-size: 16px; line-height: 1.25; }
+  #app[data-surface=focused] .ladderHead b { font-size: 21px; }
+  #app .kitty-display { padding: 4px; }
+  #app .kitty-heading { margin-bottom: 2px; }
+  #app .eight-kitty { grid-template-columns: repeat(8,34px); gap: 4px; }
+  #app .eight-kitty>.card, #app .kitty-fixed, #app .kitty-empty {
+    --cardW: 34px; --cardH: 48px; width: 34px; height: 48px;
+  }
+}
