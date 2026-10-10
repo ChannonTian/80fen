@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <title>六六八十分 · 整手牌组件试验</title>
+  <link rel="stylesheet" href="dist/fonts.css">
+  <link rel="stylesheet" href="dist/liuliu-tokens.css">
+  <link rel="stylesheet" href="components/bundle.css?v=2">
+  <style>
+    * { box-sizing: border-box; }
+    html,body { margin: 0; min-height: 100%; background: var(--paper); color: var(--ink); }
+    body { font: 400 16px/1.4 var(--font-sans); }
+    main.ll { max-width: 680px; min-height: 100dvh; margin: auto; display: flex; flex-direction: column; }
+    header { padding: 18px 18px 12px; border-bottom: 2px solid var(--ink); }
+    h1 { margin: 0 0 4px; font: 900 22px/1.2 var(--font-heading); }
+    p { margin: 0; color: var(--ink-soft); }
+    .controls { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+    .controls button { min-width: 64px; min-height: 44px; padding: 0 12px; border: 2px solid var(--ink); border-radius: 10px; background: var(--cream); color: var(--ink); font: 800 14px var(--font-sans); }
+    .controls button[aria-pressed=true] { background: var(--honey); }
+    .table { flex: 1; min-height: 70px; margin: 12px; border: 3px solid var(--ink); border-radius: var(--radius-lg); background: var(--felt-table); display: grid; place-items: center; color: var(--cream); text-align: center; }
+    .table.has-played { color: var(--honey); }
+    #hand { width: 100%; border-top: 2px solid var(--ink); }
+    .ll-hand-wheel { border-top: 1px solid var(--line); }
+    footer { flex: none; min-height: 56px; padding: 8px 18px calc(8px + env(safe-area-inset-bottom)); display: flex; gap: 10px; align-items: center; border-top: 2px solid var(--ink); }
+    #status { flex: 1; font-size: 14px; }
+    #clear { min-width: 78px; min-height: 44px; border: 2px solid var(--ink); border-radius: 10px; background: var(--cream); color: var(--ink); font: 800 14px var(--font-sans); }
+    @media(max-height:580px) { header { padding: 6px 12px; } h1 { font-size: 17px; } header p { display:none; } .controls { margin-top: 4px; } .table { margin: 4px 12px; min-height: 30px; } }
+    @media(max-height:360px) and (orientation:landscape) {
+      header { min-height: 46px; padding: 2px 8px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      h1 { font-size: 15px; margin: 0; }
+      .controls { margin: 0; }
+      .controls button { min-height: 38px; }
+      .table { min-height: 30px; margin: 2px 8px; }
+      #hand { height: 140px; }
+      .ll-hand-wheel { height: 44px; }
+      footer { min-height: 50px; padding: 3px 8px; }
+    }
+  </style>
+</head>
+<body>
+<main class="ll">
+  <header>
+    <h1>整手牌交互试验</h1>
+    <p>点牌选中；向上拖动牌打出；横向划动或用拨牌条找牌。</p>
+    <div class="controls"><button id="count25" aria-pressed="false">25 张</button><button id="count33" aria-pressed="true">33 张</button></div>
+  </header>
+  <div class="table" id="table" aria-live="polite">把牌向上拖到这里</div>
+  <div id="hand" class="ll-hand-area"><div class="ll-hand-viewport"></div></div>
+  <label class="ll-hand-wheel"><span>拨牌</span><input type="range" aria-label="左右拨牌" value="0"><span>看全手</span></label>
+  <footer><span id="status" aria-live="polite">尚未选牌</span><button id="clear">取消选择</button></footer>
+</main>
+<script src="components/bundle.js?v=2"></script>
+<script>
+  const ranks=['2','3','4','5','6','7','8','9','10','J','Q','K','A'];
+  const suits=['S','H','C','D'];
+  const full=suits.flatMap((suit,si)=>Array.from({length:si===3?9:8},(_,i)=>({id:suit+i,suit,rank:ranks[i],group:suit})));
+  let controller;
+  function mount(n) {
+    document.querySelector('#hand .ll-hand-viewport').replaceChildren();
+    const area=document.querySelector('#hand');
+    const clean=area.cloneNode(true);
+    area.replaceWith(clean);
+    const wheel=document.querySelector('.ll-hand-wheel input');
+    const freshWheel=wheel.cloneNode(true);
+    wheel.replaceWith(freshWheel);
+    controller=Liuliu.renderHand(clean,full.slice(0,n),{
+      wheel:freshWheel,
+      onChange(ids){document.querySelector('#status').textContent=ids.length?'已选 '+ids.length+' 张':'尚未选牌';},
+      onPlay(ids){const table=document.querySelector('#table');table.classList.add('has-played');table.textContent='打出 '+ids.length+' 张：'+ids.join('、');controller.clear();document.querySelector('#status').textContent='尚未选牌';}
+    });
+    document.querySelector('#count25').setAttribute('aria-pressed',String(n===25));
+    document.querySelector('#count33').setAttribute('aria-pressed',String(n===33));
+  }
+  document.querySelector('#count25').onclick=()=>mount(25);
+  document.querySelector('#count33').onclick=()=>mount(33);
+  document.querySelector('#clear').onclick=()=>{controller.clear();document.querySelector('#status').textContent='尚未选牌';};
+  mount(33);
+</script>
+</body>
+</html>
