@@ -1,12 +1,12 @@
-# 六六设计系统在教学测试页的接入
+# 六六设计系统在学牌页面的接入
 
 来源：用户提供的 [六六八十分设计系统](https://claude.ai/artifact/KFHczkHuxpcFbeXruogzBX)，2026-10-10 版本。此目录保存了用于测试页的 tokens、字体、CSS、无框架组件脚本和接口声明；原设计系统的完整说明见 [README.md](README.md)。组件示例与十一张表情 PNG 尚未纳入本轮教学页视觉试验；教学页暂沿用仓库已有的六六头像。
 
-测试入口：[80fen-learn-ui-test.html](../80fen-learn-ui-test.html)。整手牌组件可单独在 [hand-sample.html](hand-sample.html) 体验。正式 [learn.html](../learn.html) 与打牌页没有改动。
+正式入口：[learn.html](../learn.html)；原型对照：[80fen-learn-ui-test.html](../80fen-learn-ui-test.html)。整手牌组件可单独在 [hand-sample.html](hand-sample.html) 体验。打牌页没有改动。
 
 ## 加载关系
 
-测试页按 dist/fonts.css → dist/liuliu-tokens.css → components/bundle.css → 原教学页内联样式 → learn-adapter.css 加载。components/bundle.js 以 defer 加载，全局导出 window.Liuliu。learn-adapter.css 把旧题型的类名映射到新颜色、字体、描边和状态语义，不改题库、判题或存档逻辑。
+正式页与测试页都按 dist/fonts.css → dist/liuliu-tokens.css → components/bundle.css → 原教学页内联样式 → learn-adapter.css 加载。components/bundle.js 以 defer 加载，全局导出 window.Liuliu。learn-adapter.css 把旧题型的类名映射到新颜色、字体、描边和状态语义，不改题库与判题。正式页沿用原有 `80fenlearn-` 存档命名空间，已有进度继续生效；测试页保留独立存档。
 
 字体是 OFL 自托管文件：按 dist/fonts.css 引用的 107 个 WOFF2 分片复制，Fraunces、Figtree、Noto Sans SC 来自 @fontsource/*@5.3.0；授权文本在 fonts/LICENSE-*.txt。中文正文仍优先使用系统 PingFang SC。
 
@@ -23,9 +23,9 @@
 
 短横屏还有一个几何约束：原组件给 320px 高的屏幕保留 210px 手牌区，留给牌桌、顶部与操作行的高度不足。独立手牌样板在 568×320 时把手牌容器压到 140px，仍完整露出 66px 宽单层牌与拨牌条；正式打牌页也应由屏幕骨架决定手牌容器高度，而不是把 210px 当作不可变常量。
 
-## 接入正式页面前
+## 后续改进
 
-1. 将设计系统里的十一张表情 PNG、猫头标记及牌背 SVG 导出到仓库，再替换测试页沿用的旧头像。
+1. 将设计系统里的十一张表情 PNG、猫头标记及牌背 SVG 导出到仓库，再替换当前沿用的旧头像。
 2. 逐题审查特别长的反馈文案。当前气泡可滚读，但教学正文最好压缩成“结论一句＋理由一句”；长解释再提供展开入口。
 3. 打牌页若复用 Liuliu.renderHand，还要用真实规则状态测试拖拽出牌是否合法、成组牌能否一起拖、以及拖动中途取消。
 
