@@ -2,7 +2,11 @@
 
 来源：用户提供的 [六六八十分设计系统](https://claude.ai/artifact/KFHczkHuxpcFbeXruogzBX)，2026-10-10 版本。此目录保存了用于测试页的 tokens、字体、CSS、无框架组件脚本和接口声明；原设计系统的完整说明见 [README.md](README.md)。组件示例与十一张表情 PNG 尚未纳入本轮教学页视觉试验；教学页暂沿用仓库已有的六六头像。
 
-正式入口：[learn.html](../learn.html)；原型对照：[80fen-learn-ui-test.html](../80fen-learn-ui-test.html)。整手牌组件可单独在 [hand-sample.html](hand-sample.html) 体验。打牌页没有改动。
+正式入口：[learn.html](../learn.html)；原型对照：[80fen-learn-ui-test.html](../80fen-learn-ui-test.html)。整手牌组件可单独在 [hand-sample.html](hand-sample.html) 体验。
+
+## 打牌页接入（2026-10-11 起）
+
+打牌测试页 [80fen-play-ui-test.html](../80fen-play-ui-test.html) 采用同一方法：页面只留产品/引擎内联脚本（试验 04 真源，与 index.html 已分叉，不可用 index.html 重生成）、`ui/dist/*.css` 五件外链和本目录的 [play-adapter.css](play-adapter.css)（视觉映射层）与 [play-adapter.js](play-adapter.js)（行为层：相对座位/收墩呼吸/记录抽屉/手牌求解/手势）。结构骨架在 `uibuild/play-v3-body.html`，由 `uibuild/build-play.py` 注回并自检（外链齐备、JS 语法、id 覆盖）；改适配层直接改这两个文件，别改构建产物。
 
 ## 加载关系
 
