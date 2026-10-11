@@ -8380,7 +8380,9 @@ function render(){
     if(slot.__last!==html){ slot.innerHTML=html; slot.__last=html; }
   }
   const showHand=(G.phase==='dealing'||G.phase==='finalDecl')?visHand(HUMAN):G.hands[HUMAN];
-  const hand=sortForDisplay(showHand,curTrumpForSort());
+  const handTrump=(G.phase==='dealing'||G.phase==='finalDecl')
+    ?{suit:G.decl&&G.decl.suit,rank:rankOf(HUMAN)}:curTrumpForSort();
+  const hand=sortForDisplay(showHand,handTrump);
   document.getElementById('hand').innerHTML=
     hand.map(c=>cardHTML(c,G.selected.has(c.id)?'sel':(G.hintCards&&G.hintCards.has(c.id)?'hintc':''))).join('');
   document.querySelectorAll('#hand .card').forEach(el=>{
