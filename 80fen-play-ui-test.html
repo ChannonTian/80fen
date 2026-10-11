@@ -9048,13 +9048,10 @@ new MutationObserver(function(){
 
 /* ============ 中心通知 ============ */
 var ctEl=$('centerToast'),ctTimer=null,ctPersist='';
-window.__CTLOG=(window.__CTLOG||[]);
 function centerShow(text,kind){
-  window.__CTLOG.push(['show',String(text).slice(0,12),kind||'info']);
-  if(window.__CTLOG.length>12)window.__CTLOG.shift();
   ctEl.textContent=text;ctEl.className='center-toast show '+(kind||'info');ctEl.setAttribute('aria-hidden','false');
 }
-function centerHide(){window.__CTLOG.push(['hide','']);ctEl.className='center-toast';ctEl.textContent='';ctEl.setAttribute('aria-hidden','true');}
+function centerHide(){ctEl.className='center-toast';ctEl.textContent='';ctEl.setAttribute('aria-hidden','true');}
 function centerFlash(text,kind,ms){
   clearTimeout(ctTimer);
   centerShow(text,kind);
@@ -9062,8 +9059,6 @@ function centerFlash(text,kind,ms){
 }
 function centerPersist(text,kind){
   var want=text?text+'\u0000'+(kind||'info'):'';
-  window.__CTLOG=(window.__CTLOG||[]);window.__CTLOG.push(['persist',String(text).slice(0,12)]);
-  if(window.__CTLOG.length>12)window.__CTLOG.shift();
   if(want===ctPersist)return;
   ctPersist=want;
   if(text&&!ctTimer)centerShow(text,kind||'info');
