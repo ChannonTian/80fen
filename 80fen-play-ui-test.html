@@ -762,6 +762,44 @@ body{background:var(--paper);color:var(--ink)}
   #game .trick-summary small{display:none}
   #game .center-toast.info{display:none}
 }
+/* 原引擎保留完整候选按钮作合法性来源，界面只露出一个亮主入口。 */
+#game .action-bar.dealing .decl-stack{display:none}
+#game #bidAction{background:var(--honey);border:2px solid var(--ink);color:var(--ink);box-shadow:var(--shadow-card)}
+/* 记录是独立阅读层；旧版 body 网格不能让一整屏的牌局挤走抽屉。 */
+body.drawer-open.wide-view{grid-template-columns:minmax(0,1fr)}
+body.drawer-open::before{content:'';position:fixed;inset:0;background:#241d17a6;z-index:49}
+body.drawer-open:not(.wide-view) #side,body.drawer-open.wide-view #side{
+  position:fixed;left:0;right:0;bottom:0;top:auto;width:100%;height:min(72dvh,600px);
+  display:flex;z-index:50;background:var(--page);border:2px solid var(--ink);
+  border-bottom:0;border-radius:20px 20px 0 0;box-shadow:0 -8px 28px #21180f55}
+#side .records-head{min-height:46px}
+#side .records-head button{width:36px;height:36px;color:var(--ink);background:var(--card-face)}
+#side .records-body{font-size:15px;line-height:1.55}
+@media(orientation:landscape){
+  body.drawer-open:not(.wide-view) #side,body.drawer-open.wide-view #side{
+    left:auto;top:0;right:0;bottom:0;width:min(360px,max(52vw,280px));height:100dvh;
+    border:0;border-left:2px solid var(--ink);border-radius:20px 0 0 20px}}
+
+/* 每家牌独占一块区域。侧家牌靠桌边，中央给本墩信息留白。 */
+#game .player.west,#game .player.east{top:40%;transform:translateY(-22%);flex-direction:column;gap:3px}
+#game .player.west{left:8px;align-items:flex-start}
+#game .player.east{right:8px;align-items:flex-end}
+#game .played .card{left:calc(var(--i,0)*var(--pile-step,var(--step,20px)))}
+#game .player.collect .winner-label,#game .my-play.collect .winner-label{bottom:12px;z-index:6}
+#sheet .sheet-header button{color:var(--ink);background:var(--card-face);border:2px solid var(--ink);border-radius:10px}
+@media(max-width:430px) and (max-height:620px) and (orientation:portrait){
+  #game .player.north{top:2px}
+  #game .player.west,#game .player.east{top:40%;transform:translateY(-12%)}
+  #game .my-play{bottom:2px}
+  #game .trick-summary{top:calc(50% + 8px);padding:3px 6px 4px;min-width:100px;max-width:112px;font-size:11px;line-height:1}
+  #game .trick-summary strong{font-size:20px}
+  #game .trick-summary small{font-size:10px}
+}
+@media(max-height:400px) and (orientation:landscape){
+  #game.wide.compact .player.north{left:34%}
+  #game.wide.compact .player.west{top:2px;left:8px;transform:none;flex-direction:column;align-items:flex-start}
+  #game.wide.compact .player.east{top:2px;right:8px;transform:none;flex-direction:column;align-items:flex-end}
+}
 </style>
 </head>
 <body>
@@ -819,6 +857,7 @@ body{background:var(--paper);color:var(--ink)}
   <section class="action-bar" id="controls" aria-label="操作">
     <div class="decl-stack" id="dealZone"></div>
     <div class="main-actions">
+      <button id="bidAction" hidden>亮 / 反主</button>
       <button id="btnPlay">出牌</button>
       <button id="btnClear" class="minor">清选</button>
       <button id="btnAuto" class="minor" onclick="window.__setAuto(!(window.__G&&window.__G().auto))">托管</button>
@@ -871,12 +910,12 @@ body{background:var(--paper);color:var(--ink)}
 <div id="toast"></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="appStub" inert aria-hidden="true"><div id="app"></div></div>
+<div id="appStub" hidden inert aria-hidden="true"><div id="app"></div></div>
 <div id="versionTag">六六八十分 · UI 试验 04 · 引擎 v0.7.39</div>
 
 
 
-<div id="app" inert aria-hidden="true">
+<div id="app" hidden inert aria-hidden="true">
   <div id="status"></div>
   <div id="main">
     <div id="table">
@@ -7833,6 +7872,7 @@ function scheduleHumanAuto(){
 /* 托管开关。它不在 S 里(不持久化),也只在出牌阶段有意义 ——
  * 扣底、亮主、低分造反这些「一局只做一次」的决定仍然归你。 */
 window.__G=()=>G;      // html 里的 inline onclick 在 IIFE 外面,取不到 G
+window.__rankOf=rankOf; // UI 拖牌亮主需使用当前玩家的级数（无庄盘两队可能不同级）
 window.__setAuto=on=>{
   if(!G) return;
   G.auto=!!on;
@@ -8317,7 +8357,8 @@ function render(){
   /* 座位名跟着语言走。这四个 span 的文字原来只写在静态 HTML 里、从不更新 ——
    * 加英语档之前没人发现,因为三种中文写法恰好一样。 */
   // 测试版:换了 AI 引擎的座位在名字后面挂版本号,一眼看出这家是哪一版在打
-  for(let s=0;s<4;s++) document.getElementById('n'+s).textContent=SEAT_NAME[s]+(engName(s)?' ·'+engName(s):'');
+  for(let s=0;s<4;s++) document.getElementById('n'+s).textContent=
+    ['我','下家','对家','上家'][s]+(s===HUMAN&&G.auto?'（托管）':'');
   for(let s=1;s<4;s++){
     const n=(G.phase==='dealing'||G.phase==='finalDecl')?G.visCount[s]:G.hands[s].length;
     document.getElementById('b'+s).textContent='🂠 '+n+' 张';
@@ -8344,6 +8385,10 @@ function render(){
     hand.map(c=>cardHTML(c,G.selected.has(c.id)?'sel':(G.hintCards&&G.hintCards.has(c.id)?'hintc':''))).join('');
   document.querySelectorAll('#hand .card').forEach(el=>{
     el.onclick=()=>{
+      if(G.phase==='dealing'||G.phase==='finalDecl'){
+        if(window.__toggleBidCard)window.__toggleBidCard(+el.dataset.id);
+        return;
+      }
       if(!(G.phase==='play'||G.phase==='kitty')) return;
       const id=+el.dataset.id;
       G.selected.has(id)?G.selected.delete(id):G.selected.add(id);
@@ -8727,15 +8772,17 @@ function effGroup(cardEl,G){
   if(!m)return '?';
   var tl=cardEl.querySelector('.tl');var rt=tl?tl.textContent.trim():'';
   var rn=({J:11,Q:12,K:13,A:14})[rt]||+rt;
-  if(G&&G.trump){
-    if(G.trump.suit&&SUIT_SYM[m[1]]===G.trump.suit)return 'T';
-    if(rn===G.trump.rank)return 'T';
+  if(G){
+    var trump=G.trump||{suit:G.decl&&G.decl.suit,
+      rank:window.__rankOf?window.__rankOf(0):G.trumpRank};
+    if(trump.suit&&m[1]===trump.suit)return 'T';
+    if(rn===trump.rank)return 'T';
   }
   return m[1];
 }
 
 /* 手牌沿用设计系统的整手几何；保留本页的选牌和出牌规则事件。 */
-var handPlan=null,handProgress=0;
+var handPlan=null,handProgress=0,selectedBidIds=new Set();
 function positionHand(){
   if(!handPlan)return;
   var W=fanVp.clientWidth;
@@ -8764,8 +8811,11 @@ function positionHand(){
 function layoutHand(){
   var cards=Array.prototype.slice.call(hand.children);
   var W=fanVp.clientWidth,H=fanVp.clientHeight;
-  if(!cards.length){handPlan=null;$('handWheel').classList.add('is-off');return;}
+  if(!cards.length){handPlan=null;selectedBidIds.clear();$('handWheel').classList.add('is-off');syncBidAction();return;}
   var G=g();
+  var bidding=G&&(G.phase==='dealing'||G.phase==='finalDecl');
+  if(!bidding)selectedBidIds.clear();
+  cards.forEach(function(c){c.classList.toggle('sel',!!bidding&&selectedBidIds.has(+c.dataset.id));});
   var wide=game.classList.contains('wide');
   handPlan=window.Liuliu.handPlan(cards,{width:W,height:H,viewportHeight:window.innerHeight,
     wide:wide,groupKey:function(c){return effGroup(c,G);}});
@@ -8775,10 +8825,21 @@ function layoutHand(){
   slider.value=Math.round(handProgress*1000);
   positionHand();
   hand.style.width=W+'px';hand.style.height=H+'px';
-  var tableW=wide&&window.innerHeight<=360?43:Math.min(wide?72:60,handPlan.cardWidth);
+  var tableW=wide&&window.innerHeight<=360?43:
+    (!wide&&window.innerHeight<=620?44:Math.min(wide?72:58,handPlan.cardWidth));
   game.style.setProperty('--cw',tableW+'px');
   game.style.setProperty('--step',clamp(tableW*0.32,16,25).toFixed(1)+'px');
+  stampPiles();
+  syncBidAction();
 }
+window.__toggleBidCard=function(id){
+  var G=g();if(!G||!(G.phase==='dealing'||G.phase==='finalDecl'))return;
+  if(!$('dealZone').querySelector('button[data-a]'))return;
+  if(selectedBidIds.has(id))selectedBidIds.delete(id);
+  else {if(selectedBidIds.size>=2)selectedBidIds.clear();selectedBidIds.add(id);}
+  Array.prototype.forEach.call(hand.children,function(c){c.classList.toggle('sel',selectedBidIds.has(+c.dataset.id));});
+  positionHand();syncBidAction();
+};
 $('handPan').addEventListener('input',function(){handProgress=this.value/1000;positionHand();});
 function decorateCard(c){
   var r=(c.querySelector('.tl')||{}).textContent||'';
@@ -8817,9 +8878,17 @@ document.addEventListener('visibilitychange',function(){
 });
 /* 桌面出牌堆:--i 级联 + 宽度 */
 function stampPiles(){
-  Array.prototype.forEach.call(document.querySelectorAll('.played'),function(p){
+  Array.prototype.forEach.call(document.querySelectorAll('#game .played'),function(p){
     var n=p.children.length;
-    p.style.width=n?('calc(var(--cw,64px) + '+(n-1)+' * var(--step,20px))'):'0px';
+    var cw=parseFloat(game.style.getPropertyValue('--cw'))||58;
+    var step=parseFloat(game.style.getPropertyValue('--step'))||18;
+    if(n>1&&(p.id==='p1'||p.id==='p3')&&!game.classList.contains('wide')){
+      var center=$('trickSummary').getBoundingClientRect().width||112;
+      var maxSide=(arena.clientWidth-center)/2-10;
+      step=Math.max(6,Math.min(step,(maxSide-cw)/(n-1)));
+    }
+    p.style.setProperty('--pile-step',step+'px');
+    p.style.width=n?(cw+(n-1)*step)+'px':'0px';
     Array.prototype.forEach.call(p.children,function(c,i){
       c.style.setProperty('--i',i);decorateCard(c);
     });
@@ -8853,15 +8922,17 @@ var SEAT_EL=['myPlay','playerE','playerN','playerW'];   /* seat0..3 */
 var lastTrickCount=-1,lastEndedRound=-1,lastHandRound=null;
 var roundHistory=[];   /* [{no, initialHands, tricks}] 已完成局快照 */
 function seatHost(s){return $(SEAT_EL[s]);}
-function clearStates(cls){
-  ['winning','collect'].forEach(function(c){
-    Array.prototype.forEach.call(document.querySelectorAll('.'+c),function(el){el.classList.remove(c);});
+function setTrickState(winning,collect,label){
+  SEAT_EL.forEach(function(id,s){
+    var host=$(id),isCollect=s===collect;
+    host.classList.toggle('winning',s===winning);
+    host.classList.toggle('collect',isCollect);
+    var badge=host.querySelector('.winner-label');
+    if(isCollect){
+      if(!badge){badge=document.createElement('span');badge.className='winner-label';host.appendChild(badge);}
+      if(badge.textContent!==label)badge.textContent=label;
+    }else if(badge)badge.remove();
   });
-  Array.prototype.forEach.call(document.querySelectorAll('.winner-label'),function(el){el.remove();});
-}
-function addLabel(host,text){
-  var lab=document.createElement('span');lab.className='winner-label';lab.textContent=text;
-  host.appendChild(lab);
 }
 function pollG(){
   var G=g();if(!G)return;
@@ -8894,26 +8965,24 @@ function pollG(){
       host.querySelector('.player-label').appendChild(b);
     }else if(G.declSeat!==s&&hasBadge){host.querySelector('.dealer-badge').remove();}
   }
-  /* 暂大/收墩状态 */
-  clearStates();
+  /* 四家出齐后、牌还留在桌上的短暂等待期，直接在赢家牌上标收墩。 */
+  var winning=-1,collect=-1,collectLabel='';
   if(G.phase==='play'&&!G.ended){
     if(G.trick.length>0){
       try{
         var res=window.resolveTrick?resolveTrick(G.trick,G.trump):null;
-        if(res){seatHost(res.winner).classList.add('winning');}
+        if(res){
+          if(G.trick.length===4){
+            collect=res.winner;
+            collectLabel=res.points?('收墩 +'+res.points+'分'):'收墩';
+          }else winning=res.winner;
+        }
       }catch(_){}
-    }else if(G.tricks.length>0){
-      var last=G.tricks[G.tricks.length-1];
-      seatHost(last.winner).classList.add('collect');
-      addLabel(seatHost(last.winner),last.points?('收墩 +'+last.points+'分'):'收墩');
     }
   }
+  setTrickState(winning,collect,collectLabel);
   /* 收墩闪现 */
   if(G.tricks.length!==lastTrickCount){
-    if(lastTrickCount>=0&&G.tricks.length>lastTrickCount){
-      var t=G.tricks[G.tricks.length-1];
-      centerFlash((t.gotPts?'闲家':'庄家')+'收墩'+(t.points?' +'+t.points+'分':''),t.gotPts?'info':'err',1100);
-    }
     lastTrickCount=G.tricks.length;
   }
   /* 局末快照(供对局记录回看已完成局) */
@@ -9010,21 +9079,25 @@ fanVp.addEventListener('pointerdown',function(e){
     if(gest&&gest.mode==='pending'){gest.mode='peek';showLoupe(gest.card,e.clientX,e.clientY);}
   },180);
 });
-fanVp.addEventListener('pointermove',function(e){
+// 起点常贴近手牌区上沿；在进入 drag 模式前指针就可能离开容器。
+document.addEventListener('pointermove',function(e){
   if(!gest||e.pointerId!==gest.id)return;
   var dx=e.clientX-gest.x0,dy=e.clientY-gest.y0;
+  if(gest.mode==='peek'&&Math.abs(dx)+Math.abs(dy)>10){hideLoupe();gest.mode='pending';}
   if(gest.mode==='pending'){
     var shallow=gest.wasSel;
-    var isDrag=dy<-(shallow?10:20)&&-dy>Math.abs(dx)*(shallow?.25:.35);
+    var isDrag=dy<-(shallow?12:20)&&-dy>Math.abs(dx)*(shallow?.3:.35);
     if(isDrag){
       clearTimeout(gest.hold);hideLoupe();gest.mode='drag';
       try{fanVp.setPointerCapture(e.pointerId);}catch(_){}
       buildGhost();
     }
-    else if(Math.abs(dx)>12){clearTimeout(gest.hold);hideLoupe();gest.mode='scrub';try{fanVp.setPointerCapture(e.pointerId);}catch(_){}}
+    else if(Math.abs(dx)>28&&Math.abs(dy)<10 || Math.abs(dx)>50&&Math.abs(dx)>Math.abs(dy)*3){
+      clearTimeout(gest.hold);hideLoupe();gest.mode='scrub';
+      try{fanVp.setPointerCapture(e.pointerId);}catch(_){}
+    }
     else return;
   }
-  if(gest.mode==='peek'&&Math.abs(dx)+Math.abs(dy)>10){hideLoupe();gest.mode='scrub';}
   if(gest.mode==='scrub'&&handPlan&&handPlan.overflow){
     var max=Math.max.apply(null,handPlan.rows.map(function(r){return Math.max(0,r.width-fanVp.clientWidth);}));
     handProgress=clamp(gest.scroll0-dx/Math.max(1,max),0,1);
@@ -9052,8 +9125,8 @@ function endGesture(e,cancelled){
     suppressClick();
   }else if(G.mode==='scrub')suppressClick();
 }
-fanVp.addEventListener('pointerup',function(e){endGesture(e,false);});
-fanVp.addEventListener('pointercancel',function(e){endGesture(e,true);});
+document.addEventListener('pointerup',function(e){endGesture(e,false);});
+document.addEventListener('pointercancel',function(e){endGesture(e,true);});
 var clickSuppressed=0;
 function suppressClick(){clickSuppressed=Date.now();}
 hand.addEventListener('click',function(e){
@@ -9084,17 +9157,55 @@ function moveGhost(x,y){
   ghost.style.top=clamp(y-120,4,window.innerHeight-160)+'px';
 }
 function hideGhost(){ghost.hidden=true;}
+function bidTarget(set){
+  var dz=$('dealZone');
+  var state=g(),cards=state&&set.map(function(el){return state.hands[0].find(function(c){return String(c.id)===el.dataset.id;});});
+  if(!cards||!cards.length||cards.some(function(c){return !c;}))return null;
+  var level=window.__rankOf?window.__rankOf(0):state.trumpRank;
+  var btns=Array.prototype.slice.call(dz.querySelectorAll('button[data-a]'));
+  var suit=cards[0].suit;
+  if(cards.length===1&&cards[0].rank===level){
+    return btns.find(function(b){return b.dataset.a==='d'&&b.dataset.s===suit&&b.dataset.st==='1';})||null;
+  }
+  if(cards.length===2&&cards[0].rank===cards[1].rank&&cards[0].suit===cards[1].suit){
+    var st=suit==='X'?(cards[0].rank===16?'4':'3'):'2';
+    if(suit==='X'||cards[0].rank===level){
+      var target=btns.find(function(b){return b.dataset.a==='d'&&b.dataset.s===(suit==='X'?'':suit)&&b.dataset.st===st;});
+      if(!target&&suit!=='X'&&state.decl&&state.decl.suit===suit)
+        target=btns.find(function(b){return b.dataset.a==='re';});
+      return target||null;
+    }
+  }
+  return null;
+}
+function syncBidAction(){
+  var action=$('bidAction'),G=g(),dz=$('dealZone');
+  var bidding=G&&(G.phase==='dealing'||G.phase==='finalDecl');
+  var btns=Array.prototype.slice.call(dz.querySelectorAll('button[data-a]'));
+  action.hidden=!bidding||!btns.length;
+  if(action.hidden)return;
+  var chosen=Array.prototype.filter.call(hand.children,function(c){return selectedBidIds.has(+c.dataset.id);});
+  var target=bidTarget(chosen),label=G.decl?'反主':'亮主';
+  action.textContent=btns.length===1?btns[0].textContent:
+    target?(target.dataset.a==='re'?'加固':label+' '+(target.dataset.s?SUIT_SYM[target.dataset.s]:'无将')+
+      (target.dataset.st==='2'?'对':'')):'选牌'+label;
+  action.setAttribute('aria-label',btns.length===1?action.textContent:
+    target?action.textContent:'点选对应的手牌后'+label);
+}
+new MutationObserver(syncBidAction).observe($('dealZone'),{childList:true});
+$('bidAction').onclick=function(){
+  var btns=Array.prototype.slice.call($('dealZone').querySelectorAll('button[data-a]'));
+  var chosen=Array.prototype.filter.call(hand.children,function(c){return selectedBidIds.has(+c.dataset.id);});
+  var target=btns.length===1?btns[0]:bidTarget(chosen);
+  if(target){target.click();selectedBidIds.clear();syncBidAction();}
+  else centerFlash('先点选要亮出的级数牌或王对，也可以直接拖到牌桌','err',2300);
+};
 function commitDrag(G){
   var set=draggedSet(G);
-  var dz=$('dealZone');
-  if(dz.querySelector('button[data-a]')){
-    var st=set.length===2?'2':'1';
-    var suit=set.length===2?'':suitChar(set[0]);
-    var btns=Array.prototype.slice.call(dz.querySelectorAll('button[data-a]'));
-    var target=btns.filter(function(b){return b.dataset.a==='d'&&b.dataset.s===suit&&b.dataset.st===st;})[0]
-             ||btns.filter(function(b){return b.dataset.a==='d'&&b.dataset.s===suit&&b.dataset.st==='1';})[0]
-             ||btns.filter(function(b){return b.dataset.a==='re';})[0];
+  if($('dealZone').querySelector('button[data-a]')){
+    var target=bidTarget(set);
     if(target)target.click();
+    else centerFlash('这组牌不能亮主，请选级数牌或王对','err',2200);
     return;
   }
   set.forEach(function(c){if(!c.classList.contains('sel'))c.click();});
@@ -9132,6 +9243,17 @@ function openSide(){document.body.classList.add('drawer-open');if(activeMyTab===
 function closeSide(){document.body.classList.remove('drawer-open');}
 $('recordsBtn').onclick=function(){document.body.classList.contains('drawer-open')?closeSide():openSide();};
 $('sideClose').onclick=closeSide;
+document.body.addEventListener('click',function(e){
+  if(e.target===document.body&&document.body.classList.contains('drawer-open'))closeSide();
+});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'&&document.body.classList.contains('drawer-open'))closeSide();
+});
+var productHint=$('btnHint').onclick;
+$('btnHint').onclick=function(e){
+  if(productHint)productHint.call(this,e);
+  if(!this.disabled){activeMyTab='coach';openSide();syncTabOn('coach');}
+};
 var activeMyTab='log';
 var logRoundSel='cur',logMode='trick',lastLogHtml='';
 $('tabs').querySelectorAll('button').forEach(function(b){
