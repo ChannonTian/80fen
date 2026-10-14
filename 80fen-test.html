@@ -1021,6 +1021,10 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * 用它**排序**,只有当最优候选比启发式选中的那个高出 egMargin 级时才改判。
    * 这样保留启发式在样本噪声区的判断,只在搜索有明确意见时接管。 */
   egMargin: 0.03,
+  /* (v0.7.40 候选)改判还要过显著性:最优候选与启发式那手在**同一批世界**上的配对差,均值要大于 egZ 个标准误。
+   * 真人牌谱(10-14,58 局)量出:只换抽样种子,9~12 张时领出的选择 89% 会变、跟牌 34%,≤8 张领出 42% ——
+   * 0.03 级的门槛在 20 个世界的噪声里形同虚设,搜索等于在前几名候选里掷骰子。0 = 旧行为。 */
+  egZ: 0,
   /* 阶梯是阶跃的 —— 台阶内部要有梯度,搜索才不是瞎的。
    * 一级台阶 40 分,0.008×40 = 0.32 级:阶梯仍然主导,但同一级里分多的胜出。 */
   egPointsEps: 0.008,
@@ -3845,8 +3849,8 @@ function aiChooseFollow(view, plays){
     const eg=endgameSearch(view,plays,cands.slice(0,AIP.egMaxCands));
     if(eg){
       const cur=eg.find(o=>o.cards===best.cards);
-      const top=eg.slice().sort((a,b)=>b.u-a.u)[0];
-      if(top&&cur&&top.cards!==cur.cards&&top.u-cur.u>AIP.egMargin){
+      const top=egOverride(eg,cur);
+      if(top){
         const c=cands.find(x=>x.cards===top.cards);
         if(c) best={...c,reason:'收官推演:'+c.reason+`(${eg.samples}样本,净升 ${top.u.toFixed(2)} 级)`};
       }else if(cur) best={...best,reason:best.reason+`(收官推演确认,净升 ${cur.u.toFixed(2)} 级)`};
@@ -4844,7 +4848,7 @@ function endgameSearch(view, plays, cands){
     if(w) worlds.push(w);
   }
   if(worlds.length<AIP.egMinSamples) return null;
-  const out=cands.map(c=>({cards:c.cards,u:0}));
+  const out=cands.map(c=>({cards:c.cards,u:0,v:[]}));
   for(const w of worlds){
     const kitty=view.buriedKnown&&view.buriedKnown.length?view.buriedKnown:w.kitty;
     for(const o of out){
@@ -4861,23 +4865,37 @@ function endgameSearch(view, plays, cands){
         if(!hands.some(h=>h.length)){
           const sc=scoreRound({defPoints,kitty,defWonLastTrick:res.winner%2!==declTeam,
                                lastLeadSize:p2[0].cards.length});
-          o.u+=levelUtility(sc,myTeam,declTeam); continue;
+          const u=levelUtility(sc,myTeam,declTeam); o.u+=u; o.v.push(u); continue;
         }
       }
       if(AIP.egExact&&n<=AIP.egExact){
-        o.u+=egSolve({hands,plays:pl,leader,defPoints,trump,declSeat:view.declSeat,kitty,rootTeam:myTeam},-1e9,1e9);
+        const u=egSolve({hands,plays:pl,leader,defPoints,trump,declSeat:view.declSeat,kitty,rootTeam:myTeam},-1e9,1e9);
+        o.u+=u; o.v.push(u);
         continue;
       }
       const r=rolloutToEnd({hands,plays:pl,leader,defPoints,trump,declSeat:view.declSeat,mem,rand});
       const sc=scoreRound({defPoints:r.defPoints,kitty,
         defWonLastTrick:r.lastWinner>=0?r.lastWinner%2!==declTeam:false,
         lastLeadSize:r.lastLeadSize});
-      o.u+=levelUtility(sc,myTeam,declTeam);
+      const u=levelUtility(sc,myTeam,declTeam); o.u+=u; o.v.push(u);
     }
   }
   out.forEach(o=>{o.u/=worlds.length;});
   out.samples=worlds.length;
   return out;
+}
+/* 搜索要不要推翻启发式那手 cur:最优候选高出 egMargin 级,且(egZ>0 时)配对差显著。返回要改判成的候选或 null。 */
+function egOverride(eg, cur){
+  const top=eg.slice().sort((a,b)=>b.u-a.u)[0];
+  if(!top||!cur||top.cards===cur.cards||top.u-cur.u<=AIP.egMargin) return null;
+  if(AIP.egZ>0){
+    const n=top.v.length; if(n<2||cur.v.length!==n) return null;
+    let m=0; for(let i=0;i<n;i++) m+=top.v[i]-cur.v[i]; m/=n;
+    let ss=0; for(let i=0;i<n;i++){ const d=top.v[i]-cur.v[i]-m; ss+=d*d; }
+    const se=Math.sqrt(ss/(n-1)/n);
+    if(m<=AIP.egZ*se) return null;
+  }
+  return top;
 }
 
 // 领出决策
@@ -4953,8 +4971,8 @@ function aiChooseLead(view){
   const eg=endgameSearch(view,null,cands.slice(0,AIP.egMaxCands));
   if(eg){
     const cur=eg.find(o=>o.cards===best.cards);
-    const top=eg.slice().sort((a,b)=>b.u-a.u)[0];
-    if(top&&cur&&top.cards!==cur.cards&&top.u-cur.u>AIP.egMargin){
+    const top=egOverride(eg,cur);
+    if(top){
       const c=cands.find(x=>x.cards===top.cards);
       if(c) best={...c,reason:'收官推演:'+c.reason+`(${eg.samples}样本,净升 ${top.u.toFixed(2)} 级)`};
     }else if(cur) best={...best,reason:best.reason+`(收官推演确认,净升 ${cur.u.toFixed(2)} 级)`};
