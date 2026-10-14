@@ -1024,6 +1024,15 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   /* (v0.7.40 候选)改判还要过显著性:最优候选与启发式那手在**同一批世界**上的配对差,均值要大于 egZ 个标准误。
    * 真人牌谱(10-14,58 局)量出:只换抽样种子,9~12 张时领出的选择 89% 会变、跟牌 34%,≤8 张领出 42% ——
    * 0.03 级的门槛在 20 个世界的噪声里形同虚设,搜索等于在前几名候选里掷骰子。0 = 旧行为。 */
+  /* 推演用真正的 AI 打完(而不是 rolloutLead / rolloutFollow 那套便宜策略)。eg-rootcause 量出:
+   * 便宜推演哪怕拿着真牌,对候选的排序和「真 AI 打完的真值」相关只有 0.06~0.12(8~12 张),搜索估计 0.02~0.04 ——
+   * 推演策略是主误差。0 = 旧行为;n = 只在剩 ≤n 张时用真 AI 推演(慢,每个世界一整局 AI 决策)。 */
+  egRolloutAI: 0,
+  /* 推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。
+   * 真人(以及 guardJoker 之后的 AI)王留到最后。n>0:手里多于 n 张时推演领出不出王。0 = 旧行为。 */
+  egRollKeepJoker: 0,
+  jokerLeadDef: 0,            // 闲家手里多于 jokerLeadDefMin 张时,单领王的候选扣这么多分(0 = 旧行为),见 aiChooseLead
+  jokerLeadDefMin: 8,
   egZ: 2,                     // (v0.7.40 测试版默认开)ai-h2h +0.95 ±0.31 分/局、ai-pool +0.024 ±0.019 级/局,见 records-report-2026-10-14
   /* 阶梯是阶跃的 —— 台阶内部要有梯度,搜索才不是瞎的。
    * 一级台阶 40 分,0.008×40 = 0.32 级:阶梯仍然主导,但同一级里分多的胜出。 */
@@ -4580,8 +4589,10 @@ function rolloutLead(hand, trump, mem){
       const cl={type:comp.type,len:comp.len,suit:su,top:comp.top};
       const boss=isBossPlay(cl,mem,trump);
       // 钢板先收(带分的更先);否则出最小的、不带分的
-      const k=(boss?100:0)+(boss?countPoints(comp.cards)*2+comp.cards.length*3:-comp.top-countPoints(comp.cards)*4)
+      let k=(boss?100:0)+(boss?countPoints(comp.cards)*2+comp.cards.length*3:-comp.top-countPoints(comp.cards)*4)
              -(su==='T'&&!boss?20:0);
+      // egRollKeepJoker:推演里的人也把王留到最后(真人和 guardJoker 后的 AI 都这样),别一拿牌权就先兑现王
+      if(AIP.egRollKeepJoker&&hand.length>AIP.egRollKeepJoker&&comp.cards.every(c=>c.suit==='X')) k-=300;
       if(k>bestKey){ bestKey=k; best=comp.cards; }
     }
   }
@@ -4801,8 +4812,38 @@ function levelUtility(sc, myTeam, declTeam){
 }
 
 /* 对一组候选做收官搜索。返回 [{cards, u}] 或 null(条件不满足/预算不够) */
+/* 真 AI 推演:四家都用 aiChooseLead / aiChooseFollow(推演里关掉搜索,避免递归)。 */
+let EG_IN_ROLLOUT=false;
+function rolloutAI(st){
+  const {trump,declSeat,kitty}=st;
+  const hands=st.hands.map(h=>h.slice());
+  const history=st.history.slice();
+  let plays=st.plays.map(p=>({seat:p.seat,cards:p.cards.slice()}));
+  let leader=st.leader, defPoints=st.defPoints, lastWinner=-1, lastLeadSize=1, guard=0;
+  const was=EG_IN_ROLLOUT; EG_IN_ROLLOUT=true;
+  try{
+    while(hands.some(h=>h.length)||plays.length){
+      while(plays.length<4){
+        const seat=plays.length?(plays[0].seat+plays.length)%4:leader, hand=hands[seat];
+        const view={seat,hand,trump,declSeat,history:history.concat(plays),buriedKnown:seat===declSeat?kitty:[]};
+        let cards;
+        if(!plays.length){ cards=aiChooseLead(view).cards; const chk=checkThrow(hands,seat,cards,trump); if(!chk.ok) cards=chk.forced; }
+        else{ const lead=classify(plays[0].cards,trump); cards=aiChooseFollow(view,plays).cards;
+          if(!isLegalFollow(hand,lead,cards,trump)) cards=genFollow(hand,lead,trump,st.rand); }
+        cards.forEach(c=>removeCard(hand,c)); plays.push({seat,cards});
+      }
+      lastLeadSize=plays[0].cards.length;
+      const res=resolveTrick(plays,trump);
+      if(res.winner%2!==declSeat%2) defPoints+=res.points;
+      lastWinner=res.winner; leader=res.winner; history.push(...plays); plays=[];
+      if(++guard>30) break;
+    }
+  } finally { EG_IN_ROLLOUT=was; }
+  return {defPoints,lastWinner,lastLeadSize};
+}
+
 function endgameSearch(view, plays, cands){
-  if(!AIP.egSearch) return null;
+  if(!AIP.egSearch||EG_IN_ROLLOUT) return null;
   const trump=view.trump;
   const n=view.hand.length;
   if(n<1||n>AIP.egMaxCards) return null;
@@ -4873,7 +4914,10 @@ function endgameSearch(view, plays, cands){
         o.u+=u; o.v.push(u);
         continue;
       }
-      const r=rolloutToEnd({hands,plays:pl,leader,defPoints,trump,declSeat:view.declSeat,mem,rand});
+      const r=AIP.egRolloutAI&&n<=AIP.egRolloutAI
+        ? rolloutAI({hands,plays:pl,leader,defPoints,trump,declSeat:view.declSeat,kitty,rand,
+                     history:(view.history||[]).slice(0,(view.history||[]).length-(plays||[]).length).concat(p2.length===4?p2:[])})
+        : rolloutToEnd({hands,plays:pl,leader,defPoints,trump,declSeat:view.declSeat,mem,rand});
       const sc=scoreRound({defPoints:r.defPoints,kitty,
         defWonLastTrick:r.lastWinner>=0?r.lastWinner%2!==declTeam:false,
         lastLeadSize:r.lastLeadSize});
@@ -4964,6 +5008,10 @@ function aiChooseLead(view){
       c.reason='副花里没有稳当的一手,只剩领进对手断门 —— 钓主,把牌权交出去';
     }
   }
+  /* 闲家中盘单领王(#17,产品方原则 7「王留到最后」):joker-lead 反事实(1600 副、596 次,真 AI 打完)量出
+   * 闲家领王比最好的非王领出 −0.107 ±0.036 级 / −3.0 分;庄家 −0.04(不显著)、帮家 +0.10(不显著)。只罚闲家。 */
+  if(AIP.jokerLeadDef&&view.seat%2!==view.declSeat%2&&view.hand.length>AIP.jokerLeadDefMin)
+    for(const c of cands) if(c.cards.length===1&&c.cards[0].suit==='X') c.score-=AIP.jokerLeadDef;
   cands.sort((a,b)=>b.score-a.score);
   let best=cands[0]||{cards:[view.hand[0]],reason:'兜底',score:0};
   /* v0.7.0:收官交给搜索。只用它**排序**(目标函数是「净升几级」,和分制不同量纲),
@@ -5546,7 +5594,7 @@ const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
   phaseOf,futureValue,pTeamWin,laterPoints,scorePlay,unseenPointsIn,leadPointsEV,pSurvive,unseenBeats,roundScore,pointWeight,ruffThrow,SCORE_LADDER,makeReads,maxHoldIn,makeVoidProb,cheapKey,dumpKey,kittyPointsEst,tempoValue,
   bossUnits,feedRuffValue,reserveHold,reserveUnit,guardFeat,guardP,
   makeHoldRange,partnerAceRead,tiaoWangValue,
-  endgameSearch,sampleWorld,rolloutToEnd,rolloutLead,rolloutFollow,levelUtility,trumpLeadPrior};
+  endgameSearch,egOverride,sampleWorld,rolloutToEnd,rolloutLead,rolloutFollow,levelUtility,trumpLeadPrior};
 if(typeof module!=='undefined') module.exports=ENGINE;
 </script>
 

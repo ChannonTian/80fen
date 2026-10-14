@@ -215,10 +215,19 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 |---|---|---|---|
 | `egMargin` | `0.03` | (见上方注释)搜索结果与启发式打分的融合方式。 | `egOverride` |
 
-### (v0.7.40 候选)改判还要过显著性:最优候选与启发式那手在**同一批世界**上的配对差,均值要大于 egZ 个标准误。
+### 推演用真正的 AI 打完(而不是 rolloutLead / rolloutFollow 那套便宜策略)。eg-rootcause 量出:
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
+| `egRolloutAI` | `0` | (见上方注释)推演用真正的 AI 打完(而不是 rolloutLead / rolloutFollow 那套便宜策略)。 | `endgameSearch` |
+
+### 推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `egRollKeepJoker` | `0` | (见上方注释)推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。 | `rolloutLead` |
+| `jokerLeadDef` | `0` | 闲家手里多于 jokerLeadDefMin 张时,单领王的候选扣这么多分(0 = 旧行为),见 aiChooseLead | `aiChooseLead` |
+| `jokerLeadDefMin` | `8` | — | `aiChooseLead` |
 | `egZ` | `2` | (v0.7.40 测试版默认开)ai-h2h +0.95 ±0.31 分/局、ai-pool +0.024 ±0.019 级/局,见 records-report-2026-10-14 | `egOverride` |
 
 ### 阶梯是阶跃的 —— 台阶内部要有梯度,搜索才不是瞎的。
