@@ -5840,7 +5840,7 @@ const S_DEFAULT={
   manualNext:false,  // true = 手动点击进入下一墩
   declWait:10.0,     // 发完牌后留给你亮主/反主的时间(秒),可点「不亮」提前结束
   autoLast:true,     // 这一手没得选(剩的牌恰好等于本墩要出的张数)时自动出,不用再点一下
-  allowUndo:false,   // 悔牌:回到你上一手出牌前的整桌快照,独立于教练严格模式(见 undoLastPlay)
+  allowUndo:true,   // 悔牌:回到你上一手出牌前的整桌快照,独立于教练严格模式(见 undoLastPlay)
   engineVer:['','','',''],   // 各座位的 AI 引擎版本,'' = 内置最新版(见 eng();座位 0 = 你托管时)
 };
 /* 托管与「没得选」时的节奏:托管是**快进一段**,不是看 AI 慢慢想,
