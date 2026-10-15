@@ -213,7 +213,22 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
-| `egMargin` | `0.03` | (见上方注释)搜索结果与启发式打分的融合方式。 | `aiChooseFollow` `aiChooseLead` |
+| `egMargin` | `0.03` | (见上方注释)搜索结果与启发式打分的融合方式。 | `egOverride` |
+
+### 推演用真正的 AI 打完(而不是 rolloutLead / rolloutFollow 那套便宜策略)。eg-rootcause 量出:
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `egRolloutAI` | `0` | (见上方注释)推演用真正的 AI 打完(而不是 rolloutLead / rolloutFollow 那套便宜策略)。 | `endgameSearch` |
+
+### 推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `egRollKeepJoker` | `0` | (见上方注释)推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。 | `rolloutLead` |
+| `jokerLeadDef` | `25` | (v0.7.40 测试版默认开)闲家手里多于 jokerLeadDefMin 张时,单领王的候选扣这么多分(0 = 旧行为),见 aiChooseLead | `aiChooseLead` |
+| `jokerLeadDefMin` | `8` | — | `aiChooseLead` |
+| `egZ` | `2` | (v0.7.40 测试版默认开)ai-h2h +0.95 ±0.31 分/局、ai-pool +0.024 ±0.019 级/局,见 records-report-2026-10-14 | `egOverride` |
 
 ### 阶梯是阶跃的 —— 台阶内部要有梯度,搜索才不是瞎的。
 
@@ -342,6 +357,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `followBeatsCheck` | `0` | (v0.7.32 开,v0.7.37 关:它主要改成第 2 家用主分牌毙 0 分墩,后手更容易盖毙,见 test/diff-switch.js)1 = 贴分 / 跟小 / 垫牌候选按 currentWinner 判胜负(断门时它们常常其实毙下了这墩);0 = 一律按不赢墩打分 | `aiChooseFollow` |
 | `tempoKeepPlayed` | `0` | 1 = 压下这墩时牌权项不再扣掉打出去的这手(它已在 futureValue 里收过一次);0 = 旧行为 | `scorePlay` |
 | `lastOverW0` | `0.5` | (v0.7.29 测试版默认开)将牌墩末家台面 0 分时同门盖过来的意愿系数(0 = 不打折,旧行为);见 pSurvive | `pSurvive` |
+| `survPlan` | `0` | 1 = 第 2 / 3 家压下单张的存活率用拟合的小模型(survW)代替 pSurvive 里三个手调常数的结果;0 = 旧行为 | `pTeamWin` |
 | `feedPlan` | `1` | (v0.7.39 测试版默认开)1 = 第 2 家贴分按「贴后本队拿下」的估计分档(见 aiChooseFollow 末尾);0 = 旧行为 | `makeReads` `aiChooseFollow` |
 | `feedLo` | `0.45` | 低于它不贴(p 用 feedP 的校准模型) | `aiChooseFollow` |
 | `feedHi` | `0.65` | 低于它最多贴 5 | `aiChooseFollow` |
