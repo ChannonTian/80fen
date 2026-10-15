@@ -1,0 +1,474 @@
+/* 八十分 · 打牌测试页 视觉适配层(play-adapter)
+   来源:试验 04 内联 v3 层原样外置(含拖拽/叫牌等手改)。基础五件在 ui/dist/*.css,
+   令牌与组件来自 dist/liuliu-tokens.css 与 components/bundle.css,页面只留结构与产品脚本。 */
+/* ===== play-v3(产品 DOM 映射层) ===== */
+/* =====================================================================
+   80分 UI 测试版 v3 兼容层 —— 按产品方 2026-10 清单实现
+   前置:原型五层 CSS(table/landscape/theme/leo-theme/table-surface)
+   本层:顶栏单行/大牌桌阴影/相对座位/收墩呼吸灯/自适应手牌(≤2行无拨动)/
+   单行操作栏/记录抽屉(横压缩竖底展)/抢分弹窗/对话流教练笔记
+   ===================================================================== */
+:root{--gold:#b07d2b;--win:#3f7d4e;--win-glow:#3f7d4e59;--danger:#a33b2e}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--page);color:var(--tx);font-family:var(--ui-font);overflow:hidden;
+  display:grid;height:100svh;grid-template-rows:minmax(0,1fr) auto;grid-template-columns:minmax(0,1fr)}
+body.drawer-open.wide-view{grid-template-columns:minmax(0,1fr) min(25vw,360px);grid-template-rows:minmax(0,1fr)}
+#game{min-width:0;min-height:0;display:flex;flex-direction:column;height:100svh}
+button,input,select{font-family:inherit}
+
+/* ============ 1. 顶部:单行、等高、不换行 ============ */
+#game .status-bar{flex:none;padding:6px 10px 4px;background:var(--page);border-bottom:1.5px solid var(--line)}
+#game .status-main{display:flex;align-items:center;gap:8px;height:34px;flex-wrap:nowrap;overflow:visible}
+#game .brand{font-family:var(--card-font);font-size:24px;font-weight:800;color:var(--leo-brown);letter-spacing:-1px;flex:none}
+#game .brand span{font-size:13px;letter-spacing:0;margin-left:1px}
+#game .chip{flex:none;height:30px;display:inline-flex;align-items:center;padding:0 10px;border-radius:15px;
+  background:#fffdf8;border:1.5px solid var(--line);border-bottom-width:3px;border-bottom-color:#c9b99f;
+  font-size:14px;font-weight:750;color:var(--tx);white-space:nowrap}
+#game .chip .suit{font-size:16px}
+#game .score-chip{flex:1 1 auto;min-width:0;height:30px;display:inline-flex;align-items:center;gap:7px;
+  padding:0 12px;border-radius:15px;background:#fffdf8;border:1.5px solid var(--line);border-bottom:3px solid #c9b99f;
+  cursor:pointer;color:var(--tx)}
+#game .score-chip:active{translate:0 1px}
+#game .score-label{font-size:12px;color:var(--tx2);flex:none}
+#game .score-track{flex:1 1 auto;min-width:44px;height:8px;border-radius:4px;background:#e4d9c5;overflow:hidden}
+#game .score-track i{display:block;height:100%;width:0;border-radius:4px;background:var(--leo-honey);
+  transition:width .35s ease,background .35s ease}
+#game .score-chip.danger #scoreFill{background:linear-gradient(90deg,#d9a441,#a33b2e)}
+#game .score-chip.success #scoreFill{background:linear-gradient(90deg,#9cbb6b,#3f7d4e)}
+#game .score-chip b{font-size:15px;color:var(--leo-brown)}
+#game .score-total{font-size:11px;color:var(--tx2)}
+#game .icon-btn{flex:none;width:34px;height:30px;padding:0;border-radius:10px;background:#fffdf8;color:var(--leo-brown);
+  border:1.5px solid var(--line);border-bottom:3px solid #c9b99f;font-size:14px;font-weight:750;cursor:pointer}
+#status{display:none!important}
+#phaseLine{display:none}
+
+/* ============ 2. 牌桌:更大、带按钮式阴影、相对座位 ============ */
+#game .arena{position:relative;flex:1 1 auto;min-height:0;margin:2px 10px 0}
+#game .felt{position:absolute;inset:0;background:#e3e9d7;border:2px solid #b5c3a5;border-bottom-width:5px;
+  border-radius:28px;box-shadow:0 3px 0 #4436291f}
+#game .felt::after{content:'';position:absolute;inset:7px;border:1.5px dashed #b5c3a5;border-radius:20px;opacity:.45;pointer-events:none}
+#game .player{position:absolute;display:flex;align-items:center;gap:6px;z-index:2}
+#game .player.north{top:10px;left:50%;transform:translateX(-50%);flex-direction:column;gap:2px}
+#game .player.west{left:14px;top:44%;transform:translateY(-50%)}
+#game .player.east{right:14px;top:44%;transform:translateY(-50%);flex-direction:row-reverse}
+#game .player-label{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:14px;
+  background:#f7faefcc;border:1px solid #d8e2c6;font-size:14px;font-weight:700;color:var(--tx);white-space:nowrap}
+#game .player-label .name.turn{background:var(--gd);color:var(--gd-tx);border-radius:11px;padding:3px 10px}
+#game .player-label .name.won{background:var(--ol-bg);color:var(--ol-tx);border-radius:11px;padding:3px 10px}
+#game .dealer-badge{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;
+  border-radius:50%;background:var(--leo-brown);color:#fff;font-size:11px;font-weight:800;flex:none}
+#game .backs{display:none!important}
+#game .my-play{position:absolute;bottom:10px;left:50%;transform:translateX(-50%);
+  display:flex;flex-direction:column;align-items:center;gap:2px;z-index:2}
+/* 桌面出牌堆:与手牌同尺寸 var(--cw),--i 级联 */
+#game .played{position:relative;min-height:calc(var(--cw,64px)*1.48);display:block}
+#game .played .card{position:absolute;top:0;left:calc(var(--i,0)*var(--step,20px));
+  transform:rotate(calc((var(--i,0) - .5)*4deg));width:var(--cw,64px);height:calc(var(--cw,64px)*1.48)}
+#game .played:empty{min-height:0}
+/* 暂大呼吸灯 / 收墩高亮 */
+@keyframes winBreathe{0%,100%{box-shadow:0 0 0 2px var(--win-glow)}50%{box-shadow:0 0 12px 5px var(--win-glow)}}
+#game .player.winning .played .card,#game .my-play.winning .played .card{
+  border-color:var(--win);animation:winBreathe 1.8s ease-in-out infinite}
+#game .player.collect .player-label,#game .my-play.collect .player-label{
+  background:var(--win);color:#fff;outline:2px solid var(--win);
+  box-shadow:0 0 0 4px rgba(76,175,80,.20)}
+#game .winner-label{position:absolute;left:50%;transform:translateX(-50%);bottom:-4px;
+  background:#f0f9e7;border:1.5px solid var(--win);color:#2f5a3a;border-radius:10px;
+  font-size:12px;font-weight:750;padding:1px 9px;white-space:nowrap;z-index:5}
+/* 中心临时通知:错牌提示/亮主时机/收墩闪现 */
+#game .center-toast{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:6;
+  max-width:78%;padding:10px 18px;border-radius:14px;background:#faf5ebd9;border:1.5px solid var(--line);
+  font-size:15px;font-weight:650;text-align:center;pointer-events:none;
+  opacity:0;transition:opacity .25s;box-shadow:0 3px 0 #44362914}
+#game .center-toast.show{opacity:1}
+#game .center-toast.err{border-color:var(--rd);color:var(--rd-tx);background:#fae9e1e6}
+#game .center-toast.info{border-color:#b5c3a5;color:#45593e}
+#game .drop-cue{position:absolute;inset:8px;border:2.5px dashed var(--bl);border-radius:22px;
+  background:#e2f0ee66;display:none;align-items:center;justify-content:center;pointer-events:none}
+#game .drop-cue span{background:#fff;border:2px solid var(--bl);color:var(--bl-tx);border-radius:12px;
+  padding:6px 16px;font-weight:750;box-shadow:0 3px 0 #3b6e9233}
+#game .arena.drag-ready .drop-cue{display:flex}
+#game .arena.drag-over .drop-cue{display:flex;background:#e2f0eeaa}
+#game .arena.drag-invalid .drop-cue{display:flex;border-color:var(--rd);background:#f9e3dc66}
+
+/* ============ 3. 操作行 + 手牌 ============ */
+#game .action-bar{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:8px;row-gap:5px;padding:4px 10px;min-height:46px}
+#game .decl-stack{flex:1 1 auto;min-width:0;display:flex;flex-wrap:wrap;justify-content:flex-end;
+  align-items:center;gap:6px}
+#game .decl-stack button{font-size:13px;padding:7px 11px;min-width:0}
+#game .decl-stack span{color:var(--tx2);font-size:12px}
+#game .main-actions{flex:none;display:flex;align-items:center;gap:6px}
+#game .main-actions button{font-size:14px;padding:8px 13px;min-width:0;display:inline-flex;align-items:center;gap:4px}
+#game #btnPlay{background:var(--leo-brown);color:#fff;border:0;border-bottom:3px solid #583920;border-radius:12px;
+  font-weight:800;padding:8px 16px}
+#game #btnPlay:disabled{background:var(--dis);color:var(--dis-tx);border-bottom-color:#cdd2c3}
+#game button.minor{background:#fffdf8;color:var(--leo-brown);border:1.5px solid var(--line);
+  border-bottom:3px solid #c9b99f;border-radius:12px;font-weight:700;cursor:pointer}
+#game .main-actions #btnHint .leo-avatar{width:1.15em;height:1.15em;margin-right:.32em;flex:none}
+button{background:var(--leo-brown);color:#fff;border:0;border-bottom:3px solid #583920;border-radius:12px;
+  font-weight:700;cursor:pointer}
+button:disabled{opacity:.4;cursor:default}
+/* 发牌阶段:出牌/清选不展示(3.7) */
+#game .action-bar.dealing #btnPlay,#game .action-bar.dealing #btnClear{display:none}
+
+#game .hand-area{flex:none;position:relative;padding:6px 8px 9px;height:clamp(150px,23svh,212px)}
+#game .fan-viewport{position:relative;overflow:hidden;touch-action:none;height:100%}
+#game #hand{position:relative;height:100%;width:100%}
+#game #hand .card{position:absolute;margin:0;cursor:pointer;transform-origin:50% 100%;
+  transition:transform .13s ease,border-color .13s,background .13s,box-shadow .13s}
+#game #hand .card.sel{background:var(--bl-bg);border-color:#82aabc;box-shadow:-1px 2px 0 #2c587644}
+#game #hand .card.sel::after{content:'✓';position:absolute;top:3px;right:5px;font-size:12px;color:var(--bl-tx)}
+#game #hand .card.hintc{outline:2px dashed var(--bl);outline-offset:-1px}
+#game #hand .card.peek{border-color:var(--bl)}
+html.hasHover #game #hand .card:hover{border-color:#8fb4c5}
+/* 手牌在区域内的行间距:排布见 JS,两侧弧顶不允许越出可视区 */
+#game .hand-wheel{display:none}
+
+/* ---------- 牌面:统一字高、分值标签 ---------- */
+#game .card{container-type:inline-size;position:relative;flex:none;background:#fff;color:var(--tx);
+  border:1.5px solid var(--card-line);border-radius:8px;box-shadow:0 2px 0 #33362e14;
+  font-family:var(--card-font);font-weight:800;font-variant-numeric:lining-nums tabular-nums;user-select:none}
+#game .card.sS{color:#262c2c}
+#game .card.sH,#game .card.jb{color:#b33a2b}
+#game .card.sD{color:#a8286a}
+#game .card.sC{color:#245843}
+#game .card.js{color:#262c2c}
+#game .card .tl{position:absolute;left:6%;top:5%;font-size:36cqw;line-height:1.06;letter-spacing:-.03em}
+#game .card.two .tl{font-size:36cqw;letter-spacing:-.14em}
+#game .card .bl{position:absolute;left:6%;top:calc(5cqw + 40cqw);font-size:31cqw;line-height:1;font-family:Arial,sans-serif}
+#game .card.two .bl{top:calc(5cqw + 33cqw)}
+#game .card .tr,#game .card .br{display:none}
+#game .card .joker{position:absolute;left:0;right:0;top:52%;bottom:0;writing-mode:vertical-lr;text-align:left;
+  font-size:15cqw;letter-spacing:2px;padding-left:30%;opacity:.85}
+#game .card .point-mark{position:absolute;right:5%;bottom:5%;background:var(--gd);color:var(--gd-tx);
+  border-radius:5px;font:800 13cqw/1.25 var(--ui-font);padding:2px 4px;white-space:nowrap}
+#game .mini .tl{font-size:44cqw}
+#game .mini .bl{display:none}
+
+/* ============ 4. 记录抽屉 ============ */
+#side{display:none;min-height:0;min-width:0;background:var(--page);border-top:1.5px solid var(--line);
+  flex-direction:column;overflow:hidden}
+body.drawer-open #side{display:flex}
+body.drawer-open.wide-view #side{border-top:0;border-left:2px solid var(--line);height:100%}
+body.drawer-open:not(.wide-view) #side{height:min(15svh,150px)}
+#side .records-head{flex:none;display:flex;align-items:center;justify-content:space-between;
+  padding:6px 12px;border-bottom:1.5px solid var(--line)}
+#side .records-head b{font-size:14px;color:var(--leo-brown)}
+#side .records-head button{background:#fffdf8;color:var(--tx2);border:1.5px solid var(--line);
+  border-radius:10px;width:30px;height:30px;padding:0;font-size:16px;font-weight:400}
+#side .records-body{flex:1;min-height:0;overflow-y:auto;padding:8px 12px;font-size:13px;line-height:1.55}
+#side .records-foot{flex:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  padding:6px 12px;border-top:1.5px solid var(--line);background:var(--page)}
+#side #tabs{display:flex;gap:6px;align-items:center}
+#side #tabs button{font-size:13px;padding:5px 12px;background:#fffdf8;color:var(--tx2);
+  border:1.5px solid var(--line);border-bottom:3px solid #c9b99f;border-radius:10px}
+#side #tabs button.on{background:var(--ol-bg);color:var(--ol-tx);border-color:#b6ce85}
+#side .filter{display:inline-flex;align-items:center;gap:4px;font-size:12px;color:var(--tx2)}
+#side .filter input{accent-color:var(--ol)}
+/* 对局记录(v3 自绘) */
+.log-controls{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.log-controls select{border:1.5px solid var(--line);border-radius:8px;padding:4px 8px;background:#fff;font-size:13px;color:var(--tx)}
+.log-round-title{font-weight:750;color:var(--leo-brown);margin:6px 0 4px}
+.init-hands{background:#fffdf8;border:1.5px solid var(--line);border-radius:12px;padding:8px 10px;margin-bottom:8px}
+.init-hands summary{cursor:pointer;font-weight:650;font-size:12.5px;color:var(--tx2)}
+.init-hands .ih-row{display:flex;gap:6px;margin-top:6px;flex-wrap:wrap;align-items:baseline}
+.init-hands .ih-who{flex:none;font-size:12px;color:var(--tx2);width:3em}
+.trick-line{display:flex;gap:8px;align-items:baseline;padding:5px 8px;margin:3px 0;border-radius:10px;
+  background:#fffdf8;border:1px solid var(--line);flex-wrap:wrap}
+.trick-line.win{background:#eef4e3;border-color:#b6ce85}
+.trick-line .tno{flex:none;font-size:11.5px;color:var(--tx2);width:3.2em}
+.trick-line .tcards{font-family:var(--card-font);font-weight:750;font-size:14px;letter-spacing:.5px}
+.tcard{white-space:nowrap}
+.tcard.sH,.tcard.sD{color:#b33a2b}
+.tcard.sH .suitr,.tcard.sD .suitr{color:inherit}
+.tcard.sS{color:#262c2c}
+.tcard.sC{color:#245843}
+.tcard.pt{background:var(--gd);color:var(--gd-tx);border-radius:5px;padding:0 4px}
+.tcard.trump{border-bottom:2px solid var(--leo-honey)}
+.tjoker{color:#8a5a19;background:#f3e5d6;border-radius:5px;padding:0 4px}
+.trick-line .tsum{margin-left:auto;font-size:12px;color:var(--tx2);white-space:nowrap}
+.suit-row{display:flex;gap:10px;align-items:baseline;padding:3px 0;flex-wrap:wrap}
+.suit-row .sg-label{flex:none;width:5.5em;font-size:12.5px;color:var(--tx2)}
+/* 教练·笔记对话流 */
+.chat-coach{background:var(--bl-bg);border:1.5px solid #b7d3d8;border-radius:12px 12px 12px 3px;
+  padding:8px 10px;margin:6px 0;line-height:1.65}
+.chat-coach .cno{font-size:11px;color:var(--bl-tx);opacity:.8}
+.chat-note{background:var(--ol-bg);border:1.5px solid #b6ce85;border-radius:12px 12px 3px 12px;
+  padding:6px 10px;margin:6px 0 6px auto;max-width:85%;width:fit-content}
+.chat-note .cno{font-size:11px;color:var(--ol-tx);opacity:.75}
+.chat-quiz{background:#fffdf8;border:1.5px dashed var(--bl);border-radius:12px;padding:8px 10px;margin:6px 0}
+.chat-quiz b{display:block;margin-bottom:6px}
+.chat-quiz button{margin:2px 6px 2px 0;font-size:13px;padding:5px 12px}
+.chat-input{display:flex;gap:6px;margin:8px 0 2px}
+.chat-input input{flex:1;min-width:0;border:1.5px solid var(--line);border-radius:10px;padding:7px 10px;
+  font-size:13px;background:#fff}
+.chat-input button{padding:7px 14px;font-size:13px}
+.coachBox{background:var(--bl-bg);border:1.5px solid #b7d3d8;border-radius:12px;padding:8px 10px;margin:6px 0;line-height:1.65}
+.coachStep{color:var(--bl-tx);font-weight:bold}
+.notes-hidden .chat-note{display:none}
+.coach-hidden .chat-coach,.notes-hidden .chat-quiz{display:none}
+
+/* ============ 抢分分牌弹窗 ============ */
+.zmodal{position:fixed;inset:0;z-index:75;background:rgba(68,54,41,.45);display:flex;align-items:center;justify-content:center}
+.zmodal[hidden]{display:none}
+.zpanel{background:#fffdf8;border:2px solid var(--line);border-radius:18px;box-shadow:0 6px 0 #44362914;
+  width:min(420px,92vw);max-height:74vh;display:flex;flex-direction:column}
+.zhead{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1.5px solid var(--line)}
+.zhead b{color:var(--leo-brown);font-size:16px}
+.zhead button{background:#fffdf8;color:var(--tx2);border:1.5px solid var(--line);border-radius:10px;
+  width:30px;height:30px;padding:0;font-size:16px;font-weight:400}
+.zbody{padding:10px 16px 16px;overflow-y:auto;font-size:14px;line-height:1.7}
+.zbody .sc-total{font-size:18px;font-weight:800;color:var(--leo-brown);margin-bottom:6px}
+.zbody .sc-trick{display:flex;gap:8px;align-items:baseline;padding:4px 0;flex-wrap:wrap;border-bottom:1px dashed var(--line)}
+.zbody .sc-trick:last-child{border-bottom:0}
+.zbody .sc-trick .tcards{font-family:var(--card-font);font-weight:750}
+.zbody .sc-empty{color:var(--tx2)}
+
+/* ============ 菜单 sheet / 产品弹窗 / 吐司(沿用) ============ */
+#sheet .menu-option{width:100%;text-align:left;display:block;margin:8px 0;background:#fffdf8;color:var(--tx);
+  border:2px solid var(--line);border-radius:12px;font-weight:750;padding:12px 14px}
+#sheet .menu-option small{display:block;color:var(--tx2);font-weight:500;margin-top:2px}
+#overlay .panel button,#setOverlay .panel button{background:var(--leo-brown);color:#fff;border:0;
+  border-bottom:3px solid #583920;border-radius:12px;padding:8px 18px;font-size:15px;font-weight:700;cursor:pointer;margin:2px}
+#overlay .panel button.minor,#setOverlay .panel button.minor,.setHeaderBtns button{
+  background:#fffdf8;color:var(--leo-brown);border:1.5px solid var(--line);border-bottom:3px solid #c9b99f}
+#overlay,#setOverlay{position:fixed;inset:0;background:rgba(68,54,41,.45);display:none;
+  align-items:center;justify-content:center;z-index:70}
+#setOverlay{z-index:71}
+#overlay .panel,#setOverlay .panel{background:#fffdf8;border:2px solid var(--line);color:var(--tx);
+  border-radius:18px;box-shadow:0 6px 0 #44362914;padding:26px 34px;text-align:center;font-size:16px;
+  line-height:1.9;max-height:82vh;overflow-y:auto}
+#overlay .panel b,#setOverlay .panel b{color:var(--leo-brown)}
+#setOverlay .panel{text-align:left;width:min(430px,92vw)}
+.setRow{display:flex;align-items:center;gap:10px;margin:8px 0;font-size:15px;flex-wrap:wrap}
+.setRow>label:first-child{flex:1;min-width:150px;color:var(--tx)}
+.setRow select,.setRow input[type=number]{border:1.5px solid var(--line);border-radius:8px;padding:5px 8px;font-size:14px;background:#fff;color:var(--tx)}
+.setRow input[type=number]{width:72px}
+.setHint{font-size:12px;color:var(--tx2);opacity:.9;margin:-4px 0 10px}
+.setHeader{position:sticky;top:-26px;margin:-26px -34px 14px;padding:18px 34px 12px;background:#fffdf8;z-index:2;border-bottom:1.5px solid var(--line)}
+.setHeader b{display:block;font-size:19px;color:var(--leo-brown);margin-bottom:10px}
+.setHeaderBtns{display:flex;gap:10px;flex-wrap:wrap}
+.setSection{color:var(--leo-brown);font-size:14px;margin-top:14px}
+.setSection:first-of-type{margin-top:0}
+#toast{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:90;background:#fffdf8;
+  border:2px solid var(--leo-brown);color:var(--tx);padding:9px 18px;border-radius:12px;font-size:14px;
+  opacity:0;transition:opacity .25s;pointer-events:none;max-width:90vw;text-align:center}
+#toast.show{opacity:1}
+#versionTag{position:fixed;right:10px;bottom:4px;font-size:11px;color:#44362959;pointer-events:none;z-index:1}
+#tests{display:none}
+.leo-start{display:flex;align-items:center;justify-content:center;gap:18px;margin:4px 0 10px}
+.leo-start .leo-avatar{width:88px;height:88px}
+.leo-start-title{font-size:27px;font-weight:800;color:var(--leo-brown);letter-spacing:-1px}
+.leo-start-title small{font-size:14px;font-weight:600;color:var(--tx2);letter-spacing:0;margin-left:6px}
+.leo-start-sub{font-size:14px;color:var(--tx2);margin-top:5px}
+@keyframes playIn{from{opacity:0;transform:translateY(-14px) scale(.88)}to{opacity:1;transform:none}}
+#game .played .card{animation:playIn .25s ease-out}
+#loupe,#dragGhost{filter:drop-shadow(0 3px 0 #33362e33)}
+#loupe{position:fixed;z-index:90;pointer-events:none}
+#dragGhost{position:fixed;z-index:100;pointer-events:none;display:flex;align-items:center;opacity:.94}
+#dragGhost[hidden]{display:none}
+#dragGhost .card{width:70px!important;height:103px!important;position:relative!important;
+  margin:0 0 0 -30px!important;transform:none!important}
+#dragGhost .card:first-child{margin-left:0!important}
+#dragGhost .drag-count{background:var(--bl-bg);color:var(--bl-tx);border:1px solid var(--bl);
+  border-radius:8px;font-weight:700;padding:1px 7px;font-size:13px}
+.trickRow,.suitGroup,.toggleRow,.memRow,.memSub,#noteList,.note{display:none}
+
+#liveMessage:empty{display:none}
+
+/* ===== 六六设计系统 · 打牌试验（仅本测试页） ===== */
+html.ll{--ink:#24180F;--tx:#24180F;--tx2:#5E4C3B;--line:#E6DCC8;
+  --page:var(--paper);--felt:var(--felt-table);--card-line:var(--ink);
+  --ui-font:var(--font-sans);--card-font:var(--font-num);
+  --ol:var(--felt-table);--ol-bg:var(--ok-tint);--ol-tx:var(--felt-deep);
+  --rd:var(--brick-deep);--rd-bg:var(--err-tint);--rd-tx:var(--brick-deep);
+  --bl:var(--teal);--bl-bg:var(--teal-tint);--bl-tx:var(--teal);
+  --gd:var(--honey);--gd-tx:var(--ink);--leo-brown:var(--ink);--leo-honey:var(--honey)}
+body{background:var(--paper);color:var(--ink)}
+#game{background:var(--paper);color:var(--ink);font-family:var(--font-sans)}
+#game .status-bar,#game.wide .status-bar,#game.wide.compact .status-bar{
+  height:auto;padding:5px 10px 6px;background:var(--paper);border-bottom:2px solid var(--ink)}
+#game .status-main,#game.wide .status-main{display:grid;height:auto;min-height:86px;
+  grid-template-columns:auto auto minmax(0,1fr) 44px 44px;grid-template-rows:44px 36px;gap:5px 6px;align-items:center}
+#game .brand{grid-area:1/1;font:900 24px/1 var(--font-heading);color:var(--ink);letter-spacing:-.05em}
+#game .brand span{font-size:14px;letter-spacing:0}
+#game #trumpChip{grid-area:1/2}
+#game #levelChip{grid-area:2/1/3/3}
+#game #scoreChip{grid-area:2/3/3/6}
+#game #recordsBtn{grid-area:1/4}
+#game #menuBtn{grid-area:1/5}
+#game .chip,#game .score-chip,#game .icon-btn{background:var(--card-face);border:2px solid var(--ink);
+  box-shadow:var(--shadow-card);color:var(--ink)}
+#game .chip{height:34px;min-width:0;max-width:100%;font-size:13px;overflow:hidden;text-overflow:ellipsis}
+#game .score-chip{height:36px;gap:6px;padding:0 8px}
+#game .score-label,#game .score-total{color:var(--ink-soft)}
+#game .score-track{height:9px;background:var(--line);border:1px solid var(--ink)}
+#game .score-track i{background:var(--honey)}
+/* 语义色回归修复:上面一行只保留轨道底色;红(我方庄家)/绿(闲家)语义色
+   沿用本文件 37/38 行的规则 —— 令牌化重排时曾被一并盖成琥珀,违背进度条语义色规格 */
+#game .score-chip b{color:var(--ink);font:900 18px/1 var(--font-num)}
+#game .icon-btn{width:44px;height:44px;min-width:44px;font-size:17px;border-radius:12px}
+#game .icon-btn:active,#game .score-chip:active{transform:translateY(2px);box-shadow:var(--shadow-press)}
+#game .arena{margin:8px 10px 4px}
+#game .felt,#game.wide .felt,#game.wide.compact .felt{inset:0;background:var(--felt-table);
+  border:2px solid var(--ink);border-radius:24px;box-shadow:var(--shadow-sticker);transform:none}
+#game .felt::after{inset:7px;border:1px solid rgba(245,237,220,.48);border-radius:17px;opacity:1}
+#game .player-label{background:var(--cream);border:2px solid var(--ink);border-radius:12px;
+  color:var(--ink);font-size:13px;font-weight:800;padding:3px 7px;box-shadow:0 2px 0 var(--ink)}
+#game .player-label .role{font-size:10px;font-weight:700;color:var(--ink-soft)}
+#game .player.north .role{color:var(--felt-deep)}
+#game .my-play .player-label{background:var(--honey)}
+#game .player-label .name.turn{background:var(--honey);color:var(--ink)}
+#game .player-label .name.won{background:var(--ok-tint);color:var(--ink)}
+#game .dealer-badge{background:var(--ink);color:var(--cream)}
+#game .trick-summary{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);z-index:4;
+  min-width:88px;max-width:132px;padding:6px 9px 7px;display:flex;align-items:baseline;justify-content:center;
+  gap:3px;flex-wrap:wrap;background:var(--cream);border:2px solid var(--ink);border-radius:14px;
+  box-shadow:var(--shadow-card);color:var(--ink);pointer-events:none;font-size:12px;font-weight:700}
+#game .trick-summary[hidden]{display:none}
+#game .trick-summary strong{font:900 24px/1 var(--font-num)}
+#game .trick-summary small{display:block;flex-basis:100%;text-align:center;font-size:11px;line-height:1.15;color:var(--ink-soft)}
+#game .center-toast{background:var(--cream);border:2px solid var(--ink);box-shadow:var(--shadow-card);color:var(--ink)}
+#game .center-toast.err{background:var(--err-tint);border-color:var(--ink);color:var(--brick-deep)}
+#game .center-toast.info{background:var(--cream);border-color:var(--ink);color:var(--ink)}
+#game .player.winning .played .card,#game .my-play.winning .played .card{
+  animation:none;border-color:var(--ink);box-shadow:0 0 0 3px var(--honey),var(--shadow-card)}
+#game .player.collect .player-label,#game .my-play.collect .player-label{
+  background:var(--honey);color:var(--ink);outline:2px solid var(--ink);box-shadow:var(--shadow-card)}
+#game .winner-label{background:var(--honey);border:2px solid var(--ink);color:var(--ink);box-shadow:var(--shadow-card)}
+#game .hand-area{height:clamp(220px,30svh,260px);padding:4px 8px 6px;min-height:0;background:var(--paper)}
+#game .fan-viewport{height:calc(100% - 36px);overflow:hidden;touch-action:none}
+#game .hand-wheel{position:relative;inset:auto;transform:none;width:min(340px,100%);height:36px;
+  display:flex;align-items:center;gap:8px;max-width:340px;margin:0 auto;padding:0 4px;
+  color:var(--ink-soft);font-size:22px}
+#game .hand-wheel.is-off{visibility:hidden}
+#game .hand-wheel input{flex:1;min-width:0;height:34px;accent-color:var(--teal);cursor:ew-resize}
+#game #hand .card.sel{background:var(--teal-tint);border-color:var(--teal);
+  box-shadow:0 0 0 2px var(--teal),var(--shadow-card)}
+#game #hand .card.sel::after{background:var(--teal);color:#fff;border-radius:50%;
+  width:18px;height:18px;line-height:18px;text-align:center;top:4px;right:4px}
+#game .card{background:var(--card-face);border:2px solid var(--ink);border-radius:10px;
+  box-shadow:var(--shadow-card);font-family:var(--font-num);color:var(--ink)}
+#game .card.sS,#game .card.js{color:var(--suit-spade)}
+#game .card.sH,#game .card.jb{color:var(--suit-heart)}
+#game .card.sD{color:var(--suit-diamond)}
+#game .card.sC{color:var(--suit-club)}
+#game .card .tl{font:900 38cqw/1 var(--font-num);letter-spacing:-.06em;left:7%;top:5%}
+#game .card.two .tl{letter-spacing:-.17em}
+#game .card .bl{font:28cqw/1 var(--font-suit);left:8%;top:39cqw}
+#game .card.jb .tl,#game .card.js .tl{font:900 35cqw/1 var(--font-heading);color:var(--brick)}
+#game .card.jb .bl,#game .card.js .bl{font:900 32cqw/1 var(--font-heading);color:var(--brick);top:39cqw}
+#game .card .point-mark{background:var(--honey);border:1px solid var(--ink);color:var(--ink);
+  font:800 12cqw/1.2 var(--font-sans);border-radius:5px}
+#game .action-bar{min-height:56px;padding:4px 10px max(6px,env(safe-area-inset-bottom));
+  background:var(--paper);border-top:2px solid var(--ink);gap:5px;flex-wrap:nowrap}
+#game .decl-stack{display:none}
+#game .main-actions{flex:1;min-width:0;min-height:44px;overflow-x:auto;overscroll-behavior-x:contain;
+  scrollbar-width:none;gap:6px}
+#game .main-actions::-webkit-scrollbar{display:none}
+#game .main-actions button,#game .decl-stack button{min-height:44px;flex:none;padding:7px 12px;
+  background:var(--card-face);border:2px solid var(--ink);border-radius:12px;box-shadow:var(--shadow-card);
+  color:var(--ink);font-size:14px;font-weight:800}
+#game #btnPlay,#game #btnAuto:not(.minor){background:var(--honey);border:2px solid var(--ink);
+  color:var(--ink);box-shadow:var(--shadow-card);position:sticky;left:0;z-index:2}
+#game .main-actions button:disabled{opacity:.5}
+#game .action-bar.dealing{flex-direction:column;align-items:stretch}
+#game .action-bar.dealing .decl-stack{display:flex;flex:none;min-height:42px;width:100%;flex-wrap:nowrap;
+  justify-content:flex-start;overflow-x:auto;scrollbar-width:none}
+#game .action-bar.dealing .decl-stack::-webkit-scrollbar{display:none}
+#overlay .panel,#setOverlay .panel{background:var(--card-face);border:2px solid var(--ink);box-shadow:var(--shadow-sticker)}
+#overlay .panel button,#setOverlay .panel button{background:var(--honey);color:var(--ink);
+  border:2px solid var(--ink);box-shadow:var(--shadow-card);font-weight:800}
+#overlay .panel button.minor,#setOverlay .panel button.minor{background:var(--card-face);color:var(--ink);border:2px solid var(--ink)}
+#game :focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+@media(max-width:360px){#game .score-label{display:none}#game .chip{font-size:12px}}
+@media(max-width:430px) and (max-height:620px) and (orientation:portrait){
+  #game .status-bar{padding:2px 8px 4px}
+  #game .status-main{min-height:76px;grid-template-rows:44px 28px;gap:2px 5px}
+  #game .score-chip,#game #levelChip{height:28px}
+  #game .arena{margin:4px 8px 2px}
+  #game .hand-area{height:190px}
+  #game .action-bar.dealing{flex-direction:row;min-height:54px;align-items:center}
+  #game .action-bar.dealing .decl-stack{flex:0 1 auto;max-width:52%;min-width:0;width:auto;
+    min-height:44px;align-items:center}
+  #game .action-bar.dealing .decl-stack:not(:has(button)){display:none}
+  #game .action-bar.dealing .main-actions{flex:1 1 auto;width:auto}
+  #game .action-bar.dealing #btnSkipDecl{order:-1}
+  #game .center-toast.info{display:none}
+}
+@media(min-width:700px) and (min-height:500px){
+  #game .status-main,#game.wide .status-main{min-height:50px;grid-template-columns:auto auto auto minmax(150px,1fr) 44px 44px;
+    grid-template-rows:44px;gap:8px}
+  #game #trumpChip{grid-area:1/2}#game #levelChip{grid-area:1/3}#game #scoreChip{grid-area:1/4}
+  #game #recordsBtn{grid-area:1/5}#game #menuBtn{grid-area:1/6}
+  #game .hand-area{height:clamp(220px,29svh,280px)}
+}
+@media(min-width:700px) and (min-height:700px) and (orientation:portrait){
+  #game .hand-area{height:340px}
+}
+@media(max-height:400px) and (orientation:landscape){
+  #game .status-bar,#game.wide.compact .status-bar{padding:2px 8px}
+  #game .status-main,#game.wide .status-main{min-height:44px;grid-template-columns:auto auto auto minmax(90px,1fr) 44px 44px;
+    grid-template-rows:44px;gap:5px}
+  #game #trumpChip{grid-area:1/2}#game #levelChip{grid-area:1/3}#game #scoreChip{grid-area:1/4}
+  #game #recordsBtn{grid-area:1/5}#game #menuBtn{grid-area:1/6}
+  #game .arena{margin:2px 8px}
+  #game .hand-area{height:94px;padding:0 8px 2px}
+  #game .fan-viewport{height:calc(100% - 26px)}
+  #game .hand-wheel{height:26px}
+  #game .action-bar{min-height:48px;padding:2px 8px}
+  #game .action-bar.dealing{flex-direction:row;align-items:center;min-height:48px}
+  #game .action-bar.dealing .decl-stack{flex:0 1 auto;max-width:42%;min-width:0;width:auto;min-height:42px;align-items:center}
+  #game .action-bar.dealing .decl-stack:not(:has(button)){display:none}
+  #game .action-bar.dealing .main-actions{flex:1 1 auto;width:auto}
+  #game .action-bar.dealing #btnSkipDecl{order:-1}
+  #game .main-actions button{min-height:42px}
+  #game.wide.compact .player.north{top:2px;left:39%;transform:translateX(-50%)}
+  #game.wide.compact .player.west{top:30px;left:8px;transform:none;flex-direction:row}
+  #game.wide.compact .player.east{top:30px;right:8px;transform:none;flex-direction:row-reverse}
+  #game.wide.compact .my-play,#game.wide.compact .my-play:not(.declared){top:auto;bottom:2px;left:61%;transform:translateX(-50%)}
+  #game.wide.compact .played .card{animation:none}
+  #game .trick-summary{padding:2px 7px;min-width:74px;font-size:10px}
+  #game .trick-summary strong{font-size:18px}
+  #game .trick-summary small{display:none}
+  #game .center-toast.info{display:none}
+}
+/* 原引擎保留完整候选按钮作合法性来源，界面只露出一个亮主入口。 */
+#game .action-bar.dealing .decl-stack{display:none}
+#game #bidAction{background:var(--honey);border:2px solid var(--ink);color:var(--ink);box-shadow:var(--shadow-card)}
+/* 记录是独立阅读层；旧版 body 网格不能让一整屏的牌局挤走抽屉。 */
+body.drawer-open.wide-view{grid-template-columns:minmax(0,1fr)}
+body.drawer-open::before{content:'';position:fixed;inset:0;background:#241d17a6;z-index:49}
+body.drawer-open:not(.wide-view) #side,body.drawer-open.wide-view #side{
+  position:fixed;left:0;right:0;bottom:0;top:auto;width:100%;height:min(72dvh,600px);
+  display:flex;z-index:50;background:var(--page);border:2px solid var(--ink);
+  border-bottom:0;border-radius:20px 20px 0 0;box-shadow:0 -8px 28px #21180f55}
+#side .records-head{min-height:46px}
+#side .records-head button{width:36px;height:36px;color:var(--ink);background:var(--card-face)}
+#side .records-body{font-size:15px;line-height:1.55}
+@media(orientation:landscape){
+  body.drawer-open:not(.wide-view) #side,body.drawer-open.wide-view #side{
+    left:auto;top:0;right:0;bottom:0;width:min(360px,max(52vw,280px));height:100dvh;
+    border:0;border-left:2px solid var(--ink);border-radius:20px 0 0 20px}}
+
+/* 每家牌独占一块区域。侧家牌靠桌边，中央给本墩信息留白。 */
+#game .player.west,#game .player.east{top:40%;transform:translateY(-22%);flex-direction:column;gap:3px}
+#game .player.west{left:8px;align-items:flex-start}
+#game .player.east{right:8px;align-items:flex-end}
+#game .played .card{left:calc(var(--i,0)*var(--pile-step,var(--step,20px)))}
+#game .player.collect .winner-label,#game .my-play.collect .winner-label{bottom:12px;z-index:6}
+#sheet .sheet-header button{color:var(--ink);background:var(--card-face);border:2px solid var(--ink);border-radius:10px}
+@media(max-width:430px) and (max-height:620px) and (orientation:portrait){
+  #game .player.north{top:2px}
+  #game .player.west,#game .player.east{top:40%;transform:translateY(-12%)}
+  #game .my-play{bottom:2px}
+  #game .trick-summary{top:calc(50% + 8px);padding:3px 6px 4px;min-width:100px;max-width:112px;font-size:11px;line-height:1}
+  #game .trick-summary strong{font-size:20px}
+  #game .trick-summary small{font-size:10px}
+}
+@media(max-height:400px) and (orientation:landscape){
+  #game.wide.compact .player.north{left:34%}
+  #game.wide.compact .player.west{top:2px;left:8px;transform:none;flex-direction:column;align-items:flex-start}
+  #game.wide.compact .player.east{top:2px;right:8px;transform:none;flex-direction:column;align-items:flex-end}
+}
