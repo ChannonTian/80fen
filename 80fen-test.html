@@ -1031,7 +1031,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   /* 推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。
    * 真人(以及 guardJoker 之后的 AI)王留到最后。n>0:手里多于 n 张时推演领出不出王。0 = 旧行为。 */
   egRollKeepJoker: 0,
-  jokerLeadDef: 0,            // 闲家手里多于 jokerLeadDefMin 张时,单领王的候选扣这么多分(0 = 旧行为),见 aiChooseLead
+  jokerLeadDef: 25,           // (v0.7.40 测试版默认开)闲家手里多于 jokerLeadDefMin 张时,单领王的候选扣这么多分(0 = 旧行为),见 aiChooseLead
   jokerLeadDefMin: 8,
   egZ: 2,                     // (v0.7.40 测试版默认开)ai-h2h +0.95 ±0.31 分/局、ai-pool +0.024 ±0.019 级/局,见 records-report-2026-10-14
   /* 阶梯是阶跃的 —— 台阶内部要有梯度,搜索才不是瞎的。
