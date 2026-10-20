@@ -87,7 +87,8 @@ for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
   const shot=async name=>{ if(SHOTS) await p.screenshot({path:`${SHOTDIR}/${name}`}); };
 
   await p.goto('file://'+process.cwd()+'/learn.html');
-  await p.evaluate(()=>localStorage.clear());
+  // 关掉音效:无头浏览器里没有声卡,第一次建 AudioContext 要卡一秒多,点击会超时
+  await p.evaluate(()=>{localStorage.clear();localStorage.setItem('80fenlearn-sound','0');});
 
   for(let u=0;u<PLANS.length;u++){
     const U=PLANS[u];
@@ -99,7 +100,7 @@ for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
                          [prev.key,prev.lessons.length]);
       await p.reload(); await p.waitForTimeout(220);
       const T0=Date.now(); qn=0;
-      await p.click(`[data-go="${u}"]`); await p.waitForTimeout(220);
+      await p.click(`.unit[data-unit="${u}"] .go`);   // 首页:这一单元当前那课的「开始」 await p.waitForTimeout(220);
       if(tag==='p') await shot(`${U.key}-l${L+1}-q1.png`);
 
       for(const [kind,val] of U.lessons[L]){
