@@ -12,4 +12,5 @@
   自对弈量出来的结论和产品方实战判断相反时,以产品方为准,先查续打的 AI 像不像人。
 - **真人牌谱:** `test/records-fetch.sh` 用环境变量 `RECORDS_READ_KEY` 一次拉全(默认这条);Google Sheets 连接器也能读表「80fen-牌谱」。
   牌谱来自几位试玩玩家,**不要默认是产品方本人打的**。
+- **打牌 UI 测试页** `80fen-play-ui-test.html`:改完跑 `node test/play-ui-e2e.js`(16 个设备尺寸走完整局,查出屏、挤不下、遮挡、多张拖牌),体检记录在 [`docs/notes/play-ui-audit.md`](docs/notes/play-ui-audit.md)。
 - 回复产品方用中文。
