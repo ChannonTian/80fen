@@ -134,7 +134,7 @@ button{cursor:pointer;touch-action:manipulation}
 .my-play .ava{background:var(--honey);color:var(--ink);font-size:15px}
 /* 小黄人头像:圆片里画像,外圈一圈队伍色(队友青、对手砖红) */
 .player-label .ava.mug{overflow:visible;background:var(--brick);padding:2px}
-.player-label .ava.mug svg{display:block;width:100%;height:100%;background:#CFE4E8;clip-path:circle(50%)}
+.player-label .ava.mug svg{display:block;width:100%;height:100%;clip-path:circle(50%)}
 .player.north .ava.mug{background:var(--teal)}
 .player-label .name{grid-column:2;align-self:end;font:900 14px/1.1 var(--font-heading)}
 .player-label .role{grid-column:2;align-self:start;font:700 10.5px/1.25 var(--font-sans);color:var(--ink-soft)}
@@ -8555,28 +8555,34 @@ var SEAT_REL=['我','下家','对家','上家'];          /* 0 南我 1 东下�
 /* 三位电脑玩家:名字是产品方定的占位 Bob / Kevin / Stuart(小黄人),头像是自己画的简笔小黄人,
    不是官方形象;正式上线前要换成自有角色。六六是教练,不上桌 */
 function minion(o){
-  var ink='#24180F',eye=function(cx,r,iris){return '<circle cx="'+cx+'" cy="16.5" r="'+r+'" fill="#fff" stroke="#8E979E" stroke-width="2.2"/>'+
-    '<circle cx="'+cx+'" cy="16.5" r="'+(r*0.5).toFixed(2)+'" fill="'+iris+'"/><circle cx="'+cx+'" cy="16.5" r="'+(r*0.22).toFixed(2)+'" fill="'+ink+'"/>'+
-    '<circle cx="'+(cx-r*0.18).toFixed(2)+'" cy="15.4" r="'+(r*0.12).toFixed(2)+'" fill="#fff"/>';};
+  /* 三个人靠轮廓分:头的宽窄高矮、头发、眼睛几只、嘴型;底色也各不同 */
+  var ink='#24180F',h=o.head,cy=o.eyeY,eye=function(cx,r,iris){return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="#fff" stroke="#8E979E" stroke-width="2.2"/>'+
+    '<circle cx="'+cx+'" cy="'+cy+'" r="'+(r*0.5).toFixed(2)+'" fill="'+iris+'"/><circle cx="'+cx+'" cy="'+cy+'" r="'+(r*0.22).toFixed(2)+'" fill="'+ink+'"/>'+
+    '<circle cx="'+(cx-r*0.18).toFixed(2)+'" cy="'+(cy-r*0.22).toFixed(2)+'" r="'+(r*0.12).toFixed(2)+'" fill="#fff"/>';};
   /* 只取脸那一块(头发到嘴),放进小圆片里眼睛和发型才看得清 */
-  return '<svg viewBox="6.5 1.5 27 27" aria-hidden="true">'+
+  return '<svg viewBox="6.5 1.5 27 27" aria-hidden="true"><rect x="0" y="0" width="40" height="40" fill="'+o.bg+'"/>'+
     o.hair+
-    '<rect x="8" y="6" width="24" height="44" rx="12" fill="#F6D24A" stroke="'+ink+'" stroke-width="1.6"/>'+
-    '<path d="M8 32h24v12H8z" fill="#3D6FA8" stroke="'+ink+'" stroke-width="1.4"/>'+
-    '<rect x="5" y="14.6" width="30" height="3.6" fill="'+ink+'"/>'+
-    o.eyes(eye)+
-    '<path d="'+(o.mouth||'M16 26.5q4 3 8 0')+'" fill="none" stroke="'+ink+'" stroke-width="1.5" stroke-linecap="round"/></svg>';
+    '<rect x="'+h.x+'" y="'+h.y+'" width="'+h.w+'" height="44" rx="'+(h.w/2)+'" fill="#F6D24A" stroke="'+ink+'" stroke-width="1.6"/>'+
+    '<path d="M'+h.x+' 31h'+h.w+'v12H'+h.x+'z" fill="#3D6FA8" stroke="'+ink+'" stroke-width="1.4"/>'+
+    '<rect x="3" y="'+(cy-1.9)+'" width="34" height="3.6" fill="'+ink+'"/>'+
+    o.eyes(eye)+o.mouth+'</svg>';
 }
 var MUGS={
-  /* Bob:矮圆、光头几根毛、两只眼睛颜色不一样 */
-  bob:minion({hair:'<path d="M18 6.5q-1-3-3-3.6M20 6.2V2.6M22 6.5q1-3 3-3.6" fill="none" stroke="#24180F" stroke-width="1.2" stroke-linecap="round"/>',
-    eyes:function(e){return e(14.6,4.9,'#7A4B22')+e(25.4,4.9,'#4E8A3A');},mouth:'M15.5 26q4.5 4 9 0'}),
-  /* Kevin:两只眼睛、头顶一撮竖毛 */
-  kevin:minion({hair:'<path d="M20 6.4V1.2M20 6.4q-2.4-3.4-4.4-4.2M20 6.4q2.4-3.4 4.4-4.2M20 6.4q-4-2-6.4-1.8M20 6.4q4-2 6.4-1.8" fill="none" stroke="#24180F" stroke-width="1.2" stroke-linecap="round"/>',
-    eyes:function(e){return e(14.6,4.9,'#7A4B22')+e(25.4,4.9,'#7A4B22');}}),
-  /* Stuart:一只眼睛、中分 */
-  stuart:minion({hair:'<path d="M20 7q-3.6-4.4-8.6-.4M20 7q3.6-4.4 8.6-.4M20 7q-2.2-3.6-5.4-3.4M20 7q2.2-3.6 5.4-3.4" fill="none" stroke="#24180F" stroke-width="1.3" stroke-linecap="round"/>',
-    eyes:function(e){return e(20,6.6,'#7A4B22');},mouth:'M16.5 27q3.5 2.2 7 0'})
+  /* Bob:又矮又圆的大圆头、光头,两只眼睛颜色不一样(棕 / 绿),咧嘴大笑露牙 */
+  bob:minion({bg:'#F6D9C6',head:{x:4.5,y:7.5,w:31},eyeY:16.8,
+    hair:'',
+    eyes:function(e){return e(13.6,5.6,'#7A4B22')+e(26.4,5.6,'#4E8A3A');},
+    mouth:'<path d="M14 23.4q6 6 12 0z" fill="#6B2A1C" stroke="#24180F" stroke-width="1.3" stroke-linejoin="round"/><path d="M15.1 23.9h9.8l-.9 1.5h-8z" fill="#fff"/>'}),
+  /* Kevin:瘦高长脸,头顶一大撮竖毛,小一号的护目镜,抿嘴笑 */
+  kevin:minion({bg:'#CFE4E8',head:{x:11,y:7,w:18},eyeY:16,
+    hair:'<path d="M20 7.4V1.6M20 7.4Q17.4 3.4 14.6 2.6M20 7.4Q22.6 3.4 25.4 2.6M19.6 7.4Q16 5.2 12.6 5.4M20.4 7.4Q24 5.2 27.4 5.4" fill="none" stroke="#24180F" stroke-width="1.25" stroke-linecap="round"/>',
+    eyes:function(e){return e(16,3.9,'#7A4B22')+e(24,3.9,'#7A4B22');},
+    mouth:'<path d="M17 24.6q3.4 2.2 6.4-.8" fill="none" stroke="#24180F" stroke-width="1.5" stroke-linecap="round"/>'}),
+  /* Stuart:一只大眼睛、中分头 */
+  stuart:minion({bg:'#D5E8CF',head:{x:8,y:6,w:24},eyeY:16.5,
+    hair:'<path d="M20 7q-3.6-4.4-8.6-.4M20 7q3.6-4.4 8.6-.4M20 7q-2.2-3.6-5.4-3.4M20 7q2.2-3.6 5.4-3.4" fill="none" stroke="#24180F" stroke-width="1.3" stroke-linecap="round"/>',
+    eyes:function(e){return e(20,6.6,'#7A4B22');},
+    mouth:'<path d="M16.5 26.8q3.5 2.2 7 0" fill="none" stroke="#24180F" stroke-width="1.5" stroke-linecap="round"/>'})
 };
 var PLAYERS=[{name:'我',ini:'我'},{name:'Bob',ini:'B',mug:MUGS.bob},{name:'Kevin',ini:'K',mug:MUGS.kevin},{name:'Stuart',ini:'S',mug:MUGS.stuart}];
 function who(s){return PLAYERS[s].name;}

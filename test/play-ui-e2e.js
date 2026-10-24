@@ -92,7 +92,9 @@ function audit(){
       if(inter(R(a),R(b),3))out.push(`压住了:${name(a)} / ${name(b)}`);}
     // 桌面牌不能比手牌小一截(竖屏、宽屏)
     const tc=document.querySelector('.played .card'),hc=document.querySelector('#hand .card');
-    if(tc&&hc&&!game.classList.contains('m-l')){const k=tc.offsetWidth/(parseFloat(hc.style.getPropertyValue('--w'))||hc.offsetWidth);   // 量排版宽度:出牌动画开头牌是缩小的
+    // 扣底时手里 33 张,窄屏要排三排、牌桌变矮;那时桌上只有亮主的一两张,先顾手牌,这条不查
+    const kitty=window.__G&&window.__G()&&window.__G().phase==='kitty';
+    if(tc&&hc&&!kitty&&!game.classList.contains('m-l')){const k=tc.offsetWidth/(parseFloat(hc.style.getPropertyValue('--w'))||hc.offsetWidth);   // 量排版宽度:出牌动画开头牌是缩小的
       if(k<0.8)out.push(`桌面牌太小:只有手牌的 ${Math.round(k*100)}%`);}
     // 竖屏、宽屏手牌整张露出来,不被操作栏切掉
     if(hc&&!game.classList.contains('m-l')){const hb=R(document.getElementById('controls')).top;
