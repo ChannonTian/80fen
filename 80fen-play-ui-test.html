@@ -8564,7 +8564,8 @@ function minion(o){
     o.hair+
     '<rect x="'+h.x+'" y="'+h.y+'" width="'+h.w+'" height="44" rx="'+(h.w/2)+'" fill="#F6D24A" stroke="'+ink+'" stroke-width="1.6"/>'+
     '<path d="M'+h.x+' 31h'+h.w+'v12H'+h.x+'z" fill="#3D6FA8" stroke="'+ink+'" stroke-width="1.4"/>'+
-    '<rect x="3" y="'+(cy-1.9)+'" width="34" height="3.6" fill="'+ink+'"/>'+
+    /* 护目镜绑带只绕在头上(两边各多出一点),头窄的 Kevin 才不会在脸外悬两条黑杠 */
+    '<rect x="'+(h.x-0.9)+'" y="'+(cy-1.9)+'" width="'+(h.w+1.8)+'" height="3.6" rx="1" fill="'+ink+'"/>'+
     o.eyes(eye)+o.mouth+'</svg>';
 }
 var MUGS={
