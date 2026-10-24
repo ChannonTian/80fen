@@ -82,12 +82,23 @@ function audit(){
   // 4. 牌桌:名牌、桌心、牌摞两两不压
   if(!modal&&!drawer){
     const arena=R(document.getElementById('arena'));
-    const parts=[...document.querySelectorAll('.player-label,#trickSummary,.played')].filter(vis);
+    const parts=[...document.querySelectorAll('.player-label,#trickSummary,.played:not(.ghost),.turn-slot,.winner-label')].filter(vis);
     for(const e of parts){const r=R(e);if(r.left<arena.left-2||r.right>arena.right+2||r.top<arena.top-2||r.bottom>arena.bottom+2)out.push(`出了牌桌:${name(e)}`);}
     for(let i=0;i<parts.length;i++)for(let j=i+1;j<parts.length;j++){
       const a=parts[i],b=parts[j];if(a.contains(b)||b.contains(a))continue;
       if(a.closest('.player,.my-play')&&a.closest('.player,.my-play')===b.closest('.player,.my-play'))continue;
+      // 收墩的戳本来就盖在赢的那摞上
+      if([a,b].some(x=>x.classList.contains('winner-label')&&[a,b].some(y=>y.id==='p'+x.dataset.seat)))continue;
       if(inter(R(a),R(b),3))out.push(`压住了:${name(a)} / ${name(b)}`);}
+    // 桌面牌不能比手牌小一截(竖屏、宽屏)
+    const tc=document.querySelector('.played .card'),hc=document.querySelector('#hand .card');
+    // 扣底时手里 33 张,窄屏要排三排、牌桌变矮;那时桌上只有亮主的一两张,先顾手牌,这条不查
+    const kitty=window.__G&&window.__G()&&window.__G().phase==='kitty';
+    if(tc&&hc&&!kitty&&!game.classList.contains('m-l')){const k=tc.offsetWidth/(parseFloat(hc.style.getPropertyValue('--w'))||hc.offsetWidth);   // 量排版宽度:出牌动画开头牌是缩小的
+      if(k<0.8)out.push(`桌面牌太小:只有手牌的 ${Math.round(k*100)}%`);}
+    // 竖屏、宽屏手牌整张露出来,不被操作栏切掉
+    if(hc&&!game.classList.contains('m-l')){const hb=R(document.getElementById('controls')).top;
+      for(const c of document.querySelectorAll('#hand .card'))if(R(c).bottom>hb+2){out.push('手牌被操作栏切掉一截');break;}}
     // 手牌左右不出手牌区(要拨牌时除外)
     const ha=document.getElementById('handArea');
     if(!ha.classList.contains('overflow')){const hr=R(ha);
@@ -177,6 +188,14 @@ async function run(browser,key,opt,base){
   await until(s=>s.my);
   await p.evaluate(()=>document.querySelector('#hand .card:last-child').click());
   await check('出牌阶段·选了牌·能悔牌');
+  // 桌面压力:四家各摆 2 / 4 / 6 张(对子、拖拉机、甩牌),名牌和牌摞都不许互相压
+  for(const n of [2,4,6]){
+    await p.evaluate(n=>{const src=[...document.querySelectorAll('#hand .card')];
+      for(let s=0;s<4;s++){const el=document.getElementById('p'+s);if(el.__keep==null)el.__keep=el.innerHTML;
+        el.innerHTML=src.slice(s*n%Math.max(1,src.length-n),s*n%Math.max(1,src.length-n)+n).map(c=>'<div class="'+c.className.replace(/\b(sel|hintc)\b/g,'')+'">'+c.innerHTML+'</div>').join('');}},n);
+    await check(`桌面压力·每家 ${n} 张`);
+  }
+  await p.evaluate(()=>{for(let s=0;s<4;s++){const el=document.getElementById('p'+s);el.innerHTML=el.__keep;el.__keep=null;}});
   // 多张一起拖:点选六六建议的那一组(≥2 张),按住 0.4 秒再往牌桌上拖
   const touch=!!opt.hasTouch;
   let dragTried=0,dragOk=0;
@@ -189,11 +208,16 @@ async function run(browser,key,opt,base){
     if(ids.length<2){await p.evaluate(()=>{const G=__G();G.selected.clear();(G.hintCards||[]).forEach(i=>G.selected.add(i));document.getElementById('btnPlay').disabled=false;document.getElementById('btnPlay').click();});await p.waitForTimeout(150);continue;}
     /* 找一个真的点得到这张牌的点(牌互相压着、还转了角度,外框左上角未必是它) */
     const pos=id=>p.evaluate(id=>{const e=document.querySelector(`#hand .card[data-id="${id}"]`);const r=e.getBoundingClientRect();
-      for(let dy=10;dy<r.height*0.6;dy+=6)for(let dx=4;dx<r.width;dx+=4){const x=r.x+dx,y=r.y+dy,h=document.elementFromPoint(x,y);if(h&&h.closest('.card')&&h.closest('.card').dataset.id==id)return [x,y];}
-      return [r.x+8,r.y+14];},id);
+      /* 取露出来那一块的中间(贴着边点,手机的触摸纠偏可能吸到隔壁那张) */
+      const hits=[];
+      for(let dy=6;dy<r.height*0.8;dy+=4)for(let dx=2;dx<r.width;dx+=3){const x=r.x+dx,y=r.y+dy;if(y>innerHeight-2)continue;const h=document.elementFromPoint(x,y);if(h&&h.closest('.card')&&h.closest('.card').dataset.id==id)hits.push([x,y]);}
+      if(!hits.length)return [r.x+8,r.y+14];
+      const xs=hits.map(h=>h[0]).sort((a,b)=>a-b),ys=hits.map(h=>h[1]).sort((a,b)=>a-b),m=[xs[xs.length>>1],ys[ys.length>>1]];
+      return hits.reduce((best,h)=>Math.hypot(h[0]-m[0],h[1]-m[1])<Math.hypot(best[0]-m[0],best[1]-m[1])?h:best,hits[0]);},id);
     await p.evaluate(()=>document.getElementById('btnClear').onclick());await p.waitForTimeout(80);
     if(args.debug){await p.evaluate(()=>window.__DBG=1);console.log('      hint',JSON.stringify(ids),'sel',await p.evaluate(()=>JSON.stringify([...__G().selected])));}
-    for(const id of ids){const b=await pos(id);if(touch)await p.touchscreen.tap(b[0],b[1]);else await p.mouse.click(b[0],b[1]);await p.waitForTimeout(260);}
+    for(const id of ids){const b=await pos(id);if(touch)await p.touchscreen.tap(b[0],b[1]);else await p.mouse.click(b[0],b[1]);await p.waitForTimeout(260);if(args.debug)console.log("      tap",id,JSON.stringify(b),await p.evaluate(()=>JSON.stringify([...__G().selected])));}
+    if(args.debug)console.log('      after taps sel',await p.evaluate(()=>JSON.stringify([...__G().selected])));
     const b=await pos(ids[ids.length-1]),to=await p.evaluate(()=>{const r=document.getElementById('arena').getBoundingClientRect();return [r.x+r.width/2,r.y+r.height/2];});
     const steps=14,path=i=>[b[0]+(to[0]-b[0])*i/steps,b[1]+(to[1]-b[1])*i/steps];
     if(touch){const cdp=await ctx.newCDPSession(p);
