@@ -1028,6 +1028,9 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * 便宜推演哪怕拿着真牌,对候选的排序和「真 AI 打完的真值」相关只有 0.06~0.12(8~12 张),搜索估计 0.02~0.04 ——
    * 推演策略是主误差。0 = 旧行为;n = 只在剩 ≤n 张时用真 AI 推演(慢,每个世界一整局 AI 决策)。 */
   egRolloutAI: 0,
+  willWFit: [0.0629,-0.6141,0.0593,0.0284,0.6801,-0.0605,0.1823,0.245,0.7854,0.0345,-0.5718,1.6362,-1.4988],   // fit-will.js 自对弈 1200 副的拟合值(还没接进决策)
+  willW: null,                // 后手对手「拿得出」时真会压 / 毙的意愿模型(test/fit-will.js);null = pSurviveBelief 用旧意愿常数
+  beliefM: 60,                // 信念服务每次抽几个世界(只读对照用,不改决策)
   /* 推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。
    * 真人(以及 guardJoker 之后的 AI)王留到最后。n>0:手里多于 n 张时推演领出不出王。0 = 旧行为。 */
   egRollKeepJoker: 0,
@@ -4846,6 +4849,97 @@ function levelUtility(sc, myTeam, declTeam){
 }
 
 /* 对一组候选做收官搜索。返回 [{cards, u}] 或 null(条件不满足/预算不够) */
+/* ========== 信念服务(2026-10-24,belief-plan ①):「谁手里有什么」统一从约束一致的抽样世界里数 ==========
+ * 和收官搜索同一个 sampleWorld(硬断门、maxHoldIn 上界、亮主钉牌、底牌模型)。现在**只读**:
+ * 给打分器里那些散落的概率各配一个「数世界」的版本,先量谁更准(test/calib-belief.js),不改任何决策。
+ * belief-calib 量过:坛子公式估「某家握在外最大那张」系统性偏低(28% vs 实 33%),约束抽样一步改掉大半。 */
+function makeBelief(view, plays, M){
+  const trump=view.trump, n=view.hand.length;
+  const mem=makeMemory(view);
+  const unseen=[]; let uid=0;
+  for(const k in mem.unseen){ const c=keyToCard(k); for(let i=0;i<mem.unseen[k];i++) unseen.push({suit:c.suit,rank:c.rank,id:'b'+(uid++)}); }
+  const seats=[0,1,2,3].filter(s=>s!==view.seat);
+  const played=new Set((plays||[]).map(p=>p.seat));
+  const sizes={}; seats.forEach(s=>{ sizes[s]=n-(played.has(s)?1:0); });
+  const kittySize=view.buriedKnown&&view.buriedKnown.length?0:RULES.kittySize;
+  if(unseen.length!==seats.reduce((a,s)=>a+sizes[s],0)+kittySize) return null;
+  const hist=view.history||[];
+  const voids=makeVoids(hist.slice(0,hist.length-((plays||[]).length)),trump);
+  // 本墩已出的牌里也可能刚露出断门
+  if(plays&&plays.length){ const lead=classify(plays[0].cards,trump);
+    for(let j=1;j<plays.length;j++) if(plays[j].cards.some(c=>effSuit(c,trump)!==lead.suit)) voids[plays[j].seat][lead.suit]=true; }
+  const reads=makeReads(hist,trump);
+  const capMemo={};   // 上界只取决于(座, 门),一次决策里不变 —— 抽样时每张牌每家都要问一遍,记下来
+  const capOf=(s,su)=>{ const k=s+su; return capMemo[k]!==undefined?capMemo[k]:(capMemo[k]=maxHoldIn(reads,mem,s,su,trump)); };
+  const known=[];
+  const ctx={unseen,sizes,seats,voids,trump,kittySize,capOf,known,pVoidOf:null};
+  const rand=rng(hist.length*7919+view.seat*31+n*17+7);
+  const worlds=[];
+  for(let i=0;i<(M||AIP.beliefM);i++){ const w=sampleWorld(ctx,rand); if(w) worlds.push(w); }
+  return worlds.length?{worlds,mem,seats,trump}:null;
+}
+/* pSurvive 的信念版:「后手谁拿得出压我 / 毙我的牌」逐个世界按真实手牌判,意愿那几个常数照旧(先只换信念,不换意愿)。
+ * 只处理单张;多张返回 null(调用方退回 pSurvive)。 */
+function pSurviveBelief(X, cl, seats, B){
+  if(!B||!cl||cl.type!=='single') return null;
+  if(!seats||!seats.length) return 0.99;
+  const trump=X.trump, leadSuit=X.lead?X.lead.suit:cl.suit;
+  const iRuffed=cl.suit==='T'&&leadSuit!=='T';
+  const oCeil=AIP.willingBeats&&iRuffed?(X._osc!==undefined?X._osc:(X._osc=oppSpendCeil(X,X.hand?X.hand.length:9))):undefined;
+  let sealed=false;
+  if((AIP.trumpSealW<1||AIP.lastOverW0)&&X.lead&&leadSuit==='T'&&cl.suit==='T'&&!iRuffed){
+    let topPt=-1; for(const k in X.mem.unseen){ if(X.mem.unseen[k]<=0) continue; const u=keyToCard(k);
+      if(effSuit(u,trump)==='T'&&cardPoints(u)>0) topPt=Math.max(topPt,ordIdx(u,trump)); }
+    sealed=cl.top>topPt;
+  }
+  const tblPts=(X.ptsTable||0)+(AIP.sealOwnPts?countPoints(cl.cards||[]):0);
+  const W=AIP.willW, lastSeat=X.remaining&&X.remaining.length?X.remaining[X.remaining.length-1]:-1;
+  const myPts=(X.ptsTable||0)+countPoints(cl.cards||[]), nMine=X.hand?X.hand.length:9;
+  let acc=0;
+  for(const w of B.worlds){
+    if(W){   // 拟合的意愿模型(test/fit-will.js):逐家「拿得出」× 意愿
+      let p=1;
+      for(const s of seats){ const H=w.hands[s]; if(!H) continue;
+        const hasLead=H.some(c=>effSuit(c,trump)===leadSuit), tr=H.filter(c=>effSuit(c,trump)==='T');
+        let beaters, kind;
+        if(iRuffed){ kind=2; beaters=hasLead?[]:tr.filter(c=>ordIdx(c,trump)>cl.top); }
+        else if(leadSuit!=='T'&&!hasLead){ kind=1; beaters=tr; }
+        else { kind=0; beaters=H.filter(c=>effSuit(c,trump)===cl.suit&&ordIdx(c,trump)>cl.top); }
+        if(!beaters.length) continue;
+        let ch=beaters[0]; for(const c of beaters) if(ordIdx(c,trump)<ordIdx(ch,trump)) ch=c;
+        const last=s===lastSeat?1:0, pa=X.remaining&&X.remaining.some(z=>z%2===X.seat%2&&X.remaining.indexOf(z)>X.remaining.indexOf(s))?1:0;
+        const big=ch.suit==='X'||ch.rank===trump.rank||(effSuit(ch,trump)==='T'&&ch.rank===14)?1:0;
+        const f=[1,kind===1?1:0,kind===2?1:0,last,Math.min(myPts,40)/10,myPts===0?1:0,big,cardPoints(ch)>0?1:0,Math.min(beaters.length,6)/3,pa,nMine<=12?1:0,last*(myPts>0?1:0),(kind===2?1:0)*(1-last)];
+        let z=0; for(let i=0;i<W.length;i++) z+=W[i]*f[i];
+        p*=1-clamp(1/(1+Math.exp(-z)),0,0.97);
+      }
+      acc+=p; continue;
+    }
+    let p=1;
+    for(const s of seats){
+      const H=w.hands[s]; if(!H) continue;
+      const hasLead=H.some(c=>effSuit(c,trump)===leadSuit);
+      const trumps=H.filter(c=>effSuit(c,trump)==='T');
+      const lastW=AIP.lastRuffWill&&X.remaining&&X.remaining.length&&s===X.remaining[X.remaining.length-1]?AIP.lastRuffWill:0;
+      const rw=lastW||ruffWill(X.ptsTable);
+      let pBeat=0;
+      if(iRuffed){
+        if(!hasLead&&trumps.some(c=>{ const ix=ordIdx(c,trump); return ix>cl.top&&(oCeil===undefined||ix<=oCeil); }))
+          pBeat=oCeil!==undefined?1:(lastW||(X.ptsTable>0?0.90:0.50));
+      }else if(leadSuit!=='T'&&!hasLead){
+        pBeat=trumps.length?rw:0;
+      }else{
+        const can=H.some(c=>effSuit(c,trump)===cl.suit&&ordIdx(c,trump)>cl.top);
+        if(can){ const overW=AIP.lastOverW0&&lastW&&sealed&&!(tblPts>0)?AIP.lastOverW0:1;
+          pBeat=overW*(sealed?(tblPts>0&&AIP.trumpSealWPts!==undefined?AIP.trumpSealWPts:AIP.trumpSealW):1); }
+      }
+      p*=1-clamp(pBeat,0,0.97);
+    }
+    acc+=p;
+  }
+  return clamp(acc/B.worlds.length,0.02,0.99);
+}
+
 /* 真 AI 推演:四家都用 aiChooseLead / aiChooseFollow(推演里关掉搜索,避免递归)。 */
 let EG_IN_ROLLOUT=false;
 function rolloutAI(st){
@@ -4897,7 +4991,8 @@ function endgameSearch(view, plays, cands){
   if(unseen.length!==seats.reduce((a,s)=>a+sizes[s],0)+kittySize) return null;
   const voids=makeVoids(view.history||[],trump);
   const reads=makeReads(view.history||[],trump);
-  const capOf=(s,su)=>maxHoldIn(reads,mem,s,su,trump);
+  const capMemo={};   // 纯函数,记下来(信念服务那边量过:抽样提速约 6 倍,结果逐位相同)
+  const capOf=(s,su)=>{ const k=s+su; return capMemo[k]!==undefined?capMemo[k]:(capMemo[k]=maxHoldIn(reads,mem,s,su,trump)); };
   const pVoidOf=AIP.egVoidW>0?makeVoidProb(reads,mem,trump,n,{declSeat:view.declSeat,me:view.seat}):null;
   const rand=rng((view.history||[]).length*7919+view.seat*31+n*17+1);
   /* 亮主者手里钉死的牌:亮 k 张级牌 → 他手里有 k 张该门级牌(减去他已经打出的);王对同理。 */
@@ -5628,7 +5723,7 @@ const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
   phaseOf,futureValue,pTeamWin,laterPoints,scorePlay,unseenPointsIn,leadPointsEV,pSurvive,unseenBeats,roundScore,pointWeight,ruffThrow,SCORE_LADDER,makeReads,maxHoldIn,makeVoidProb,cheapKey,dumpKey,kittyPointsEst,tempoValue,
   bossUnits,feedRuffValue,reserveHold,reserveUnit,guardFeat,guardP,
   makeHoldRange,partnerAceRead,tiaoWangValue,
-  endgameSearch,egOverride,sampleWorld,rolloutToEnd,rolloutLead,rolloutFollow,levelUtility,trumpLeadPrior};
+  endgameSearch,egOverride,sampleWorld,makeBelief,pSurviveBelief,rolloutToEnd,rolloutLead,rolloutFollow,levelUtility,trumpLeadPrior};
 if(typeof module!=='undefined') module.exports=ENGINE;
 </script>
 
