@@ -372,7 +372,7 @@
 <div id="toast"></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.40(测试版)</div>
+<div id="versionTag">80分 v0.7.41(测试版)</div>
 
 <script>
 /* ============================================================
@@ -1331,6 +1331,10 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * 让它在正常局面下直接胜出,只有极端情况(比如手上只剩护底那一张主)才可能被压过。
    * 判据是 curBoss —— 队友那张确实是本门最大、且没有已知的后手断门,才可以不毙。 */
   ruffPartnerBonus: -25,
+  pLastFit: 0,                // 埋底时「守住末墩」的概率用校准小模型 pLastModel(0 = 旧式 pWinLastTrick)
+  pLastW: [-1.5404,0.422,0.4069,0.4593,0.5495,-0.1092,0.2599,0.2678,-0.0917,0],
+  ruffGuardPartner: 1,        // (v0.7.41 测试版默认开)队友暂大、我断门毙、后手对手已知断门:毙到在外非王主之上(0 = 旧行为),见 aiChooseFollow 1c-0
+  ruffGuardPartnerBonus: -25,
   ruffPartnerMinPts: 5,       // 台面分下限:一分没有的空气墩不值得动主
   takeOverMinPts: 5,          // 断门毙分那一支的桌面分下限
   partnerHoldAfter: 0.72,     // 队友压回来之后,身后还有对手时守得住的比例
@@ -1477,6 +1481,22 @@ function bossChain(suitCards, trump, mem){
 
 // 庄家方赢下最后一墩的概率(决定分牌该不该扣底)。
 // 主要看主牌厚度与是否握有大怪 —— 能压到最后的才敢把分埋进底。
+/* pLastFit(2026-10-24):pWinLastTrick 的校准小模型(test/fit-plast.js,自对弈 2000 副)。
+ * 旧式在主少的时候偏乐观:8~9 张主估 55% 实 45%;真人牌谱更甚(AI 做庄 11 局估 73% 实 36% —— 真人把王留到最后)。
+ * 特征 [1, logit(旧估计), 主张数/10, 大王, 小王, 主级牌, 副级牌, 主对子, 断门数, 无主]。只用在 aiDiscard。 */
+function pLastModel(hand, trump){
+  const p0=pWinLastTrick(hand,trump), w=AIP.pLastW;
+  const tr=hand.filter(c=>effSuit(c,trump)==='T');
+  const keys={}; tr.forEach(c=>{const k=c.suit+c.rank; keys[k]=(keys[k]||0)+1;});
+  const sides=['S','H','D','C'].filter(su=>su!==trump.suit);
+  const f=[1,Math.log(p0/(1-p0)),tr.length/10,hand.filter(c=>c.rank===16).length,hand.filter(c=>c.rank===15).length,
+    hand.filter(c=>trump.suit&&c.suit===trump.suit&&c.rank===trump.rank).length,
+    hand.filter(c=>c.rank===trump.rank&&c.suit!==trump.suit&&c.suit!=='X').length,
+    Object.values(keys).filter(v=>v>=2).length,
+    sides.filter(su=>!hand.some(c=>effSuit(c,trump)===su)).length, trump.suit?0:1];
+  let z=0; for(let i=0;i<w.length;i++) z+=w[i]*f[i];
+  return clamp(1/(1+Math.exp(-z)),0.05,0.95);
+}
 function pWinLastTrick(hand, trump){
   const nT=hand.filter(c=>effSuit(c,trump)==='T').length;
   const bj=hand.filter(c=>c.rank===16).length, sj=hand.filter(c=>c.rank===15).length;
@@ -1541,7 +1561,7 @@ function aiDiscard(hand, trump, opt){
   //   无将局主牌总共 12 张、人均 3 → 饱和在 5(单家不可能到 12,那是全场总数)
   const nTsat=trump.suit?AIP.ruffSatTrump:AIP.ruffSatNT;
   const voidDiscount=easeEnds(clamp(nT/nTsat,0,1));
-  const pLast=pWinLastTrick(hand,trump);
+  const pLast=AIP.pLastFit?pLastModel(hand,trump):pWinLastTrick(hand,trump);
   const gateDamp=opt.gateAhead?AIP.gateDamp:1;        // 对手面临必打关卡 → 损失封顶
 
   const rest=hand.slice();
@@ -3715,8 +3735,22 @@ function aiChooseFollow(view, plays){
           &&!view.hand.some(c=>effSuit(c,trump)===lead.suit)
           &&view.hand.some(c=>effSuit(c,trump)==='T')){
     const win=minWinFollow(view.hand,lead,trump,X.cur.cl);
+    /* ruffGuardPartner(2026-10-24,产品方「明知下一家断门且有富余主牌,却用太小的主毙,被主分直接拿墩拿分」):
+     * 对手暂大那一支早有 ruffGuard(后手对手已知断门 → 毙高、最省的毙扣 ruffVoidBehind),**队友暂大这一支没有** ——
+     * cf-situations 自对弈 2400 副:第 3 家、后手对手已知断门、台面有分、队友暂大时,AI 几乎总是最省的毙;
+     * 改成「压过在外所有非王主的最小一张」+0.209 ±0.042 级 / +4.8 分 每次(t=4.9,456 次)。 */
+    const guardBehind=AIP.ruffGuardPartner&&X.remainingOpp.some(s=>X.voids[s]&&X.voids[s][lead.suit]);
     if(win) push(win,'ruff',true,
-      '这门我断门、台面有分,而队友那张并非稳赢 —— 毙下来',AIP.ruffPartnerBonus);
+      '这门我断门、台面有分,而队友那张并非稳赢 —— 毙下来',AIP.ruffPartnerBonus+(guardBehind?AIP.ruffVoidBehind:0));
+    if(guardBehind&&lead.type==='single'){
+      let topOut=-1;
+      for(const k in X.mem.unseen){ if(X.mem.unseen[k]<=0) continue; const u=keyToCard(k);
+        if(effSuit(u,trump)==='T'&&u.suit!=='X') topOut=Math.max(topOut,ordIdx(u,trump)); }
+      const trs=view.hand.filter(c=>effSuit(c,trump)==='T'&&c.suit!=='X'&&ordIdx(c,trump)>X.cur.cl.top).sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump));
+      const hi=trs.find(c=>ordIdx(c,trump)>topOut)||trs[trs.length-1];
+      if(hi&&(!win||hi!==win[0])) push([hi],'ruff',true,
+        '下家已知断门 —— 毙到在外的主之上,别让他用主分超毙拿走这墩',AIP.ruffPartnerBonus+AIP.ruffGuardPartnerBonus);
+    }
     if(AIP.blockWin)
       push(blockWinFollow(view.hand,lead,trump,X.cur.cl,X.mem),'ruff',true,
         '毙到在外最大分牌之上,防末家用更大的主抢回去',AIP.ruffPartnerBonus);
