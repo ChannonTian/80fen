@@ -220,8 +220,9 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
 | `egRolloutAI` | `0` | (见上方注释)推演用真正的 AI 打完(而不是 rolloutLead / rolloutFollow 那套便宜策略)。 | `endgameSearch` |
-| `willW` | `null` | 后手对手「拿得出」时真会压 / 毙的意愿模型(test/fit-will.js);null = pSurviveBelief 用旧意愿常数 | `pSurviveBelief` |
-| `beliefM` | `60` | 信念服务每次抽几个世界(只读对照用,不改决策) | `makeBelief` |
+| `willW` | `null` | 后手对手「拿得出」时真会压 / 毙的意愿模型(test/fit-will.js);null = pSurviveBelief 用旧意愿常数 | `pSurviveBelief` `survB` |
+| `beliefSurv` | `0` | 位开关:1 = 跟牌压牌候选、2 = 队友暂大的确定性、4 = 整个 pTeamWin 换成逐世界走完本墩(teamWinBelief) —— 改用抽样信念 + 拟合意愿(见 survB);0 = 旧行为 | `pTeamWin` `followCtx` |
+| `beliefM` | `30` | 信念服务每次抽几个世界(30 与 60 一样准,5 ms) | `pTeamWin` `makeBelief` `survB` |
 
 ### 推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。
 

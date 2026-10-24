@@ -1028,9 +1028,11 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * 便宜推演哪怕拿着真牌,对候选的排序和「真 AI 打完的真值」相关只有 0.06~0.12(8~12 张),搜索估计 0.02~0.04 ——
    * 推演策略是主误差。0 = 旧行为;n = 只在剩 ≤n 张时用真 AI 推演(慢,每个世界一整局 AI 决策)。 */
   egRolloutAI: 0,
-  willWFit: [0.0629,-0.6141,0.0593,0.0284,0.6801,-0.0605,0.1823,0.245,0.7854,0.0345,-0.5718,1.6362,-1.4988],   // fit-will.js 自对弈 1200 副的拟合值(还没接进决策)
+  willWSurv: [0.0629,-0.6141,0.0593,0.0284,0.6801,-0.0605,0.1823,0.245,0.7854,0.0345,-0.5718,1.6362,-1.4988],   // pSurviveBelief 用的第一版意愿(calib-belief DUMPW,13 个特征)
+  willWFit: [1.5682,-1.571,-0.8176,0.035,0.8761,-0.6175,0.0179,0.3714,0.1914,1.5332,-0.9936,0.0904,-0.1571,-1.7723,2.5077,0.9547,-1.3681],   // test/fit-will.js(will-data 自对弈 800 副、10298 个样本,对数损失 0.547 → 0.468)
   willW: null,                // 后手对手「拿得出」时真会压 / 毙的意愿模型(test/fit-will.js);null = pSurviveBelief 用旧意愿常数
-  beliefM: 60,                // 信念服务每次抽几个世界(只读对照用,不改决策)
+  beliefSurv: 0,              // 位开关:1 = 跟牌压牌候选、2 = 队友暂大的确定性、4 = 整个 pTeamWin 换成逐世界走完本墩(teamWinBelief) —— 改用抽样信念 + 拟合意愿(见 survB);0 = 旧行为
+  beliefM: 30,                // 信念服务每次抽几个世界(30 与 60 一样准,5 ms)
   /* 推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。
    * 真人(以及 guardJoker 之后的 AI)王留到最后。n>0:手里多于 n 张时推演领出不出王。0 = 旧行为。 */
   egRollKeepJoker: 0,
@@ -3037,6 +3039,10 @@ function pPartnerTakes(X){
 // 我出这手之后,本队最终赢下这墩的概率
 function pTeamWin(X, cards, beatsCur){
   const cl=classify(cards,X.trump);
+  if((AIP.beliefSurv&4)&&X.view&&!X.isLast&&cards.length===1&&X.lead&&X.lead.type==='single'){
+    const B=X._B!==undefined?X._B:(X._B=makeBelief(X.view,X.plays,AIP.beliefM));
+    const p=teamWinBelief(X,cards,B); if(p!==null) return p;
+  }
   if(!beatsCur){
     /* 我贴上去的分会把台面抬高,而「肯不肯花一张主牌来毙」看的正是台面分 ——
      * pSurvive 的已知断门分支就是 0.35 → 0.80 那一跳,pPartnerTakes 里同理。
@@ -3057,7 +3063,9 @@ function pTeamWin(X, cards, beatsCur){
   }
   if(X.isLast) return 1;
   if(!cl) return 0.5;
-  const p0=pSurvive(X,cl,X.remainingOpp);
+  let p0=null;
+  if(AIP.beliefSurv&1) p0=survB(X,cl,X.remainingOpp,cards);
+  if(p0===null) p0=pSurvive(X,cl,X.remainingOpp);
   /* survPlan(路线 ③ 第二个小模型,2026-10-01,test/fit-survive.js):pSurvive 里「后手肯不肯盖 / 毙」是三个手调常数
    * (lastOverW0、trumpSealW、lastRuffWill),在自对弈里校准、跟着引擎的打法走。以它为底再加几样能看到的特征,
    * 用自对弈 400 副 + 池子 500 副(13629 个第 2 / 3 家压下的单张)拟合:对数损失 0.408 → 0.361。
@@ -3215,9 +3223,11 @@ function followCtx(view, plays){
            // 已打完几墩 —— view.history 里就有,不是新信息(pairHold 的闸门要用)
            trPlayed:Math.floor((view.history||[]).length/4),
            holdRange,buriedKnown:view.buriedKnown,phase:phaseOf(view.hand.length),
-           remaining,seat:view.seat,declSeat:view.declSeat};
+           remaining,seat:view.seat,declSeat:view.declSeat,view,plays};
   // 队友「暂大」不是「稳大」:确定性由记牌算出,不再是拍脑袋的常数
-  X.certainty=isLast?1:pSurvive(X,cur.cl,remainingOpp);
+  X.certainty=isLast?1:null;
+  if(X.certainty===null&&(AIP.beliefSurv&2)&&partnerWinning) X.certainty=survB(X,cur.cl,remainingOpp,(plays.find(p=>p.seat===cur.seat)||{}).cards);
+  if(X.certainty===null) X.certainty=pSurvive(X,cur.cl,remainingOpp);
   const rs=roundScore(view); X.def=rs.def; X.live=rs.live;
   X.pw=pointWeight(rs.def+kittyProjection(X),rs.live);
   return X;
@@ -4940,6 +4950,61 @@ function pSurviveBelief(X, cl, seats, B){
   return clamp(acc/B.worlds.length,0.02,0.99);
 }
 
+/* 「本墩本队拿下」的信念版(2026-10-25):在每个抽样世界里把这一墩剩下的几家走完 ——
+ * 本队暂时输着、手里有压得过当前最大的那家,按意愿模型 willWFit 的概率用最便宜的那张压,否则跟小;
+ * 两条分支都走、按概率加权(最多 3 家 → 8 片叶子),再对世界取平均。对手压我、队友压回来、队友那张稳不稳,都是同一个问题。
+ * 只管单张领出。 */
+function willP(T, plays, seat, hand, n, behind){
+  const lead=classify(plays[0].cards,T); const cur=currentWinner(plays,T);
+  const ccl=classify(plays.find(p=>p.seat===cur.seat).cards,T);
+  const ls=lead.suit, hasLead=hand.some(c=>effSuit(c,T)===ls);
+  const curRuff=ccl.suit==='T'&&ls!=='T';
+  let kind, beaters;
+  if(curRuff){ kind=2; beaters=hasLead?[]:hand.filter(c=>effSuit(c,T)==='T'&&ordIdx(c,T)>ccl.top); }
+  else if(ls!=='T'&&!hasLead){ kind=1; beaters=hand.filter(c=>effSuit(c,T)==='T'); }
+  else { kind=0; beaters=hand.filter(c=>effSuit(c,T)===ccl.suit&&ordIdx(c,T)>ccl.top); }
+  if(!beaters.length) return {p:0};
+  let ch=beaters[0]; for(const c of beaters) if(ordIdx(c,T)<ordIdx(ch,T)) ch=c;
+  const pts=countPoints(plays.flatMap(p=>p.cards)), last=behind.length===0?1:0;
+  const ob=behind.some(z=>z%2!==seat%2)?1:0, mb=behind.some(z=>z%2===seat%2)?1:0;
+  const big=ch.suit==='X'||ch.rank===T.rank||(effSuit(ch,T)==='T'&&ch.rank===14)?1:0;
+  const f=[1,kind===1?1:0,kind===2?1:0,last,Math.min(pts,40)/10,pts===0?1:0,big,cardPoints(ch)>0?1:0,Math.min(beaters.length,6)/3,ob,mb,n<=12?1:0,
+           last*(pts>0?1:0),(kind===2?1:0)*ob,last*(kind===1?1:0),last*(kind===2?1:0),(kind===0?1:0)*big];
+  const w=AIP.willWFit; let z=0; for(let i=0;i<w.length&&i<f.length;i++) z+=w[i]*f[i];
+  return {p:1/(1+Math.exp(-z)),card:ch};
+}
+function teamWinBelief(X, cards, B){
+  if(!B||!X.lead||X.lead.type!=='single'||cards.length!==1) return null;
+  const T=X.trump, me=X.seat%2;
+  const plays0=[...X.plays,{seat:X.seat,cards}];
+  const order=X.remaining||[];
+  let acc=0;
+  for(const w of B.worlds){
+    const rec=(plays,i)=>{
+      if(i>=order.length) return currentWinner(plays,T).seat%2===me?1:0;
+      const s=order[i], H=w.hands[s]; if(!H) return rec(plays,i+1);
+      const cur=currentWinner(plays,T);
+      if(cur.seat%2===s%2) return rec(plays,i+1);          // 本队赢着,跟小
+      const r=willP(T,plays,s,H,H.length,order.slice(i+1));
+      if(!r.p) return rec(plays,i+1);
+      return r.p*rec([...plays,{seat:s,cards:[r.card]}],i+1)+(1-r.p)*rec(plays,i+1);
+    };
+    acc+=rec(plays0,0);
+  }
+  return clamp(acc/B.worlds.length,0.02,0.99);
+}
+
+/* beliefSurv(belief-plan 第 2 步,2026-10-25):把「抽样信念 + 拟合意愿」接进决策。位开关:
+ *   1 = 跟牌时压过当前最大的候选(pTeamWin 里的 p0)   2 = 「队友暂大有多稳」(followCtx 的 certainty)
+ * 只管单张;每次决策只抽一次世界(缓存在 X 上)。0 = 旧行为。 */
+function survB(X, cl, seats, cards){
+  if(!X.view||!cl||cl.type!=='single') return null;
+  const B=X._B!==undefined?X._B:(X._B=makeBelief(X.view,X.plays,AIP.beliefM));
+  if(!B) return null;
+  const sv=AIP.willW; AIP.willW=AIP.willWSurv;
+  try{ return pSurviveBelief(X,{...cl,cards:cards||cl.cards},seats,B); } finally{ AIP.willW=sv; }
+}
+
 /* 真 AI 推演:四家都用 aiChooseLead / aiChooseFollow(推演里关掉搜索,避免递归)。 */
 let EG_IN_ROLLOUT=false;
 function rolloutAI(st){
@@ -5723,7 +5788,7 @@ const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
   phaseOf,futureValue,pTeamWin,laterPoints,scorePlay,unseenPointsIn,leadPointsEV,pSurvive,unseenBeats,roundScore,pointWeight,ruffThrow,SCORE_LADDER,makeReads,maxHoldIn,makeVoidProb,cheapKey,dumpKey,kittyPointsEst,tempoValue,
   bossUnits,feedRuffValue,reserveHold,reserveUnit,guardFeat,guardP,
   makeHoldRange,partnerAceRead,tiaoWangValue,
-  endgameSearch,egOverride,sampleWorld,makeBelief,pSurviveBelief,rolloutToEnd,rolloutLead,rolloutFollow,levelUtility,trumpLeadPrior};
+  endgameSearch,egOverride,sampleWorld,makeBelief,pSurviveBelief,teamWinBelief,rolloutToEnd,rolloutLead,rolloutFollow,levelUtility,trumpLeadPrior};
 if(typeof module!=='undefined') module.exports=ENGINE;
 </script>
 
