@@ -82,7 +82,7 @@ function audit(){
   // 4. 牌桌:名牌、桌心、牌摞两两不压
   if(!modal&&!drawer){
     const arena=R(document.getElementById('arena'));
-    const parts=[...document.querySelectorAll('.player-label,#trickSummary,.played,.turn-slot,.winner-label')].filter(vis);
+    const parts=[...document.querySelectorAll('.player-label,#trickSummary,.played:not(.ghost),.turn-slot,.winner-label')].filter(vis);
     for(const e of parts){const r=R(e);if(r.left<arena.left-2||r.right>arena.right+2||r.top<arena.top-2||r.bottom>arena.bottom+2)out.push(`出了牌桌:${name(e)}`);}
     for(let i=0;i<parts.length;i++)for(let j=i+1;j<parts.length;j++){
       const a=parts[i],b=parts[j];if(a.contains(b)||b.contains(a))continue;
