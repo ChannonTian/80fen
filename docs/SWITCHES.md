@@ -96,7 +96,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
-| `willingBeats` | `0` | (见上方注释)v0.7.21 测试版改 0:test/calib-trick.js 量到「我毙了、预测 ≥0.9」实际只有 79% / 81% 拿下 —— | `pSurvive` |
+| `willingBeats` | `0` | (见上方注释)v0.7.21 测试版改 0:test/calib-trick.js 量到「我毙了、预测 ≥0.9」实际只有 79% / 81% 拿下 —— | `pSurvive` `pSurviveBelief` |
 
 ### 后手还有已知断门的对手时,毙牌的罚分(v0.7.5,见上面的反事实回放)。
 
@@ -220,6 +220,8 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
 | `egRolloutAI` | `0` | (见上方注释)推演用真正的 AI 打完(而不是 rolloutLead / rolloutFollow 那套便宜策略)。 | `endgameSearch` |
+| `willW` | `null` | 后手对手「拿得出」时真会压 / 毙的意愿模型(test/fit-will.js);null = pSurviveBelief 用旧意愿常数 | `pSurviveBelief` |
+| `beliefM` | `60` | 信念服务每次抽几个世界(只读对照用,不改决策) | `makeBelief` |
 
 ### 推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。
 
@@ -352,11 +354,11 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
-| `trumpSealW` | `0.5` | (v0.7.22 测试版默认开)只在跟牌时生效 | `pSurvive` |
-| `trumpSealWPts` | `1` | (v0.7.26 测试版默认开)台面**有分**时的那一档(= trumpSealW 即旧行为);见 pSurvive | `pSurvive` |
+| `trumpSealW` | `0.5` | (v0.7.22 测试版默认开)只在跟牌时生效 | `pSurvive` `pSurviveBelief` |
+| `trumpSealWPts` | `1` | (v0.7.26 测试版默认开)台面**有分**时的那一档(= trumpSealW 即旧行为);见 pSurvive | `pSurvive` `pSurviveBelief` |
 | `followBeatsCheck` | `0` | (v0.7.32 开,v0.7.37 关:它主要改成第 2 家用主分牌毙 0 分墩,后手更容易盖毙,见 test/diff-switch.js)1 = 贴分 / 跟小 / 垫牌候选按 currentWinner 判胜负(断门时它们常常其实毙下了这墩);0 = 一律按不赢墩打分 | `aiChooseFollow` |
 | `tempoKeepPlayed` | `0` | 1 = 压下这墩时牌权项不再扣掉打出去的这手(它已在 futureValue 里收过一次);0 = 旧行为 | `scorePlay` |
-| `lastOverW0` | `0.5` | (v0.7.29 测试版默认开)将牌墩末家台面 0 分时同门盖过来的意愿系数(0 = 不打折,旧行为);见 pSurvive | `pSurvive` |
+| `lastOverW0` | `0.5` | (v0.7.29 测试版默认开)将牌墩末家台面 0 分时同门盖过来的意愿系数(0 = 不打折,旧行为);见 pSurvive | `pSurvive` `pSurviveBelief` |
 | `survPlan` | `0` | 1 = 第 2 / 3 家压下单张的存活率用拟合的小模型(survW)代替 pSurvive 里三个手调常数的结果;0 = 旧行为 | `pTeamWin` |
 | `feedPlan` | `1` | (v0.7.39 测试版默认开)1 = 第 2 家贴分按「贴后本队拿下」的估计分档(见 aiChooseFollow 末尾);0 = 旧行为 | `makeReads` `aiChooseFollow` |
 | `feedLo` | `0.45` | 低于它不贴(p 用 feedP 的校准模型) | `aiChooseFollow` |
@@ -371,8 +373,8 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `ruff2Pt` | `25` | 主分牌毙的罚分 × 第 3 家断门概率 | `aiChooseFollow` |
 | `ruff2Low2` | `10` | 压不过在外主分牌的小主毙的罚分 × P(3 断) × P(4 不断) | `aiChooseFollow` |
 | `ruff2Seal` | `20` | 「毙到在外主分牌之上」的加成 × P(3 断) × P(4 不断) | `aiChooseFollow` |
-| `sealOwnPts` | `1` | (v0.7.37 测试版默认开)1 = 上面两个「台面有没有分」的判断把我这手牌自己的分也算上(出主 K 时台面就不是 0 分);0 = 旧行为。见 pSurvive | `pSurvive` |
-| `lastRuffWill` | `0.95` | (v0.7.26 测试版默认开)后手是本墩最后一家时「断门有主肯不肯毙」(0 = 旧口径 ruffWill);见 pSurvive | `pSurvive` |
+| `sealOwnPts` | `1` | (v0.7.37 测试版默认开)1 = 上面两个「台面有没有分」的判断把我这手牌自己的分也算上(出主 K 时台面就不是 0 分);0 = 旧行为。见 pSurvive | `pSurvive` `pSurviveBelief` |
+| `lastRuffWill` | `0.95` | (v0.7.26 测试版默认开)后手是本墩最后一家时「断门有主肯不肯毙」(0 = 旧口径 ruffWill);见 pSurvive | `pSurvive` `pSurviveBelief` |
 | `guardPlan` | `2` | (v0.7.26 测试版默认开)守底计划权重(0 = 旧行为);见 guardCost。系数 guardW 由 test/fit-guard.js 拟合 | `guardCost` `futureValue` |
 | `guardBossOnly` | `0` | 1 = 守底代价只看钢板主张数的变化(主牌张数不变) | `guardCost` |
 | `guardReplace` | `0` | 1 = 庄家本人的护底只用 guardCost,旧的收官视野护底项不再叠加 | `futureValue` |
@@ -500,6 +502,9 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
 | `ruffPartnerBonus` | `-25` | (见上方注释)「队友暂大但我断门且台面有分」这一条是**规则**,不是权重:给一份足够大的加成, | `aiChooseFollow` `coachFollowScoreFull` |
+| `pLastFit` | `0` | 埋底时「守住末墩」的概率用校准小模型 pLastModel(0 = 旧式 pWinLastTrick) | `aiDiscard` |
+| `ruffGuardPartner` | `1` | (v0.7.41 测试版默认开)队友暂大、我断门毙、后手对手已知断门:毙到在外非王主之上(0 = 旧行为),见 aiChooseFollow 1c-0 | `aiChooseFollow` |
+| `ruffGuardPartnerBonus` | `-25` | — | `aiChooseFollow` |
 | `ruffPartnerMinPts` | `5` | 台面分下限:一分没有的空气墩不值得动主 | `aiChooseFollow` `coachFollowScoreFull` |
 | `takeOverMinPts` | `5` | 断门毙分那一支的桌面分下限 | `takeOverScoped` |
 | `partnerHoldAfter` | `0.72` | 队友压回来之后,身后还有对手时守得住的比例 | `pPartnerTakes` |
