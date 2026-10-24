@@ -500,6 +500,9 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
 | `ruffPartnerBonus` | `-25` | (见上方注释)「队友暂大但我断门且台面有分」这一条是**规则**,不是权重:给一份足够大的加成, | `aiChooseFollow` `coachFollowScoreFull` |
+| `pLastFit` | `0` | 埋底时「守住末墩」的概率用校准小模型 pLastModel(0 = 旧式 pWinLastTrick) | `aiDiscard` |
+| `ruffGuardPartner` | `1` | (v0.7.41 测试版默认开)队友暂大、我断门毙、后手对手已知断门:毙到在外非王主之上(0 = 旧行为),见 aiChooseFollow 1c-0 | `aiChooseFollow` |
+| `ruffGuardPartnerBonus` | `-25` | — | `aiChooseFollow` |
 | `ruffPartnerMinPts` | `5` | 台面分下限:一分没有的空气墩不值得动主 | `aiChooseFollow` `coachFollowScoreFull` |
 | `takeOverMinPts` | `5` | 断门毙分那一支的桌面分下限 | `takeOverScoped` |
 | `partnerHoldAfter` | `0.72` | 队友压回来之后,身后还有对手时守得住的比例 | `pPartnerTakes` |
