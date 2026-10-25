@@ -78,6 +78,15 @@ function audit(){
   if(game.classList.contains('m-p')){
     const row=['trumpChip','levelChip','recordsBtn','menuBtn'].map(id=>document.getElementById(id)).filter(vis).map(e=>Math.round(R(e).top/10));
     if(new Set(row).size>1)out.push('顶栏第一行折行了');
+  }else{
+    // 横屏、宽屏:顶栏只有一行
+    const tops=[...document.querySelectorAll('.topbar>*')].filter(vis).map(e=>R(e)).map(r=>Math.round((r.top+r.bottom)/2/12));
+    if(new Set(tops).size>1)out.push('顶栏折行了');
+  }
+  // 矮横屏:右边按钮栏不压牌桌上的牌摞和名牌
+  if(game.classList.contains('m-l')&&!modal&&!drawer){
+    const btns=[...document.querySelectorAll('#controls button')].filter(vis),busy=[...document.querySelectorAll('.played:not(.ghost),.player-label')].filter(vis);
+    for(const b of btns)for(const q of busy)if(inter(R(b),R(q),2)){out.push(`按钮压住牌桌:${name(b)} / ${name(q)}`);break;}
   }
   // 4. 牌桌:名牌、桌心、牌摞两两不压
   if(!modal&&!drawer){

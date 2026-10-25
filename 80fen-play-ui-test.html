@@ -55,8 +55,9 @@ button{cursor:pointer;touch-action:manipulation}
   grid-template-rows:auto minmax(0,1fr) var(--hand-h,170px) auto;
   grid-template-areas:"top" "arena" "hand" "act";
   padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
-#game.m-l{grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto minmax(0,1fr) minmax(var(--hand-h,90px),auto);
-  grid-template-areas:"top top" "arena arena" "hand act"}
+/* 矮横屏:操作按钮是牌桌右边一条竖栏,手牌占满整个屏幕宽、贴着屏幕底边 */
+#game.m-l{grid-template-columns:minmax(0,1fr) var(--act-w,116px);grid-template-rows:auto minmax(0,1fr) var(--hand-h,80px);
+  grid-template-areas:"top top" "arena act" "hand hand"}
 /* 开局前:没有手牌也没有可点的操作,只留牌桌当背景 */
 #game.idle .hand-area,#game.idle .action-bar{visibility:hidden}
 
@@ -85,11 +86,17 @@ button{cursor:pointer;touch-action:manipulation}
 .score-track{position:relative;flex:1 1 auto;min-width:40px;height:10px;border:1.5px solid var(--ink);border-radius:999px;background:var(--line);overflow:hidden}
 .score-track i{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--honey);transition:width .4s var(--ease-out)}
 .score-track::after{content:'';position:absolute;left:50%;top:0;bottom:0;width:1.5px;background:var(--ink);opacity:.35}
-.score-chip.over .score-track i{background:var(--brick)}
+.score-chip.over #scoreFill{background:var(--brick)}
 /* 桌上这一墩的分:进度条上斜纹预览,数字跟在后面 */
 .score-track i.pend{width:0;left:0;background:repeating-linear-gradient(-45deg,var(--honey) 0 3px,rgba(237,185,79,.35) 3px 6px);transition:left .4s var(--ease-out),width .4s var(--ease-out)}
 .score-gain{font:900 13px/1 var(--font-num);font-style:normal;color:var(--ink);background:var(--cream);border:1.5px solid var(--ink);border-radius:999px;padding:3px 6px 2px;white-space:nowrap}
 .score-gain.def{background:var(--honey)}
+.score-chip.good #scoreFill{background:linear-gradient(90deg,#9CBB6B,#3F7D4E)}
+.score-chip.bad #scoreFill{background:linear-gradient(90deg,#E8A266,var(--brick))}
+.score-chip.good #scorePend{background:repeating-linear-gradient(-45deg,#3F7D4E 0 3px,rgba(63,125,78,.3) 3px 6px)}
+.score-chip.bad #scorePend{background:repeating-linear-gradient(-45deg,var(--brick) 0 3px,rgba(201,71,47,.3) 3px 6px)}
+.score-chip.good .score-gain.def{background:#CFE3C4;border-color:#3F7D4E}
+.score-chip.bad .score-gain.def{background:var(--err-tint);color:var(--brick-deep);border-color:var(--brick)}
 .score-chip.bump b{animation:scoreBump .5s var(--ease-back)}
 .score-chip.bump .score-track{animation:trackGlow .7s ease-out}
 @keyframes scoreBump{0%{transform:scale(1)}35%{transform:scale(1.35);color:var(--brick-deep)}100%{transform:scale(1)}}
@@ -102,7 +109,9 @@ button{cursor:pointer;touch-action:manipulation}
 .score-chip b{font:900 18px/1 var(--font-num);letter-spacing:-.02em}
 .score-total{font:800 12px/1 var(--font-sans);color:var(--ink-soft)}
 #game.m-l .score-chip,#game.m-w .score-chip{order:3;flex:1 1 180px;max-width:420px;height:38px}
-#game.m-l .topbar{padding:max(4px,env(safe-area-inset-top)) 10px 2px;gap:6px}
+#game.m-l .topbar{padding:max(4px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) 2px max(10px,env(safe-area-inset-left));gap:6px;flex-wrap:nowrap}
+#game.m-l .chip{flex:0 1 auto;min-width:0;padding:0 10px}
+@media (max-width:700px){#game.m-l .topbar .logo{display:none}#game.m-l .score-label{display:none}}
 #game.m-l .topbar .logo{width:36px;height:36px}
 #game.m-l .chip,#game.m-l .score-chip,#game.m-l .icon-btn{height:38px}
 #game.m-l .icon-btn{width:40px}
@@ -292,11 +301,16 @@ html.hasHover #hand .card:hover .face{border-color:var(--teal)}
 #dealZone{display:flex;align-items:center;gap:8px;min-width:0}
 #dealZone:empty,#dealZone>span:only-child:empty{display:none}
 #dealZone span{font:700 14px/1.3 var(--font-sans);color:var(--ink-soft)}
-#game.m-l .action-bar{border-top:0;border-left:2px solid var(--ink);flex-wrap:wrap;align-content:center;justify-content:flex-end;
-  width:var(--act-w,212px);padding:4px max(10px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom)) 10px;gap:6px}
+#game.m-l .action-bar{display:grid;grid-template-columns:1fr 1fr;align-content:end;gap:6px;border:0;background:none;
+  width:var(--act-w,116px);padding:4px max(8px,env(safe-area-inset-right)) 6px 0}
 #game.m-l .action-bar .spacer{display:none}
-#game.m-l .btn{min-height:38px;padding:0 12px;font-size:14px}
-#game.m-l .btn.primary{font-size:16px;min-width:80px}
+#game.m-l .action-bar>*{order:5}
+#game.m-l #btnHint{order:1}#game.m-l #btnAuto{order:2}#game.m-l #btnUndo{order:3}#game.m-l #btnClear{order:4}
+#game.m-l #dealZone,#game.m-l #btnSkipDecl,#game.m-l #bidAction,#game.m-l #btnBury,#game.m-l #btnPlay{grid-column:1/-1}
+#game.m-l #dealZone{flex-direction:column;align-items:stretch;gap:6px}
+#game.m-l #dealZone>span{display:none}
+#game.m-l .action-bar .btn{min-height:42px;padding:0 6px;font-size:14px;width:100%;min-width:0}
+#game.m-l .action-bar .btn.primary{min-height:50px;font-size:17px}
 #game.m-w .action-bar{padding:10px 20px max(10px,env(safe-area-inset-bottom));gap:10px}
 #game.m-w .btn{min-height:48px;padding:0 20px;font-size:16px}
 #game.m-w .btn.primary{font-size:18px;min-width:120px}
@@ -349,13 +363,13 @@ html.hasHover #hand .card:hover .face{border-color:var(--teal)}
 .tool .ico{width:24px;height:24px}
 .action-bar .btn{min-height:46px}
 .action-bar .btn.primary{flex:0 1 auto;min-width:88px}
-#game.m-l .tool{width:48px;height:44px;font-size:11px}
+#game.m-l .tool{width:100%;height:44px;font-size:11px}
 #game.m-l .tool svg{width:19px;height:19px}#game.m-l .tool .ico{width:21px;height:21px}
 #game.m-w .tool{width:64px;height:56px;font-size:13px}
 /* 问六六:「问」+ 头像,横排的小药丸 */
 .tool.ask{flex-direction:row;width:auto;height:44px;padding:0 4px 0 11px;gap:1px;border-radius:999px;font:900 16px/1 var(--font-heading)}
 .tool.ask .ico{width:28px;height:28px}
-#game.m-l .tool.ask{width:auto;height:40px;font-size:15px}#game.m-l .tool.ask .ico{width:26px;height:26px}
+#game.m-l .tool.ask{width:100%;height:44px;padding:0 3px;justify-content:center;font-size:14px}#game.m-l .tool.ask .ico{width:22px;height:22px}
 #game.m-w .tool.ask{width:auto;height:50px;font-size:17px;padding:0 8px 0 16px}#game.m-w .tool.ask .ico{width:34px;height:34px}
 @media (max-width:360px){.action-bar{gap:4px!important}.action-bar .btn{padding:0 9px}.tool{width:46px;height:48px;font-size:11px}.tool.ask{height:42px;padding:0 4px 0 10px}.tool.ask .ico{width:26px;height:26px}.action-bar .btn.primary{min-width:70px}}
 .ph-dealing #btnHint,.ph-dealing #btnPlay,.ph-dealing #btnClear,.ph-dealing #dealZone,
@@ -367,7 +381,7 @@ html.hasHover #hand .card:hover .face{border-color:var(--teal)}
 #dealZone button.minor{background:var(--card-face);font-weight:800}
 #dealZone button:active{transform:translateY(2px);box-shadow:var(--shadow-press)}
 #dealZone span{color:var(--ink-soft)!important}
-#game.m-l #dealZone button{min-height:38px;padding:0 14px;font-size:15px}
+#game.m-l #dealZone button{min-height:42px;padding:0 6px;font-size:14px}
 #btnPlay.ready{animation:readyPulse 1.8s var(--ease-in-out) infinite}
 @keyframes readyPulse{0%,100%{box-shadow:var(--shadow-card),0 0 0 0 rgba(237,185,79,.8)}50%{box-shadow:var(--shadow-card),0 0 0 7px rgba(237,185,79,0)}}
 
@@ -713,7 +727,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 · UI 试验 08 · 引擎 v0.7.39</div>
+<div id="versionTag">六六八十分 · UI 试验 09 · 引擎 v0.7.39</div>
 
 
 <script>
@@ -8710,8 +8724,8 @@ function layout(){
   var G=g();
   var cards=Array.prototype.slice.call(hand.children);
   var actW=0;
-  if(mode==='l'){actW=Math.min(240,Math.max(196,W*0.24));game.style.setProperty('--act-w',actW+'px');}
-  var handW=mode==='l'?W-actW:W;
+  if(mode==='l'){actW=W<700?116:132;game.style.setProperty('--act-w',actW+'px');}
+  var handW=W;
   var cfg=handCfg(mode,handW,H);
   /* 牌桌太矮、桌面牌比手牌小一截时,手牌让一点(同一屏幕尺寸只算一次,一局里手牌大小不变) */
   var bkey=mode+W+'x'+H;if(L.balKey!==bkey){L.balKey=bkey;L.capCw=0;L.balN=0;}
@@ -8832,19 +8846,27 @@ function layoutTable(){
     var lhs={};for(var k2 in lab)lhs[k2]=lab[k2].offsetHeight||56;
     th=(ah-2*pad-g)/2;
     tcw=Math.max(34,Math.floor(Math.min(th/1.43,cap,hard)));th=tcw*1.43;
-    var x0=Math.round(aw/2-tcw/2),lwc=Math.max(lw.N,lw.S),yMid=ah/2;
-    var colL=x0-g-lwc;                                             /* 中间一列(含头像)的左边界 */
-    var side=Math.max(tcw,Math.min(colL-g-(pad+lw.W+g),tcw*3.2));  /* 上下家牌摞最宽 */
-    var xW=pad+lw.W+g,xE=aw-pad-lw.E-g;
+    var lwc=lw.N,yMid=ah/2;
+    /* 上下家:名牌放在牌摞旁边(左右两边正中);桌面太窄、旁边连一对都放不下时,名牌退到上面两角、牌摞挂在名牌下面 */
+    var x0=Math.round(aw/2-tcw/2),colL=x0-g-lwc;                   /* 中间一列(含对家头像)的左边界 */
+    var beside=colL-g-(pad+lw.W+g),stack=beside<tcw*1.4;
+    if(stack){
+      tcw=Math.max(28,Math.min(tcw,Math.floor((aw/2-lwc-2*g-pad)/1.9)));th=tcw*1.43;
+      x0=Math.round(aw/2-tcw/2);colL=x0-g-lwc;
+    }
+    var side=stack?Math.max(tcw,colL-g-pad):Math.max(tcw,Math.min(beside,tcw*3.2));   /* 上下家牌摞最宽 */
+    var xW=stack?pad:pad+lw.W+g,xE=stack?aw-pad:aw-pad-lw.E-g;
+    var ySide=stack?pad+Math.max(lhs.W,lhs.E)+lg:yMid-th/2;
     var colMax=Math.max(tcw,xE-side-g-x0);                         /* 中间一列牌摞最宽 */
     var yS=ah-pad-th;
     place(lab.N,x0-g-lw.N,pad+(th-lhs.N)/2);
-    place(lab.S,x0-g-lw.S,yS+(th-lhs.S)/2);
-    place(lab.W,pad,yMid-lhs.W/2);place(lab.E,aw-pad-lw.E,yMid-lhs.E/2);
+    place(lab.S,pad,ah-pad-lhs.S);                                 /* 我的头像在左下角,不浮在桌子中间 */
+    if(stack){place(lab.W,pad,pad);place(lab.E,aw-pad-lw.E,pad);}
+    else{place(lab.W,pad,yMid-lhs.W/2);place(lab.E,aw-pad-lw.E,yMid-lhs.E/2);}
     P.N={x:x0,y:pad,align:'l',max:colMax};
     P.S={x:x0,y:yS,align:'l',max:colMax};
-    P.W={x:xW,y:yMid-th/2,align:'l',max:side};
-    P.E={x:xE,y:yMid-th/2,align:'r',max:side};
+    P.W={x:xW,y:ySide,align:'l',max:side};
+    P.E={x:xE,y:ySide,align:'r',max:side};
     TB.center={x:aw/2,y:ah/2};
     TB.slot={x:x0,y:yS};
   }else{
@@ -8852,8 +8874,10 @@ function layoutTable(){
     for(var stacked=0;stacked<2;stacked++){
       var extra=stacked?lh+lg:0;
       th=(ah-2*pad-lh-lg-2*g-extra)/3;
-      tcw=Math.max(34,Math.floor(Math.min(th/1.43,cap,hard,(aw-2*pad-g)/2/1.4)));th=tcw*1.43;
-      var reach=Math.min((aw-2*pad-g)/2,tcw*2.9);             /* 上下家牌摞从名牌朝桌心最多长多宽 */
+      tcw=Math.max(26,Math.floor(Math.min(th/1.43,cap,hard,(aw-2*pad-g)/2/1.4)));th=tcw*1.43;
+      /* 上下家牌摞从名牌朝桌心最多长多宽;至少要放得下名牌,桌面牌很小时两个名牌才不会挤到中间撞在一起 */
+      /* 竖屏名牌贴着左右两边;宽屏桌子太宽,两摞往桌心收一点 */
+      var reach=mode==='p'?(aw-2*pad-g)/2:Math.min((aw-2*pad-g)/2,Math.max(tcw*2.9,Math.max(lw.W,lw.E)+6));
       var xW=aw/2-g/2-reach,xE=aw/2+g/2+reach;
       var nMax=stacked?aw-2*pad:aw-2*(Math.max(xW+lw.W,aw-xE+lw.E)+g);
       if(stacked||nMax>=tcw*1.36)break;
@@ -9039,10 +9063,14 @@ function syncTop(G){
   L.sc=sc;
   $('scoreFill').style.width=clamp(sc/80*100,0,100)+'%';
   $('scoreChip').classList.toggle('over',sc>=80);
+  /* 得分条按我方立场上色:我方坐庄时闲家涨分是坏事(红),我方是闲家时涨分是好事(绿);庄还没定时是中性的蜂蜜黄 */
+  var side=G.declSeat<0?'':(G.declSeat%2===0?'bad':'good');
+  $('scoreChip').classList.toggle('good',side==='good');$('scoreChip').classList.toggle('bad',side==='bad');
+  $('scoreChip').title=side==='bad'?'闲家得分:你们坐庄,闲家拿到 80 分就上台':side==='good'?'闲家得分:你们是闲家,拿到 80 分就上台':'闲家得分';
   var spans=$('status').querySelectorAll('span');
   var lv=spans[4]&&spans[4].textContent.match(/你们[:：]?\s*(\S+)\s*对方[:：]?\s*(\S+)/);
   if(lv){
-    var narrow=window.innerWidth<=440&&L.mode==='p';
+    var narrow=window.innerWidth<=440&&L.mode==='p'||window.innerWidth<700&&L.mode==='l';
     var h2='<small>'+(narrow?'我':'我方')+'</small><span class="num">'+lv[1]+'</span><span class="sep"></span><small>'+(narrow?'对':'对方')+'</small><span class="num">'+lv[2]+'</span>';
     var lc=$('levelChip');if(lc.__h!==h2){lc.innerHTML=h2;lc.__h=h2;lc.setAttribute('aria-label','级数:我方打'+lv[1]+',对方打'+lv[2]);}
   }
