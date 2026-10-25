@@ -753,7 +753,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.43(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.44(测试版)</div>
 
 
 <script>
@@ -1413,8 +1413,10 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   willWSurv: [0.0629,-0.6141,0.0593,0.0284,0.6801,-0.0605,0.1823,0.245,0.7854,0.0345,-0.5718,1.6362,-1.4988],   // pSurviveBelief 用的第一版意愿(calib-belief DUMPW,13 个特征)
   willWFit: [1.5682,-1.571,-0.8176,0.035,0.8761,-0.6175,0.0179,0.3714,0.1914,1.5332,-0.9936,0.0904,-0.1571,-1.7723,2.5077,0.9547,-1.3681],   // test/fit-will.js(will-data 自对弈 800 副、10298 个样本,对数损失 0.547 → 0.468)
   willW: null,                // 后手对手「拿得出」时真会压 / 毙的意愿模型(test/fit-will.js);null = pSurviveBelief 用旧意愿常数
+  dumpW: [0.1675,0.9904,-1.5178,-1.0673,4.559,-0.3766,-0.5456,0.5391,-0.3928,1.8888],   // 不压的那一家放分的模型(beliefSurv 位 16 时用),test/fit-dump.js
+  leadCalW: [-0.1923,0.4468,0.3748,0.7323,0.128,-0.1735],   // 领出单张 leadWinP 的校准层(beliefSurv 位 8 时用),test/fit-leadcal.js
   willHuman: [-0.36,0.86,-0.73], // (v0.7.42 测试版默认开)真人那一家的意愿修正 [常数, 毙, 同门·末家·0分](records-will --all);null = 不修正
-  beliefSurv: 4,              // (v0.7.42 测试版默认 4)位开关:1 = 跟牌压牌候选、2 = 队友暂大的确定性、4 = 整个 pTeamWin 换成逐世界走完本墩(teamWinBelief) —— 改用抽样信念 + 拟合意愿(见 survB);0 = 旧行为
+  beliefSurv: 20,             // (v0.7.44 测试版默认 20 = 4+16;v0.7.42 起是 4)位开关:1 = 跟牌压牌候选、2 = 队友暂大的确定性、4 = 整个 pTeamWin 换成逐世界走完本墩(teamWinBelief)、8 = 领出单张的 leadWinP 也换、16 = 跟牌打分的期望分 ev 也换成逐世界走完本墩(trickEVBelief,含放分模型 dumpExp) —— 改用抽样信念 + 拟合意愿(见 survB);0 = 旧行为
   beliefM: 30,                // 信念服务每次抽几个世界(30 与 60 一样准,5 ms)
   /* 推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。
    * 真人(以及 guardJoker 之后的 AI)王留到最后。n>0:手里多于 n 张时推演领出不出王。0 = 旧行为。 */
@@ -3868,10 +3870,14 @@ function feedTempoValue(X, exclude){
 const CAT_K={ruff:1.06, over:1.0, dump:1.0, cheap:1.0, discard:1.0};
 function scorePlay(X, cards, cat, beatsCur){
   const my=countPoints(cards);
-  const p=pTeamWin(X,cards,beatsCur);
+  let p=pTeamWin(X,cards,beatsCur);
   const gain=X.ptsTable+my+laterPoints(X,true);
   const loss=X.ptsTable+my+laterPoints(X,false);
-  const ev=p*gain-(1-p)*loss;
+  let ev=p*gain-(1-p)*loss;
+  if((AIP.beliefSurv&16)&&X.view&&!X.isLast&&cards.length===1&&X.lead&&X.lead.type==='single'){
+    const B=X._B!==undefined?X._B:(X._B=makeBelief(X.view,X.plays,AIP.beliefM));
+    const t=trickEVBelief(X,cards,B); if(t){ p=t.p; ev=t.ev; }
+  }
   // 牌权:本队赢下这墩,下一手由我方领出(我或队友),手上的优势才有机会兑现。
   // 输掉则牌权落到对手,他去兑现他的 —— 我方看不见对手手牌,用一个保守的固定值代表。
   let tempo;
@@ -4354,7 +4360,7 @@ function leadCtx(view){
           /* pSurvive 要用:「某一家大约占未见牌的几分之一」。
            * 开局未见 83 张、每家 25 → 3.3;收官未见 23 张、每家 5 → 4.6。 */
           shareDenom:clamp(unseenTot/Math.max(1,view.hand.length),2,8),
-          ptsTable:0,partnerWinning:false,certainty:0.5,oppRuffRisk:false};
+          ptsTable:0,partnerWinning:false,certainty:0.5,oppRuffRisk:false,view};
   // 阶梯目标要含那笔待翻倍的底分 —— kittyProjection 要用 L0 的 hand/mem,所以放在构造之后
   L0.pw=pointWeight(rs.def+kittyProjection(L0),rs.live);
   return L0;
@@ -4705,11 +4711,14 @@ function feedRuffValue(L, cl, cards){
 // 这一手领出后,本队守住这墩的概率。复用跟牌侧的 pSurvive:
 // 它已经把「在外有几张压得住」「谁可能缺门来毙」都算进去了。
 function leadWinP(L, cl, cards){
+  /* beliefSurv 位 8(2026-10-25):领出单张时同样在抽样世界里把本墩走完(teamWinBelief),对手压、队友救都在里面。 */
+  const useB=(AIP.beliefSurv&8)&&L.view&&cards.length===1;
+  const pb=useB?leadWinBelief(L,cards):null;
   const LS=Object.create(L);
   LS.ptsTable=countPoints(cards)+(unseenPointsIn(L.mem,cl.suit,L.trump)>0?5:0);
   LS.lead=null;                       // pSurvive 会退回用 cl.suit 当领出门,正确
   const mine=pSurvive(LS,cl,L.remainingOpp);
-  if(!AIP.leadTeamP) return mine;
+  if(!AIP.leadTeamP&&pb===null) return mine;
   /* v0.6.0 —— 领出侧的牌权概率问的应该是「**本队**赢不赢得下这墩」,
    * 而不是「**我这张**活不活得下来」。
    *
@@ -4722,7 +4731,14 @@ function leadWinP(L, cl, cards){
    *     pTeam = P(两个对手都压不过) + P(有对手压过) × P(队友再压回来)
    *
    * 判据由此变成**队友有没有更大的牌**,这正是钓主该问的问题。 */
-  return clamp(mine+(1-mine)*partnerRescueP(L,cl),0.02,0.99);
+  const p0=!AIP.leadTeamP?mine:clamp(mine+(1-mine)*partnerRescueP(L,cl),0.02,0.99);
+  if(pb===null) return p0;
+  /* 校准层(test/fit-leadcal.js,自对弈 400 副、19948 个领出单张候选;两折检验对数损失 0.589 → 0.537 / 0.599 → 0.534):
+   * 跟牌的意愿模型直接搬到领出侧,主牌领出偏低(57% vs 实 68%)、两头偏极端 —— 以「抽样走完」和旧估计为底再拟一道。 */
+  const w=AIP.leadCalW, lg=q=>{ q=clamp(q,0.005,0.995); return Math.log(q/(1-q)); };
+  const tr=cl.suit==='T'?1:0, end=L.hand&&L.hand.length<=12?1:0;
+  const z=w[0]+w[1]*lg(pb)+w[2]*lg(p0)+w[3]*tr+w[4]*end+w[5]*tr*lg(pb);
+  return clamp(1/(1+Math.exp(-z)),0.02,0.99);
 }
 
 /* 「对手压过去了,队友还能不能压回来」(v0.6.0)。
@@ -4730,6 +4746,13 @@ function leadWinP(L, cl, cards){
  * 在外压得住我这一手的牌有多少张,其中多大比例按期望落在队友手上。
  * 再收一道 leadRescueDamp —— 队友要压过的是**对手打出的那张**(通常比我这张大),
  * 而且他未必肯为一墩空气花大牌。 */
+function leadWinBelief(L, cards){
+  const B=L._B!==undefined?L._B:(L._B=makeBelief(L.view,[],AIP.beliefM));
+  if(!B) return null;
+  const s=L.seat;
+  const X={trump:L.trump,seat:s,view:L.view,plays:[],lead:classify(cards,L.trump),remaining:[(s+1)%4,(s+2)%4,(s+3)%4],isLast:false};
+  return teamWinBelief(X,cards,B);
+}
 function partnerRescueP(L, cl){
   if(L.seat===undefined) return 0;
   const b=unseenBeats(L.mem,cl,L.trump);
@@ -5382,6 +5405,48 @@ function teamWinBelief(X, cards, B){
     acc+=rec(plays0,0);
   }
   return clamp(acc/B.worlds.length,0.02,0.99);
+}
+
+/* 不压的那一家往这墩里放多少分的期望(test/dump-data.js + fit-dump.js,16364 个样本,平均绝对误差 1.08 分):
+ * 被迫(本门只剩分牌 / 断门且副牌只剩分牌)= 那张;否则 = 手里最大分牌 × P(放)。替 laterPoints 的 dumpPartner / dumpOpp 常数。 */
+function dumpExp(T, lead, hand, mateWin, last, tbl){
+  const ls=lead.suit, inS=hand.filter(c=>effSuit(c,T)===ls);
+  let avail, forced;
+  if(inS.length){ const pts=inS.filter(c=>cardPoints(c)>0); avail=pts.length?Math.max(...pts.map(cardPoints)):0; forced=pts.length===inS.length; }
+  else { const side=hand.filter(c=>effSuit(c,T)!=='T'), pts=side.filter(c=>cardPoints(c)>0);
+         avail=pts.length?Math.max(...pts.map(cardPoints)):0; forced=side.length>0&&pts.length===side.length; }
+  if(avail<=0) return 0;
+  if(forced) return avail;
+  const w=AIP.dumpW, has=inS.length?1:0, n=hand.length;
+  const f=[1,mateWin,last,has,mateWin*last,ls==='T'?1:0,Math.min(tbl,40)/10,n<=12?1:0,avail>=10?1:0,mateWin*has];
+  let z=0; for(let i=0;i<w.length;i++) z+=w[i]*f[i];
+  return avail/(1+Math.exp(-z));
+}
+/* 本墩的期望得失分(信念版,beliefSurv 位 16):逐世界把本墩走完,压不压用 willP、不压的放多少分用 dumpExp,
+ * 返回 {p:本队拿下的概率, ev:E[本墩分 ×(拿下 +1 / 丢了 −1)]}。只管单张领出。 */
+function trickEVBelief(X, cards, B){
+  if(!B||!X.lead||X.lead.type!=='single'||cards.length!==1) return null;
+  const T=X.trump, me=X.seat%2, hs=X.view&&X.view.humanSeat!==undefined?X.view.humanSeat:-1;
+  const plays0=[...X.plays,{seat:X.seat,cards}];
+  const order=X.remaining||[], lead=X.lead;
+  const pts0=countPoints(plays0.flatMap(p=>p.cards));
+  let aP=0, aE=0;
+  for(const w of B.worlds){
+    const rec=(plays,i,pts)=>{
+      if(i>=order.length){ const win=currentWinner(plays,T).seat%2===me; return [win?1:0,win?pts:-pts]; }
+      const s=order[i], H=w.hands[s]; if(!H) return rec(plays,i+1,pts);
+      const last=i===order.length-1?1:0;
+      const cur=currentWinner(plays,T);
+      if(cur.seat%2===s%2) return rec(plays,i+1,pts+dumpExp(T,lead,H,1,last,pts));
+      const r=willP(T,plays,s,H,H.length,order.slice(i+1),hs===s);
+      const no=rec(plays,i+1,pts+dumpExp(T,lead,H,0,last,pts));
+      if(!r.p) return no;
+      const yes=rec([...plays,{seat:s,cards:[r.card]}],i+1,pts+cardPoints(r.card));
+      return [r.p*yes[0]+(1-r.p)*no[0], r.p*yes[1]+(1-r.p)*no[1]];
+    };
+    const o=rec(plays0,0,pts0); aP+=o[0]; aE+=o[1];
+  }
+  return {p:clamp(aP/B.worlds.length,0.02,0.99),ev:aE/B.worlds.length};
 }
 
 /* beliefSurv(belief-plan 第 2 步,2026-10-25):把「抽样信念 + 拟合意愿」接进决策。位开关:
@@ -6178,7 +6243,7 @@ const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
   phaseOf,futureValue,pTeamWin,laterPoints,scorePlay,unseenPointsIn,leadPointsEV,pSurvive,unseenBeats,roundScore,pointWeight,ruffThrow,SCORE_LADDER,makeReads,maxHoldIn,makeVoidProb,cheapKey,dumpKey,kittyPointsEst,tempoValue,
   bossUnits,feedRuffValue,reserveHold,reserveUnit,guardFeat,guardP,
   makeHoldRange,partnerAceRead,tiaoWangValue,
-  endgameSearch,egOverride,sampleWorld,makeBelief,pSurviveBelief,teamWinBelief,rolloutToEnd,rolloutLead,rolloutFollow,levelUtility,trumpLeadPrior};
+  endgameSearch,egOverride,sampleWorld,makeBelief,pSurviveBelief,teamWinBelief,leadWinBelief,leadWinP,trickEVBelief,dumpExp,rolloutToEnd,rolloutLead,rolloutFollow,levelUtility,trumpLeadPrior};
 if(typeof module!=='undefined') module.exports=ENGINE;
 </script>
 

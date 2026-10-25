@@ -25,10 +25,13 @@ for(const f of files) for(const l of fs.readFileSync(f,'utf8').split('\n')){ if(
           const v0={...view}; delete v0.humanSeat; const X1=E.followCtx(v0,plays); const p1=E.teamWinBelief(X1,cards,B);
           E.AIP.willHuman=HUM; const p2=E.teamWinBelief(X,cards,B); E.AIP.willHuman=null;
           const humBehind=t.plays.slice(plays.length+1).some(q=>q.seat===r.human);
-          if(p1!==null) pend.push({p0,p1,p2,seat:p.seat,bc:bc?1:0,humBehind:humBehind?1:0}); } }
+          const my=E.cardPoints(cards[0]), gain=X.ptsTable+my+E.laterPoints(X,true), loss=X.ptsTable+my+E.laterPoints(X,false);
+          E.AIP.willHuman=HUM; const tv=E.trickEVBelief(X,cards,B); E.AIP.willHuman=null;
+          const ev0=p2*gain-(1-p2)*loss, ev1=tv?tv.ev:null;
+          if(p1!==null) pend.push({p0,p1,p2,ev0,ev1,seat:p.seat,bc:bc?1:0,humBehind:humBehind?1:0}); } }
       plays.push({seat:p.seat,cards}); }
     if(!ok||plays.length<4) break;
-    const w=E.resolveTrick(plays,T).winner; for(const o of pend) R.push({...o,y:w%2===o.seat%2?1:0});
+    const w=E.resolveTrick(plays,T).winner, tp=E.countPoints(plays.flatMap(q=>q.cards)); for(const o of pend) R.push({...o,y:w%2===o.seat%2?1:0,evY:w%2===o.seat%2?tp:-tp});
     history.push(...plays); }
 }
 const ll=(p,y)=>{ p=Math.min(0.999,Math.max(0.001,p)); return -(y?Math.log(p):Math.log(1-p)); };
@@ -37,3 +40,6 @@ const g=(t,a)=>{ if(!a.length) return; console.log(`  ${t.padEnd(22)} n=${String
 console.log(`真人牌谱:AI 第 2 / 3 家单张 ${R.length} 手(损失:现 / 新 / 新+真人修正)`);
 g('全部',R); g('后手有真人',R.filter(r=>r.humBehind)); g('后手没有真人',R.filter(r=>!r.humBehind)); g('压过当前最大',R.filter(r=>r.bc)); g('不压',R.filter(r=>!r.bc));
 g('后手有真人·压',R.filter(r=>r.humBehind&&r.bc)); g('后手有真人·不压',R.filter(r=>r.humBehind&&!r.bc));
+const mse=(a,k)=>m(a.filter(r=>r[k]!==null).map(r=>(r[k]-r.evY)**2));
+const ge=(t,a)=>console.log(`  ${t.padEnd(14)} n=${String(a.length).padStart(4)} 本墩得失分均方误差 旧式(p×得−(1−p)×失,laterPoints 常数)${mse(a,'ev0').toFixed(1)} → 逐世界走完 + 放分模型 ${mse(a,'ev1').toFixed(1)}   平均 旧 ${m(a.map(r=>r.ev0)).toFixed(2)} 新 ${m(a.filter(r=>r.ev1!==null).map(r=>r.ev1)).toFixed(2)} 实 ${m(a.map(r=>r.evY)).toFixed(2)}`);
+ge('全部',R); ge('后手有真人',R.filter(r=>r.humBehind)); ge('后手没有真人',R.filter(r=>!r.humBehind));

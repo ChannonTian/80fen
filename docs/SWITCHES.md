@@ -221,8 +221,8 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 |---|---|---|---|
 | `egRolloutAI` | `0` | (见上方注释)推演用真正的 AI 打完(而不是 rolloutLead / rolloutFollow 那套便宜策略)。 | `endgameSearch` |
 | `willW` | `null` | 后手对手「拿得出」时真会压 / 毙的意愿模型(test/fit-will.js);null = pSurviveBelief 用旧意愿常数 | `pSurviveBelief` `survB` |
-| `beliefSurv` | `4` | (v0.7.42 测试版默认 4)位开关:1 = 跟牌压牌候选、2 = 队友暂大的确定性、4 = 整个 pTeamWin 换成逐世界走完本墩(teamWinBelief) —— 改用抽样信念 + 拟合意愿(见 survB);0 = 旧行为 | `pTeamWin` `followCtx` |
-| `beliefM` | `30` | 信念服务每次抽几个世界(30 与 60 一样准,5 ms) | `pTeamWin` `makeBelief` `survB` |
+| `beliefSurv` | `20` | (v0.7.44 测试版默认 20 = 4+16;v0.7.42 起是 4)位开关:1 = 跟牌压牌候选、2 = 队友暂大的确定性、4 = 整个 pTeamWin 换成逐世界走完本墩(teamWinBelief)、8 = 领出单张的 leadWinP 也换、16 = 跟牌打分的期望分 ev 也换成逐世界走完本墩(trickEVBelief,含放分模型 dumpExp) —— 改用抽样信念 + 拟合意愿(见 survB);0 = 旧行为 | `pTeamWin` `followCtx` `scorePlay` `leadWinP` |
+| `beliefM` | `30` | 信念服务每次抽几个世界(30 与 60 一样准,5 ms) | `pTeamWin` `scorePlay` `leadWinBelief` `makeBelief` `survB` |
 
 ### 推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。
 
