@@ -372,7 +372,7 @@
 <div id="toast"></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.41(测试版)</div>
+<div id="versionTag">80分 v0.7.42(测试版)</div>
 
 <script>
 /* ============================================================
@@ -1031,7 +1031,8 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   willWSurv: [0.0629,-0.6141,0.0593,0.0284,0.6801,-0.0605,0.1823,0.245,0.7854,0.0345,-0.5718,1.6362,-1.4988],   // pSurviveBelief 用的第一版意愿(calib-belief DUMPW,13 个特征)
   willWFit: [1.5682,-1.571,-0.8176,0.035,0.8761,-0.6175,0.0179,0.3714,0.1914,1.5332,-0.9936,0.0904,-0.1571,-1.7723,2.5077,0.9547,-1.3681],   // test/fit-will.js(will-data 自对弈 800 副、10298 个样本,对数损失 0.547 → 0.468)
   willW: null,                // 后手对手「拿得出」时真会压 / 毙的意愿模型(test/fit-will.js);null = pSurviveBelief 用旧意愿常数
-  beliefSurv: 0,              // 位开关:1 = 跟牌压牌候选、2 = 队友暂大的确定性、4 = 整个 pTeamWin 换成逐世界走完本墩(teamWinBelief) —— 改用抽样信念 + 拟合意愿(见 survB);0 = 旧行为
+  willHuman: [-0.36,0.86,-0.73], // (v0.7.42 测试版默认开)真人那一家的意愿修正 [常数, 毙, 同门·末家·0分](records-will --all);null = 不修正
+  beliefSurv: 4,              // (v0.7.42 测试版默认 4)位开关:1 = 跟牌压牌候选、2 = 队友暂大的确定性、4 = 整个 pTeamWin 换成逐世界走完本墩(teamWinBelief) —— 改用抽样信念 + 拟合意愿(见 survB);0 = 旧行为
   beliefM: 30,                // 信念服务每次抽几个世界(30 与 60 一样准,5 ms)
   /* 推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。
    * 真人(以及 guardJoker 之后的 AI)王留到最后。n>0:手里多于 n 张时推演领出不出王。0 = 旧行为。 */
@@ -3505,7 +3506,10 @@ function scorePlay(X, cards, cat, beatsCur){
   }
   // 我压下 → 下一墩我领,可以送队友毙(只在跟牌时;领出侧已有 feedRuffValue)
   if(AIP.feedTempo&&beatsCur&&X.lead) tempo+=AIP.feedTempo*p*feedTempoValue(X,cards);
-  return (CAT_K[cat]||1)*ev*(X.pw||1)+tempo-futureValue(cards,X)+ladderCross(X,p,gain,loss);
+  const fut=futureValue(cards,X), lad=ladderCross(X,p,gain,loss);
+  // 打分拆项(只给量具用:test/fit-score.js 用反事实结果回归各项的权重);不影响分数
+  X._parts={ev:(CAT_K[cat]||1)*ev*(X.pw||1),tempo,fut,lad,p,gain,loss,cat};
+  return (CAT_K[cat]||1)*ev*(X.pw||1)+tempo-fut+lad;
 }
 // 兼容旧接口(教练/测试仍在用)
 function scoreWinPlay(X,cards){ return scorePlay(X,cards,
@@ -3575,10 +3579,11 @@ function aiChooseFollow(view, plays){
   const push=(cards,cat,beats,reason,penalty)=>{
     if(!cards) return;
     const score=scorePlay(X,cards,cat,beats)-(penalty||0);
+    const parts=X._parts?{...X._parts,pen:penalty||0}:null;
     const dup=cands.find(c=>c.cards.length===cards.length
         &&c.cards.every((x,i)=>x.id===cards[i].id));
-    if(dup){ if(score>dup.score){ dup.score=score; dup.cat=cat; dup.reason=reason; } return; }
-    cands.push({cards,cat,score,reason});
+    if(dup){ if(score>dup.score){ dup.score=score; dup.cat=cat; dup.reason=reason; dup.parts=parts; } return; }
+    cands.push({cards,cat,score,reason,parts});
   };
   /* v0.5.8:「我这一手打出去必定拿下这墩」—— 目前只有末家成立。
    * 它同时决定两件事:取牌时该不该顺手兑现分牌(cheapSort 的 certain),
@@ -4954,7 +4959,7 @@ function pSurviveBelief(X, cl, seats, B){
  * 本队暂时输着、手里有压得过当前最大的那家,按意愿模型 willWFit 的概率用最便宜的那张压,否则跟小;
  * 两条分支都走、按概率加权(最多 3 家 → 8 片叶子),再对世界取平均。对手压我、队友压回来、队友那张稳不稳,都是同一个问题。
  * 只管单张领出。 */
-function willP(T, plays, seat, hand, n, behind){
+function willP(T, plays, seat, hand, n, behind, isHuman){
   const lead=classify(plays[0].cards,T); const cur=currentWinner(plays,T);
   const ccl=classify(plays.find(p=>p.seat===cur.seat).cards,T);
   const ls=lead.suit, hasLead=hand.some(c=>effSuit(c,T)===ls);
@@ -4971,11 +4976,14 @@ function willP(T, plays, seat, hand, n, behind){
   const f=[1,kind===1?1:0,kind===2?1:0,last,Math.min(pts,40)/10,pts===0?1:0,big,cardPoints(ch)>0?1:0,Math.min(beaters.length,6)/3,ob,mb,n<=12?1:0,
            last*(pts>0?1:0),(kind===2?1:0)*ob,last*(kind===1?1:0),last*(kind===2?1:0),(kind===0?1:0)*big];
   const w=AIP.willWFit; let z=0; for(let i=0;i<w.length&&i<f.length;i++) z+=w[i]*f[i];
+  /* 真人修正(test/records-will.js --all,真人 223 个样本,两折检验对数损失 0.477 → 0.455):
+   * 真人断门更肯毙、末家 0 分墩更舍不得拿同门大牌去压。只对真人那一家用(view.humanSeat,自对弈里没有)。 */
+  if(isHuman&&AIP.willHuman){ const a=AIP.willHuman; z+=a[0]+a[1]*(kind===1?1:0)+a[2]*(kind===0&&last&&pts===0?1:0); }
   return {p:1/(1+Math.exp(-z)),card:ch};
 }
 function teamWinBelief(X, cards, B){
   if(!B||!X.lead||X.lead.type!=='single'||cards.length!==1) return null;
-  const T=X.trump, me=X.seat%2;
+  const T=X.trump, me=X.seat%2, hs=X.view&&X.view.humanSeat!==undefined?X.view.humanSeat:-1;
   const plays0=[...X.plays,{seat:X.seat,cards}];
   const order=X.remaining||[];
   let acc=0;
@@ -4985,7 +4993,7 @@ function teamWinBelief(X, cards, B){
       const s=order[i], H=w.hands[s]; if(!H) return rec(plays,i+1);
       const cur=currentWinner(plays,T);
       if(cur.seat%2===s%2) return rec(plays,i+1);          // 本队赢着,跟小
-      const r=willP(T,plays,s,H,H.length,order.slice(i+1));
+      const r=willP(T,plays,s,H,H.length,order.slice(i+1),hs===s);
       if(!r.p) return rec(plays,i+1);
       return r.p*rec([...plays,{seat:s,cards:[r.card]}],i+1)+(1-r.p)*rec(plays,i+1);
     };
@@ -7190,7 +7198,8 @@ function viewFor(seat){
   return {seat,hand:G.hands[seat],trump:G.trump,declSeat:G.declSeat,
           history:[...G.tricks.flatMap(t=>t.plays),...G.trick],
           buriedKnown:seat===G.declSeat?G.buried:[],
-          decl:G.decl};            // 谁亮的什么主(v0.7.15:收官抽样把亮主者的级牌钉在他手里)
+          decl:G.decl,             // 谁亮的什么主(v0.7.15:收官抽样把亮主者的级牌钉在他手里)
+          humanSeat:HUMAN};        // 哪一家是真人(意愿模型的真人修正 willHuman 用;自对弈里没有这个字段)
 }
 
 function cardHTML(c,cls=''){
