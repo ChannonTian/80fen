@@ -600,7 +600,11 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 .trick-line .tsum{margin-left:auto;font:700 12px/1.4 var(--font-sans);color:var(--ink-soft);white-space:nowrap}
 .tcard{white-space:nowrap;margin-right:4px;font-family:var(--font-num);font-weight:900}
 .tcard.sS{color:var(--suit-spade)}.tcard.sH{color:var(--suit-heart)}.tcard.sD{color:var(--suit-diamond)}.tcard.sC{color:var(--suit-club)}
-.tcard.pt{background:var(--honey);color:var(--ink);border-radius:6px;padding:0 4px}
+/* 分牌(5 / 10 / K)垫一块浅蜂蜜色,字色仍按花色 —— 原来一律写成墨色,带分的 ♥ ♦ 就成了黑字,玩家容易看错 */
+.tcard.pt{background:#FBE3A6;border-radius:6px;padding:0 4px}
+/* 六六的话、出错提示里的牌名(纯文字「♥K」):按花色上色,和牌面、对局记录一致 */
+.tx-S{color:var(--suit-spade)}.tx-H{color:var(--suit-heart)}.tx-D{color:var(--suit-diamond)}.tx-C{color:var(--suit-club)}
+.tx-S,.tx-H,.tx-D,.tx-C{font-weight:800;white-space:nowrap}
 .tjoker{display:inline-block;width:1.35em;height:1.35em;margin-right:4px;vertical-align:-.3em;flex:none}
 .tjoker>.joker-art{width:100%;height:100%;filter:drop-shadow(.6px 0 0 var(--ink)) drop-shadow(-.6px 0 0 var(--ink)) drop-shadow(0 .6px 0 var(--ink)) drop-shadow(0 -.6px 0 var(--ink))}
 .suit-row{display:grid;grid-template-columns:3.4em minmax(0,1fr);gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px dashed var(--line)}
@@ -777,7 +781,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.45(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.46(测试版)</div>
 
 
 <script>
@@ -10052,7 +10056,7 @@ setInterval(function(){var G=g();if(G&&G.phase==='finalDecl')syncCenter(G);},400
 var ctEl=$('centerToast'),ctTimer=null;
 function centerFlash(text,kind,ms){
   clearTimeout(ctTimer);
-  ctEl.textContent=text;ctEl.className='center-toast show '+(kind||'info');
+  ctEl.textContent=text;tintSuits(ctEl);ctEl.className='center-toast show '+(kind||'info');
   /* 出错都是轮到我的时候:放在我出牌那一行(那里空着),不盖别家的牌 */
   if(TB.ready){var aw=TB.aw,ah=TB.ah,sy=TB.slot.y+TB.th/2;
     placeFree(ctEl,[{x:aw/2,y:sy},{x:aw/2,y:sy-TB.th*0.35},TB.center,{x:aw/2,y:ah/2},{x:aw/2,y:ah*0.3}]);}
@@ -10249,6 +10253,22 @@ $('cbClose').onclick=hideBubble;
 /* 教练说的话都在产品的消息流里(window.__chat:quiz 先考一道题 → answer 公布答案 → advice 建议单;
    warn 失误提醒、doubt 存疑、review 局末复盘;from:'me' 是笔记和你的作答)。这里只挑当前这墩的弹出来 */
 function chatList(){return window.__chat?window.__chat():[];}
+/* 文字里的牌名按花色上色:只动文字节点,已经是牌面 / 记录小牌的不管 */
+var SUIT_RE=/([♠♥♣♦])\uFE0E?(10|[2-9]|J钩|皮蛋|老K|Ace|[JQKA])?/g,SUIT_OF={'♠':'S','♥':'H','♣':'C','♦':'D'};
+function tintSuits(root){
+  if(!root)return;
+  var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null),nodes=[],n;
+  while((n=w.nextNode()))if(/[♠♥♣♦]/.test(n.nodeValue)&&!(n.parentNode.closest&&n.parentNode.closest('.tcard,.card,.tx-S,.tx-H,.tx-D,.tx-C,input,textarea')))nodes.push(n);
+  nodes.forEach(function(t){
+    var f=document.createDocumentFragment(),s=t.nodeValue,last=0,m;SUIT_RE.lastIndex=0;
+    while((m=SUIT_RE.exec(s))){
+      if(m.index>last)f.appendChild(document.createTextNode(s.slice(last,m.index)));
+      var sp=document.createElement('span');sp.className='tx-'+SUIT_OF[m[1]];sp.textContent=m[0];f.appendChild(sp);last=m.index+m[0].length;
+    }
+    if(last<s.length)f.appendChild(document.createTextNode(s.slice(last)));
+    t.parentNode.replaceChild(f,t);
+  });
+}
 var lastChatId=0;
 function maxChatId(){var c=chatList();return c.length?c[c.length-1].id:0;}
 /* 建议单:首选那一手放在气泡里,其余(也可以的出法、跟牌义务、存疑说明)收在「还有呢」里 */
@@ -10293,6 +10313,7 @@ function showHintBubble(){
       var m=text.querySelector('.cb-more');m.hidden=!m.hidden;this.textContent=m.hidden?'还有呢':'收起';
     };
   }
+  tintSuits(text);
   bubbleKind='hint';placeBubble();bubble.hidden=false;clearTimeout(bubbleTimer);
 }
 /* 问六六:产品出题或给建议(都记进消息流),气泡里接着显示 */
@@ -10310,7 +10331,7 @@ function watchCoach(G){
     var warn=fresh.filter(function(m){return m.from==='coach'&&(m.kind==='warn'||m.kind==='doubt');}).pop();
     if(warn){
       bubble.classList.toggle('warn',warn.kind==='warn');
-      $('cbText').innerHTML=warn.html.replace(/^⚠️?\s*/,'');
+      $('cbText').innerHTML=warn.html.replace(/^⚠️?\s*/,'');tintSuits($('cbText'));
       $('cbActions').innerHTML='';
       bubbleKind='warn';placeBubble();bubble.hidden=false;
       clearTimeout(bubbleTimer);bubbleTimer=setTimeout(hideBubble,8000);
@@ -10427,7 +10448,7 @@ function renderLog(){
   if(recPanel.__h!==html){
     var body=document.querySelector('.records-body');
     var atBottom=body.scrollTop+body.clientHeight>=body.scrollHeight-30;
-    recPanel.innerHTML=html;recPanel.__h=html;
+    recPanel.innerHTML=html;recPanel.__h=html;tintSuits(recPanel);
     $('logRound').onchange=function(){logRoundSel=this.value;renderLog();};
     $('logMode').onchange=function(){logMode=this.value;renderLog();};
     if(atBottom&&logMode==='trick')body.scrollTop=body.scrollHeight;
@@ -10497,7 +10518,7 @@ function renderCoach(){
   if(!chat.some(function(m){return m.from==='coach';}))html+='<div class="empty-note">轮到你出牌时点「问六六」:六六先考你一道和这手牌有关的题,答完或跳过就给建议;出了明显更差的一手会提醒;一局打完会复盘关键回合。</div>';
   var dyn=$('coachDyn');
   if(dyn.__h===html)return;
-  dyn.innerHTML=html;dyn.__h=html;
+  dyn.innerHTML=html;dyn.__h=html;tintSuits(dyn);
   dyn.querySelectorAll('[data-qz]').forEach(function(b){b.onclick=function(){
     window.__answerQuiz(+b.dataset.mid,+b.dataset.qz);lastChatId=maxChatId();renderCoach();};});
   var mb=$('memBox');if(mb)mb.addEventListener('toggle',function(){memOpen=mb.open;});
