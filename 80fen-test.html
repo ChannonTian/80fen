@@ -10622,6 +10622,10 @@ function hideSays(){for(var k in CH.bubbles)CH.bubbles[k].classList.remove('show
 function chatterTrick(G,res){
   var lvl=chatterLevel();if(lvl==='off'||G.auto&&!window.__chatterTest)return;   /* __chatterTest:只给体检脚本用 */
   var key=(G.start&&G.start.seed)+'/'+G.tricks.length;if(CH.trickKey===key)return;CH.trickKey=key;
+  /* 冷却按「第几墩」算,墩号每局从 0 重数 —— 换局要把上次说话的墩号清掉,
+     否则上一局末尾说过话的人(和全桌间隔)在新一局里一直算作「刚说过」,第二局起就几乎不说话 */
+  var rk=(G.start&&G.start.seed)+'/'+(G.start&&G.start.round);
+  if(CH.roundKey!==rk){CH.roundKey=rk;CH.lastSeat={};CH.lastTrick=-9;}
   var plays=G.trick,w=res.winner,pts=res.points||0,t=G.trump,no=G.tricks.length;
   var ev=[],ai=function(s){return s>0;};
   try{
