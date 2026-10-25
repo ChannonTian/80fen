@@ -205,6 +205,23 @@ button{cursor:pointer;touch-action:manipulation}
   background:rgba(245,237,220,.07);animation:slotPulse 1.8s var(--ease-in-out) infinite}
 .turn-slot:not([hidden]){animation:slotPulse 1.8s var(--ease-in-out) infinite,slotIn .3s var(--ease-back)}
 @keyframes slotIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+/* 小黄人说话的气泡:贴着名牌,尖角指回名牌,2.8 秒后淡出 */
+.say{position:absolute;left:0;top:0;z-index:9;transform:translate(-50%,-50%) scale(.85);max-width:min(170px,46%);width:max-content;
+  padding:6px 11px 7px;border:2px solid var(--ink);border-radius:14px;background:var(--card-face);box-shadow:var(--shadow-card);
+  font:800 13px/1.35 var(--font-sans);color:var(--ink);text-align:center;pointer-events:none;opacity:0;
+  transition:opacity .2s,transform .25s var(--ease-back)}
+.say.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.say::after{content:'';position:absolute;width:9px;height:9px;background:var(--card-face);border:2px solid var(--ink);border-width:0 0 2px 2px}
+.say.t-l::after{left:-6px;top:calc(50% - 5px);transform:rotate(45deg)}
+.say.t-r::after{right:-6px;top:calc(50% - 5px);transform:rotate(-135deg)}
+.say.t-b::after{bottom:-6px;left:calc(50% - 5px);transform:rotate(-45deg)}
+.say.t-t::after{top:-6px;left:calc(50% - 5px);transform:rotate(135deg)}
+#game.m-w .say{font-size:15px;max-width:220px}
+/* 说话时头像跟着动:开心弹一下,生气抖一下 */
+.ava.emo-happy{animation:emoHop .7s var(--ease-back)}
+.ava.emo-mad{animation:emoShake .5s ease-in-out}
+@keyframes emoHop{0%,100%{transform:none}35%{transform:translateY(-6px) scale(1.12)}65%{transform:translateY(1px)}}
+@keyframes emoShake{0%,100%{transform:none}20%{transform:translateX(-3px) rotate(-6deg)}40%{transform:translateX(3px) rotate(6deg)}60%{transform:translateX(-2px) rotate(-4deg)}80%{transform:translateX(2px)}}
 .turn-slot span{display:flex;flex-direction:column;align-items:center;gap:3px;padding:0 4px}
 .turn-slot{font-size:clamp(11px,calc(var(--tcw,52px)*.19),15px)}
 .turn-slot small{font:800 .78em/1 var(--font-sans);opacity:.85}
@@ -481,6 +498,13 @@ html.hasHover #hand .card:hover .face{border-color:var(--teal)}
 .res-upload-btns{display:flex;gap:8px;justify-content:flex-end}
 .res-upload-btns .btn{min-height:36px;padding:0 14px;font-size:14px}
 .res-coach .dim{color:var(--ink-soft);font-size:13px}
+/* 局终:小黄人各说一句 */
+.res-quips{display:flex;flex-direction:column;gap:6px;margin-top:12px;text-align:left}
+.quip{display:flex;align-items:center;gap:8px;font:700 14px/1.4 var(--font-sans)}
+.quip b{margin-right:6px;font-family:var(--font-heading)}
+.quip .ava{flex:none;width:30px;height:30px;border-radius:50%;padding:2px;background:var(--brick)}
+.quip .ava.mate{background:var(--teal)}
+.quip .ava svg{display:block;width:100%;height:100%;clip-path:circle(50%)}
 .setVer{display:block;margin-top:3px;font:700 12px/1.2 var(--font-sans);color:var(--ink-faint)}
 .setHeader b{min-width:4em}
 
@@ -753,7 +777,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.44(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.45(测试版)</div>
 
 
 <script>
@@ -8521,7 +8545,7 @@ function endRound(){
     html+=`<div class="res-final">${weWon?'你们打过 A,整场胜利!':'对方打过 A,整场告负'}</div>`+levels+uploadAskHTML();
     html+=`<div class="panel-actions"><button class="btn primary" onclick="window.__newMatch()">再来一场</button>${more}</div>`;
   }else{
-    html+=levels+`<div class="res-next">下一局${['你','Bob','Kevin','Stuart'][M.dealer]}坐庄,打 ${lvName(M.levels[M.dealer%2])}</div>`+uploadAskHTML();
+    html+=levels+`<div class="res-next">下一局${['你',' Bob ',' Kevin ',' Stuart '][M.dealer]}坐庄,打 ${lvName(M.levels[M.dealer%2])}</div>`+uploadAskHTML();
     html+=`<div class="panel-actions"><button class="btn primary" onclick="window.__next()">下一局</button>${more}</div>`;
   }
   // 弹层之下的牌桌也要跟着进「已结束」态(托管按钮收起、发牌区改成「复盘中」),
@@ -9868,13 +9892,15 @@ function sync(){
   ['idle','dealing','kitty','lowrebel','redealing','play','ended'].forEach(function(k){ctl.classList.toggle('ph-'+k,ph===k);});
   if(!G)return;
   var round=(G.start&&G.start.round||0)+'/'+(G.start&&G.start.seed);
-  if(round!==lastRound){lastRound=round;L.progress=0;lastTf={};TB.snap=null;lastChatId=maxChatId();hideBubble();}
+  if(round!==lastRound){lastRound=round;L.progress=0;lastTf={};TB.snap=null;lastChatId=maxChatId();hideBubble();hideSays();}
   if(ph!==lastPhase){lastPhase=ph;if(ph!=='play')hideBubble();}
   /* 兜底:手牌张数变了却没排过(或有牌没被摆位),补排一次 */
   var hc=hand.children;
   if(hc.length&&(!L.hand||L.hand.rows.reduce(function(a,r){return a+r.cards.length;},0)!==hc.length||!hc[0].style.transform||L.hand.rows[0].cards[0].el!==hc[0]))layout();
   syncTop(G);
   syncSeats(G);
+  chatterDecl(G);
+  if(G.ended)setTimeout(function(){var G2=g();if(G2&&G2.ended)chatterEnd(G2);},60);
   syncCenter(G);
   syncControls(G);
   watchCoach(G);
@@ -9950,7 +9976,8 @@ function syncSeats(G){
   if(collect>=0){
     if(!badge){badge=document.createElement('div');badge.className='winner-label';arena.appendChild(badge);}
     if(badge.textContent!==collectLabel)badge.textContent=collectLabel;
-    badge.__seat=collect;badge.dataset.seat=collect;TB.collect=collect;badge.classList.toggle('theirs',collect%2!==0);
+    badge.__seat=collect;badge.dataset.seat=collect;TB.collect=collect;
+    chatterTrick(G,res);badge.classList.toggle('theirs',collect%2!==0);
     placeStamp();
   }else if(badge)badge.remove();
   /* 名牌上的「领 / 庄 / 托管」一变,名牌宽度就变,按新宽度重排(靠右、居中的名牌才不会出桌) */
@@ -10479,10 +10506,159 @@ function renderCoach(){
 }
 
 /* =====================================================================
+   小黄人说话:收墩、被毙、亮主、局终时,三位电脑玩家偶尔冒一句
+   - 人设:Bob 最小最天真(短、叠词、一哭就哭);Kevin 是你的队友、大哥(爱邀功、装稳、输了找台阶);
+     Stuart 独眼、懒、嘴贱(爱挑衅、爱甩锅给 Bob)。只损牌局,不损真人玩家
+   - 控频:一墩最多一个人说;普通事件按概率,大事件(大分、被毙掉分)几乎必说;
+     同一个人隔 3 墩才再说,全桌至少隔 1 墩;台词不重复最近 4 句;你托管快进时不说
+   - 「对手说话」在菜单里切 多 / 少 / 关
+   ===================================================================== */
+var LINES={
+  1:{ /* Bob */
+    win:['耶耶耶!','香蕉分!香蕉分!','Bob 好厉害~','嘿嘿,都是我的~','抱走抱走!','Bello~分来啦!','Bob 发财啦!'],
+    lose:['呜……我的分……','不要走哇……','Bob 不哭……Bob 只是眼睛进香蕉了','啊?啊?啊???','分飞走了……','Stuart 说这怪我……'],
+    ruff:['毙!毙!毙!','嘿嘿,我没有这门~','Bob 偷吃一口~','咔嚓!','Bob 有主主~'],
+    ruffed:['哎?我的大牌呢?','你、你怎么有主!','Bob 的牌被吃掉了……','坏人!','呜,不带这样的……'],
+    sour:['你好厉害……讨厌~','哇,你偷偷练过吧?','Bob 记住你了!','能不能分我一点点……','Bob 要告诉 Stuart!'],
+    declare:['我亮!我亮!','这个主好看!','Bob 当家啦~'],
+    endWin:['Banana 派对!','我们赢啦~耶~','Bob 要吃三根香蕉庆祝!'],
+    endLose:['呜哇——','下一局!下一局!','Bob 不服气!(小声)'],
+    kittyDig:['底牌里有宝贝!','挖到啦挖到啦!']},
+  2:{ /* Kevin:你的队友 */
+    carry:['这墩归我罩。','不用谢,记得请我吃香蕉。','看到没,这叫实力。','交给专业的来。','稳。','分我替你收好了。'],
+    praise:['漂亮!不愧是我带出来的。','可以啊队友!','这手我给满分。','跟我学的吧?','好!(其实我也想这么出)'],
+    lose:['……刚才那张不算。','是战术,是战术。','咳,我故意让的。','别看我,看牌。','下墩我包了。'],
+    ruff:['毙了,别客气。','没这门,不好意思哈。','主牌伺候。'],
+    ruffed:['哎哟?谁让你毙的?','这都能毙?','我的大牌……行吧。'],
+    declare:['主我来定,放心。','这主,稳。'],
+    endWin:['我说什么来着?稳。','队友,击个掌!','香蕉我请了!'],
+    endLose:['下一局才是认真的。','……不准截图。','运气,纯属运气。'],
+    kittyDig:['这底,我早就盯上了。','底给你抠出来了!']},
+  3:{ /* Stuart */
+    win:['就这?','嗯,还行吧。','不好意思,又是我。','收了收了,别看了。','躺着都能赢。','Bello,分我拿走了。'],
+    lose:['是牌的问题,不是我。','Bob!你在干嘛!','我刚才在想香蕉。','这把不算,我没睡醒。','行行行,你们厉害。'],
+    ruff:['毙了,不好意思(并不)。','没这门,嘿嘿。','主牌,了解一下?','啪,没了。'],
+    ruffed:['……你礼貌吗?','我那张可是大牌啊!','记仇了。','有主了不起啊?'],
+    sour:['运气好而已。','哦。(翻白眼)','下墩让你哭。','别得意,香蕉还没分完。','你是不是偷看了?'],
+    declare:['主我亮了,有意见吗?','看好了,这叫亮主。'],
+    endWin:['早说了,躺赢。','Bob,收香蕉。','下一局继续欺负你们。'],
+    endLose:['我不玩了。(没有走)','这局不算。','都怪 Bob。'],
+    kittyDig:['底牌,笑纳了。','抠底,懂?']}
+};
+var MOOD={win:'happy',carry:'happy',praise:'happy',ruff:'happy',declare:'happy',endWin:'happy',kittyDig:'happy',
+          lose:'mad',ruffed:'mad',sour:'mad',endLose:'mad'};
+var CHAT_KEY='liuliu-chatter';
+function chatterLevel(){try{return localStorage.getItem(CHAT_KEY)||'more';}catch(_){return 'more';}}
+function setChatterLevel(v){try{localStorage.setItem(CHAT_KEY,v);}catch(_){}}
+var CH={recent:{},lastSeat:{},lastTrick:-9,trickKey:'',declKey:'',endKey:'',bubbles:{}};
+function pickLine(seat,key){
+  var pool=(LINES[seat]||{})[key];if(!pool||!pool.length)return '';
+  var rk=seat+key,rec=CH.recent[rk]||(CH.recent[rk]=[]);
+  var fresh=pool.filter(function(l){return rec.indexOf(l)<0;});if(!fresh.length)fresh=pool;
+  var line=fresh[Math.floor(Math.random()*fresh.length)];
+  rec.push(line);if(rec.length>4)rec.shift();
+  return line;
+}
+var SEAT_K=['S','E','N','W'];
+function say(seat,key){
+  var line=pickLine(seat,key);if(!line)return false;
+  var el=CH.bubbles[seat];
+  if(!el){el=document.createElement('div');el.className='say';el.setAttribute('role','status');arena.appendChild(el);CH.bubbles[seat]=el;}
+  el.textContent=line;el.setAttribute('aria-label',who(seat)+':'+line);
+  el.classList.remove('show','t-l','t-r','t-t','t-b');void el.offsetWidth;
+  placeSay(el,seat);el.classList.add('show');
+  clearTimeout(el.__t);el.__t=setTimeout(function(){el.classList.remove('show');},2800);
+  var ava=labEl(SEAT_K[seat]).querySelector('.ava');
+  if(ava){var m='emo-'+(MOOD[key]||'happy');ava.classList.remove('emo-happy','emo-mad');void ava.offsetWidth;ava.classList.add(m);
+    clearTimeout(ava.__t);ava.__t=setTimeout(function(){ava.classList.remove(m);},900);}
+  return true;
+}
+/* 气泡贴着说话人的名牌,在名牌朝桌心那边 / 上面 / 下面里挑压牌最少的一处;尖角指回名牌 */
+function placeSay(el,seat){
+  if(!TB.ready)return;
+  var lab=rel(labEl(SEAT_K[seat])),bw=el.offsetWidth,bh=el.offsetHeight,aw=TB.aw,ah=TB.ah,gap=10;
+  var cx=(lab.left+lab.right)/2,cy=(lab.top+lab.bottom)/2;
+  var right={x:lab.right+gap+bw/2,y:cy,t:'t-l'},left={x:lab.left-gap-bw/2,y:cy,t:'t-r'};
+  var inward=cx<aw/2?right:left;
+  /* 先试朝桌心那边,再试另一边(对家在正中,朝哪边都算),再试上、下 */
+  var cands=[inward,inward===right?left:right,{x:cx,y:lab.top-gap-bh/2,t:'t-b'},{x:cx,y:lab.bottom+gap+bh/2,t:'t-t'}];
+  var busy=Array.prototype.map.call(document.querySelectorAll('#arena .played:not(.ghost)'),function(p){return p.children.length?rel(p):null;}).filter(Boolean)
+    .concat(['N','W','E','S'].filter(function(k){return k!==SEAT_K[seat];}).map(function(k){return rel(labEl(k));}))
+    .concat(Array.prototype.map.call(arena.querySelectorAll('.winner-label'),rel));
+  var best=null,bestA=1e18;
+  cands.forEach(function(c){
+    var x=clamp(c.x,bw/2+4,aw-bw/2-4),y=clamp(c.y,bh/2+4,ah-bh/2-4);
+    var r={left:x-bw/2,top:y-bh/2,right:x+bw/2,bottom:y+bh/2};
+    if(hit(r,lab,2))return;
+    var a=busy.reduce(function(n,q){return n+Math.max(0,Math.min(r.right,q.right)-Math.max(r.left,q.left))*Math.max(0,Math.min(r.bottom,q.bottom)-Math.max(r.top,q.top));},0);
+    if(a<bestA){bestA=a;best={x:x,y:y,t:c.t};}
+  });
+  best=best||{x:clamp(inward.x,bw/2+4,aw-bw/2-4),y:inward.y,t:inward.t};
+  place(el,best.x,best.y);el.classList.add(best.t);
+}
+function hideSays(){for(var k in CH.bubbles)CH.bubbles[k].classList.remove('show');}
+/* 一墩四家出完(收墩戳刚出来):看这墩发生了什么,挑一个人说一句 */
+function chatterTrick(G,res){
+  var lvl=chatterLevel();if(lvl==='off'||G.auto&&!window.__chatterTest)return;   /* __chatterTest:只给体检脚本用 */
+  var key=(G.start&&G.start.seed)+'/'+G.tricks.length;if(CH.trickKey===key)return;CH.trickKey=key;
+  var plays=G.trick,w=res.winner,pts=res.points||0,t=G.trump,no=G.tricks.length;
+  var ev=[],ai=function(s){return s>0;};
+  try{
+    var lead=classify(plays[0].cards,t);
+    var wi=plays.findIndex(function(p){return p.seat===w;});
+    if(lead&&lead.suit!=='T'&&wi>0&&plays[wi].cards.every(function(c){return effSuit(c,t)==='T';})){
+      var prev=resolveTrick(plays.slice(0,wi),t).winner;
+      if(prev%2!==w%2&&ai(prev))ev.push({seat:prev,key:'ruffed',pri:4,major:pts>=10});
+      if(ai(w))ev.push({seat:w,key:'ruff',pri:3,major:pts>=10});
+    }
+  }catch(_){}
+  if(ai(w)&&pts>=20)ev.push({seat:w,key:w===2?'carry':'win',pri:2,major:pts>=30});
+  else if(w===2&&pts>=10)ev.push({seat:2,key:'carry',pri:1});
+  if(w===0&&pts>=10){ev.push({seat:Math.random()<.5?1:3,key:'sour',pri:2,major:pts>=25});ev.push({seat:2,key:'praise',pri:1.5,major:pts>=25});}
+  if(pts>=15){var losers=[1,2,3].filter(function(s){return s%2!==w%2;});
+    if(losers.length)ev.push({seat:losers[Math.floor(Math.random()*losers.length)],key:'lose',pri:1,major:pts>=30});}
+  var k=lvl==='less'?.45:1;
+  ev.sort(function(a,b){return b.pri-a.pri;});
+  for(var i=0;i<ev.length;i++){
+    var e=ev[i],cool=e.major?2:3;
+    if(no-(CH.lastSeat[e.seat]==null?-9:CH.lastSeat[e.seat])<cool)continue;
+    if(!e.major&&no-CH.lastTrick<2)continue;
+    if(Math.random()>=(e.major?.9:.45)*k)continue;
+    if(say(e.seat,e.key)){CH.lastSeat[e.seat]=no;CH.lastTrick=no;}
+    break;
+  }
+}
+/* 电脑亮主 / 反主时嘚瑟一句 */
+function chatterDecl(G){
+  var d=G.decl;if(!d||!(G.phase==='dealing'||G.phase==='finalDecl'))return;
+  var key=(G.start&&G.start.seed)+'/'+d.seat+d.suit+d.strength;if(CH.declKey===key)return;CH.declKey=key;
+  var lvl=chatterLevel();if(lvl==='off'||G.auto&&!window.__chatterTest||!d.seat)return;
+  if(Math.random()<(lvl==='less'?.3:.65))say(d.seat,'declare');
+}
+/* 一局打完:局终面板里,队友 Kevin 一句、对手里挑一个一句 */
+function chatterEnd(G){
+  var key=(G.start&&G.start.seed)+'/'+(G.start&&G.start.round);if(CH.endKey===key)return;
+  var oc=$('overlayContent'),head=oc&&oc.querySelector('.res-head');if(!head)return;
+  CH.endKey=key;hideSays();
+  if(chatterLevel()==='off'||oc.querySelector('.res-quips'))return;
+  var won=!oc.querySelector('.res-badge.lose');
+  var dug=/翻出/.test((oc.querySelector('.res-sub')||{}).textContent||'');
+  var defTeam=G.declSeat>=0?(G.declSeat+1)%2:-1;
+  var keyFor=function(s){var mine=s%2===0;return dug&&s%2===defTeam&&(mine===won)?'kittyDig':(mine===won?'endWin':'endLose');};
+  var opp=Math.random()<.5?1:3;
+  var rows=[2,opp].map(function(s){var l=pickLine(s,keyFor(s));return l?'<div class="quip"><span class="ava mug'+(s===2?' mate':'')+'" aria-hidden="true">'+PLAYERS[s].mug+'</span><span><b>'+who(s)+'</b>'+esc(l)+'</span></div>':'';}).join('');
+  if(!rows)return;
+  var box=document.createElement('div');box.className='res-quips';box.innerHTML=rows;
+  var at=oc.querySelector('.res-levels')||oc.querySelector('.panel-actions');
+  at.parentNode.insertBefore(box,at);
+}
+
+/* =====================================================================
    菜单
    ===================================================================== */
 var sheet=$('sheet');
 var ICON={
+  chat:'<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg>',
   set:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>',
   rec:'<svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>',
   pts:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9 12h6"/></svg>',
@@ -10502,12 +10678,14 @@ $('menuBtn').onclick=function(){
     opt('mScore','pts','闲家分牌','闲家已经抢到的分')+
     (kitty?opt('mKitty','kitty','看底牌','你扣下的 8 张'):'')+
     opt('mSet','set','设置','规则 · 节奏 · 教练 · 声音 · 重打本局')+
+    opt('mChat','chat','对手说话:'+{more:'多',less:'少',off:'关'}[chatterLevel()],'Bob、Kevin、Stuart 收墩时冒一句;点一下切换 多 / 少 / 关')+
     '<a class="menu-option" href="80fen-learn-ui-test.html">'+ICON.learn+'<span>去学牌<small>六六陪你从一手牌学起</small></span></a>'+
     '<div class="menu-foot">'+esc($('versionTag').textContent)+'</div>';
   $('mRec').onclick=function(){sheet.close();openSide('log');};
   $('mScore').onclick=function(){sheet.close();openScore();};
   if($('mKitty'))$('mKitty').onclick=function(){sheet.close();window.__showKitty();};
   $('mSet').onclick=function(){sheet.close();window.__openSet();};
+  $('mChat').onclick=function(){var n={more:'less',less:'off',off:'more'}[chatterLevel()];setChatterLevel(n);if(n==='off')hideSays();$('menuBtn').onclick();};
   if(!sheet.open)sheet.showModal();
 };
 

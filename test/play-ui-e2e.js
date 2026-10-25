@@ -58,7 +58,7 @@ function audit(){
   const drawer=document.body.classList.contains('drawer-open');
   if(document.documentElement.scrollWidth>W+1)out.push(`页面横向溢出 ${document.documentElement.scrollWidth}>${W}`);
   // 1. 该看得见的东西都在屏幕里
-  const must=[...document.querySelectorAll('.topbar>*,#controls>*,#controls #dealZone>*,.player-label,#trickSummary,.coach-bubble,.center-toast.show')];
+  const must=[...document.querySelectorAll('.topbar>*,#controls>*,#controls #dealZone>*,.player-label,#trickSummary,.coach-bubble,.center-toast.show,.say.show')];
   if(!modal&&!drawer)for(const e of must){ if(!vis(e))continue; const r=R(e);
     if(r.left<-1||r.top<-1||r.right>W+1||r.bottom>H+1)out.push(`出屏:${name(e)} [${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.right)},${Math.round(r.bottom)}]`); }
   // 2. 操作栏:不滚、不重叠、字不截
