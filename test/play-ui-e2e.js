@@ -191,7 +191,7 @@ async function run(browser,key,opt,base){
   await until(s=>s.my);
   await click('#btnHint');await p.waitForTimeout(150);
   await check('六六气泡');
-  await p.evaluate(()=>{const q=document.querySelector('#cbActions [data-qz="skip"]');if(q)q.click();});
+  await p.evaluate(()=>{const q=document.querySelector('#cbActions [data-qz="skip"],#cbActions [data-qz="-1"]');if(q)q.click();});
   await p.evaluate(()=>{const b=document.getElementById('cbPlay');if(b)b.click();});
   // 第二手:选一张(能悔牌了)
   await until(s=>s.my);
@@ -211,7 +211,7 @@ async function run(browser,key,opt,base){
   for(let k=0;k<10&&dragTried<2;k++){
     const s=await st();if(s.e)break;
     if(!s.my){await until(s=>s.my||s.e);continue;}
-    await p.evaluate(()=>{__G().hintCards=null;document.getElementById('btnHint').click();const q=document.querySelector('#cbActions [data-qz="skip"]');if(q)q.click();});
+    await p.evaluate(()=>{__G().hintCards=null;document.getElementById('btnHint').click();const q=document.querySelector('#cbActions [data-qz="skip"],#cbActions [data-qz="-1"]');if(q)q.click();});
     const ids=await p.evaluate(()=>{const G=__G();return G.hintCards?[...G.hintCards]:[];});
     await p.evaluate(()=>document.getElementById('cbClose').click());
     if(ids.length<2){await p.evaluate(()=>{const G=__G();G.selected.clear();(G.hintCards||[]).forEach(i=>G.selected.add(i));document.getElementById('btnPlay').disabled=false;document.getElementById('btnPlay').click();});await p.waitForTimeout(150);continue;}
