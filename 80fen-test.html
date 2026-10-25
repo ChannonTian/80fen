@@ -372,7 +372,7 @@
 <div id="toast"></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.42(测试版)</div>
+<div id="versionTag">80分 v0.7.44(测试版)</div>
 
 <script>
 /* ============================================================
@@ -1034,7 +1034,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   dumpW: [0.1675,0.9904,-1.5178,-1.0673,4.559,-0.3766,-0.5456,0.5391,-0.3928,1.8888],   // 不压的那一家放分的模型(beliefSurv 位 16 时用),test/fit-dump.js
   leadCalW: [-0.1923,0.4468,0.3748,0.7323,0.128,-0.1735],   // 领出单张 leadWinP 的校准层(beliefSurv 位 8 时用),test/fit-leadcal.js
   willHuman: [-0.36,0.86,-0.73], // (v0.7.42 测试版默认开)真人那一家的意愿修正 [常数, 毙, 同门·末家·0分](records-will --all);null = 不修正
-  beliefSurv: 4,              // (v0.7.42 测试版默认 4)位开关:1 = 跟牌压牌候选、2 = 队友暂大的确定性、4 = 整个 pTeamWin 换成逐世界走完本墩(teamWinBelief)、8 = 领出单张的 leadWinP 也换、16 = 跟牌打分的期望分 ev 也换成逐世界走完本墩(trickEVBelief,含放分模型 dumpExp) —— 改用抽样信念 + 拟合意愿(见 survB);0 = 旧行为
+  beliefSurv: 20,             // (v0.7.44 测试版默认 20 = 4+16;v0.7.42 起是 4)位开关:1 = 跟牌压牌候选、2 = 队友暂大的确定性、4 = 整个 pTeamWin 换成逐世界走完本墩(teamWinBelief)、8 = 领出单张的 leadWinP 也换、16 = 跟牌打分的期望分 ev 也换成逐世界走完本墩(trickEVBelief,含放分模型 dumpExp) —— 改用抽样信念 + 拟合意愿(见 survB);0 = 旧行为
   beliefM: 30,                // 信念服务每次抽几个世界(30 与 60 一样准,5 ms)
   /* 推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。
    * 真人(以及 guardJoker 之后的 AI)王留到最后。n>0:手里多于 n 张时推演领出不出王。0 = 旧行为。 */
