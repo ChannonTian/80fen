@@ -78,8 +78,13 @@ function audit(){
   if(game.classList.contains('m-p')){
     const row=['trumpChip','levelChip','recordsBtn','menuBtn'].map(id=>document.getElementById(id)).filter(vis).map(e=>Math.round(R(e).top/10));
     if(new Set(row).size>1)out.push('顶栏第一行折行了');
-  }else{
-    // 横屏、宽屏:顶栏只有一行
+  }else if(game.classList.contains('m-l')&&document.querySelector('.topbar').scrollHeight>R(document.querySelector('.topbar')).height+1){
+    // 矮横屏:顶栏是左边一条竖栏(测试版),里面的东西不能超出栏高;UI 测试页的横屏顶栏仍是一行,走下面那条
+    const tb=document.querySelector('.topbar');
+    if(getComputedStyle(tb).display==='grid')out.push(`左边竖栏放不下 ${tb.scrollHeight}>${Math.round(R(tb).height)}`);
+  }
+  if(!game.classList.contains('m-p')&&getComputedStyle(document.querySelector('.topbar')).display!=='grid'){
+    // 宽屏(和 UI 测试页的横屏):顶栏只有一行
     const tops=[...document.querySelectorAll('.topbar>*')].filter(vis).map(e=>R(e)).map(r=>Math.round((r.top+r.bottom)/2/12));
     if(new Set(tops).size>1)out.push('顶栏折行了');
   }

@@ -600,7 +600,11 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 .trick-line .tsum{margin-left:auto;font:700 12px/1.4 var(--font-sans);color:var(--ink-soft);white-space:nowrap}
 .tcard{white-space:nowrap;margin-right:4px;font-family:var(--font-num);font-weight:900}
 .tcard.sS{color:var(--suit-spade)}.tcard.sH{color:var(--suit-heart)}.tcard.sD{color:var(--suit-diamond)}.tcard.sC{color:var(--suit-club)}
-.tcard.pt{background:var(--honey);color:var(--ink);border-radius:6px;padding:0 4px}
+/* 分牌(5 / 10 / K)垫一块浅蜂蜜色,字色仍按花色 —— 原来一律写成墨色,带分的 ♥ ♦ 就成了黑字,玩家容易看错 */
+.tcard.pt{background:#FBE3A6;border-radius:6px;padding:0 4px}
+/* 六六的话、出错提示里的牌名(纯文字「♥K」):按花色上色,和牌面、对局记录一致 */
+.tx-S{color:var(--suit-spade)}.tx-H{color:var(--suit-heart)}.tx-D{color:var(--suit-diamond)}.tx-C{color:var(--suit-club)}
+.tx-S,.tx-H,.tx-D,.tx-C{font-weight:800;white-space:nowrap}
 .tjoker{display:inline-block;width:1.35em;height:1.35em;margin-right:4px;vertical-align:-.3em;flex:none}
 .tjoker>.joker-art{width:100%;height:100%;filter:drop-shadow(.6px 0 0 var(--ink)) drop-shadow(-.6px 0 0 var(--ink)) drop-shadow(0 .6px 0 var(--ink)) drop-shadow(0 -.6px 0 var(--ink))}
 .suit-row{display:grid;grid-template-columns:3.4em minmax(0,1fr);gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px dashed var(--line)}
@@ -663,6 +667,31 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 #dragGhost .drag-count{align-self:flex-start;margin-left:6px;padding:3px 9px;border:2px solid var(--ink);border-radius:999px;background:var(--honey);font:900 14px/1 var(--font-num)}
 #versionTag{display:none}
 #tests{display:none}
+/* ---------- 矮横屏:顶栏改成左边一条竖栏 ----------
+   横屏最缺的是高度。原来顶栏横在上面占掉 46px,牌桌只剩一半屏高,桌上的牌只能很小,两侧却空着。
+   现在左边一条窄栏放主牌 / 级数 / 得分 / 记录 / 菜单,右边一条放操作按钮,牌桌拿到整个屏高;手牌仍占满整个屏幕宽 */
+#game.m-l{grid-template-columns:var(--info-w,92px) minmax(0,1fr) var(--act-w,116px);grid-template-rows:minmax(0,1fr) var(--hand-h,80px);
+  grid-template-areas:"top arena act" "hand hand hand"}
+#game.m-l .topbar{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto auto auto minmax(0,1fr) auto;align-content:start;
+  gap:6px;padding:max(6px,env(safe-area-inset-top)) 4px 6px max(8px,env(safe-area-inset-left));background:none}
+#game.m-l .topbar>*{grid-column:1/-1;min-width:0}
+#game.m-l .topbar .logo{grid-row:1;justify-self:center;width:34px;height:34px}
+#game.m-l #trumpChip{grid-row:2}#game.m-l #levelChip{grid-row:3}#game.m-l #scoreChip{grid-row:4}
+#game.m-l .topbar .spacer{grid-row:5}
+#game.m-l #recordsBtn{grid-row:6;grid-column:1;justify-self:center}#game.m-l #menuBtn{grid-row:6;grid-column:2;justify-self:center}
+#game.m-l .topbar .chip{height:auto;min-height:34px;padding:5px 6px;border-radius:14px;flex-wrap:wrap;justify-content:center;row-gap:2px;column-gap:4px;white-space:normal;text-align:center}
+#game.m-l .topbar .chip .sep{display:none}
+#game.m-l .score-chip{height:auto;flex-wrap:wrap;justify-content:center;align-items:baseline;gap:2px 4px;padding:6px 6px 7px;border-radius:14px;max-width:none}
+#game.m-l .score-chip .score-label{display:block;flex-basis:100%;text-align:center;font-size:11px}
+#game.m-l .score-chip .score-track{order:9;flex:1 1 100%;min-width:0;height:8px;margin-top:3px}
+#game.m-l .score-chip .score-total{display:inline}
+#game.m-l .score-chip .score-gain{order:8;padding:2px 5px 1px;font-size:12px}
+#game.m-l .score-chip:has(.score-gain:not([hidden])) .score-total{display:none}
+#game.m-l .icon-btn{width:38px;height:38px;border-radius:12px}
+#game.m-l .icon-btn svg{width:20px;height:20px}
+#game.m-l .arena{margin:6px 4px 6px 4px}
+/* 很矮的横屏(SE 横放):不放头像,省一行 */
+@media (max-height:340px){#game.m-l .topbar .logo{display:none}#game.m-l .score-chip .score-label{display:none}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -777,7 +806,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.45(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.46(测试版)</div>
 
 
 <script>
@@ -9584,7 +9613,7 @@ function layout(){
   var G=g();
   var cards=Array.prototype.slice.call(hand.children);
   var actW=0;
-  if(mode==='l'){actW=W<700?116:132;game.style.setProperty('--act-w',actW+'px');}
+  if(mode==='l'){actW=W<700?116:132;game.style.setProperty('--act-w',actW+'px');game.style.setProperty('--info-w',(W<700?88:100)+'px');}
   var handW=W;
   var cfg=handCfg(mode,handW,H);
   /* 牌桌太矮、桌面牌比手牌小一截时,手牌让一点(同一屏幕尺寸只算一次,一局里手牌大小不变) */
@@ -9698,7 +9727,8 @@ function layoutTable(){
   var lh=lab.N.offsetHeight||34,lw={};
   for(var k in lab)lw[k]=lab[k].offsetWidth||90;
   var hcw=L.idleCw||(L.hand?L.hand.cw:60);
-  var cap=hcw*1.25,hard=wide?118:mode==='l'?84:112;
+  /* 桌面牌不超过手牌的 1.25 倍;矮横屏的手牌只露上半截、本来就小,放宽到 1.7 倍 */
+  var cap=hcw*(mode==='l'?1.7:1.25),hard=wide?118:mode==='l'?124:112;
   var tcw,th,P={};   /* P[k]={x,y,align,max} 牌摞锚点 */
   if(mode==='l'){
     /* 矮横屏:名牌是竖排的小头像。上下家在桌子左右两边的中间,牌摞挨着名牌朝桌心长;
@@ -9714,12 +9744,13 @@ function layoutTable(){
       tcw=Math.max(28,Math.min(tcw,Math.floor((aw/2-lwc-2*g-pad)/1.9)));th=tcw*1.43;
       x0=Math.round(aw/2-tcw/2);colL=x0-g-lwc;
     }
-    var side=stack?Math.max(tcw,colL-g-pad):Math.max(tcw,Math.min(beside,tcw*3.2));   /* 上下家牌摞最宽 */
+    /* 上下家牌摞最宽。名牌退到上角时,对家头像也贴最上面,上家的牌摞可以从它下面伸过去,一直到中间那一列 */
+    var side=stack?Math.max(tcw,x0-g-pad):Math.max(tcw,Math.min(beside,tcw*3.2));
     var xW=stack?pad:pad+lw.W+g,xE=stack?aw-pad:aw-pad-lw.E-g;
     var ySide=stack?pad+Math.max(lhs.W,lhs.E)+lg:yMid-th/2;
     var colMax=Math.max(tcw,xE-side-g-x0);                         /* 中间一列牌摞最宽 */
     var yS=ah-pad-th;
-    place(lab.N,x0-g-lw.N,pad+(th-lhs.N)/2);
+    place(lab.N,x0-g-lw.N,stack?pad:pad+(th-lhs.N)/2);
     place(lab.S,pad,ah-pad-lhs.S);                                 /* 我的头像在左下角,不浮在桌子中间 */
     if(stack){place(lab.W,pad,pad);place(lab.E,aw-pad-lw.E,pad);}
     else{place(lab.W,pad,yMid-lhs.W/2);place(lab.E,aw-pad-lw.E,yMid-lhs.E/2);}
@@ -9727,6 +9758,7 @@ function layoutTable(){
     P.S={x:x0,y:yS,align:'l',max:colMax};
     P.W={x:xW,y:ySide,align:'l',max:side};
     P.E={x:xE,y:ySide,align:'r',max:side};
+    TB.lane={x0:x0,xE:xE};   /* 中间一列和下家那摞共用 [x0, xE] 这一段,按张数分(见 stampPiles) */
     TB.center={x:aw/2,y:ah/2};
     TB.slot={x:x0,y:yS};
   }else{
@@ -9771,8 +9803,17 @@ function layoutTable(){
 function stampPiles(){
   if(!TB.ready)return;
   var tcw=TB.tcw,step0=Math.max(14,Math.round(tcw*0.34));
+  /* 矮横屏:对家 / 我那一列和下家那摞抢同一段横向空间。按各自张数要多宽来分,不让先到的一摞占满、另一摞挤成一条 */
+  var mx={};
+  if(L.mode==='l'&&TB.lane){
+    var need=function(k){var n=$(SEAT_KEYS[k].pile).children.length;return n?tcw+(n-1)*step0:0;};
+    var c=Math.max(need('N'),need('S')),e=need('E'),room=TB.lane.xE-TB.lane.x0-8;
+    var cm=c+e>room?Math.max(tcw,room*c/(c+e)):room-e;
+    mx.N=mx.S=Math.max(tcw,cm);mx.E=Math.max(tcw,room-mx.N);
+  }
   for(var k in SEAT_KEYS){
     var p=$(SEAT_KEYS[k].pile),a=TB.P[k],n=p.children.length,step=step0;
+    if(mx[k])a={x:a.x,y:a.y,align:a.align,max:mx[k]};
     if(n>1)step=Math.max(6,Math.min(step0,(a.max-tcw)/(n-1)));
     var w=n?tcw+(n-1)*step:0;
     p.style.setProperty('--pstep',step+'px');
@@ -9932,7 +9973,7 @@ function syncTop(G){
   var spans=$('status').querySelectorAll('span');
   var lv=spans[4]&&spans[4].textContent.match(/你们[:：]?\s*(\S+)\s*对方[:：]?\s*(\S+)/);
   if(lv){
-    var narrow=window.innerWidth<=440&&L.mode==='p'||window.innerWidth<700&&L.mode==='l';
+    var narrow=window.innerWidth<=440&&L.mode==='p'||L.mode==='l';   /* 横屏的级数在左边窄栏里 */
     var h2='<small>'+(narrow?'我':'我方')+'</small><span class="num">'+lv[1]+'</span><span class="sep"></span><small>'+(narrow?'对':'对方')+'</small><span class="num">'+lv[2]+'</span>';
     var lc=$('levelChip');if(lc.__h!==h2){lc.innerHTML=h2;lc.__h=h2;lc.setAttribute('aria-label','级数:我方打'+lv[1]+',对方打'+lv[2]);}
   }
@@ -10052,7 +10093,7 @@ setInterval(function(){var G=g();if(G&&G.phase==='finalDecl')syncCenter(G);},400
 var ctEl=$('centerToast'),ctTimer=null;
 function centerFlash(text,kind,ms){
   clearTimeout(ctTimer);
-  ctEl.textContent=text;ctEl.className='center-toast show '+(kind||'info');
+  ctEl.textContent=text;tintSuits(ctEl);ctEl.className='center-toast show '+(kind||'info');
   /* 出错都是轮到我的时候:放在我出牌那一行(那里空着),不盖别家的牌 */
   if(TB.ready){var aw=TB.aw,ah=TB.ah,sy=TB.slot.y+TB.th/2;
     placeFree(ctEl,[{x:aw/2,y:sy},{x:aw/2,y:sy-TB.th*0.35},TB.center,{x:aw/2,y:ah/2},{x:aw/2,y:ah*0.3}]);}
@@ -10249,6 +10290,22 @@ $('cbClose').onclick=hideBubble;
 /* 教练说的话都在产品的消息流里(window.__chat:quiz 先考一道题 → answer 公布答案 → advice 建议单;
    warn 失误提醒、doubt 存疑、review 局末复盘;from:'me' 是笔记和你的作答)。这里只挑当前这墩的弹出来 */
 function chatList(){return window.__chat?window.__chat():[];}
+/* 文字里的牌名按花色上色:只动文字节点,已经是牌面 / 记录小牌的不管 */
+var SUIT_RE=/([♠♥♣♦])\uFE0E?(10|[2-9]|J钩|皮蛋|老K|Ace|[JQKA])?/g,SUIT_OF={'♠':'S','♥':'H','♣':'C','♦':'D'};
+function tintSuits(root){
+  if(!root)return;
+  var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null),nodes=[],n;
+  while((n=w.nextNode()))if(/[♠♥♣♦]/.test(n.nodeValue)&&!(n.parentNode.closest&&n.parentNode.closest('.tcard,.card,.tx-S,.tx-H,.tx-D,.tx-C,input,textarea')))nodes.push(n);
+  nodes.forEach(function(t){
+    var f=document.createDocumentFragment(),s=t.nodeValue,last=0,m;SUIT_RE.lastIndex=0;
+    while((m=SUIT_RE.exec(s))){
+      if(m.index>last)f.appendChild(document.createTextNode(s.slice(last,m.index)));
+      var sp=document.createElement('span');sp.className='tx-'+SUIT_OF[m[1]];sp.textContent=m[0];f.appendChild(sp);last=m.index+m[0].length;
+    }
+    if(last<s.length)f.appendChild(document.createTextNode(s.slice(last)));
+    t.parentNode.replaceChild(f,t);
+  });
+}
 var lastChatId=0;
 function maxChatId(){var c=chatList();return c.length?c[c.length-1].id:0;}
 /* 建议单:首选那一手放在气泡里,其余(也可以的出法、跟牌义务、存疑说明)收在「还有呢」里 */
@@ -10293,6 +10350,7 @@ function showHintBubble(){
       var m=text.querySelector('.cb-more');m.hidden=!m.hidden;this.textContent=m.hidden?'还有呢':'收起';
     };
   }
+  tintSuits(text);
   bubbleKind='hint';placeBubble();bubble.hidden=false;clearTimeout(bubbleTimer);
 }
 /* 问六六:产品出题或给建议(都记进消息流),气泡里接着显示 */
@@ -10310,7 +10368,7 @@ function watchCoach(G){
     var warn=fresh.filter(function(m){return m.from==='coach'&&(m.kind==='warn'||m.kind==='doubt');}).pop();
     if(warn){
       bubble.classList.toggle('warn',warn.kind==='warn');
-      $('cbText').innerHTML=warn.html.replace(/^⚠️?\s*/,'');
+      $('cbText').innerHTML=warn.html.replace(/^⚠️?\s*/,'');tintSuits($('cbText'));
       $('cbActions').innerHTML='';
       bubbleKind='warn';placeBubble();bubble.hidden=false;
       clearTimeout(bubbleTimer);bubbleTimer=setTimeout(hideBubble,8000);
@@ -10427,7 +10485,7 @@ function renderLog(){
   if(recPanel.__h!==html){
     var body=document.querySelector('.records-body');
     var atBottom=body.scrollTop+body.clientHeight>=body.scrollHeight-30;
-    recPanel.innerHTML=html;recPanel.__h=html;
+    recPanel.innerHTML=html;recPanel.__h=html;tintSuits(recPanel);
     $('logRound').onchange=function(){logRoundSel=this.value;renderLog();};
     $('logMode').onchange=function(){logMode=this.value;renderLog();};
     if(atBottom&&logMode==='trick')body.scrollTop=body.scrollHeight;
@@ -10497,7 +10555,7 @@ function renderCoach(){
   if(!chat.some(function(m){return m.from==='coach';}))html+='<div class="empty-note">轮到你出牌时点「问六六」:六六先考你一道和这手牌有关的题,答完或跳过就给建议;出了明显更差的一手会提醒;一局打完会复盘关键回合。</div>';
   var dyn=$('coachDyn');
   if(dyn.__h===html)return;
-  dyn.innerHTML=html;dyn.__h=html;
+  dyn.innerHTML=html;dyn.__h=html;tintSuits(dyn);
   dyn.querySelectorAll('[data-qz]').forEach(function(b){b.onclick=function(){
     window.__answerQuiz(+b.dataset.mid,+b.dataset.qz);lastChatId=maxChatId();renderCoach();};});
   var mb=$('memBox');if(mb)mb.addEventListener('toggle',function(){memOpen=mb.open;});
@@ -10515,37 +10573,58 @@ function renderCoach(){
    ===================================================================== */
 var LINES={
   1:{ /* Bob */
-    win:['耶耶耶!','香蕉分!香蕉分!','Bob 好厉害~','嘿嘿,都是我的~','抱走抱走!','Bello~分来啦!','Bob 发财啦!'],
-    lose:['呜……我的分……','不要走哇……','Bob 不哭……Bob 只是眼睛进香蕉了','啊?啊?啊???','分飞走了……','Stuart 说这怪我……'],
+    win:['耶耶耶!','香蕉分!香蕉分!','Bob 好厉害~','嘿嘿,都是我的~','抱走抱走!','Bello~分来啦!','Bob 发财啦!','Bob 是天才!(转圈圈)','Kanpai!!!','Tank yu~ 分分!'],
+    lose:['呜……我的分……','不要走哇……','Bob 不哭……Bob 只是眼睛进香蕉了','啊?啊?啊???','分飞走了……','Stuart 说这怪我……','Bob 的香蕉梦碎了……','不要看我!(捂脸)','Poopaye 分分……'],
     ruff:['毙!毙!毙!','嘿嘿,我没有这门~','Bob 偷吃一口~','咔嚓!','Bob 有主主~'],
-    ruffed:['哎?我的大牌呢?','你、你怎么有主!','Bob 的牌被吃掉了……','坏人!','呜,不带这样的……'],
+    ruffed:['哎?我的大牌呢?','你、你怎么有主!','Bob 的牌被吃掉了……','坏人!','呜,不带这样的……','我的大牌被吃掉惹……(哇哇哭)'],
     sour:['你好厉害……讨厌~','哇,你偷偷练过吧?','Bob 记住你了!','能不能分我一点点……','Bob 要告诉 Stuart!'],
     declare:['我亮!我亮!','这个主好看!','Bob 当家啦~'],
     endWin:['Banana 派对!','我们赢啦~耶~','Bob 要吃三根香蕉庆祝!'],
     endLose:['呜哇——','下一局!下一局!','Bob 不服气!(小声)'],
-    kittyDig:['底牌里有宝贝!','挖到啦挖到啦!']},
+    kittyDig:['底牌里有宝贝!','挖到啦挖到啦!'],
+    idle:['Bello!','Banana~','Bee-do bee-do bee-do!','嘿嘿嘿嘿','(偷偷看了一眼你的牌)','Bob 想吃香蕉了','啵~','Papoy?','(在桌底下踢 Stuart)','Bob 会数到 10 了!1、2、3……7、香蕉!','(啃手指)','咕噜咕噜~'],
+    wait:['快点嘛~','Bob 要睡着了……zzz','你在算什么呀?','嘀嗒嘀嗒~','Bob 等得香蕉都熟了']},
   2:{ /* Kevin:你的队友 */
-    carry:['这墩归我罩。','不用谢,记得请我吃香蕉。','看到没,这叫实力。','交给专业的来。','稳。','分我替你收好了。'],
+    carry:['这墩归我罩。','不用谢,记得请我吃香蕉。','看到没,这叫实力。','交给专业的来。','稳。','分我替你收好了。','Bee-do bee-do!分到手了!','(帅气地推了推护目镜)'],
     praise:['漂亮!不愧是我带出来的。','可以啊队友!','这手我给满分。','跟我学的吧?','好!(其实我也想这么出)'],
-    lose:['……刚才那张不算。','是战术,是战术。','咳,我故意让的。','别看我,看牌。','下墩我包了。'],
+    lose:['……刚才那张不算。','是战术,是战术。','咳,我故意让的。','别看我,看牌。','下墩我包了。','这是我计划的一部分。','(假装没看见)'],
     ruff:['毙了,别客气。','没这门,不好意思哈。','主牌伺候。'],
     ruffed:['哎哟?谁让你毙的?','这都能毙?','我的大牌……行吧。'],
     declare:['主我来定,放心。','这主,稳。'],
     endWin:['我说什么来着?稳。','队友,击个掌!','香蕉我请了!'],
     endLose:['下一局才是认真的。','……不准截图。','运气,纯属运气。'],
-    kittyDig:['这底,我早就盯上了。','底给你抠出来了!']},
+    kittyDig:['这底,我早就盯上了。','底给你抠出来了!'],
+    idle:['稳住,我们能赢。','(假装在思考)','Bello~队友!','这局我有数。','Kanpai!','(偷偷把香蕉塞进口袋)','我刚才是不是很帅?','Tank yu~','(对你挤眉弄眼)','嗯,局势尽在掌握。(并没有)'],
+    wait:['慢慢来,不急……其实有点急。','队友,想好了吗?','需要我给你唱首歌吗?','Bee-do~ 提醒一下,轮到你了']},
   3:{ /* Stuart */
-    win:['就这?','嗯,还行吧。','不好意思,又是我。','收了收了,别看了。','躺着都能赢。','Bello,分我拿走了。'],
-    lose:['是牌的问题,不是我。','Bob!你在干嘛!','我刚才在想香蕉。','这把不算,我没睡醒。','行行行,你们厉害。'],
+    win:['就这?','嗯,还行吧。','不好意思,又是我。','收了收了,别看了。','躺着都能赢。','Bello,分我拿走了。','(翻了个大白眼)早说了。'],
+    lose:['是牌的问题,不是我。','Bob!你在干嘛!','我刚才在想香蕉。','这把不算,我没睡醒。','行行行,你们厉害。','这牌是 Bob 洗的。','Poopaye,分。'],
     ruff:['毙了,不好意思(并不)。','没这门,嘿嘿。','主牌,了解一下?','啪,没了。'],
     ruffed:['……你礼貌吗?','我那张可是大牌啊!','记仇了。','有主了不起啊?'],
-    sour:['运气好而已。','哦。(翻白眼)','下墩让你哭。','别得意,香蕉还没分完。','你是不是偷看了?'],
+    sour:['运气好而已。','哦。(翻白眼)','下墩让你哭。','别得意,香蕉还没分完。','你是不是偷看了?','嘁。','你等着。'],
     declare:['主我亮了,有意见吗?','看好了,这叫亮主。'],
     endWin:['早说了,躺赢。','Bob,收香蕉。','下一局继续欺负你们。'],
     endLose:['我不玩了。(没有走)','这局不算。','都怪 Bob。'],
-    kittyDig:['底牌,笑纳了。','抠底,懂?']}
+    kittyDig:['底牌,笑纳了。','抠底,懂?'],
+    idle:['……(打哈欠)','无聊。','Poopaye~','有人带香蕉了吗?','(在你看不见的地方做鬼脸)','我其实不想打,是 Bob 拉我来的。','嗯哼~','Bob,别踢我!','(用一只眼睛盯着你)','啦啦啦~(跑调)'],
+    wait:['你是在下棋吗?','我等得眼睛都闭上了(只有一只)','嘿,醒醒。','zzz……啊?轮到谁了?','快出,香蕉要凉了。']}
 };
-var MOOD={win:'happy',carry:'happy',praise:'happy',ruff:'happy',declare:'happy',endWin:'happy',kittyDig:'happy',
+/* 语气词:说话时随机加个开头 / 结尾,同一句话每次听起来不完全一样 */
+/* 按情绪分开挑,免得「坏人!」前面冒出个「哇哦~」 */
+var INTER={1:{happy:{pre:['哇哦~','嘿嘿,','Bello!','啊啦,'],post:['~','!!!','(扭扭)','(蹦蹦跳)']},
+              mad:{pre:['呜……','诶?!','啊啊,'],post:['……','(瘪嘴)','(哇哇哭)']}},
+           2:{happy:{pre:['嗯哼,','喂喂,','Bee-do~'],post:['(推护目镜)','~']},
+              mad:{pre:['咳咳,','呃,'],post:['(清嗓子)','……']}},
+           3:{happy:{pre:['呵,','嗯哼,'],post:['(得意)','~']},
+              mad:{pre:['啧,','切~','哼,'],post:['(翻白眼)','(打哈欠)','。']}}};
+function spice(seat,line,key){
+  var it=INTER[seat]&&INTER[seat][MOOD[key]==='mad'?'mad':'happy'];if(!it)return line;
+  var pick=function(a){return a[Math.floor(Math.random()*a.length)];};
+  if(Math.random()<.35&&!/^[(（]/.test(line)){var pr=pick(it.pre);if(line.indexOf(pr.replace(/[,~?!]/g,''))!==0)line=pr+line;}
+  else if(Math.random()<.3&&!/[)）]$/.test(line)){var po=pick(it.post);line=line.replace(/[。!~]$/,'')+(po==='。'||po==='~'?po:(/^[(（]/.test(po)?po:' '+po));}
+  return line;
+}
+var MOOD={idle:'happy',wait:'mad',win:'happy',carry:'happy',praise:'happy',ruff:'happy',declare:'happy',endWin:'happy',kittyDig:'happy',
           lose:'mad',ruffed:'mad',sour:'mad',endLose:'mad'};
 var CHAT_KEY='liuliu-chatter';
 function chatterLevel(){try{return localStorage.getItem(CHAT_KEY)||'more';}catch(_){return 'more';}}
@@ -10562,6 +10641,7 @@ function pickLine(seat,key){
 var SEAT_K=['S','E','N','W'];
 function say(seat,key){
   var line=pickLine(seat,key);if(!line)return false;
+  line=spice(seat,line,key);
   var el=CH.bubbles[seat];
   if(!el){el=document.createElement('div');el.className='say';el.setAttribute('role','status');arena.appendChild(el);CH.bubbles[seat]=el;}
   el.textContent=line;el.setAttribute('aria-label',who(seat)+':'+line);
@@ -10601,6 +10681,10 @@ function hideSays(){for(var k in CH.bubbles)CH.bubbles[k].classList.remove('show
 function chatterTrick(G,res){
   var lvl=chatterLevel();if(lvl==='off'||G.auto&&!window.__chatterTest)return;   /* __chatterTest:只给体检脚本用 */
   var key=(G.start&&G.start.seed)+'/'+G.tricks.length;if(CH.trickKey===key)return;CH.trickKey=key;
+  /* 冷却按「第几墩」算,墩号每局从 0 重数 —— 换局要把上次说话的墩号清掉,
+     否则上一局末尾说过话的人(和全桌间隔)在新一局里一直算作「刚说过」,第二局起就几乎不说话 */
+  var rk=(G.start&&G.start.seed)+'/'+(G.start&&G.start.round);
+  if(CH.roundKey!==rk){CH.roundKey=rk;CH.lastSeat={};CH.lastTrick=-9;}
   var plays=G.trick,w=res.winner,pts=res.points||0,t=G.trump,no=G.tricks.length;
   var ev=[],ai=function(s){return s>0;};
   try{
@@ -10620,14 +10704,29 @@ function chatterTrick(G,res){
   var k=lvl==='less'?.45:1;
   ev.sort(function(a,b){return b.pri-a.pri;});
   for(var i=0;i<ev.length;i++){
-    var e=ev[i],cool=e.major?2:3;
+    var e=ev[i],cool=e.major?1:2;
     if(no-(CH.lastSeat[e.seat]==null?-9:CH.lastSeat[e.seat])<cool)continue;
-    if(!e.major&&no-CH.lastTrick<2)continue;
-    if(Math.random()>=(e.major?.9:.45)*k)continue;
-    if(say(e.seat,e.key)){CH.lastSeat[e.seat]=no;CH.lastTrick=no;}
+    if(Math.random()>=(e.major?1:.7)*k)continue;
+    if(say(e.seat,e.key)){CH.lastSeat[e.seat]=no;CH.lastTrick=no;return;}
     break;
   }
+  /* 没什么事的墩:偶尔有人没头没脑冒一句 */
+  if(no-CH.lastTrick>=2&&Math.random()<.3*k){
+    var idle=[1,2,3].filter(function(s){return no-(CH.lastSeat[s]==null?-9:CH.lastSeat[s])>=2;});
+    if(idle.length){var s=idle[Math.floor(Math.random()*idle.length)];if(say(s,'idle')){CH.lastSeat[s]=no;CH.lastTrick=no;}}
+  }
 }
+/* 轮到你、想了 9 秒还没出:有人催一句(每墩最多一次) */
+setInterval(function(){
+  var G=g();if(!G||G.ended||G.auto||chatterLevel()==='off')return;
+  var my=G.phase==='play'&&G.trick.length<4&&(G.leader+G.trick.length)%4===0;
+  var key=my?(G.start&&G.start.seed)+'/'+G.tricks.length:'';
+  if(key!==CH.waitKey){CH.waitKey=key;CH.waitT=Date.now();CH.waited=false;return;}
+  if(!my||CH.waited||Date.now()-CH.waitT<9000)return;
+  if(!bubble.hidden||document.body.classList.contains('drawer-open'))return;   /* 正在看六六的建议、翻记录时不催 */
+  CH.waited=true;
+  if(Math.random()<(chatterLevel()==='less'?.35:.75))say([1,2,3][Math.floor(Math.random()*3)],'wait');
+},1000);
 /* 电脑亮主 / 反主时嘚瑟一句 */
 function chatterDecl(G){
   var d=G.decl;if(!d||!(G.phase==='dealing'||G.phase==='finalDecl'))return;
