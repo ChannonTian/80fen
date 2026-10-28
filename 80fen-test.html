@@ -806,7 +806,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.46(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.47(测试版)</div>
 
 
 <script>
@@ -9730,14 +9730,26 @@ function layoutTable(){
   /* 桌面牌不超过手牌的 1.25 倍;矮横屏的手牌只露上半截、本来就小,放宽到 1.7 倍 */
   var cap=hcw*(mode==='l'?1.7:1.25),hard=wide?118:mode==='l'?124:112;
   var tcw,th,P={};   /* P[k]={x,y,align,max} 牌摞锚点 */
-  if(mode==='l'){
+  /* 宽屏但桌子扁(平板横放、浏览器工具栏又占掉一截):三行摆牌会被高度卡得很小、全挤在中间,
+     改用矮横屏那种两行摆法(上下家在左右两边),牌能大一半;牌明显变大才换 */
+  var two=mode==='l';
+  if(wide){
+    var t3=Math.min((ah-2*pad-lh-lg-2*g)/3/1.43,cap,hard,(aw-2*pad-g)/2/1.4);
+    var t2=Math.min((ah-2*pad-g)/2/1.43,hcw*1.6,hard,(aw/2-pad-Math.max(lw.E,lw.W)-g-8)/3.2);
+    two=t2>=t3*1.15;
+    if(two)cap=hcw*1.6;
+  }
+  TB.two=two;
+  if(two){
     /* 矮横屏:名牌是竖排的小头像。上下家在桌子左右两边的中间,牌摞挨着名牌朝桌心长;
        对家、我两摞在中间一列(上下各一行),头像在牌摞左边 */
     var lhs={};for(var k2 in lab)lhs[k2]=lab[k2].offsetHeight||56;
     th=(ah-2*pad-g)/2;
-    tcw=Math.max(34,Math.floor(Math.min(th/1.43,cap,hard)));th=tcw*1.43;
-    var lwc=lw.N,yMid=ah/2;
+    tcw=Math.max(34,Math.floor(Math.min(th/1.43,cap,hard,wide?(aw/2-pad-Math.max(lw.E,lw.W)-g-8)/3.2:1e9)));th=tcw*1.43;
+    var lwc=Math.max(lw.N,lw.S),yMid=ah/2;
     /* 上下家:名牌放在牌摞旁边(左右两边正中);桌面太窄、旁边连一对都放不下时,名牌退到上面两角、牌摞挂在名牌下面 */
+    /* 宽屏:牌略小一点就能让名牌留在两边正中时,宁可小一点(名牌退到上角,两边的牌就偏上了) */
+    if(wide)tcw=Math.max(34,Math.floor(Math.min(tcw,Math.max(t3*1.15,(aw/2-3*g-lwc-pad-lw.W)/1.9))));th=tcw*1.43;
     var x0=Math.round(aw/2-tcw/2),colL=x0-g-lwc;                   /* 中间一列(含对家头像)的左边界 */
     var beside=colL-g-(pad+lw.W+g),stack=beside<tcw*1.4;
     if(stack){
@@ -9746,12 +9758,15 @@ function layoutTable(){
     }
     /* 上下家牌摞最宽。名牌退到上角时,对家头像也贴最上面,上家的牌摞可以从它下面伸过去,一直到中间那一列 */
     var side=stack?Math.max(tcw,x0-g-pad):Math.max(tcw,Math.min(beside,tcw*3.2));
+    /* 宽屏我的名牌在我那摞左边:上家牌摞够得着那一行时,不能伸过名牌 */
+    if(stack&&wide&&pad+Math.max(lhs.W,lhs.E)+lg+th>ah-pad-(th+lhs.S)/2)side=Math.max(tcw,colL-g-pad);
     var xW=stack?pad:pad+lw.W+g,xE=stack?aw-pad:aw-pad-lw.E-g;
     var ySide=stack?pad+Math.max(lhs.W,lhs.E)+lg:yMid-th/2;
     var colMax=Math.max(tcw,xE-side-g-x0);                         /* 中间一列牌摞最宽 */
     var yS=ah-pad-th;
     place(lab.N,x0-g-lw.N,stack?pad:pad+(th-lhs.N)/2);
-    place(lab.S,pad,ah-pad-lhs.S);                                 /* 我的头像在左下角,不浮在桌子中间 */
+    /* 矮横屏我的头像在左下角,不浮在桌子中间;宽屏名牌是横条,和对家一样放在自己那摞左边 */
+    if(wide)place(lab.S,x0-g-lw.S,ah-pad-(th+lhs.S)/2);else place(lab.S,pad,ah-pad-lhs.S);
     if(stack){place(lab.W,pad,pad);place(lab.E,aw-pad-lw.E,pad);}
     else{place(lab.W,pad,yMid-lhs.W/2);place(lab.E,aw-pad-lw.E,yMid-lhs.E/2);}
     P.N={x:x0,y:pad,align:'l',max:colMax};
@@ -9790,6 +9805,7 @@ function layoutTable(){
     P.E={x:xE,y:ySide,align:'r',max:reach};
     TB.center={x:aw/2,y:ySide+th/2};
     TB.slot={x:aw/2-tcw/2,y:yS};
+    TB.lane=null;
   }
   TB.lw=['N','W','E','S'].map(function(k){return lab[k].offsetWidth;}).join();
   TB.P=P;TB.tcw=tcw;TB.th=th;TB.aw=aw;TB.ah=ah;TB.ready=true;
@@ -9805,7 +9821,7 @@ function stampPiles(){
   var tcw=TB.tcw,step0=Math.max(14,Math.round(tcw*0.34));
   /* 矮横屏:对家 / 我那一列和下家那摞抢同一段横向空间。按各自张数要多宽来分,不让先到的一摞占满、另一摞挤成一条 */
   var mx={};
-  if(L.mode==='l'&&TB.lane){
+  if(TB.two&&TB.lane){
     var need=function(k){var n=$(SEAT_KEYS[k].pile).children.length;return n?tcw+(n-1)*step0:0;};
     var c=Math.max(need('N'),need('S')),e=need('E'),room=TB.lane.xE-TB.lane.x0-8;
     var cm=c+e>room?Math.max(tcw,room*c/(c+e)):room-e;
@@ -9884,11 +9900,11 @@ function flyCollect(snap,seat){
     setTimeout(function(){gh.remove();},620);
   });
 }
-/* 六六气泡:竖屏 / 宽屏盖在我出牌那一行(轮到我时那里本来空着);矮横屏只占中间一列,不盖上下家的牌 */
+/* 六六气泡:竖屏 / 宽屏盖在我出牌那一行(轮到我时那里本来空着);两行摆法(矮横屏、扁的宽屏)只占中间一列,不盖上下家的牌 */
 function placeBubble(){
   var gr=game.getBoundingClientRect(),ar=arena.getBoundingClientRect();
   bubble.style.bottom=(gr.bottom-ar.bottom+6)+'px';
-  if(L.mode==='l'&&TB.ready){
+  if(TB.ready&&TB.two){
     /* 按上下家牌摞实际占到哪算,两边留 12px */
     var wr=rel($('p3')),er=rel($('p1'));
     var edge=Math.max($('p3').children.length?wr.right:TB.P.W.x,$('p1').children.length?TB.aw-er.left:TB.aw-TB.P.E.x);

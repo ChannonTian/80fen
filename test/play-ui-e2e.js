@@ -29,7 +29,7 @@ const PHONE={isMobile:true,hasTouch:true,deviceScaleFactor:2};
 const SIZES=[
   ['320x568',PHONE],['360x640',PHONE],['375x667',PHONE],['390x844',PHONE],['393x852',PHONE],['412x915',PHONE],['430x932',PHONE],
   ['568x320',PHONE],['667x375',PHONE],['844x390',PHONE],['932x430',PHONE],
-  ['768x1024',PHONE],['820x1180',PHONE],['1024x768',PHONE],
+  ['768x1024',PHONE],['820x1180',PHONE],['1024x768',PHONE],['1133x650',PHONE],['1024x690',PHONE],
   ['1280x800',{}],['1440x900',{}],
 ].filter(([k])=>!args.only||String(args.only).split(',').includes(k));
 
