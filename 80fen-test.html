@@ -816,7 +816,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.48(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.49(测试版)</div>
 
 
 <script>
@@ -9776,9 +9776,11 @@ function layoutTable(){
   /* 宽屏但桌子扁(平板横放、浏览器工具栏又占掉一截):三行摆牌会被高度卡得很小、全挤在中间,
      改用矮横屏那种两行摆法(上下家在左右两边),牌能大一半;牌明显变大才换 */
   var two=mode==='l';
+  /* 两行之间的空隙:宽屏留出桌高的 12%,上下两行不挤在一起(矮横屏本来就矮,只留 g) */
+  var gv=wide?Math.max(g,Math.round(ah*0.12)):g;
   if(wide){
     var t3=Math.min((ah-2*pad-lh-lg-2*g)/3/1.43,cap,hard,(aw-2*pad-g)/2/1.4);
-    var t2=Math.min((ah-2*pad-g)/2/1.43,hcw*1.6,hard,(aw/2-pad-Math.max(lw.E,lw.W)-g-8)/3.2);
+    var t2=Math.min((ah-2*pad-gv)/2/1.43,hcw*1.6,hard,(aw/2-pad-Math.max(lw.E,lw.W)-g-8)/3.2);
     two=t2>=t3*1.15;
     if(two)cap=hcw*1.6;
   }
@@ -9787,9 +9789,9 @@ function layoutTable(){
     /* 矮横屏:名牌是竖排的小头像。上下家在桌子左右两边的中间,牌摞挨着名牌朝桌心长;
        对家、我两摞在中间一列(上下各一行),头像在牌摞左边 */
     var lhs={};for(var k2 in lab)lhs[k2]=lab[k2].offsetHeight||56;
-    th=(ah-2*pad-g)/2;
+    th=(ah-2*pad-gv)/2;
     tcw=Math.max(34,Math.floor(Math.min(th/1.43,cap,hard,wide?(aw/2-pad-Math.max(lw.E,lw.W)-g-8)/3.2:1e9)));th=tcw*1.43;
-    var lwc=Math.max(lw.N,lw.S),yMid=ah/2;
+    var lwc=lw.N,yMid=ah/2;
     /* 上下家:名牌放在牌摞旁边(左右两边正中);桌面太窄、旁边连一对都放不下时,名牌退到上面两角、牌摞挂在名牌下面 */
     /* 宽屏:牌略小一点就能让名牌留在两边正中时,宁可小一点(名牌退到上角,两边的牌就偏上了) */
     if(wide)tcw=Math.max(34,Math.floor(Math.min(tcw,Math.max(t3*1.15,(aw/2-3*g-lwc-pad-lw.W)/1.9))));th=tcw*1.43;
@@ -9801,15 +9803,16 @@ function layoutTable(){
     }
     /* 上下家牌摞最宽。名牌退到上角时,对家头像也贴最上面,上家的牌摞可以从它下面伸过去,一直到中间那一列 */
     var side=stack?Math.max(tcw,x0-g-pad):Math.max(tcw,Math.min(beside,tcw*3.2));
-    /* 宽屏我的名牌在我那摞左边:上家牌摞够得着那一行时,不能伸过名牌 */
-    if(stack&&wide&&pad+Math.max(lhs.W,lhs.E)+lg+th>ah-pad-lhs.S)side=Math.max(tcw,colL-g-pad);
+    /* 我的名牌在左下角,和对家的(中间一列左上)左右错开。上家名牌退到上角、牌摞从左边挂下来够得着最下面时,
+       左下角会被牌摞压住,我的名牌就放回我那摞左边,上家牌摞不伸过它 */
+    var sBy=wide&&stack&&pad+Math.max(lhs.W,lhs.E)+lg+th>ah-pad-lhs.S;
+    if(sBy){colL=Math.min(colL,x0-g-lw.S);side=Math.max(tcw,colL-g-pad);}
     var xW=stack?pad:pad+lw.W+g,xE=stack?aw-pad:aw-pad-lw.E-g;
     var ySide=stack?pad+Math.max(lhs.W,lhs.E)+lg:yMid-th/2;
     var colMax=Math.max(tcw,xE-side-g-x0);                         /* 中间一列牌摞最宽 */
     var yS=ah-pad-th;
-    place(lab.N,x0-g-lw.N,pad);                                    /* 对家、我的名牌贴着桌子上下边 */
-    /* 矮横屏我的头像在左下角,不浮在桌子中间;宽屏名牌是横条,和对家一样放在自己那摞左边 */
-    if(wide)place(lab.S,x0-g-lw.S,ah-pad-lhs.S);else place(lab.S,pad,ah-pad-lhs.S);
+    place(lab.N,x0-g-lw.N,pad);                                    /* 对家的名牌贴桌子上边、在自己那摞左边 */
+    place(lab.S,sBy?x0-g-lw.S:pad,ah-pad-lhs.S);                   /* 我的贴下边、在左下角,不浮在桌子中间 */
     if(stack){place(lab.W,pad,pad);place(lab.E,aw-pad-lw.E,pad);}
     else{place(lab.W,pad,yMid-lhs.W/2);place(lab.E,aw-pad-lw.E,yMid-lhs.E/2);}
     P.N={x:x0,y:pad,align:'l',max:colMax};
