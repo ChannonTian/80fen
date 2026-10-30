@@ -9,6 +9,8 @@
   - 改了 `apps-script.gs` 要粘进 Apps Script **并发「新版本」**(管理部署 → 编辑 → 版本:新版本)。只保存不发版本,线上还是旧脚本;「新建部署」会换一个网址,网页还连着旧网址。
   - 第一版脚本没有「残局」列,牌谱 JSON 在第 17 列。现在的脚本发现表头对不上,会自动把旧行挪到新排法(`migrate_`);下载按内容找 JSON 格,不按列号。
   - 2026-10-01 新脚本上线前的那段时间,残局被旧脚本拒收。网页把被拒收的标成 `up=2`,不再重传,只能靠玩家「导出」拿回。
+- **v0.7.48 改了脚本(出牌标记):** 表头最后多一列「标记」(旧表第一次收到请求时自动补列);同一个 id 再传、而且带 `flags`(玩家打完一局再去标某一手),
+  覆盖那一行的 JSON 和「标记」列,回 `upd:[id]`;只认同一个匿名编号。**要粘进 Apps Script 并发「新版本」**,旧脚本会把这种重传当重复丢掉(本机和「导出」里的还在)。
 - **验证线上脚本版本不用写数据:** POST 一条 `{"fmt":"80fen-record-2","id":"probe-x","pid":"probe","partial":true,"tricks":[{"plays":[]}]}`,新脚本回 `why:"tricks"`,旧脚本回 `why:"hands"`,两种都不写入表格。
 
 测试版每打完一局,把这一局写成一份 **`80fen-record-2`**。
@@ -102,4 +104,5 @@ node test/replay-record.js records.jsonl --game=3                    # 逐手还
 | `engines` | 四个座位的 AI 引擎版本(`latest` = 内置最新版;人那一家的只在托管时生效) |
 | `coach` | 教练失误反馈灵敏度(`off` = 教练关) |
 | `undos` / `autoTricks` | 本局悔牌次数 / 托管替人出的墩数 |
+| `flags` | **v0.7.48 起,玩家标了才有。** 玩家在「对局记录 · 按墩」里标的「这手有问题」:`[{t, seat, note?}]`,`t` 是第几墩(从 0 数,对应 `tricks[t]`),`seat` 是哪一家出的那手,`note` 是玩家写的理由(可空,≤ 200 字)。打完再标会把整份牌谱重传,收集表覆盖那一行(见「现状」) |
 | `partial` / `stage` / `tricksDone` | **只有残局才有**。`stage` 是停在哪个阶段:`finalDecl` 亮主等待、`lowrebel` 造反、`kitty` 扣底、`play` 出牌;`tricksDone` 是已经收掉几墩。残局的 `tricks` 只有收掉的墩,`defPoints` 是到那时为止的墩上分,没有 `levelsAfter` / `defendersWin` / `kittyPts` / `mult`。开打前离开的没有 `initialHands` / `buried`,手牌用 `dealRound(seed, firstTaker)` 重发 |

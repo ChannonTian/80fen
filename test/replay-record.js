@@ -75,6 +75,8 @@ rec.tricks.forEach((t,ti)=>{
     if(show&&(onlySeat===null||onlySeat===seat)){
       const tag=isHuman?(same?'  (你出的和 AI 一样)':'  ← 你出的;AI 会出 '+ns(r.cards)):(same?'':'  ⚠️ 与 AI 重算不一致:AI 会出 '+ns(r.cards));
       console.log(`  ${NAME[seat]}${seat===declSeat?'(庄)':''}${isHuman?'[人]':seat===rec.human?(by==='a'?'[托管]':'[自动]'):''}${t.plays[i].u?'[悔后重出]':''} 出 ${ns(actual)}${tag}   理由:${r.reason||''}`);
+      const fl=(rec.flags||[]).find(f=>f.t===ti&&f.seat===seat);   // 玩家在对局记录里标的「这手有问题」(v0.7.48)
+      if(fl) console.log(`        🚩 玩家标记这手有问题${fl.note?':'+fl.note:''}`);
       const cands=(r.cands||[]).slice().sort((a,b)=>b.score-a.score).slice(0,4);
       for(const q of cands) console.log(`        ${ns(q.cards).padEnd(12)} ${q.score.toFixed(1).padStart(7)}  ${q.reason||''}`);
     }
