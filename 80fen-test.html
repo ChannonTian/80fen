@@ -594,9 +594,19 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 .tplay{display:inline-flex;flex-wrap:wrap;align-items:center;row-gap:3px;margin-right:10px}
 .tplay .who,.chip .who{display:inline-grid;place-items:center;width:17px;height:17px;margin-right:3px;border-radius:50%;flex:none;
   background:var(--brick);color:var(--card-face);font:900 10px/1 var(--font-heading);font-style:normal}
-.tplay .who.s2,.chip .who.s2{background:var(--teal)}.tplay .who.s0{background:var(--honey);color:var(--ink)}
+.tplay .who.s2,.chip .who.s2,.tplay .who.s0{background:var(--teal)}   /* 我和 Kevin 一队,一个颜色 */
 .chip .who{width:20px;height:20px;font-size:11px;margin-right:0}
 .tplay:last-child{margin-right:0}
+.tplay.can{cursor:pointer;border-radius:8px;padding:1px 4px;margin-left:-4px;margin-right:6px;-webkit-tap-highlight-color:transparent}
+.tplay.can:hover{background:var(--cream)}
+.tplay.flag{background:#F9D9CF;box-shadow:inset 0 0 0 2px var(--brick)}
+.tplay.flag::after{content:'🚩';margin-left:3px;font:400 12px/1 sans-serif}
+.flag-tip{font:600 12px/1.5 var(--font-sans);color:var(--ink-soft);margin:0 0 6px}
+.flag-edit{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-2px 0 8px;padding:8px 10px;border-radius:12px;background:#F9D9CF;border:1.5px solid var(--brick)}
+.flag-edit .fe-who{font:700 13px/1.4 var(--font-sans);flex:1 1 100%}
+.flag-edit input{flex:1 1 100%;min-width:0;min-height:36px;border:2px solid var(--ink);border-radius:10px;padding:2px 8px;font:500 14px/1.2 var(--font-sans);background:var(--card-face)}
+.flag-edit .btn{min-height:36px;padding:0 14px;font-size:14px}.flag-edit #flagSave{margin-left:auto;order:2}
+.flag-note{font:500 12px/1.4 var(--font-sans);color:var(--brick-deep);grid-column:2/-1}
 .trick-line .tsum{margin-left:auto;font:700 12px/1.4 var(--font-sans);color:var(--ink-soft);white-space:nowrap}
 .tcard{white-space:nowrap;margin-right:4px;font-family:var(--font-num);font-weight:900}
 .tcard.sS{color:var(--suit-spade)}.tcard.sH{color:var(--suit-heart)}.tcard.sD{color:var(--suit-diamond)}.tcard.sC{color:var(--suit-club)}
@@ -707,7 +717,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
       <span class="score-track"><i id="scoreFill"></i><i class="pend" id="scorePend"></i></span>
       <b id="scoreNow">0</b><span class="score-total">/80</span><em class="score-gain" id="scoreGain" hidden></em>
     </button>
-    <button class="icon-btn" id="recordsBtn" aria-label="记录与教练"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
+    <button class="icon-btn" id="recordsBtn" aria-label="记录与教练"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9z"/><path d="M15 5.5h2a2 2 0 0 1 2 2V19a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7.5a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h4"/></svg></button>
     <button class="icon-btn" id="menuBtn" aria-label="菜单"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <!-- 产品状态栏:render() 持续写入,不显示,级数从这里读 -->
     <div id="status" hidden></div>
@@ -806,7 +816,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.47(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.48(测试版)</div>
 
 
 <script>
@@ -7404,7 +7414,7 @@ function aiThinkMs(){
 function openSettings(){
   // 托管不在 S 里(它按局生效),但「取消」要能把它一起退回去,否则勾了再点取消它还开着
   const snapshot={S:JSON.parse(JSON.stringify(S)), C:JSON.parse(JSON.stringify(C)), lang, sndOn,
-                  auto:!!(G&&G.auto)};
+                  auto:!!(G&&G.auto), chat:chatLevel()};
   const el=document.getElementById('setContent');
   el.innerHTML=
     `<div class="setHeader"><b>设置<span class="setVer">${(document.getElementById('versionTag')||{}).textContent||''}</span></b>
@@ -7443,6 +7453,9 @@ function openSettings(){
          <option value="en">English (terms only)</option>
        </select></div>`+
     `<div class="setRow"><label><input type="checkbox" id="stSnd"> 音效</label></div>`+
+    `<div class="setRow"><label>对手说话</label>
+       <select id="stChat"><option value="more">多</option><option value="less">少</option><option value="off">关</option></select></div>`+
+    `<div class="setHint">Bob、Kevin、Stuart 收墩、被毙、等你出牌时冒一句</div>`+
     `<div class="setSection">节奏</div>`+
     `<div class="setRow"><label>发完牌后${T('declare')}等待(秒)</label>
        <input type="number" id="stDeclWait" min="0" max="60" step="1"></div>`+
@@ -7547,7 +7560,7 @@ function openSettings(){
       : '(这一局还没开始,或已经结束)';
     $('stHold').disabled=!!S.manualNext;
     $('stHoldHint').textContent=S.manualNext?'(手动模式下由你点「下一墩」决定)':'';
-    $('stLang').value=lang; $('stSnd').checked=sndOn;
+    $('stLang').value=lang; $('stSnd').checked=sndOn; $('stChat').value=chatLevel();
     $('cOn').checked=C.on; $('cSens').value=C.gapSens; $('cStrict').checked=C.strict;
     $('cReview').checked=C.review; $('cQuiz').checked=C.quiz; $('cMemShow').checked=C.memShow;
     $('rPts').value=S.rules.pointRebelThreshold;
@@ -7616,6 +7629,7 @@ function openSettings(){
     try{ localStorage.setItem(LSP+'lang',lang); }catch(_){ } if(G) render(); };
   $('stSnd').onchange=e=>{ sndOn=e.target.checked;
     try{ localStorage.setItem(LSP+'snd',sndOn?'on':'off'); }catch(_){ } };
+  $('stChat').onchange=e=>setChatLevel(e.target.value);
   $('cOn').onchange=e=>{ C.on=e.target.checked; saveC(); if(G) render(); };
   $('cSens').onchange=e=>{ C.gapSens=e.target.value; saveC(); };
   $('cStrict').onchange=e=>{ C.strict=e.target.checked; saveC(); };
@@ -7646,11 +7660,12 @@ function openSettings(){
   $('stReset').onclick=()=>{ S={...S_DEFAULT, gates:[...S_DEFAULT.gates], rules:{...RULE_DEFAULTS},
       engineVer:[...S_DEFAULT.engineVer]};
     if(G&&G.auto) window.__setAuto(false);      // 「恢复默认」也把托管交还
+    setChatLevel('more');
     saveS(); applyRules(); fill(); if(G) render(); };
   // 取消:每项改动本来就是即改即存,这里把开菜单那一刻的快照整个套回去(含持久化),
   // 而不是只清内存——不然关掉重开又会看到"取消"前改过的值。
   $('stCancel').onclick=()=>{
-    S=snapshot.S; C=snapshot.C; lang=snapshot.lang; sndOn=snapshot.sndOn;
+    S=snapshot.S; C=snapshot.C; lang=snapshot.lang; sndOn=snapshot.sndOn; setChatLevel(snapshot.chat);
     saveS(); saveC(); applyRules();
     if(G&&G.auto!==snapshot.auto) window.__setAuto(snapshot.auto);
     try{
@@ -7670,6 +7685,9 @@ function openSettings(){
   document.getElementById('setOverlay').style.display='flex';
 }
 function closeSettings(){ document.getElementById('setOverlay').style.display='none'; }
+// 对手说话(小黄人气泡,表现层画):多 / 少 / 关,存 localStorage['liuliu-chatter'],表现层每次说话前读
+function chatLevel(){ try{ return localStorage.getItem('liuliu-chatter')||'more'; }catch(_){ return 'more'; } }
+function setChatLevel(v){ try{ localStorage.setItem('liuliu-chatter',v); }catch(_){ } if(v==='off'&&window.__hideSays) window.__hideSays(); }
 window.__openSet=openSettings;
 window.__closeSet=closeSettings;
 // 复用设置浮层做通用弹窗(看底牌、看初始手牌)
@@ -8219,6 +8237,7 @@ function undoLastPlay(){
   G=Object.assign(snap,{undoStack:stack,aiTimer:null,holdTimer:null,declTimer:null,declTick:null,
                         undos, undoNext:true});    // 悔牌次数要跨过快照记下来,快照里的是旧值
   G.selected=new Set(); G.hintCards=null; G.quiz=null; G.awaitNext=false;
+  { const f=getFlags(G.recId); if(f.some(x=>x.t>=G.tricks.length)) setFlags(G.recId,f.filter(x=>x.t<G.tricks.length)); }   // 撤掉的墩上的标记一起撤
   saveCheckpoint();      // 悔回去可能跨过了收墩,进度里不能留着已经撤掉的墩
   render(); setMsg('已悔回上一手出牌前,重新选牌');
   return true;
@@ -8669,8 +8688,31 @@ function makeRecord(r){
     ...(part&&!G.initialHands?{}:{initialHands:(part?G.initialHands:r.initialHands||[]).map(css),
                                    buried:css(part?G.buried:r.buried)}),
     tricks:tricks.map(t=>({plays:t.plays.map(p=>({seat:p.seat,cards:css(p.cards),
-      ...(p.by?{by:p.by}:{}),...(p.hint?{hint:1}:{}),...(p.u?{u:1}:{})})),winner:t.winner,points:t.points}))};
+      ...(p.by?{by:p.by}:{}),...(p.hint?{hint:1}:{}),...(p.u?{u:1}:{})})),winner:t.winner,points:t.points})),
+    ...(()=>{ const f=getFlags(G.recId).filter(x=>x.t<tricks.length); return f.length?{flags:f}:{}; })()};
 }
+/* 出牌标记(v0.7.48):玩家在「对局记录 · 按墩」里点一家出的牌,标成「这手有问题」,可附一句话。
+ * 随牌谱上传,给 AI 线当体检 / 训练样本。本机按牌谱 id 存一份(lsGet('flags')[id] = [{t, seat, note?}],
+ * t = 第几墩(从 0 数)、seat = 哪一家出的那手);makeRecord 带上 flags。
+ * 已经存档(打完)的局再改标记:改那份存档的 flags、清掉已上传记号重新上传,服务端认出同一个 id 带 flags 就覆盖那一行。 */
+function getFlags(id){ const all=lsGet('flags',{}); return Array.isArray(all[id])?all[id]:[]; }
+let flagUpTimer=null;
+function setFlags(id,list){
+  list=list.filter(f=>f&&f.t>=0&&f.seat>=0&&f.seat<=3).map(f=>({t:f.t,seat:f.seat,...(f.note?{note:String(f.note).slice(0,200)}:{})}))
+           .sort((a,b)=>a.t-b.t||a.seat-b.seat);
+  const all=lsGet('flags',{});
+  if(list.length) all[id]=list; else delete all[id];
+  const keys=Object.keys(all);
+  if(keys.length>REC_MAX) keys.slice(0,keys.length-REC_MAX).forEach(k=>delete all[k]);
+  lsSet('flags',all);
+  const recs=lsGet('recs',[]), r=recs.find(x=>x.id===id);
+  if(r){
+    const old=JSON.stringify(r.flags||[]);
+    if(old!==JSON.stringify(list)){ r.flags=list; delete r.up; lsSet('recs',recs);
+      clearTimeout(flagUpTimer); flagUpTimer=setTimeout(flushUploads,4000); }   // 连着标几手,停下来再一起传
+  }else if(G&&G.recId===id) saveCheckpoint();
+}
+window.__flags={get:getFlags,set:setFlags};
 /* 残局进度:发完牌、开打、每收一墩、悔牌之后各覆盖写一次(本机一格 'cur')。正常打完就清掉;
  * 没打完就离开了(刷新 / 关页面 / 被系统杀掉 / 重打 / 用种子开局 / 重开整场),
  * 下一次开局或下次打开页面时把它转成一份残局牌谱(promoteCheckpoint)。
@@ -8709,7 +8751,8 @@ async function flushUploads(){
                                         body:JSON.stringify(batch)});
       const j=await res.json()||{};
       // saved / dup = 收到了;bad = 服务端不收(格式不对等),也不再重传 —— 只有 'rate'(传太快)下次再试
-      const done=new Set([...(j.saved||[]),...(j.dup||[])]);
+      // upd = 已传过的局改了出牌标记,服务端覆盖了那一行
+      const done=new Set([...(j.saved||[]),...(j.dup||[]),...(j.upd||[])]);
       const rej=new Set((j.bad||[]).filter(b=>b&&b.why!=='rate').map(b=>b.id));
       if(!done.size&&!rej.size) break;
       const all=lsGet('recs',[]);
@@ -9759,14 +9802,14 @@ function layoutTable(){
     /* 上下家牌摞最宽。名牌退到上角时,对家头像也贴最上面,上家的牌摞可以从它下面伸过去,一直到中间那一列 */
     var side=stack?Math.max(tcw,x0-g-pad):Math.max(tcw,Math.min(beside,tcw*3.2));
     /* 宽屏我的名牌在我那摞左边:上家牌摞够得着那一行时,不能伸过名牌 */
-    if(stack&&wide&&pad+Math.max(lhs.W,lhs.E)+lg+th>ah-pad-(th+lhs.S)/2)side=Math.max(tcw,colL-g-pad);
+    if(stack&&wide&&pad+Math.max(lhs.W,lhs.E)+lg+th>ah-pad-lhs.S)side=Math.max(tcw,colL-g-pad);
     var xW=stack?pad:pad+lw.W+g,xE=stack?aw-pad:aw-pad-lw.E-g;
     var ySide=stack?pad+Math.max(lhs.W,lhs.E)+lg:yMid-th/2;
     var colMax=Math.max(tcw,xE-side-g-x0);                         /* 中间一列牌摞最宽 */
     var yS=ah-pad-th;
-    place(lab.N,x0-g-lw.N,stack?pad:pad+(th-lhs.N)/2);
+    place(lab.N,x0-g-lw.N,pad);                                    /* 对家、我的名牌贴着桌子上下边 */
     /* 矮横屏我的头像在左下角,不浮在桌子中间;宽屏名牌是横条,和对家一样放在自己那摞左边 */
-    if(wide)place(lab.S,x0-g-lw.S,ah-pad-(th+lhs.S)/2);else place(lab.S,pad,ah-pad-lhs.S);
+    if(wide)place(lab.S,x0-g-lw.S,ah-pad-lhs.S);else place(lab.S,pad,ah-pad-lhs.S);
     if(stack){place(lab.W,pad,pad);place(lab.E,aw-pad-lw.E,pad);}
     else{place(lab.W,pad,yMid-lhs.W/2);place(lab.E,aw-pad-lw.E,yMid-lhs.E/2);}
     P.N={x:x0,y:pad,align:'l',max:colMax};
@@ -10452,12 +10495,13 @@ function renderSide(){
   $('recordsFoot').hidden=activeTab!=='coach';
   if(activeTab==='coach')renderCoach();else{if(recPanel.querySelector('#coachInput'))recPanel.innerHTML='';renderLog();}
 }
+function rawTxt(c){var x=cardTxt(c);x.c=c;return x;}   /* 按花色看时要按大小排,留着原牌 */
 /* 局终快照,供回看已完成的局 */
 function snapshotRound(G){
   var no=(G.start&&G.start.round||0)+1;
-  return {no:no,initialHands:G.initialHands?G.initialHands.map(function(h){return h.map(cardTxt);}):null,
+  return {no:no,id:G.recId,trump:G.trump,initialHands:G.initialHands?G.initialHands.map(function(h){return h.map(cardTxt);}):null,
     tricks:(G.tricks||[]).map(function(t){return {no:t.no,winner:t.winner,points:t.points,
-      plays:t.plays.map(function(p){return {seat:p.seat,cards:p.cards.map(cardTxt)};})};})};
+      plays:t.plays.map(function(p){return {seat:p.seat,cards:p.cards.map(rawTxt)};})};})};
 }
 setInterval(function(){
   var G=g();if(!G)return;
@@ -10466,11 +10510,45 @@ setInterval(function(){
   if(document.body.classList.contains('drawer-open'))renderSide();
 },1000);
 var lastLogHtml='';
+/* 出牌标记:点一家出的牌 → 标成「这手有问题」并打开写理由的一行;再点已标的那手 → 打开 / 收起那一行。
+   标记存在产品层(window.__flags,按牌谱 id),随牌谱上传 */
+var flagEdit=null,flagDraft='';   /* flagEdit={id,t,seat}:正在写理由的那一手 */
+function flagsOf(id){return id&&window.__flags?window.__flags.get(id):[];}
+function saveFlagNote(){
+  if(!flagEdit)return;
+  var fl=flagsOf(flagEdit.id).map(function(f){return f.t===flagEdit.t&&f.seat===flagEdit.seat?{t:f.t,seat:f.seat,note:flagDraft.trim()}:f;});
+  window.__flags.set(flagEdit.id,fl);
+}
+recPanel.addEventListener('click',function(e){
+  var b=e.target.closest('[data-ft]');
+  if(b){
+    var a=b.dataset.ft.split(':'),id=a[0],t=+a[1],seat=+a[2],fl=flagsOf(id);
+    var has=fl.some(function(f){return f.t===t&&f.seat===seat;});
+    if(flagEdit)saveFlagNote();
+    if(!has){window.__flags.set(id,fl.concat([{t:t,seat:seat}]));flagEdit={id:id,t:t,seat:seat};flagDraft='';}
+    else if(flagEdit&&flagEdit.id===id&&flagEdit.t===t&&flagEdit.seat===seat)flagEdit=null;
+    else{flagEdit={id:id,t:t,seat:seat};flagDraft=(fl.filter(function(f){return f.t===t&&f.seat===seat;})[0].note)||'';}
+    renderLog();
+    var inp=$('flagNote');if(inp&&!has)inp.focus({preventScroll:true});
+    return;
+  }
+  if(e.target.id==='flagSave'){saveFlagNote();flagEdit=null;renderLog();}
+  else if(e.target.id==='flagDel'&&flagEdit){
+    window.__flags.set(flagEdit.id,flagsOf(flagEdit.id).filter(function(f){return !(f.t===flagEdit.t&&f.seat===flagEdit.seat);}));
+    flagEdit=null;renderLog();
+  }
+});
+recPanel.addEventListener('input',function(e){if(e.target.id==='flagNote')flagDraft=e.target.value;});
+recPanel.addEventListener('keydown',function(e){
+  if(e.target.id==='flagNote'&&e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();saveFlagNote();flagEdit=null;renderLog();}
+});
+recPanel.addEventListener('focusout',function(e){if(e.target.id==='flagNote')saveFlagNote();});
 function renderLog(){
   var G=g();
+  if(document.activeElement&&document.activeElement.id==='flagNote')return;   /* 正在写理由:不重画,免得打断输入 */
   var rounds=roundHistory.slice();
   if(G&&!G.ended){var cur=snapshotRound(G);cur.live=true;cur.initialHands=null;
-    cur.cur=(G.trick||[]).map(function(p){return {seat:p.seat,cards:p.cards.map(cardTxt)};});rounds.push(cur);}
+    cur.cur=(G.trick||[]).map(function(p){return {seat:p.seat,cards:p.cards.map(rawTxt)};});rounds.push(cur);}
   if(!rounds.length){
     var h0='<div class="empty-note">还没开局。开局后这里按墩记下每家出的牌。</div>';
     if(recPanel.__h!==h0){recPanel.innerHTML=h0;recPanel.__h=h0;}return;
@@ -10487,15 +10565,30 @@ function renderLog(){
       return '<div class="ih-row"><span class="ih-who">'+who(s)+'</span><span class="tcards">'+h.map(txtHtml).join('')+'</span></div>';}).join('')+'</details>';
   }
   if(logMode==='trick'){
-    cur2.tricks.forEach(function(t){html+=trickLine(t);});
+    var fl=flagsOf(cur2.id);
+    if(cur2.id&&cur2.tricks.length)html+='<div class="flag-tip">觉得哪手出得不对,点一下那家的牌标出来(🚩),可以写一句为什么。标记跟着牌谱上传,用来改进 AI。'+
+      (fl.length?' 这一局标了 '+fl.length+' 手。':'')+'</div>';
+    cur2.tricks.forEach(function(t,i){
+      html+=trickLine(t,cur2.id,i,fl);
+      if(flagEdit&&flagEdit.id===cur2.id&&flagEdit.t===i){
+        html+='<div class="flag-edit"><span class="fe-who">🚩 第 '+(i+1)+' 墩 · '+who(flagEdit.seat)+' 这手有问题</span>'+
+          '<input id="flagNote" maxlength="200" enterkeyhint="done" placeholder="哪里不对?(可不填)" value="'+esc(flagDraft).replace(/"/g,'&quot;')+'">'+
+          '<button class="btn primary" id="flagSave">好</button><button class="btn" id="flagDel">取消标记</button></div>';
+      }
+    });
     if(cur2.cur&&cur2.cur.length)html+=trickLine({no:cur2.tricks.length+1,winner:-1,points:0,plays:cur2.cur,live:true});
     if(!cur2.tricks.length&&!(cur2.cur&&cur2.cur.length))html+='<div class="empty-note">还没有人出牌。</div>';
   }else{
     var by={},order=['T','♠','♥','♦','♣'],names={T:'主牌','♠':'黑桃','♥':'红桃','♦':'方块','♣':'梅花'};
-    var tsuit=G&&G.trump&&G.trump.suit?SUIT_SYM[G.trump.suit]:null,trank=G&&G.trump?rankName(G.trump.rank):null;
+    var tr=cur2.trump||G&&G.trump;
+    var tsuit=tr&&tr.suit?SUIT_SYM[tr.suit]:null,trank=tr?rankName(tr.rank):null;
     function push(pl){pl.forEach(function(p){p.cards.forEach(function(x){
       var k=x.joker||x.txt[0]===tsuit||x.txt.slice(2)===trank?'T':x.txt[0];(by[k]=by[k]||[]).push(x);});});}
     cur2.tricks.forEach(function(t){push(t.plays);});if(cur2.cur)push(cur2.cur);
+    /* 每门从大到小:主牌按主的大小(大王、小王、主花色级牌、副级牌、主花色 A…),副牌按点数;同大小的副级牌按 ♠♥♣♦ */
+    var SO={S:0,H:1,C:2,D:3,X:-1};
+    function str(x){return x.c&&tr?ordIdx(x.c,tr):0;}
+    for(var k3 in by)by[k3].sort(function(a,b){return str(b)-str(a)||(a.c&&b.c?SO[a.c.suit]-SO[b.c.suit]:0);});
     order.forEach(function(k){if(by[k])html+='<div class="suit-row"><span class="sg-label">'+names[k]+'</span><span class="tcards">'+by[k].map(txtHtml).join('')+'</span></div>';});
   }
   if(recPanel.__h!==html){
@@ -10507,13 +10600,19 @@ function renderLog(){
     if(atBottom&&logMode==='trick')body.scrollTop=body.scrollHeight;
   }
 }
-function trickLine(t){
-  var ours=t.winner>=0&&t.winner%2===0;
-  /* 每家出的牌前面挂一个小头像,看得出是谁出的 */
-  var cards=t.plays.map(function(p){return '<span class="tplay" title="'+who(p.seat)+'"><i class="who s'+p.seat+'" aria-label="'+who(p.seat)+'">'+PLAYERS[p.seat].ini+'</i>'+p.cards.map(txtHtml).join('')+'</span>';}).join('');
+function trickLine(t,id,i,fl){
+  var ours=t.winner>=0&&t.winner%2===0,can=!!id&&!t.live&&window.__flags;
+  var notes=[];
+  /* 每家出的牌前面挂一个小头像,看得出是谁出的;收掉的墩每一手都能点,标成「有问题」 */
+  var cards=t.plays.map(function(p){
+    var f=can&&fl.filter(function(x){return x.t===i&&x.seat===p.seat;})[0];
+    if(f&&f.note)notes.push(who(p.seat)+' 那手:'+f.note);
+    return '<span class="tplay'+(can?' can':'')+(f?' flag':'')+'"'+(can?' data-ft="'+id+':'+i+':'+p.seat+'" role="button" aria-pressed="'+!!f+'"':'')+' title="'+who(p.seat)+(can?(f?' · 已标记,点一下改理由':' · 点一下标记这手有问题'):'')+'">'+
+      '<i class="who s'+p.seat+'" aria-label="'+who(p.seat)+'">'+PLAYERS[p.seat].ini+'</i>'+p.cards.map(txtHtml).join('')+'</span>';}).join('');
   return '<div class="trick-line'+(ours?' win':'')+'"><span class="tno">'+(t.live?'进行中':'第 '+t.no+' 墩')+'</span>'+
     '<span class="tcards">'+(cards||'—')+'</span>'+
-    (t.winner>=0?'<span class="tsum">'+who(t.winner)+' 收'+(t.points?' +'+t.points:'')+'</span>':'')+'</div>';
+    (t.winner>=0?'<span class="tsum">'+who(t.winner)+' 收'+(t.points?' +'+t.points:'')+'</span>':'')+
+    notes.map(function(n){return '<span class="flag-note">🚩 '+esc(n)+'</span>';}).join('')+'</div>';
 }
 /* 六六教练页:最上面是记笔记的输入框(只建一次,打字时不被重画打断),
    下面依次是记牌表(可折叠)、小测验、六六的建议与提醒、你的笔记 */
@@ -10585,7 +10684,7 @@ function renderCoach(){
      Stuart 独眼、懒、嘴贱(爱挑衅、爱甩锅给 Bob)。只损牌局,不损真人玩家
    - 控频:一墩最多一个人说;普通事件按概率,大事件(大分、被毙掉分)几乎必说;
      同一个人隔 3 墩才再说,全桌至少隔 1 墩;台词不重复最近 4 句;你托管快进时不说
-   - 「对手说话」在菜单里切 多 / 少 / 关
+   - 「对手说话」在设置(显示与音效)里切 多 / 少 / 关
    ===================================================================== */
 var LINES={
   1:{ /* Bob */
@@ -10644,7 +10743,6 @@ var MOOD={idle:'happy',wait:'mad',win:'happy',carry:'happy',praise:'happy',ruff:
           lose:'mad',ruffed:'mad',sour:'mad',endLose:'mad'};
 var CHAT_KEY='liuliu-chatter';
 function chatterLevel(){try{return localStorage.getItem(CHAT_KEY)||'more';}catch(_){return 'more';}}
-function setChatterLevel(v){try{localStorage.setItem(CHAT_KEY,v);}catch(_){}}
 var CH={recent:{},lastSeat:{},lastTrick:-9,trickKey:'',declKey:'',endKey:'',bubbles:{}};
 function pickLine(seat,key){
   var pool=(LINES[seat]||{})[key];if(!pool||!pool.length)return '';
@@ -10693,6 +10791,7 @@ function placeSay(el,seat){
   place(el,best.x,best.y);el.classList.add(best.t);
 }
 function hideSays(){for(var k in CH.bubbles)CH.bubbles[k].classList.remove('show');}
+window.__hideSays=hideSays;   /* 设置里把「对手说话」关掉时,桌上正挂着的气泡一起收 */
 /* 一墩四家出完(收墩戳刚出来):看这墩发生了什么,挑一个人说一句 */
 function chatterTrick(G,res){
   var lvl=chatterLevel();if(lvl==='off'||G.auto&&!window.__chatterTest)return;   /* __chatterTest:只给体检脚本用 */
@@ -10773,9 +10872,8 @@ function chatterEnd(G){
    ===================================================================== */
 var sheet=$('sheet');
 var ICON={
-  chat:'<svg viewBox="0 0 24 24"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 10h.01M12 10h.01M16 10h.01"/></svg>',
   set:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>',
-  rec:'<svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>',
+  rec:'<svg viewBox="0 0 24 24"><path d="M9 4h6v3H9z"/><path d="M15 5.5h2a2 2 0 0 1 2 2V19a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7.5a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h4"/></svg>',
   pts:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9 12h6"/></svg>',
   kitty:'<svg viewBox="0 0 24 24"><rect x="5" y="4" width="11" height="15" rx="2"/><path d="M9 20h8a2 2 0 0 0 2-2V8"/></svg>',
   undo:'<svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>',
@@ -10793,14 +10891,12 @@ $('menuBtn').onclick=function(){
     opt('mScore','pts','闲家分牌','闲家已经抢到的分')+
     (kitty?opt('mKitty','kitty','看底牌','你扣下的 8 张'):'')+
     opt('mSet','set','设置','规则 · 节奏 · 教练 · 声音 · 重打本局')+
-    opt('mChat','chat','对手说话:'+{more:'多',less:'少',off:'关'}[chatterLevel()],'Bob、Kevin、Stuart 收墩时冒一句;点一下切换 多 / 少 / 关')+
     '<a class="menu-option" href="80fen-learn-ui-test.html">'+ICON.learn+'<span>去学牌<small>六六陪你从一手牌学起</small></span></a>'+
     '<div class="menu-foot">'+esc($('versionTag').textContent)+'</div>';
   $('mRec').onclick=function(){sheet.close();openSide('log');};
   $('mScore').onclick=function(){sheet.close();openScore();};
   if($('mKitty'))$('mKitty').onclick=function(){sheet.close();window.__showKitty();};
   $('mSet').onclick=function(){sheet.close();window.__openSet();};
-  $('mChat').onclick=function(){var n={more:'less',less:'off',off:'more'}[chatterLevel()];setChatterLevel(n);if(n==='off')hideSays();$('menuBtn').onclick();};
   if(!sheet.open)sheet.showModal();
 };
 
