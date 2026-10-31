@@ -60,3 +60,4 @@ console.log('\nAI 第 2 家、对手领出单张:按领的那张(真人领 | AI 
 const P2=R.filter(r=>r.pos===2), ks=[...new Set(P2.map(lk))].sort();
 const f=a=>a.length?`n=${String(a.length).padStart(3)} 拿下 估 ${(100*m(a.map(r=>r.p2))).toFixed(0)}% 实 ${(100*m(a.map(r=>r.y))).toFixed(0)}% 得失 估 ${m(a.filter(r=>r.ev1!==null).map(r=>r.ev1)).toFixed(1)} 实 ${m(a.map(r=>r.evY)).toFixed(1)}`:'—';
 for(const k of ks){ const a=P2.filter(r=>lk(r)===k); console.log(`  ${k.padEnd(10)} 真人领 ${f(a.filter(r=>r.leadHum))}  |  AI 领 ${f(a.filter(r=>!r.leadHum))}`); }
+if(process.env.DETAIL) for(const k of ks) for(const bc of [1,0]){ const a=P2.filter(r=>lk(r)===k&&r.bc===bc); console.log(`    ${k.padEnd(10)}${bc?'压':'不压'} 真人领 ${f(a.filter(r=>r.leadHum))}  |  AI 领 ${f(a.filter(r=>!r.leadHum))}`); }

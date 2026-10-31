@@ -35,6 +35,8 @@ if(process.argv[2]==='--fit'){
   for(const k of [0,1,2]) for(const v of [0,1]) grp(`${['同门','毙','超毙'][k]}·后面对手${v?'已知断这门':'没露断门'}`,r=>r.kind===k&&r.vB===v);
   for(const h of [0,1,2,3]) grp(`暂大那张上面在外 ${h===3?'≥3':h} 张`,r=>h===3?r.hi>=3:r.hi===h);
   grp('台面 0 分',r=>r.pts===0); grp('台面有分',r=>r.pts>0);
+  for(const k of [0,1,2]){ const a=rows.filter(r=>r.beat&&r.kind===k&&r.nBeat>1); if(a.length<30) continue;
+    console.log(`   压上去时用哪张(${['同门','毙','超毙'][k]},可选 ≥2 张,n=${a.length}):最便宜 ${(100*a.filter(r=>r.used==='cheap').length/a.length).toFixed(0)}% 中间 ${(100*a.filter(r=>r.used==='mid').length/a.length).toFixed(0)}% 最大 ${(100*a.filter(r=>r.used==='top').length/a.length).toFixed(0)}%`+(a[0].ruleR!==undefined?`;规则「最便宜的稳赢张,没有就最便宜」对上 ${(100*a.filter(r=>r.ruleR).length/a.length).toFixed(0)}%`:'')); }
   process.exit(0);
 }
 const FILE=process.argv[2]||path.join(__dirname,'..','80fen-test.html'), N=+process.argv[3]||300, S0=+(process.env.SEED0||0);
@@ -64,7 +66,13 @@ for(let seed=S0+1;seed<=S0+N;seed++){
         if(lead.type==='single'&&E.currentWinner(plays,T).seat%2===seat%2) f=feats(view,plays,leader); }
       if(i===0){ cards=E.aiChooseLead(view).cards; const chk=E.checkThrow(hands,seat,cards,T); if(!chk.ok) cards=chk.forced; }
       else{ const lead=E.classify(plays[0].cards,T); cards=E.aiChooseFollow(view,plays).cards; if(!E.isLegalFollow(hand,lead,cards,T)) cards=E.genFollow(hand,lead,T,E.rng(seed)); }
-      if(f){ f.beat=E.currentWinner([...plays,{seat,cards}],T).seat===seat?1:0; W.push(f); }
+      if(f){ f.beat=E.currentWinner([...plays,{seat,cards}],T).seat===seat?1:0;
+        if(f.beat&&cards.length===1){ const T2=T, cur=E.currentWinner(plays,T2), ccl=E.classify(plays.find(p=>p.seat===cur.seat).cards,T2);
+          const bs=hand.filter(c=>E.currentWinner([...plays,{seat,cards:[c]}],T2).seat===seat).map(c=>E.ordIdx(c,T2)).sort((a,b)=>a-b), ix=E.ordIdx(cards[0],T2);
+          f.used=ix===bs[0]?'cheap':ix===bs[bs.length-1]?'top':'mid'; f.nBeat=bs.length;
+          const mem=E.makeMemory(view), su=E.effSuit(cards[0],T2); let mu=-1; for(const k in mem.unseen){ const c=E.keyToCard(k); if(mem.unseen[k]>0&&E.effSuit(c,T2)===su) mu=Math.max(mu,E.ordIdx(c,T2)); }
+          const bsS=bs.filter(i=>true), safe=bsS.filter(i=>i>mu); f.ruleR=(safe.length?safe[0]:bsS[0])===ix?1:0; f.ruleC=bsS[0]===ix?1:0; }
+        W.push(f); }
       cards.forEach(x=>E.removeCard(hand,x)); plays.push({seat,cards}); }
     const res=E.resolveTrick(plays,T); history.push(...plays); leader=res.winner; }
 }
