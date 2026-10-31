@@ -31,7 +31,10 @@ const SIZES=[
   ['568x320',PHONE],['667x375',PHONE],['844x390',PHONE],['932x430',PHONE],
   ['768x1024',PHONE],['820x1180',PHONE],['1024x768',PHONE],['1133x650',PHONE],['1024x690',PHONE],
   ['1280x800',{}],['1440x900',{}],
-].filter(([k])=>!args.only||String(args.only).split(',').includes(k));
+  /* 带刘海 / 灵动岛的 iPhone:@左,右,上,下 是让出的边(env(safe-area-inset-*))。
+     844x390 = iPhone 16e 加到主屏幕当网页 App 横放;874x340 = 17 / 18 Pro 的 Chrome 横放(估的);956x400 = Pro Max;402x874 = Pro 竖放 */
+  ['844x390@47,47,0,21',PHONE],['874x340@62,62,0,21',PHONE],['956x400@62,62,0,21',PHONE],['402x874@0,0,62,34',PHONE],
+].filter(([k])=>!args.only||String(args.only).split(/,(?=\d+x)/).includes(k));
 
 /* ---------- 一个只读的静态服务器,免得依赖外面开着的 http.server ---------- */
 function serve(){
@@ -76,8 +79,9 @@ function audit(){
   for(const e of document.querySelectorAll('.topbar .chip,.topbar .score-chip'))if(vis(e)&&e.scrollWidth>e.clientWidth+1)out.push(`顶栏文字被截:${name(e)}`);
   const game=document.getElementById('game');
   if(game.classList.contains('m-p')){
-    const row=['trumpChip','levelChip','recordsBtn','menuBtn'].map(id=>document.getElementById(id)).filter(vis).map(e=>Math.round(R(e).top/10));
-    if(new Set(row).size>1)out.push('顶栏第一行折行了');
+    // 比各项的竖直中线:按钮比小牌高几 px,按 top 分桶会因为取整误报
+    const row=['trumpChip','levelChip','recordsBtn','menuBtn'].map(id=>document.getElementById(id)).filter(vis).map(e=>{const r=R(e);return (r.top+r.bottom)/2;});
+    if(row.length&&Math.max(...row)-Math.min(...row)>12)out.push('顶栏第一行折行了');
   }else if(game.classList.contains('m-l')&&document.querySelector('.topbar').scrollHeight>R(document.querySelector('.topbar')).height+1){
     // 矮横屏:顶栏是左边一条竖栏(测试版),里面的东西不能超出栏高;UI 测试页的横屏顶栏仍是一行,走下面那条
     const tb=document.querySelector('.topbar');
@@ -87,6 +91,20 @@ function audit(){
     // 宽屏(和 UI 测试页的横屏):顶栏只有一行
     const tops=[...document.querySelectorAll('.topbar>*')].filter(vis).map(e=>R(e)).map(r=>Math.round((r.top+r.bottom)/2/12));
     if(new Set(tops).size>1)out.push('顶栏折行了');
+  }
+  // 刘海 / 灵动岛 / 底部横条让出的边(尺寸后面带 @左,右,上,下 时模拟):顶栏、按钮、名牌不进让位区,手牌不伸进左右两边
+  const SA=window.__SAFE;
+  if(SA&&!modal&&!drawer){
+    for(const e of must){if(!vis(e))continue;const r=R(e);
+      if(r.left<SA.l-1||r.right>W-SA.r+1||r.top<SA.t-1||r.bottom>H-SA.b+1)out.push(`进了刘海 / 横条让位区:${name(e)}`);}
+    if(!document.getElementById('handArea').classList.contains('overflow'))
+      for(const c of document.querySelectorAll('#hand .card')){const r=R(c);if(r.left<SA.l-8||r.right>W-SA.r+8){out.push('手牌伸进左右刘海让位区');break;}}
+  }
+  // 矮横屏:左边竖栏、右边按钮栏都不伸进牌桌
+  if(game.classList.contains('m-l')&&!modal&&!drawer){
+    const ar=R(document.getElementById('arena'));
+    for(const e of document.querySelectorAll('.topbar>*'))if(vis(e)&&R(e).right>ar.left+1){out.push('左边竖栏压到牌桌:'+name(e));break;}
+    for(const e of document.querySelectorAll('#controls>*'))if(vis(e)&&R(e).left<ar.right-1){out.push('右边按钮栏压到牌桌:'+name(e));break;}
   }
   // 矮横屏:右边按钮栏不压牌桌上的牌摞和名牌
   if(game.classList.contains('m-l')&&!modal&&!drawer){
@@ -144,9 +162,17 @@ function audit(){
 
 /* ---------- 走一局 ---------- */
 async function run(browser,key,opt,base){
-  const [w,h]=key.split('x').map(Number);
+  const [dim,ins]=key.split('@');
+  const [w,h]=dim.split('x').map(Number);
   const ctx=await browser.newContext({viewport:{width:w,height:h},...opt});
   const p=await ctx.newPage();
+  if(ins){
+    /* Chromium 模拟不了 env(safe-area-inset-*):把页面里的 env(...) 换成固定的数 */
+    const [l,r,t,b]=ins.split(',').map(Number),v={left:l,right:r,top:t,bottom:b};
+    await p.route(base+'/'+PAGE,async q=>{const txt=fs.readFileSync(path.join(ROOT,PAGE),'utf8').replace(/env\(safe-area-inset-(left|right|top|bottom)\)/g,(_,k)=>v[k]+'px');
+      await q.fulfill({status:200,contentType:'text/html; charset=utf-8',body:txt});});
+    await p.addInitScript(s=>{window.__SAFE=s;},{l,r,t,b});
+  }
   const problems=[],errors=[];
   p.on('pageerror',e=>errors.push(e.message));
   if(args.debug)p.on('console',m=>console.log('      page:',m.text()));

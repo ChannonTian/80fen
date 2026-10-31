@@ -109,7 +109,7 @@ button{cursor:pointer;touch-action:manipulation}
 .score-chip b{font:900 18px/1 var(--font-num);letter-spacing:-.02em}
 .score-total{font:800 12px/1 var(--font-sans);color:var(--ink-soft)}
 #game.m-l .score-chip,#game.m-w .score-chip{order:3;flex:1 1 180px;max-width:420px;height:38px}
-#game.m-l .topbar{padding:max(4px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) 2px max(10px,env(safe-area-inset-left));gap:6px;flex-wrap:nowrap}
+#game.m-l .topbar{padding:max(4px,env(safe-area-inset-top)) 10px 2px 10px;gap:6px;flex-wrap:nowrap}
 #game.m-l .chip{flex:0 1 auto;min-width:0;padding:0 10px}
 @media (max-width:700px){#game.m-l .topbar .logo{display:none}#game.m-l .score-label{display:none}}
 #game.m-l .topbar .logo{width:36px;height:36px}
@@ -319,7 +319,7 @@ html.hasHover #hand .card:hover .face{border-color:var(--teal)}
 #dealZone:empty,#dealZone>span:only-child:empty{display:none}
 #dealZone span{font:700 14px/1.3 var(--font-sans);color:var(--ink-soft)}
 #game.m-l .action-bar{display:grid;grid-template-columns:1fr 1fr;align-content:end;gap:6px;border:0;background:none;
-  width:var(--act-w,116px);padding:4px max(8px,env(safe-area-inset-right)) 6px 0}
+  width:var(--act-w,116px);padding:4px 8px 6px 0}
 #game.m-l .action-bar .spacer{display:none}
 #game.m-l .action-bar>*{order:5}
 #game.m-l #btnHint{order:1}#game.m-l #btnAuto{order:2}#game.m-l #btnUndo{order:3}#game.m-l #btnClear{order:4}
@@ -683,7 +683,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 #game.m-l{grid-template-columns:var(--info-w,92px) minmax(0,1fr) var(--act-w,116px);grid-template-rows:minmax(0,1fr) var(--hand-h,80px);
   grid-template-areas:"top arena act" "hand hand hand"}
 #game.m-l .topbar{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto auto auto minmax(0,1fr) auto;align-content:start;
-  gap:6px;padding:max(6px,env(safe-area-inset-top)) 4px 6px max(8px,env(safe-area-inset-left));background:none}
+  gap:6px;padding:max(6px,env(safe-area-inset-top)) 4px 6px 8px;background:none}   /* 左右刘海的让位 #game 已经给了,这里不再加 */
 #game.m-l .topbar>*{grid-column:1/-1;min-width:0}
 #game.m-l .topbar .logo{grid-row:1;justify-self:center;width:34px;height:34px}
 #game.m-l #trumpChip{grid-row:2}#game.m-l #levelChip{grid-row:3}#game.m-l #scoreChip{grid-row:4}
@@ -9646,13 +9646,22 @@ function handTarget(G){
 /* 手机上点进输入框,软键盘会把可视高度压掉一半,宽 > 高 就被当成横屏:骨架、抽屉位置全跟着翻。
    打字时不换骨架,只按原骨架重排 */
 function typing(){var a=document.activeElement;return !!a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&a.type!=='checkbox'&&a.type!=='range';}
+/* 刘海 / 灵动岛 / 底部横条让出来的边距(iPhone 横屏左右各 47~62px、底下 21px;加到主屏幕的网页 App 和 Chrome 都有)。
+   #game 的左右内边距已经让过,排版时要按让过之后的宽度算;矮横屏手牌贴屏幕底边,底下再让出横条 */
+var safeProbe=document.createElement('div');
+safeProbe.style.cssText='position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;'+
+  'padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+document.body.appendChild(safeProbe);
+function safeArea(){var c=getComputedStyle(safeProbe);
+  return {t:parseFloat(c.paddingTop)||0,r:parseFloat(c.paddingRight)||0,b:parseFloat(c.paddingBottom)||0,l:parseFloat(c.paddingLeft)||0};}
 function layout(){
   var mode=typing()&&L.ready?L.mode:detectMode();
   L.ready=true;
   if(mode!==L.mode){game.classList.remove('m-p','m-l','m-w');document.body.classList.remove('m-p','m-l','m-w');L.mode=mode;}
   game.classList.add('m-'+mode);document.body.classList.add('m-'+mode);
   if(typing()&&L.hand)return;
-  var W=game.clientWidth,H=window.innerHeight;
+  var SA=safeArea();
+  var W=game.clientWidth-SA.l-SA.r,H=window.innerHeight;
   var G=g();
   var cards=Array.prototype.slice.call(hand.children);
   var actW=0;
@@ -9668,6 +9677,7 @@ function layout(){
   var idlePlan=planHand(new Array(25).fill('x'),handW,H,cfg,25);
   L.idleCw=idlePlan.cw;
   var hh=plan?Math.max(plan.height,mode==='l'?idlePlan.height:0):idlePlan.height;
+  if(mode==='l')hh+=SA.b;   /* 底部横条下面不放要点的牌 */
   game.style.setProperty('--hand-h',hh+'px');
   L.hand=plan;
   if(plan){
