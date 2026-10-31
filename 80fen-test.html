@@ -1485,6 +1485,10 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   willHuman: [-0.36,0.86,-0.73], // (v0.7.42 测试版默认开)真人那一家的意愿修正 [常数, 毙, 同门·末家·0分](records-will --all);null = 不修正
   beliefSurv: 20,             // (v0.7.44 测试版默认 20 = 4+16;v0.7.42 起是 4)位开关:1 = 跟牌压牌候选、2 = 队友暂大的确定性、4 = 整个 pTeamWin 换成逐世界走完本墩(teamWinBelief)、8 = 领出单张的 leadWinP 也换、16 = 跟牌打分的期望分 ev 也换成逐世界走完本墩(trickEVBelief,含放分模型 dumpExp) —— 改用抽样信念 + 拟合意愿(见 survB);0 = 旧行为
   beliefM: 30,                // 信念服务每次抽几个世界(30 与 60 一样准,5 ms)
+  /* 本墩推演(teamWinBelief / trickEVBelief)里「本队暂大 → 跟小」写死了:第 2 家把分垫给后面的队友时,第 3 家看着他队友那张小牌暂大就永远不毙
+   * (教练线 v0.7.50 查出:下家已知断门时估本队拿下 63%、实 35%)。1 = 本队暂大、后面还有对手的那家,按 willMateW 的概率用最便宜那张压上去保。0 = 旧行为。 */
+  mateOver: 0,
+  willMateW: [-0.434,0.8459,0,0.3124,-1.1175,0.335,0.3713,1.1864,-0.3998,1.0617,-0.4073,0.0359,-0.434,1.0388,0],   // test/willmate-data.js --fit(自对弈 2000 副 7244 个样本,两折对数损失 0.654 → 0.523)
   /* 推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。
    * 真人(以及 guardJoker 之后的 AI)王留到最后。n>0:手里多于 n 张时推演领出不出王。0 = 旧行为。 */
   egRollKeepJoker: 0,
@@ -5462,8 +5466,44 @@ function willP(T, plays, seat, hand, n, behind, isHuman){
   if(isHuman&&AIP.willHuman){ const a=AIP.willHuman; z+=a[0]+a[1]*(kind===1?1:0)+a[2]*(kind===0&&last&&pts===0?1:0); }
   return {p:1/(1+Math.exp(-z)),card:ch};
 }
+/* 「队友暂大、后面还有对手时,肯不肯自己压上去保」的特征(10-31,mateOver;test/willmate-data.js 拟合 willMateW)。
+ * unseenHi(suit,top) = 这一家看来,在外比 top 大的这门牌张数(关键牌);voids = makeVoids(已完成的墩)。没得压 / 后面没有对手 → null。 */
+function willMateFeat(T, plays, seat, hand, unseenHi, voids, behind){
+  const ob=behind.filter(z=>z%2!==seat%2); if(!ob.length) return null;
+  const lead=classify(plays[0].cards,T), cur=currentWinner(plays,T);
+  const ccl=classify(plays.find(p=>p.seat===cur.seat).cards,T);
+  const ls=lead.suit, hasLead=hand.some(c=>effSuit(c,T)===ls), curRuff=ccl.suit==='T'&&ls!=='T';
+  let kind, beaters;
+  if(curRuff){ kind=2; beaters=hasLead?[]:hand.filter(c=>effSuit(c,T)==='T'&&ordIdx(c,T)>ccl.top); }
+  else if(ls!=='T'&&!hasLead){ kind=1; beaters=hand.filter(c=>effSuit(c,T)==='T'); }
+  else { kind=0; beaters=hand.filter(c=>effSuit(c,T)===ccl.suit&&ordIdx(c,T)>ccl.top); }
+  if(!beaters.length) return null;
+  let ch=beaters[0]; for(const c of beaters) if(ordIdx(c,T)<ordIdx(ch,T)) ch=c;
+  return {kind,pts:countPoints(plays.flatMap(p=>p.cards)),cheapPts:cardPoints(ch),
+    cheapBig:ch.suit==='X'||ch.rank===T.rank||(effSuit(ch,T)==='T'&&ch.rank===14)?1:0,
+    hi:unseenHi(ccl.suit,ccl.top),vB:ob.some(z=>voids[z]&&voids[z][ls])?1:0,vBT:ob.some(z=>voids[z]&&voids[z].T)?1:0,
+    curSide:ccl.suit!=='T'?1:0,curLead:cur.seat===plays[0].seat?1:0,n:hand.length,mateBehind:behind.some(z=>z%2===seat%2)?1:0,card:ch};
+}
+/* mateOver 用:在世界 w 里,s 那一家看来比 top 大的这门在外几张 = 我看来在外的 + 我手里(除去这手出的)+ 我知道的底 − s 手里的。 */
+function mateCtx(X, cards){
+  if(!AIP.mateOver||!AIP.willMateW||!X.view||!X.mem) return null;
+  const T=X.trump, h=X.view.history, done=h.slice(0,h.length-X.plays.length);
+  const out=X.view.hand.filter(c=>!cards.some(d=>d.id===c.id)).concat(X.view.buriedKnown||[]);   // 埋的底只有庄家自己知道
+  const cnt=(su,top)=>{ let n=0; for(const k in X.mem.unseen){ const c=keyToCard(k); if(X.mem.unseen[k]>0&&effSuit(c,T)===su&&ordIdx(c,T)>top) n+=X.mem.unseen[k]; }
+    for(const c of out) if(effSuit(c,T)===su&&ordIdx(c,T)>top) n++; return n; };
+  return {voids:makeVoids(done,T),cnt};
+}
+function willMateP(T, plays, s, H, behind, M){
+  const f=willMateFeat(T,plays,s,H,(su,top)=>{ let n=M.cnt(su,top); for(const c of H) if(effSuit(c,T)===su&&ordIdx(c,T)>top) n--; return Math.max(0,n); },M.voids,behind);
+  if(!f) return {p:0};
+  const x=[1,f.kind===1?1:0,f.kind===2?1:0,Math.min(f.pts,40)/10,f.pts===0?1:0,f.cheapBig,f.cheapPts>0?1:0,Math.min(f.hi,6)/3,f.hi===0?1:0,
+    f.vB,f.vB*f.curSide,f.vBT,f.curLead,f.n<=12?1:0,f.mateBehind];
+  const w=AIP.willMateW; let z=0; for(let i=0;i<w.length&&i<x.length;i++) z+=w[i]*x[i];
+  return {p:1/(1+Math.exp(-z)),card:f.card};
+}
 function teamWinBelief(X, cards, B){
   if(!B||!X.lead||X.lead.type!=='single'||cards.length!==1) return null;
+  const M=mateCtx(X,cards);
   const T=X.trump, me=X.seat%2, hs=X.view&&X.view.humanSeat!==undefined?X.view.humanSeat:-1;
   const plays0=[...X.plays,{seat:X.seat,cards}];
   const order=X.remaining||[];
@@ -5473,7 +5513,11 @@ function teamWinBelief(X, cards, B){
       if(i>=order.length) return currentWinner(plays,T).seat%2===me?1:0;
       const s=order[i], H=w.hands[s]; if(!H) return rec(plays,i+1);
       const cur=currentWinner(plays,T);
-      if(cur.seat%2===s%2) return rec(plays,i+1);          // 本队赢着,跟小
+      if(cur.seat%2===s%2){                                 // 本队赢着:跟小(mateOver:后面还有对手时按 willMateP 压上去保)
+        const q=M&&i<order.length-1?willMateP(T,plays,s,H,order.slice(i+1),M):null;
+        if(!q||!q.p) return rec(plays,i+1);
+        return q.p*rec([...plays,{seat:s,cards:[q.card]}],i+1)+(1-q.p)*rec(plays,i+1);
+      }
       const r=willP(T,plays,s,H,H.length,order.slice(i+1),hs===s);
       if(!r.p) return rec(plays,i+1);
       return r.p*rec([...plays,{seat:s,cards:[r.card]}],i+1)+(1-r.p)*rec(plays,i+1);
@@ -5505,7 +5549,7 @@ function trickEVBelief(X, cards, B){
   const T=X.trump, me=X.seat%2, hs=X.view&&X.view.humanSeat!==undefined?X.view.humanSeat:-1;
   const plays0=[...X.plays,{seat:X.seat,cards}];
   const order=X.remaining||[], lead=X.lead;
-  const pts0=countPoints(plays0.flatMap(p=>p.cards));
+  const pts0=countPoints(plays0.flatMap(p=>p.cards)), M=mateCtx(X,cards);
   let aP=0, aE=0;
   for(const w of B.worlds){
     const rec=(plays,i,pts)=>{
@@ -5513,7 +5557,13 @@ function trickEVBelief(X, cards, B){
       const s=order[i], H=w.hands[s]; if(!H) return rec(plays,i+1,pts);
       const last=i===order.length-1?1:0;
       const cur=currentWinner(plays,T);
-      if(cur.seat%2===s%2) return rec(plays,i+1,pts+dumpExp(T,lead,H,1,last,pts));
+      if(cur.seat%2===s%2){
+        const no=rec(plays,i+1,pts+dumpExp(T,lead,H,1,last,pts));
+        const q=M&&!last?willMateP(T,plays,s,H,order.slice(i+1),M):null;
+        if(!q||!q.p) return no;
+        const yes=rec([...plays,{seat:s,cards:[q.card]}],i+1,pts+cardPoints(q.card));
+        return [q.p*yes[0]+(1-q.p)*no[0], q.p*yes[1]+(1-q.p)*no[1]];
+      }
       const r=willP(T,plays,s,H,H.length,order.slice(i+1),hs===s);
       const no=rec(plays,i+1,pts+dumpExp(T,lead,H,0,last,pts));
       if(!r.p) return no;
@@ -6363,7 +6413,7 @@ function simulateRound(seed, smartSeats=[0,1,2,3]){
 }
 
 /* 引擎公开面 —— 浏览器 #test 与 node 无头测试共用同一份,避免两边漂移 */
-const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
+const ENGINE={RULES,makeDeck,willMateFeat,cardPoints,countPoints,rng,dealRound,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
   canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,clampAtGate,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
