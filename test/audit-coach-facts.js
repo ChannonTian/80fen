@@ -39,7 +39,9 @@ function check(view,plays,J){
   for(let i=2;i<o.length;i++) if(o[i].delta<o[i-1].delta-1e-9) fail('② 没按价值降序',o.map(x=>x.delta.toFixed(1)).join(','));
   for(const x of o){
     tiers[x.tier]++;
-    if(x.tier!=='best'&&x.delta>OK) fail('② 超过门槛的也列了',x.delta);
+    // v0.7.50 例外:首选「先把分给后面的队友」时,少贴分 / 用小主毙下的照列(实测只差 1~3 分,见 coachFeedDoubt)
+    const feedOK=J.feedDoubt&&typeof E.coachFeedOK==='function'&&plays&&plays.length&&E.coachFeedOK(view,plays,J.adv,x.cards);
+    if(x.tier!=='best'&&x.delta>OK&&!feedOK) fail('② 超过门槛的也列了',x.delta);
     const f=x.facts, su=f.kind==='lead'?f.suit:f.leadSuit;
     for(const s of (f.kind==='lead'?f.oppVoid:f.behindOppVoid))
       if(!E.coachVoidTrick(view.history,s,su,view.trump)) fail('③ 说已断却找不到那一墩',`座位${s} 门${su}`);

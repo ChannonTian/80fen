@@ -36,7 +36,7 @@ try{
   const code=cut('const TERMS={','\nlet lang=')+'\nlet lang="sh";\n'+cut('const T=k=>','\nconst HUMAN=')+
     cut('const rankName=','\n')+'\n'+cut('let C={','\n')+'\n'+cut('const GAP_THR=','\n')+'\n'+cut('const desc=','\n')+'\n'+
     cut('function miniName(c){','// 副花色')+cut('const seatShort=','const canAskCoach=')+
-    '\nglobalThis.__UI={factText,obligationNote,quizFor};';
+    '\nglobalThis.__UI={factText,obligationNote,quizFor,feedDoubtLine:typeof feedDoubtLine==="function"?feedDoubtLine:null};';
   vm.runInContext(code,C0); UI=C0.__UI;
 }catch(e){ console.log(`(块③ 的教练文字没截到:${e.message} —— 跳过这一组)`); }
 // 这张在它那门里已是最大一档(副牌 A、大王):数一遍整副牌,不借引擎的 coachTopRank
@@ -49,6 +49,14 @@ function checkUI(view,plays,J,os){
     const d=()=>`「${ob}」 领 ${dsc(plays[0].cards)} 手里 ${dsc(view.hand)}`;
     note('跟牌提示:没有主可毙时不说「可以用主毙」', !(/可以用.*毙/.test(ob)&&(lead.suit==='T'||!view.hand.some(c=>E.effSuit(c,t)==='T'))), d);
     note('跟牌提示:甩的全是单张不说「有对必对」', !(/有对必对/.test(ob)&&!E.pairsInLead(lead)), d);
+  }
+  // v0.7.50「存疑」:首选把分垫给后面的队友、夹在中间的下家已断这门 —— 那句话要点名是谁、断了哪门,而且下家真断了
+  if(J.feedDoubt&&J.feedDoubt.known&&UI.feedDoubtLine){
+    const F=J.feedDoubt, line=strip(UI.feedDoubtLine(view,F)), lead=E.classify(plays[0].cards,t);
+    const v=E.makeVoids(view.history,t);
+    note('存疑(垫给队友):下家真断了这门、真夹在中间', F.seat===(view.seat+1)%4&&plays.length===1&&F.suit===lead.suit&&!!(v[F.seat]&&v[F.seat][F.suit]),
+      ()=>`「${line}」`);
+    note('存疑(垫给队友):说清是谁断了', /断了/.test(line)&&line.length>10, ()=>`「${line}」`);
   }
   const forced=typeof E.coachForced==='function'&&E.coachForced(view,plays);
   const f=E.coachFacts(view,plays,J.adv.cards);
@@ -135,11 +143,13 @@ function checkFollow(view,plays,o,best,r){
     note('队友稳赢:队友那张真赢定了', last||(!!f.partnerBigger&&!f.partnerBigger.length&&!f.behindOppVoid.length), d);
   }
   if(/台面有分/.test(r))               note('台面有分:台面真有分', table>0, d);
-  if(/毙/.test(r)&&!/被毙|来毙|会毙|能毙|可能毙|让他毙|再毙/.test(r)) note('毙:我真用主毙下了', isRuff, d);
+  if(/毙/.test(r)&&!/被毙|来毙|会毙|能毙|可能毙|让他毙|再毙|他毙得下/.test(r)) note('毙:我真用主毙下了', isRuff, d);
   if(/躲不掉/.test(r)){
     note('躲不掉:没有赢下这墩', !iWin, d);
     const alt=cheapZeroAlt(view,plays,o.cards);
     if(alt!==null) note(need===1?'躲不掉:真没有更小又不带分的牌':'躲不掉(多张):真没有不带分的跟法', !alt, d);
+    // 断了这门还有主:能拿主毙,不叫「躲不掉」(v0.7.50)
+    if(!mine.length) note('躲不掉:断门时手里也没有主', !view.hand.some(c=>E.effSuit(c,t)==='T'), d);
   }
   if(/最后一手/.test(r))               note('最后一手:真是末家', last, d);
   if(/能吃住|压住|稳吃|稳拿|尝试吃|争这墩|接过|拿牌权|压到|吃到/.test(r)&&!/被/.test(r)) note('吃:真的暂时赢下', iWin, d);
