@@ -6,6 +6,7 @@
  */
 'use strict';
 const fs=require('fs'),vm=require('vm'),path=require('path');
+const {isTestGame}=require('./records-filter.js');
 const args=process.argv.slice(2);
 const OLD=args[0]; const NEW=process.env.NEW||path.join(__dirname,'..','80fen-test.html');
 const files=args.slice(1).filter(a=>!a.startsWith('--'));
@@ -21,7 +22,7 @@ const nm=x=>x.suit==='X'?(x.rank===16?'大王':'小王'):({S:'♠',H:'♥',D:'�
 const ns=cs=>cs.map(nm).join('');
 const recs=[]; const seen=new Set();
 for(const f of files) for(const l of fs.readFileSync(f,'utf8').split('\n')){ if(!l.trim()) continue;
-  try{ const r=JSON.parse(l); if(seen.has(r.id)) continue; seen.add(r.id); if(Array.isArray(r.tricks)&&r.tricks.length) recs.push(r); }catch(e){} }
+  try{ const r=JSON.parse(l); if(seen.has(r.id)) continue; seen.add(r.id); if(Array.isArray(r.tricks)&&r.tricks.length&&!isTestGame(r)) recs.push(r); }catch(e){} }
 const out=[]; let n=0, nd=0; const by={};
 for(const r of recs){
   const T=r.trump; let uid=0;

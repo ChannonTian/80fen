@@ -10,6 +10,7 @@
  */
 'use strict';
 const fs=require('fs'),vm=require('vm'),path=require('path');
+const {isTestGame}=require('./records-filter.js');
 const args=process.argv.slice(2);
 const html=args.find(a=>a.endsWith('.html'))||path.join(__dirname,'..','80fen-test.html');
 const files=args.filter(a=>!a.startsWith('--')&&!a.endsWith('.html'));
@@ -47,7 +48,7 @@ if(process.env.SELFTEST){
   const seen=new Set();
   for(const f of files){ const txt=fs.readFileSync(f,'utf8').trim();
     for(const l of (txt.startsWith('{')&&!txt.includes('\n{')?[txt]:txt.split('\n'))){ if(!l.trim()) continue;
-      try{ const r=JSON.parse(l); if(r.id&&seen.has(r.id)) continue; seen.add(r.id); if(Array.isArray(r.initialHands)&&Array.isArray(r.tricks)) recs.push(r); }catch(e){} } }
+      try{ const r=JSON.parse(l); if(r.id&&seen.has(r.id)) continue; seen.add(r.id); if(Array.isArray(r.initialHands)&&Array.isArray(r.tricks)&&!isTestGame(r)) recs.push(r); }catch(e){} } }
 }
 
 // ---------- 分类 ----------

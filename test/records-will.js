@@ -3,13 +3,14 @@
  *   node test/records-will.js <牌谱>... [--out=w.json]      */
 'use strict';
 const fs=require('fs'),vm=require('vm'),path=require('path');
+const {isTestGame}=require('./records-filter.js');
 const args=process.argv.slice(2), files=args.filter(a=>!a.startsWith('--'));
 const OUT=(args.find(a=>a.startsWith('--out='))||'').slice(6);
 const sr=[...fs.readFileSync(path.join(__dirname,'..','80fen-test.html'),'utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1])[0];
 const cc={module:{exports:{}},console,Math,Object,Array,Set,Map,JSON,String,Number};cc.globalThis=cc; vm.createContext(cc); vm.runInContext(sr,cc); const E=cc.module.exports;
 const code=x=>x.suit+x.rank;
 const recs=[]; const seen=new Set();
-for(const f of files) for(const l of fs.readFileSync(f,'utf8').split('\n')){ if(!l.trim()) continue; try{ const r=JSON.parse(l); if(seen.has(r.id)) continue; seen.add(r.id); if(r.tricks&&r.tricks.length&&!r.replay) recs.push(r); }catch(e){} }
+for(const f of files) for(const l of fs.readFileSync(f,'utf8').split('\n')){ if(!l.trim()) continue; try{ const r=JSON.parse(l); if(seen.has(r.id)) continue; seen.add(r.id); if(r.tricks&&r.tricks.length&&!r.replay&&!isTestGame(r)) recs.push(r); }catch(e){} }
 const W=[];
 for(const r of recs){
   const T=r.trump; let uid=0;
