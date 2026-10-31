@@ -102,7 +102,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
-| `ruffVoidBehind` | `20` | 见上面 voidBehind 处的反事实回放 | `aiChooseFollow` `coachFollowScoreFull` |
+| `ruffVoidBehind` | `20` | 见上面 voidBehind 处的反事实回放 | `aiChooseFollow` `coachFollowPen` |
 
 ### 对子/拖拉机被压的概率单独按组合算(见 pBeaterIn)。pairUrn=0 退回旧的单张公式。
 
@@ -294,7 +294,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
-| `tiaoAccept` | `1` | 队友钓主时,接过去那一手的牌权按领出口径计(v0.7.21 测试版默认开) | `aiChooseFollow` `coachFollowScoreFull` |
+| `tiaoAccept` | `1` | 队友钓主时,接过去那一手的牌权按领出口径计(v0.7.21 测试版默认开) | `aiChooseFollow` `coachFollowScoreFull` `coachCandScore` |
 
 ### ===== §7.13 阶段 0:拆墙 =====
 
@@ -420,7 +420,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `endPhaseKPerPt` | `0.045` | 收官留手折扣随底分的抬升(底分 0 → 0.15,底分 20 → ≈1.05) | `phaseK` |
 | `endPhaseKCap` | `1.1` | 抬升上限 | `phaseK` |
 | `tempoWeight` | `0.35` | 牌权价值在跟牌打分里的权重 | `scorePlay` |
-| `leadTempoWeight` | `1.0` | 牌权价值在领出打分里的权重。比跟牌侧(0.35)高得多, | `aiChooseFollow` `leadTempo` `coachFollowScoreFull` |
+| `leadTempoWeight` | `1.0` | 牌权价值在领出打分里的权重。比跟牌侧(0.35)高得多, | `aiChooseFollow` `leadTempo` `coachFollowScoreFull` `coachCandScore` |
 | `tempoCap` | `40` | 牌权价值上限(贴现和自己会收敛,这个只当兜底) | `tempoValue` `leadChainValue` `oppChainValue` `partnerCashValue` |
 | `tempoDecay` | `0.80` | 待兑现单元按价值降序的贴现率:下一墩权重最高,往后递减 | `tempoValue` `oppChainValue` `partnerCashValue` |
 | `oppTempo` | `6` | 牌权落到对手手里的估计代价 | `oppChainValue` `feedTempoValue` `scorePlay` `tiaoWangValue` `leadTempo` `partnerCashValue` `feedRuffValue` |
@@ -496,17 +496,17 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
-| `overPartner` | `-4` | (见上方注释)压自家队友的固定分差。 | `aiChooseFollow` `coachFollowScoreFull` |
+| `overPartner` | `-4` | (见上方注释)压自家队友的固定分差。 | `aiChooseFollow` `coachFollowPen` |
 
 ### 「队友暂大但我断门且台面有分」这一条是**规则**,不是权重:给一份足够大的加成,
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
-| `ruffPartnerBonus` | `-25` | (见上方注释)「队友暂大但我断门且台面有分」这一条是**规则**,不是权重:给一份足够大的加成, | `aiChooseFollow` `coachFollowScoreFull` |
+| `ruffPartnerBonus` | `-25` | (见上方注释)「队友暂大但我断门且台面有分」这一条是**规则**,不是权重:给一份足够大的加成, | `aiChooseFollow` `coachFollowPen` |
 | `pLastFit` | `0` | 埋底时「守住末墩」的概率用校准小模型 pLastModel(0 = 旧式 pWinLastTrick) | `aiDiscard` |
 | `ruffGuardPartner` | `1` | (v0.7.41 测试版默认开)队友暂大、我断门毙、后手对手已知断门:毙到在外非王主之上(0 = 旧行为),见 aiChooseFollow 1c-0 | `aiChooseFollow` |
 | `ruffGuardPartnerBonus` | `-25` | — | `aiChooseFollow` |
-| `ruffPartnerMinPts` | `5` | 台面分下限:一分没有的空气墩不值得动主 | `aiChooseFollow` `coachFollowScoreFull` |
+| `ruffPartnerMinPts` | `5` | 台面分下限:一分没有的空气墩不值得动主 | `aiChooseFollow` `coachFollowPen` |
 | `takeOverMinPts` | `5` | 断门毙分那一支的桌面分下限 | `takeOverScoped` |
 | `partnerHoldAfter` | `0.72` | 队友压回来之后,身后还有对手时守得住的比例 | `pPartnerTakes` |
 | `dumpVoidFeedback` | `1` | 贴分时按「贴之后」的台面分重算存活率(0 = 退回旧行为) | `pTeamWin` |
@@ -528,9 +528,9 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
-| `ruffOppRule` | `1` | ③  对手暂大时的「断门有分必毙」(0=关闭,退回纯打分) | `aiChooseFollow` `coachFollowScoreFull` |
-| `ruffOppBonus` | `-25` | ③  与 ruffPartnerBonus 同量级 —— 它们本来就是同一条规则的两半 | `aiChooseFollow` `coachFollowScoreFull` |
-| `ruffOppMinPts` | `5` | ③  台面分下限 | `aiChooseFollow` `coachFollowScoreFull` |
+| `ruffOppRule` | `1` | ③  对手暂大时的「断门有分必毙」(0=关闭,退回纯打分) | `aiChooseFollow` `coachFollowPen` |
+| `ruffOppBonus` | `-25` | ③  与 ruffPartnerBonus 同量级 —— 它们本来就是同一条规则的两半 | `aiChooseFollow` `coachFollowPen` |
+| `ruffOppMinPts` | `5` | ③  台面分下限 | `aiChooseFollow` `coachFollowPen` |
 | `takeOverEndTrump` | `1` | ②  收官阶段对将牌墩放开「接过队友」(0=退回旧行为) | `takeOverScoped` |
 | `tiaoUseExp` | `1` | ②  钓主的判据改用**期望**张数而非硬下界(0=退回旧行为) | `tiaoWangValue` |
 
