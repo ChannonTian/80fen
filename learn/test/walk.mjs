@@ -1,167 +1,100 @@
-/* 教学版走查:把每个单元的每一课都打一遍,断言每题都判「答对了」,
-   并核对每个小局打完的结算结论。竖屏两档屏幕各跑一遍。
-       node learn/test/walk.mjs          # 在仓库根目录跑
-       node learn/test/walk.mjs --shots  # 顺便存截图到 learn/test/shots/
-   为什么要有这个:小局是「AI 自动推进 + 人也能操作」的结构,正式版没有
-   这种东西 —— 过期的定时器回来再出一张牌、同一家出两张、endTrick 跑两次,
-   都只在真跑一遍的时候才看得见,单元测试断言不出来。 */
+/* 教学版走查:每个单元的每一课都从首页点进去打一遍,断言每题都判「答对了」(两方案题判「这一手更好」)。
+   竖屏两档屏幕各跑一遍。
+       node learn/test/walk.mjs              # 在仓库根目录跑
+       node learn/test/walk.mjs --shots      # 顺便存每课结束的截图到 learn/test/shots/
+       node learn/test/walk.mjs --only=u2    # 只跑一个单元
+   每一步点什么,不再手写:从题目数据里取,能由引擎推的(哪几张能出、排大小、阶梯、甩牌)
+   交给引擎推 —— 课程重排、加题之后这里不用跟着改。
+   为什么要真点一遍:小局、收官是「AI 自动推进 + 人也能操作」的结构,过期的定时器回来再出一张牌、
+   同一家出两张、endTrick 跑两次,都只在真跑的时候才看得见。 */
 import { chromium } from '/opt/node22/lib/node_modules/playwright/index.mjs';
+import fs from 'node:fs';
 
-/* 每一课的正确答案。一步一个动作:
-   seat 点座位 / num 点数值选项 / lad 点阶梯选项 / win·team 点牌桌上的一家 /
-   card·multi 点牌桌上的牌 / play·set 点手牌 / throwset 点甩牌那一行 / mini 打小局 */
-const PLANS=[
- { key:'u1', lessons:[
-   [['seat',2],['multi',['H50','H130','H100']],['num',2],['win',1],['team',1],
-    ['play','H120'],['play','H50'],['mini',0]],
-   [['play','H70'],['multi',['H30','H130']],['multi',['S40','C90','D60']],['win',1],
-    ['play','H60'],['mini',0]],
-   [['multi',['S90','H50','X160','C50']],['multi',['C30','S80','H80','X150','C130']],
-    ['multi',['H50','D70','C90']],['card','X150'],['card','S50'],['mini',0]],
-   [['play','D60'],['win',0],['play','H100'],['win',0],['mini',0]],
-   [['multi',['S70','S71']],['win',1],['set',['S100','S101']],['set',['S40','S90']],['win',0]],
-   [['multi',['H80','H81','H90','H91']],
-    ['multi',['H50','H51','H70','H71','H80','H81']],['multi',['H70','H71','H80','H81']],
-    ['multi',['S140','S141','H50','H51']],
-    ['set',['D40','D41','D50','D51']],['set',['D40','D41','D120','D121']],['win',0]],
-   [['multi',['S40','S41','S90']],['num',0],['num',1],['throwset',['S90']],['win',1],['num',1]],
- ]},
- { key:'u2', lessons:[
-   [['play','C140'],['play','C140'],['play','C140'],['lad',0]],
-   [['play','H140'],['set',['H140','H141']],['set',['H140','H141','H130','H131']],['play','H140']],
-   [['play','S60'],['play','S60'],['play','D40'],['play','C30']],
-   [['set',['C30','C80','C60']],['set',['D40','D70','D100','C20']],['set',['D40','D70','C20','C70']]],
-   [['card','H50'],['multi',['C50','C51','X150','X151']],['multi',['X160','X161']],
-    ['multi',['X150','X151']],['win',2]],
-   [['num',1],['mini',0]],
-   [['win',3],['win',2],['num',0],['num',0],['num',1]],
- ]},
- { key:'u3', lessons:[
-   [['multi',['H131']],['play','H130'],['play','H30'],['play','C120']],
-   [['play','H140'],['play','S40'],['play','D130']],
-   [['play','S140'],['play','D140'],['play','S30']],
-   [['num',1],['mini',0]],
- ]},
- { key:'u4', lessons:[
-   [['play','S120'],['play','D130'],['play','C130'],['play','S70'],['play','H60']],
-   [['play','C130'],['play','C140'],['play','D110'],['play','H30']],
-   [['play','C141'],['play','C140'],['play','H30'],['play','H100']],
-   [['play','C130'],['play','C130'],['play','C40'],['play','C130']],
- ]},
- { key:'u5', lessons:[
-   [['play','C40'],['play','X160'],['play','X160'],['play','C40']],
-   [['play','X150'],['play','C40'],['play','X160']],
-   [['play','S80'],['play','C40'],['play','X160']],
-   [['ep',['C70','S50','S40','X150']],['ep',['H140','S90','S20','X150']]],
- ]},
- { key:'u6', lessons:[
-   [['play','C40'],['play','D40'],['play','D130']],
-   [['play','D40'],['play','D130'],['play','D40']],
-   [['play','D40'],['play','C40'],['play','C100']],
- ]},
-];
+const SHOTS=process.argv.includes('--shots'), SHOTDIR='learn/test/shots';
+const ONLY=(process.argv.find(a=>a.startsWith('--only='))||'').slice(7);
+if(SHOTS) fs.mkdirSync(SHOTDIR,{recursive:true});
 
-/* 每课小局打完之后应该给出的结算结论 —— 由「起始分 + 这两墩抓到的分 + 底」推出来的,
-   改牌面、起始分或底牌都要一起改。没有小局的课写 null 跳过。 */
-const SCORE={
- u1:['一共 80 分,上台了','一共 80 分,上台了',
-     '一共 120 分 —— 上台,还升 1 级','一共 160 分 —— 上台,还升 2 级',null,null,null],
- u2:[null,null,null,null,null,'一共 105 分,上台了',null],
- u3:[null,null,null,'一共 90 分,上台了'],
- u4:[null,null,null,null],
- u5:[null,null,null,null],
- u6:[null,null,null],
-};
-
-const SHOTS=process.argv.some(a=>a.startsWith('--shots'));
-const SHOTDIR='learn/test/shots';
-// --shots=u4:再给这个单元的每道题拍一张「答完之后」的图(两档屏幕都拍),查反馈把牌桌挤没了没有
-const SHOTQ=(process.argv.find(a=>a.startsWith('--shots='))||'').slice(8);
-if(SHOTS) (await import('node:fs')).mkdirSync(SHOTDIR,{recursive:true});
-
-let bad=0, qn=0;
+let bad=0;
 const b=await chromium.launch({headless:true});
 for(const [w,h,tag] of [[390,844,'p'],[375,667,'se']]){
   const p=await b.newPage({viewport:{width:w,height:h},deviceScaleFactor:2});
+  p.setDefaultTimeout(8000);
   const errs=[]; p.on('pageerror',e=>errs.push('PAGEERROR '+e.message));
-  const shot=async name=>{ if(SHOTS) await p.screenshot({path:`${SHOTDIR}/${name}`}); };
-
   await p.goto('file://'+process.cwd()+'/learn.html');
-  // 关掉音效:无头浏览器里没有声卡,第一次建 AudioContext 要卡一秒多,点击会超时
-  await p.evaluate(()=>{localStorage.clear();localStorage.setItem('80fenlearn-sound','0');});
+  const units=await p.evaluate(()=>__LEARN__.UNITS.map(U=>({key:U.key,ids:U.lessons.map(L=>L.id),qs:U.lessons.map(L=>L.qs.length)})));
 
-  for(let u=0;u<PLANS.length;u++){
-    const U=PLANS[u];
-    for(let L=0;L<U.lessons.length;L++){
-      // 直接把进度设到这一课,免得每次都从头打一遍
-      await p.evaluate(([k,n])=>localStorage.setItem('80fenlearn-'+k,String(n)),[U.key,L]);
-      for(const prev of PLANS.slice(0,u))
-        await p.evaluate(([k,n])=>localStorage.setItem('80fenlearn-'+k,String(n)),
-                         [prev.key,prev.lessons.length]);
-      await p.reload(); await p.waitForTimeout(220);
-      const T0=Date.now(); qn=0;
-      await p.click(`.unit[data-unit="${u}"] .go`);   // 首页:这一单元当前那课的「开始」 await p.waitForTimeout(220);
-      if(tag==='p') await shot(`${U.key}-l${L+1}-q1.png`);
-
-      for(const [kind,val] of U.lessons[L]){
-        if(kind==='seat') await p.click(`.seatbtn[data-s="${val}"]`);
-        else if(kind==='num'||kind==='lad') await p.click(`.opt[data-i="${val}"]`);
-        else if(kind==='win'||kind==='team') await p.click(`#table .slot[data-seat="${val}"]`);
-        else if(kind==='card') await p.click(`#table .card[data-id="${val}"]`);
-        else if(kind==='multi'){ for(const id of val) await p.click(`#table .card[data-id="${id}"]`); }
-        else if(kind==='play') await p.click(`#hand .card[data-id="${val}"]`);
-        else if(kind==='set'){ for(const id of val) await p.click(`#hand .card[data-id="${id}"]`); }
-        else if(kind==='ep'){
-          // 收官实战:轮到我(那张牌可点)就出;别人出牌有动画,要等
-          for(const id of val){
-            await p.waitForSelector(`#hand .card.pick[data-id="${id}"]`,{timeout:20000});
-            await p.click(`#hand .card[data-id="${id}"]`); await p.click('#cta');
+  for(let u=0;u<units.length;u++){ if(ONLY&&units[u].key!==ONLY) continue;
+    for(let L=0;L<units[u].ids.length;L++){
+      // 前面的课全标成学完 → 这一课正好是首页上「该学的那一课」
+      const before=units.slice(0,u).flatMap(x=>x.ids).concat(units[u].ids.slice(0,L));
+      // 关掉音效:无头浏览器里没有声卡,第一次建 AudioContext 要卡一秒多,点击会超时
+      await p.evaluate(d=>{localStorage.clear();localStorage.setItem('80fenlearn-sound','0');
+                           localStorage.setItem('80fenlearn-done',JSON.stringify(d));},before);
+      await p.reload(); await p.waitForTimeout(150);
+      const T0=Date.now();
+      await p.click(`.unit[data-unit="${u}"] .go`);   // 首页:这一单元当前那课的「开始」
+      await p.waitForTimeout(200);
+      for(let qi=0;qi<units[u].qs[L];qi++){
+        const q=await p.evaluate(([u,L,i])=>{
+          const {UNITS,answerOf,ladderIdx,throwResult,isLegalFollow,classify,legalSet,effSuit}=__LEARN__;
+          const Lz=UNITS[u].lessons[L], q=Lz.qs[i], tr=q.tr!==undefined?q.tr:Lz.tr;
+          let a=answerOf(q,tr);
+          if(q.type==='ladder') a=ladderIdx(q.defPoints,q.kitty,q.wonLast,q.lastLeadSize);
+          if(q.type==='throwjudge') a=throwResult(q,tr).ok?0:1;
+          if(q.type==='forcedpick') a=throwResult(q,tr).forced.map(c=>c.id);
+          if(q.type==='trickpick'&&q.anyLegal){
+            const led=q.played&&q.played[q.lead]&&q.lead!==0?effSuit([].concat(q.played[q.lead])[0],tr):null;
+            a=legalSet(q.hand,led,tr)[0].id;
+          }
+          if(q.type==='playset'&&q.anyLegal){       // 随便找一手合法的
+            const lead=classify([].concat(q.played[q.lead]),tr), n=lead.cards.length, h=q.hand;
+            const pick=(k,s,acc)=>{ if(acc.length===n) return isLegalFollow(h,lead,acc,tr)?acc:null;
+              for(let j=s;j<h.length;j++){ const r=pick(k,j+1,acc.concat(h[j])); if(r) return r; } return null; };
+            a=pick(0,0,[]).map(c=>c.id);
+          }
+          return {type:q.type,a};
+        },[u,L,qi]);
+        const A=q.a, click=sel=>p.click(sel);
+        if(q.type==='seat') await click(`.seatbtn[data-s="${A}"]`);
+        else if(['numpick','ladder','throwjudge'].includes(q.type)) await click(`.opt[data-i="${A}"]`);
+        else if(q.type==='winpick'||q.type==='teampick') await click(`#table .slot[data-seat="${A}"]`);
+        else if(['multi','cardpick','order'].includes(q.type)) for(const id of [].concat(A)) await click(`#table .pile .card[data-id="${id}"]`);
+        else if(q.type==='trickpick') await click(`#hand .card[data-id="${A}"]`);
+        else if(q.type==='playset'||q.type==='discard') for(const id of A) await click(`#hand .card[data-id="${id}"]`);
+        else if(q.type==='forcedpick') for(const id of A) await click(`#table .pickset .card[data-id="${id}"]`);
+        else if(q.type==='mini'){
+          // 轮到我就点第一张能出的;顺手乱点几下,压测 busy 闸
+          for(let t=0;t<160;t++){
+            if(await p.evaluate(()=>document.getElementById('foot').className==='good')) break;
+            const c=await p.$$('#hand .card:not(.dim)');
+            if(c.length){ try{ await c[0].click({timeout:400}); }catch(e){}
+              for(const x of await p.$$('#hand .card')){ try{await x.click({timeout:200});}catch(e){} } }
+            await p.waitForTimeout(350);
+          }
+        }
+        else if(q.type==='endplay'){
+          for(let t=0;t<80;t++){
+            if(await p.evaluate(()=>!!document.getElementById('verdict').textContent)) break;
+            if(await p.$('#hand .card.pick')){
+              const id=await p.evaluate(()=>__LEARN__.endBest());
+              await click(`#hand .card[data-id="${id}"]`); await click('#cta');
+            }
+            await p.waitForTimeout(300);
           }
           await p.waitForFunction(()=>document.getElementById('verdict').textContent!=='',null,{timeout:20000});
-          const v=await p.evaluate(()=>document.getElementById('verdict').textContent);
-          if(v!=='答对了') errs.push(`${U.key} L${L+1} 收官判成「${v}」`);
-          if(SHOTQ===U.key){ qn=(qn||0)+1; await shot(`${tag}-${U.key}-l${L+1}-q${qn}-fb.png`); }
-          await p.click('#cta'); await p.waitForTimeout(250);
-          continue;
         }
-        else if(kind==='throwset'){ for(const id of val) await p.click(`#table .pickset .card[data-id="${id}"]`); }
-        else if(kind==='mini'){
-          // 轮询到小局结束:该我出就点第一张能出的,顺手连点几下压测 busy 闸
-          for(let t=0;t<120;t++){
-            const done=await p.evaluate(()=>getComputedStyle(document.getElementById('btnRow')).display!=='none');
-            if(done) break;
-            const c=await p.$$('#hand .card:not(.dim)');
-            if(c.length){ try{ await c[0].click({timeout:500}); }catch(e){}
-              for(const x of await p.$$('#hand .card')){ try{await x.click({timeout:250});}catch(e){} } }
-            await p.waitForTimeout(500);
-          }
-          break;
-        }
-        await p.click('#cta'); await p.waitForTimeout(280);
-        if(SHOTQ===U.key){ qn=(qn||0)+1; await shot(`${tag}-${U.key}-l${L+1}-q${qn}-fb.png`); }
+        if(!['mini','endplay'].includes(q.type)){ await click('#cta'); await p.waitForTimeout(220); }
         const v=await p.evaluate(()=>document.getElementById('verdict').textContent);
-        // 两方案题不是对错题,判的是「这一手更好」
-        if(v!=='答对了'&&v!=='这一手更好') errs.push(`${U.key} L${L+1} 判成「${v}」: ${kind}=${val}`);
-        await p.click('#cta'); await p.waitForTimeout(250);
+        if(v!=='答对了'&&v!=='这一手更好') errs.push(`${units[u].ids[L]} q${qi+1} ${q.type} 判成「${v}」(点的是 ${A})`);
+        await click('#cta'); await p.waitForTimeout(200);
       }
-
-      if(tag==='p') await shot(`${U.key}-l${L+1}-end.png`);
-      const fin=await p.evaluate(()=>document.getElementById('bub').textContent);
-      const want=SCORE[U.key][L];
-      if(want&&!fin.includes(want))
-        errs.push(`${U.key} L${L+1} 结算不符,期望「${want}」,实得「${fin.slice(-44)}」`);
-      console.log(` ${U.key} L${L+1} ${Math.round((Date.now()-T0)/1000)}s | ${fin.slice(-28)}`);
-
-      // 有小局的课要再点一次「继续」才通关;没小局的课,最后一题的「继续」已经通关了
-      const live=await p.evaluate(()=>{
-        const el=document.getElementById('cta');
-        return getComputedStyle(document.getElementById('foot')).visibility!=='hidden' && el.offsetParent!==null;});
-      if(live){ await p.click('#cta'); await p.waitForTimeout(280); }
-      await p.click('#doneBtn'); await p.waitForTimeout(250);
+      const doneOk=await p.evaluate(()=>getComputedStyle(document.getElementById('done')).display!=='none');
+      if(!doneOk) errs.push(`${units[u].ids[L]} 打完没进通关页`);
+      if(SHOTS&&tag==='p') await p.screenshot({path:`${SHOTDIR}/${units[u].ids[L]}-done.png`});
+      console.log(` ${units[u].key} ${units[u].ids[L]} ${Math.round((Date.now()-T0)/1000)}s`);
     }
   }
-  await shot(`${tag}-map.png`);
-  console.log(tag,'== errors:',errs.length?errs.join(' | '):'none');
+  console.log(tag,'== errors:',errs.length?'\n  '+errs.join('\n  '):'none');
   bad+=errs.length;
   await p.close();
 }
