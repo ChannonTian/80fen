@@ -1,6 +1,6 @@
 /* 真人牌谱(80fen-record-2)批量验收 + 概况。
  *
- *   node test/records-check.js <牌谱文件>... [html=80fen-test.html] [--bad]
+ *   node test/records-check.js <牌谱文件>... [html=80fen-test.html] [--bad] [--flags]
  *
  * 文件是一行一局:设置里「导出全部牌谱」得到的 .txt,或收集表 doGet 下载的 JSONL(见 docs/upload/README.md)。
  * 也认单局 JSON(80fen-record-1/2)。多个文件按 id 去重。
@@ -19,7 +19,7 @@ const fs=require('fs'),vm=require('vm'),path=require('path');
 const args=process.argv.slice(2);
 const html=args.find(a=>a.endsWith('.html'))||path.join(__dirname,'..','80fen-test.html');
 const files=args.filter(a=>!a.startsWith('--')&&!a.endsWith('.html'));
-if(!files.length){ console.log('用法:node test/records-check.js <牌谱文件>... [--bad]'); process.exit(1); }
+if(!files.length){ console.log('用法:node test/records-check.js <牌谱文件>... [--bad] [--flags]'); process.exit(1); }
 const src=[...fs.readFileSync(html,'utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1])[0];
 const c={module:{exports:{}},console,Math,Object,Array,Set,Map,JSON,String,Number};c.globalThis=c;
 vm.createContext(c);vm.runInContext(src,c);
@@ -123,5 +123,13 @@ for(const [k,o] of Object.entries(by).sort((a,b)=>b[1].games-a[1].games)){
   console.log(`${(o.nick||k.slice(0,8)).padEnd(14)} ${String(o.games).padStart(4)}  ${String(o.part).padStart(4)}  ${String(o.replay).padStart(4)}  `+
     `${String(o.h).padStart(8)}  ${pct(o.a,all).padStart(4)}  ${pct(o.f,all).padStart(6)}  ${pct(o.hint,o.h).padStart(8)}  ${String(o.u).padStart(8)}  `+
     [...o.ver].map(v=>v.replace(/^80分 |\(测试版\)$/g,'')).join(' ')+(o.eng.size?`  旧引擎:${[...o.eng].join(',')}`:''));
+}
+// 出牌标记(v0.7.48):玩家在对局记录里点出来的「这手有问题」
+const flagged=good.filter(({r})=>Array.isArray(r.flags)&&r.flags.length);
+if(flagged.length){
+  const SN=['南','东','北','西'];
+  console.log(`\n出牌标记:${flagged.length} 局、${flagged.reduce((a,{r})=>a+r.flags.length,0)} 手`+(args.includes('--flags')?'':'(加 --flags 逐条列出)'));
+  if(args.includes('--flags')) for(const {r} of flagged) for(const f of r.flags)
+    console.log(`  ${String(r.id).slice(0,8)} ${r.nick||String(r.pid||'').slice(0,8)} 第 ${r.no} 局 第 ${f.t+1} 墩 ${SN[f.seat]}${f.seat===r.human?'(人)':''}${f.note?':'+f.note:''}`);
 }
 console.log('\n用作「真人数据」时建议:只取 by=h 的手;重打(replay)的局人可能已见过牌,另算;照提示出(hint)的手算半个 AI 决定。');

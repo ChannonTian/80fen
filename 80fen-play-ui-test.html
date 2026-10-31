@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-visual">
 <title>[UI测试] 六六八十分 · 打牌</title>
 <meta name="theme-color" content="#FBF6EC">
+<!-- 图标:六六头像 + 一张大王(icons/,v0.7.49) -->
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="stylesheet" href="design-system/dist/fonts.css">
 <link rel="stylesheet" href="design-system/dist/liuliu-tokens.css">
 <style>
@@ -566,7 +570,8 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 .trick-line .tsum{margin-left:auto;font:700 12px/1.4 var(--font-sans);color:var(--ink-soft);white-space:nowrap}
 .tcard{white-space:nowrap;margin-right:4px;font-family:var(--font-num);font-weight:900}
 .tcard.sS{color:var(--suit-spade)}.tcard.sH{color:var(--suit-heart)}.tcard.sD{color:var(--suit-diamond)}.tcard.sC{color:var(--suit-club)}
-.tcard.pt{background:var(--honey);color:var(--ink);border-radius:6px;padding:0 4px}
+/* 分牌(5 / 10 / K)垫一块浅蜂蜜色,字色仍按花色 —— 原来一律写成墨色,带分的 ♥ ♦ 就成了黑字,玩家容易看错 */
+.tcard.pt{background:#FBE3A6;border-radius:6px;padding:0 4px}
 .tjoker{display:inline-block;width:1.35em;height:1.35em;margin-right:4px;vertical-align:-.3em;flex:none}
 .tjoker>.joker-art{width:100%;height:100%;filter:drop-shadow(.6px 0 0 var(--ink)) drop-shadow(-.6px 0 0 var(--ink)) drop-shadow(0 .6px 0 var(--ink)) drop-shadow(0 -.6px 0 var(--ink))}
 .suit-row{display:grid;grid-template-columns:3.4em minmax(0,1fr);gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px dashed var(--line)}

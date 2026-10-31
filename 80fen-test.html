@@ -5,6 +5,10 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-visual">
 <title>[测试版] 六六八十分 · 80分(上海规则)</title>
 <meta name="theme-color" content="#FBF6EC">
+<!-- 图标:六六头像 + 一张大王(icons/,v0.7.49) -->
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="icons/favicon-16.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
 <link rel="stylesheet" href="design-system/dist/fonts.css">
 <link rel="stylesheet" href="design-system/dist/liuliu-tokens.css">
 <style>
@@ -109,7 +113,7 @@ button{cursor:pointer;touch-action:manipulation}
 .score-chip b{font:900 18px/1 var(--font-num);letter-spacing:-.02em}
 .score-total{font:800 12px/1 var(--font-sans);color:var(--ink-soft)}
 #game.m-l .score-chip,#game.m-w .score-chip{order:3;flex:1 1 180px;max-width:420px;height:38px}
-#game.m-l .topbar{padding:max(4px,env(safe-area-inset-top)) max(10px,env(safe-area-inset-right)) 2px max(10px,env(safe-area-inset-left));gap:6px;flex-wrap:nowrap}
+#game.m-l .topbar{padding:max(4px,env(safe-area-inset-top)) 10px 2px 10px;gap:6px;flex-wrap:nowrap}
 #game.m-l .chip{flex:0 1 auto;min-width:0;padding:0 10px}
 @media (max-width:700px){#game.m-l .topbar .logo{display:none}#game.m-l .score-label{display:none}}
 #game.m-l .topbar .logo{width:36px;height:36px}
@@ -205,6 +209,23 @@ button{cursor:pointer;touch-action:manipulation}
   background:rgba(245,237,220,.07);animation:slotPulse 1.8s var(--ease-in-out) infinite}
 .turn-slot:not([hidden]){animation:slotPulse 1.8s var(--ease-in-out) infinite,slotIn .3s var(--ease-back)}
 @keyframes slotIn{from{opacity:0;transform:scale(.9)}to{opacity:1;transform:none}}
+/* 小黄人说话的气泡:贴着名牌,尖角指回名牌,2.8 秒后淡出 */
+.say{position:absolute;left:0;top:0;z-index:9;transform:translate(-50%,-50%) scale(.85);max-width:min(170px,46%);width:max-content;
+  padding:6px 11px 7px;border:2px solid var(--ink);border-radius:14px;background:var(--card-face);box-shadow:var(--shadow-card);
+  font:800 13px/1.35 var(--font-sans);color:var(--ink);text-align:center;pointer-events:none;opacity:0;
+  transition:opacity .2s,transform .25s var(--ease-back)}
+.say.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
+.say::after{content:'';position:absolute;width:9px;height:9px;background:var(--card-face);border:2px solid var(--ink);border-width:0 0 2px 2px}
+.say.t-l::after{left:-6px;top:calc(50% - 5px);transform:rotate(45deg)}
+.say.t-r::after{right:-6px;top:calc(50% - 5px);transform:rotate(-135deg)}
+.say.t-b::after{bottom:-6px;left:calc(50% - 5px);transform:rotate(-45deg)}
+.say.t-t::after{top:-6px;left:calc(50% - 5px);transform:rotate(135deg)}
+#game.m-w .say{font-size:15px;max-width:220px}
+/* 说话时头像跟着动:开心弹一下,生气抖一下 */
+.ava.emo-happy{animation:emoHop .7s var(--ease-back)}
+.ava.emo-mad{animation:emoShake .5s ease-in-out}
+@keyframes emoHop{0%,100%{transform:none}35%{transform:translateY(-6px) scale(1.12)}65%{transform:translateY(1px)}}
+@keyframes emoShake{0%,100%{transform:none}20%{transform:translateX(-3px) rotate(-6deg)}40%{transform:translateX(3px) rotate(6deg)}60%{transform:translateX(-2px) rotate(-4deg)}80%{transform:translateX(2px)}}
 .turn-slot span{display:flex;flex-direction:column;align-items:center;gap:3px;padding:0 4px}
 .turn-slot{font-size:clamp(11px,calc(var(--tcw,52px)*.19),15px)}
 .turn-slot small{font:800 .78em/1 var(--font-sans);opacity:.85}
@@ -302,7 +323,7 @@ html.hasHover #hand .card:hover .face{border-color:var(--teal)}
 #dealZone:empty,#dealZone>span:only-child:empty{display:none}
 #dealZone span{font:700 14px/1.3 var(--font-sans);color:var(--ink-soft)}
 #game.m-l .action-bar{display:grid;grid-template-columns:1fr 1fr;align-content:end;gap:6px;border:0;background:none;
-  width:var(--act-w,116px);padding:4px max(8px,env(safe-area-inset-right)) 6px 0}
+  width:var(--act-w,116px);padding:4px 8px 6px 0}
 #game.m-l .action-bar .spacer{display:none}
 #game.m-l .action-bar>*{order:5}
 #game.m-l #btnHint{order:1}#game.m-l #btnAuto{order:2}#game.m-l #btnUndo{order:3}#game.m-l #btnClear{order:4}
@@ -481,6 +502,13 @@ html.hasHover #hand .card:hover .face{border-color:var(--teal)}
 .res-upload-btns{display:flex;gap:8px;justify-content:flex-end}
 .res-upload-btns .btn{min-height:36px;padding:0 14px;font-size:14px}
 .res-coach .dim{color:var(--ink-soft);font-size:13px}
+/* 局终:小黄人各说一句 */
+.res-quips{display:flex;flex-direction:column;gap:6px;margin-top:12px;text-align:left}
+.quip{display:flex;align-items:center;gap:8px;font:700 14px/1.4 var(--font-sans)}
+.quip b{margin-right:6px;font-family:var(--font-heading)}
+.quip .ava{flex:none;width:30px;height:30px;border-radius:50%;padding:2px;background:var(--brick)}
+.quip .ava.mate{background:var(--teal)}
+.quip .ava svg{display:block;width:100%;height:100%;clip-path:circle(50%)}
 .setVer{display:block;margin-top:3px;font:700 12px/1.2 var(--font-sans);color:var(--ink-faint)}
 .setHeader b{min-width:4em}
 
@@ -570,13 +598,27 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 .tplay{display:inline-flex;flex-wrap:wrap;align-items:center;row-gap:3px;margin-right:10px}
 .tplay .who,.chip .who{display:inline-grid;place-items:center;width:17px;height:17px;margin-right:3px;border-radius:50%;flex:none;
   background:var(--brick);color:var(--card-face);font:900 10px/1 var(--font-heading);font-style:normal}
-.tplay .who.s2,.chip .who.s2{background:var(--teal)}.tplay .who.s0{background:var(--honey);color:var(--ink)}
+.tplay .who.s2,.chip .who.s2,.tplay .who.s0{background:var(--teal)}   /* 我和 Kevin 一队,一个颜色 */
 .chip .who{width:20px;height:20px;font-size:11px;margin-right:0}
 .tplay:last-child{margin-right:0}
+.tplay.can{cursor:pointer;border-radius:8px;padding:1px 4px;margin-left:-4px;margin-right:6px;-webkit-tap-highlight-color:transparent}
+.tplay.can:hover{background:var(--cream)}
+.tplay.flag{background:#F9D9CF;box-shadow:inset 0 0 0 2px var(--brick)}
+.tplay.flag::after{content:'🚩';margin-left:3px;font:400 12px/1 sans-serif}
+.flag-tip{font:600 12px/1.5 var(--font-sans);color:var(--ink-soft);margin:0 0 6px}
+.flag-edit{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:-2px 0 8px;padding:8px 10px;border-radius:12px;background:#F9D9CF;border:1.5px solid var(--brick)}
+.flag-edit .fe-who{font:700 13px/1.4 var(--font-sans);flex:1 1 100%}
+.flag-edit input{flex:1 1 100%;min-width:0;min-height:36px;border:2px solid var(--ink);border-radius:10px;padding:2px 8px;font:500 14px/1.2 var(--font-sans);background:var(--card-face)}
+.flag-edit .btn{min-height:36px;padding:0 14px;font-size:14px}.flag-edit #flagSave{margin-left:auto;order:2}
+.flag-note{font:500 12px/1.4 var(--font-sans);color:var(--brick-deep);grid-column:2/-1}
 .trick-line .tsum{margin-left:auto;font:700 12px/1.4 var(--font-sans);color:var(--ink-soft);white-space:nowrap}
 .tcard{white-space:nowrap;margin-right:4px;font-family:var(--font-num);font-weight:900}
 .tcard.sS{color:var(--suit-spade)}.tcard.sH{color:var(--suit-heart)}.tcard.sD{color:var(--suit-diamond)}.tcard.sC{color:var(--suit-club)}
-.tcard.pt{background:var(--honey);color:var(--ink);border-radius:6px;padding:0 4px}
+/* 分牌(5 / 10 / K)垫一块浅蜂蜜色,字色仍按花色 —— 原来一律写成墨色,带分的 ♥ ♦ 就成了黑字,玩家容易看错 */
+.tcard.pt{background:#FBE3A6;border-radius:6px;padding:0 4px}
+/* 六六的话、出错提示里的牌名(纯文字「♥K」):按花色上色,和牌面、对局记录一致 */
+.tx-S{color:var(--suit-spade)}.tx-H{color:var(--suit-heart)}.tx-D{color:var(--suit-diamond)}.tx-C{color:var(--suit-club)}
+.tx-S,.tx-H,.tx-D,.tx-C{font-weight:800;white-space:nowrap}
 .tjoker{display:inline-block;width:1.35em;height:1.35em;margin-right:4px;vertical-align:-.3em;flex:none}
 .tjoker>.joker-art{width:100%;height:100%;filter:drop-shadow(.6px 0 0 var(--ink)) drop-shadow(-.6px 0 0 var(--ink)) drop-shadow(0 .6px 0 var(--ink)) drop-shadow(0 -.6px 0 var(--ink))}
 .suit-row{display:grid;grid-template-columns:3.4em minmax(0,1fr);gap:8px;align-items:baseline;padding:6px 0;border-bottom:1px dashed var(--line)}
@@ -639,6 +681,31 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 #dragGhost .drag-count{align-self:flex-start;margin-left:6px;padding:3px 9px;border:2px solid var(--ink);border-radius:999px;background:var(--honey);font:900 14px/1 var(--font-num)}
 #versionTag{display:none}
 #tests{display:none}
+/* ---------- 矮横屏:顶栏改成左边一条竖栏 ----------
+   横屏最缺的是高度。原来顶栏横在上面占掉 46px,牌桌只剩一半屏高,桌上的牌只能很小,两侧却空着。
+   现在左边一条窄栏放主牌 / 级数 / 得分 / 记录 / 菜单,右边一条放操作按钮,牌桌拿到整个屏高;手牌仍占满整个屏幕宽 */
+#game.m-l{grid-template-columns:var(--info-w,92px) minmax(0,1fr) var(--act-w,116px);grid-template-rows:minmax(0,1fr) var(--hand-h,80px);
+  grid-template-areas:"top arena act" "hand hand hand"}
+#game.m-l .topbar{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto auto auto minmax(0,1fr) auto;align-content:start;
+  gap:6px;padding:max(6px,env(safe-area-inset-top)) 4px 6px 8px;background:none}   /* 左右刘海的让位 #game 已经给了,这里不再加 */
+#game.m-l .topbar>*{grid-column:1/-1;min-width:0}
+#game.m-l .topbar .logo{grid-row:1;justify-self:center;width:34px;height:34px}
+#game.m-l #trumpChip{grid-row:2}#game.m-l #levelChip{grid-row:3}#game.m-l #scoreChip{grid-row:4}
+#game.m-l .topbar .spacer{grid-row:5}
+#game.m-l #recordsBtn{grid-row:6;grid-column:1;justify-self:center}#game.m-l #menuBtn{grid-row:6;grid-column:2;justify-self:center}
+#game.m-l .topbar .chip{height:auto;min-height:34px;padding:5px 6px;border-radius:14px;flex-wrap:wrap;justify-content:center;row-gap:2px;column-gap:4px;white-space:normal;text-align:center}
+#game.m-l .topbar .chip .sep{display:none}
+#game.m-l .score-chip{height:auto;flex-wrap:wrap;justify-content:center;align-items:baseline;gap:2px 4px;padding:6px 6px 7px;border-radius:14px;max-width:none}
+#game.m-l .score-chip .score-label{display:block;flex-basis:100%;text-align:center;font-size:11px}
+#game.m-l .score-chip .score-track{order:9;flex:1 1 100%;min-width:0;height:8px;margin-top:3px}
+#game.m-l .score-chip .score-total{display:inline}
+#game.m-l .score-chip .score-gain{order:8;padding:2px 5px 1px;font-size:12px}
+#game.m-l .score-chip:has(.score-gain:not([hidden])) .score-total{display:none}
+#game.m-l .icon-btn{width:38px;height:38px;border-radius:12px}
+#game.m-l .icon-btn svg{width:20px;height:20px}
+#game.m-l .arena{margin:6px 4px 6px 4px}
+/* 很矮的横屏(SE 横放):不放头像,省一行 */
+@media (max-height:340px){#game.m-l .topbar .logo{display:none}#game.m-l .score-chip .score-label{display:none}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -654,7 +721,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
       <span class="score-track"><i id="scoreFill"></i><i class="pend" id="scorePend"></i></span>
       <b id="scoreNow">0</b><span class="score-total">/80</span><em class="score-gain" id="scoreGain" hidden></em>
     </button>
-    <button class="icon-btn" id="recordsBtn" aria-label="记录与教练"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg></button>
+    <button class="icon-btn" id="recordsBtn" aria-label="记录与教练"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6v3H9z"/><path d="M15 5.5h2a2 2 0 0 1 2 2V19a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7.5a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h4"/></svg></button>
     <button class="icon-btn" id="menuBtn" aria-label="菜单"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
     <!-- 产品状态栏:render() 持续写入,不显示,级数从这里读 -->
     <div id="status" hidden></div>
@@ -753,7 +820,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.44(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.49(测试版)</div>
 
 
 <script>
@@ -7351,7 +7418,7 @@ function aiThinkMs(){
 function openSettings(){
   // 托管不在 S 里(它按局生效),但「取消」要能把它一起退回去,否则勾了再点取消它还开着
   const snapshot={S:JSON.parse(JSON.stringify(S)), C:JSON.parse(JSON.stringify(C)), lang, sndOn,
-                  auto:!!(G&&G.auto)};
+                  auto:!!(G&&G.auto), chat:chatLevel()};
   const el=document.getElementById('setContent');
   el.innerHTML=
     `<div class="setHeader"><b>设置<span class="setVer">${(document.getElementById('versionTag')||{}).textContent||''}</span></b>
@@ -7390,6 +7457,9 @@ function openSettings(){
          <option value="en">English (terms only)</option>
        </select></div>`+
     `<div class="setRow"><label><input type="checkbox" id="stSnd"> 音效</label></div>`+
+    `<div class="setRow"><label>对手说话</label>
+       <select id="stChat"><option value="more">多</option><option value="less">少</option><option value="off">关</option></select></div>`+
+    `<div class="setHint">Bob、Kevin、Stuart 收墩、被毙、等你出牌时冒一句</div>`+
     `<div class="setSection">节奏</div>`+
     `<div class="setRow"><label>发完牌后${T('declare')}等待(秒)</label>
        <input type="number" id="stDeclWait" min="0" max="60" step="1"></div>`+
@@ -7494,7 +7564,7 @@ function openSettings(){
       : '(这一局还没开始,或已经结束)';
     $('stHold').disabled=!!S.manualNext;
     $('stHoldHint').textContent=S.manualNext?'(手动模式下由你点「下一墩」决定)':'';
-    $('stLang').value=lang; $('stSnd').checked=sndOn;
+    $('stLang').value=lang; $('stSnd').checked=sndOn; $('stChat').value=chatLevel();
     $('cOn').checked=C.on; $('cSens').value=C.gapSens; $('cStrict').checked=C.strict;
     $('cReview').checked=C.review; $('cQuiz').checked=C.quiz; $('cMemShow').checked=C.memShow;
     $('rPts').value=S.rules.pointRebelThreshold;
@@ -7563,6 +7633,7 @@ function openSettings(){
     try{ localStorage.setItem(LSP+'lang',lang); }catch(_){ } if(G) render(); };
   $('stSnd').onchange=e=>{ sndOn=e.target.checked;
     try{ localStorage.setItem(LSP+'snd',sndOn?'on':'off'); }catch(_){ } };
+  $('stChat').onchange=e=>setChatLevel(e.target.value);
   $('cOn').onchange=e=>{ C.on=e.target.checked; saveC(); if(G) render(); };
   $('cSens').onchange=e=>{ C.gapSens=e.target.value; saveC(); };
   $('cStrict').onchange=e=>{ C.strict=e.target.checked; saveC(); };
@@ -7593,11 +7664,12 @@ function openSettings(){
   $('stReset').onclick=()=>{ S={...S_DEFAULT, gates:[...S_DEFAULT.gates], rules:{...RULE_DEFAULTS},
       engineVer:[...S_DEFAULT.engineVer]};
     if(G&&G.auto) window.__setAuto(false);      // 「恢复默认」也把托管交还
+    setChatLevel('more');
     saveS(); applyRules(); fill(); if(G) render(); };
   // 取消:每项改动本来就是即改即存,这里把开菜单那一刻的快照整个套回去(含持久化),
   // 而不是只清内存——不然关掉重开又会看到"取消"前改过的值。
   $('stCancel').onclick=()=>{
-    S=snapshot.S; C=snapshot.C; lang=snapshot.lang; sndOn=snapshot.sndOn;
+    S=snapshot.S; C=snapshot.C; lang=snapshot.lang; sndOn=snapshot.sndOn; setChatLevel(snapshot.chat);
     saveS(); saveC(); applyRules();
     if(G&&G.auto!==snapshot.auto) window.__setAuto(snapshot.auto);
     try{
@@ -7617,6 +7689,9 @@ function openSettings(){
   document.getElementById('setOverlay').style.display='flex';
 }
 function closeSettings(){ document.getElementById('setOverlay').style.display='none'; }
+// 对手说话(小黄人气泡,表现层画):多 / 少 / 关,存 localStorage['liuliu-chatter'],表现层每次说话前读
+function chatLevel(){ try{ return localStorage.getItem('liuliu-chatter')||'more'; }catch(_){ return 'more'; } }
+function setChatLevel(v){ try{ localStorage.setItem('liuliu-chatter',v); }catch(_){ } if(v==='off'&&window.__hideSays) window.__hideSays(); }
 window.__openSet=openSettings;
 window.__closeSet=closeSettings;
 // 复用设置浮层做通用弹窗(看底牌、看初始手牌)
@@ -8166,6 +8241,7 @@ function undoLastPlay(){
   G=Object.assign(snap,{undoStack:stack,aiTimer:null,holdTimer:null,declTimer:null,declTick:null,
                         undos, undoNext:true});    // 悔牌次数要跨过快照记下来,快照里的是旧值
   G.selected=new Set(); G.hintCards=null; G.quiz=null; G.awaitNext=false;
+  { const f=getFlags(G.recId); if(f.some(x=>x.t>=G.tricks.length)) setFlags(G.recId,f.filter(x=>x.t<G.tricks.length)); }   // 撤掉的墩上的标记一起撤
   saveCheckpoint();      // 悔回去可能跨过了收墩,进度里不能留着已经撤掉的墩
   render(); setMsg('已悔回上一手出牌前,重新选牌');
   return true;
@@ -8521,7 +8597,7 @@ function endRound(){
     html+=`<div class="res-final">${weWon?'你们打过 A,整场胜利!':'对方打过 A,整场告负'}</div>`+levels+uploadAskHTML();
     html+=`<div class="panel-actions"><button class="btn primary" onclick="window.__newMatch()">再来一场</button>${more}</div>`;
   }else{
-    html+=levels+`<div class="res-next">下一局${['你','Bob','Kevin','Stuart'][M.dealer]}坐庄,打 ${lvName(M.levels[M.dealer%2])}</div>`+uploadAskHTML();
+    html+=levels+`<div class="res-next">下一局${['你',' Bob ',' Kevin ',' Stuart '][M.dealer]}坐庄,打 ${lvName(M.levels[M.dealer%2])}</div>`+uploadAskHTML();
     html+=`<div class="panel-actions"><button class="btn primary" onclick="window.__next()">下一局</button>${more}</div>`;
   }
   // 弹层之下的牌桌也要跟着进「已结束」态(托管按钮收起、发牌区改成「复盘中」),
@@ -8616,8 +8692,31 @@ function makeRecord(r){
     ...(part&&!G.initialHands?{}:{initialHands:(part?G.initialHands:r.initialHands||[]).map(css),
                                    buried:css(part?G.buried:r.buried)}),
     tricks:tricks.map(t=>({plays:t.plays.map(p=>({seat:p.seat,cards:css(p.cards),
-      ...(p.by?{by:p.by}:{}),...(p.hint?{hint:1}:{}),...(p.u?{u:1}:{})})),winner:t.winner,points:t.points}))};
+      ...(p.by?{by:p.by}:{}),...(p.hint?{hint:1}:{}),...(p.u?{u:1}:{})})),winner:t.winner,points:t.points})),
+    ...(()=>{ const f=getFlags(G.recId).filter(x=>x.t<tricks.length); return f.length?{flags:f}:{}; })()};
 }
+/* 出牌标记(v0.7.48):玩家在「对局记录 · 按墩」里点一家出的牌,标成「这手有问题」,可附一句话。
+ * 随牌谱上传,给 AI 线当体检 / 训练样本。本机按牌谱 id 存一份(lsGet('flags')[id] = [{t, seat, note?}],
+ * t = 第几墩(从 0 数)、seat = 哪一家出的那手);makeRecord 带上 flags。
+ * 已经存档(打完)的局再改标记:改那份存档的 flags、清掉已上传记号重新上传,服务端认出同一个 id 带 flags 就覆盖那一行。 */
+function getFlags(id){ const all=lsGet('flags',{}); return Array.isArray(all[id])?all[id]:[]; }
+let flagUpTimer=null;
+function setFlags(id,list){
+  list=list.filter(f=>f&&f.t>=0&&f.seat>=0&&f.seat<=3).map(f=>({t:f.t,seat:f.seat,...(f.note?{note:String(f.note).slice(0,200)}:{})}))
+           .sort((a,b)=>a.t-b.t||a.seat-b.seat);
+  const all=lsGet('flags',{});
+  if(list.length) all[id]=list; else delete all[id];
+  const keys=Object.keys(all);
+  if(keys.length>REC_MAX) keys.slice(0,keys.length-REC_MAX).forEach(k=>delete all[k]);
+  lsSet('flags',all);
+  const recs=lsGet('recs',[]), r=recs.find(x=>x.id===id);
+  if(r){
+    const old=JSON.stringify(r.flags||[]);
+    if(old!==JSON.stringify(list)){ r.flags=list; delete r.up; lsSet('recs',recs);
+      clearTimeout(flagUpTimer); flagUpTimer=setTimeout(flushUploads,4000); }   // 连着标几手,停下来再一起传
+  }else if(G&&G.recId===id) saveCheckpoint();
+}
+window.__flags={get:getFlags,set:setFlags};
 /* 残局进度:发完牌、开打、每收一墩、悔牌之后各覆盖写一次(本机一格 'cur')。正常打完就清掉;
  * 没打完就离开了(刷新 / 关页面 / 被系统杀掉 / 重打 / 用种子开局 / 重开整场),
  * 下一次开局或下次打开页面时把它转成一份残局牌谱(promoteCheckpoint)。
@@ -8656,7 +8755,8 @@ async function flushUploads(){
                                         body:JSON.stringify(batch)});
       const j=await res.json()||{};
       // saved / dup = 收到了;bad = 服务端不收(格式不对等),也不再重传 —— 只有 'rate'(传太快)下次再试
-      const done=new Set([...(j.saved||[]),...(j.dup||[])]);
+      // upd = 已传过的局改了出牌标记,服务端覆盖了那一行
+      const done=new Set([...(j.saved||[]),...(j.dup||[]),...(j.upd||[])]);
       const rej=new Set((j.bad||[]).filter(b=>b&&b.why!=='rate').map(b=>b.id));
       if(!done.size&&!rej.size) break;
       const all=lsGet('recs',[]);
@@ -9550,17 +9650,26 @@ function handTarget(G){
 /* 手机上点进输入框,软键盘会把可视高度压掉一半,宽 > 高 就被当成横屏:骨架、抽屉位置全跟着翻。
    打字时不换骨架,只按原骨架重排 */
 function typing(){var a=document.activeElement;return !!a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&a.type!=='checkbox'&&a.type!=='range';}
+/* 刘海 / 灵动岛 / 底部横条让出来的边距(iPhone 横屏左右各 47~62px、底下 21px;加到主屏幕的网页 App 和 Chrome 都有)。
+   #game 的左右内边距已经让过,排版时要按让过之后的宽度算;矮横屏手牌贴屏幕底边,底下再让出横条 */
+var safeProbe=document.createElement('div');
+safeProbe.style.cssText='position:fixed;left:0;top:0;width:0;height:0;visibility:hidden;pointer-events:none;'+
+  'padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+document.body.appendChild(safeProbe);
+function safeArea(){var c=getComputedStyle(safeProbe);
+  return {t:parseFloat(c.paddingTop)||0,r:parseFloat(c.paddingRight)||0,b:parseFloat(c.paddingBottom)||0,l:parseFloat(c.paddingLeft)||0};}
 function layout(){
   var mode=typing()&&L.ready?L.mode:detectMode();
   L.ready=true;
   if(mode!==L.mode){game.classList.remove('m-p','m-l','m-w');document.body.classList.remove('m-p','m-l','m-w');L.mode=mode;}
   game.classList.add('m-'+mode);document.body.classList.add('m-'+mode);
   if(typing()&&L.hand)return;
-  var W=game.clientWidth,H=window.innerHeight;
+  var SA=safeArea();
+  var W=game.clientWidth-SA.l-SA.r,H=window.innerHeight;
   var G=g();
   var cards=Array.prototype.slice.call(hand.children);
   var actW=0;
-  if(mode==='l'){actW=W<700?116:132;game.style.setProperty('--act-w',actW+'px');}
+  if(mode==='l'){actW=W<700?116:132;game.style.setProperty('--act-w',actW+'px');game.style.setProperty('--info-w',(W<700?88:100)+'px');}
   var handW=W;
   var cfg=handCfg(mode,handW,H);
   /* 牌桌太矮、桌面牌比手牌小一截时,手牌让一点(同一屏幕尺寸只算一次,一局里手牌大小不变) */
@@ -9572,6 +9681,7 @@ function layout(){
   var idlePlan=planHand(new Array(25).fill('x'),handW,H,cfg,25);
   L.idleCw=idlePlan.cw;
   var hh=plan?Math.max(plan.height,mode==='l'?idlePlan.height:0):idlePlan.height;
+  if(mode==='l')hh+=SA.b;   /* 底部横条下面不放要点的牌 */
   game.style.setProperty('--hand-h',hh+'px');
   L.hand=plan;
   if(plan){
@@ -9674,35 +9784,56 @@ function layoutTable(){
   var lh=lab.N.offsetHeight||34,lw={};
   for(var k in lab)lw[k]=lab[k].offsetWidth||90;
   var hcw=L.idleCw||(L.hand?L.hand.cw:60);
-  var cap=hcw*1.25,hard=wide?118:mode==='l'?84:112;
+  /* 桌面牌不超过手牌的 1.25 倍;矮横屏的手牌只露上半截、本来就小,放宽到 1.7 倍 */
+  var cap=hcw*(mode==='l'?1.7:1.25),hard=wide?118:mode==='l'?124:112;
   var tcw,th,P={};   /* P[k]={x,y,align,max} 牌摞锚点 */
-  if(mode==='l'){
+  /* 宽屏但桌子扁(平板横放、浏览器工具栏又占掉一截):三行摆牌会被高度卡得很小、全挤在中间,
+     改用矮横屏那种两行摆法(上下家在左右两边),牌能大一半;牌明显变大才换 */
+  var two=mode==='l';
+  /* 两行之间的空隙:宽屏留出桌高的 12%,上下两行不挤在一起(矮横屏本来就矮,只留 g) */
+  var gv=wide?Math.max(g,Math.round(ah*0.12)):g;
+  if(wide){
+    var t3=Math.min((ah-2*pad-lh-lg-2*g)/3/1.43,cap,hard,(aw-2*pad-g)/2/1.4);
+    var t2=Math.min((ah-2*pad-gv)/2/1.43,hcw*1.6,hard,(aw/2-pad-Math.max(lw.E,lw.W)-g-8)/3.2);
+    two=t2>=t3*1.15;
+    if(two)cap=hcw*1.6;
+  }
+  TB.two=two;
+  if(two){
     /* 矮横屏:名牌是竖排的小头像。上下家在桌子左右两边的中间,牌摞挨着名牌朝桌心长;
        对家、我两摞在中间一列(上下各一行),头像在牌摞左边 */
     var lhs={};for(var k2 in lab)lhs[k2]=lab[k2].offsetHeight||56;
-    th=(ah-2*pad-g)/2;
-    tcw=Math.max(34,Math.floor(Math.min(th/1.43,cap,hard)));th=tcw*1.43;
+    th=(ah-2*pad-gv)/2;
+    tcw=Math.max(34,Math.floor(Math.min(th/1.43,cap,hard,wide?(aw/2-pad-Math.max(lw.E,lw.W)-g-8)/3.2:1e9)));th=tcw*1.43;
     var lwc=lw.N,yMid=ah/2;
     /* 上下家:名牌放在牌摞旁边(左右两边正中);桌面太窄、旁边连一对都放不下时,名牌退到上面两角、牌摞挂在名牌下面 */
+    /* 宽屏:牌略小一点就能让名牌留在两边正中时,宁可小一点(名牌退到上角,两边的牌就偏上了) */
+    if(wide)tcw=Math.max(34,Math.floor(Math.min(tcw,Math.max(t3*1.15,(aw/2-3*g-lwc-pad-lw.W)/1.9))));th=tcw*1.43;
     var x0=Math.round(aw/2-tcw/2),colL=x0-g-lwc;                   /* 中间一列(含对家头像)的左边界 */
     var beside=colL-g-(pad+lw.W+g),stack=beside<tcw*1.4;
     if(stack){
       tcw=Math.max(28,Math.min(tcw,Math.floor((aw/2-lwc-2*g-pad)/1.9)));th=tcw*1.43;
       x0=Math.round(aw/2-tcw/2);colL=x0-g-lwc;
     }
-    var side=stack?Math.max(tcw,colL-g-pad):Math.max(tcw,Math.min(beside,tcw*3.2));   /* 上下家牌摞最宽 */
+    /* 上下家牌摞最宽。名牌退到上角时,对家头像也贴最上面,上家的牌摞可以从它下面伸过去,一直到中间那一列 */
+    var side=stack?Math.max(tcw,x0-g-pad):Math.max(tcw,Math.min(beside,tcw*3.2));
+    /* 我的名牌在左下角,和对家的(中间一列左上)左右错开。上家名牌退到上角、牌摞从左边挂下来够得着最下面时,
+       左下角会被牌摞压住,我的名牌就放回我那摞左边,上家牌摞不伸过它 */
+    var sBy=wide&&stack&&pad+Math.max(lhs.W,lhs.E)+lg+th>ah-pad-lhs.S;
+    if(sBy){colL=Math.min(colL,x0-g-lw.S);side=Math.max(tcw,colL-g-pad);}
     var xW=stack?pad:pad+lw.W+g,xE=stack?aw-pad:aw-pad-lw.E-g;
     var ySide=stack?pad+Math.max(lhs.W,lhs.E)+lg:yMid-th/2;
     var colMax=Math.max(tcw,xE-side-g-x0);                         /* 中间一列牌摞最宽 */
     var yS=ah-pad-th;
-    place(lab.N,x0-g-lw.N,pad+(th-lhs.N)/2);
-    place(lab.S,pad,ah-pad-lhs.S);                                 /* 我的头像在左下角,不浮在桌子中间 */
+    place(lab.N,x0-g-lw.N,pad);                                    /* 对家的名牌贴桌子上边、在自己那摞左边 */
+    place(lab.S,sBy?x0-g-lw.S:pad,ah-pad-lhs.S);                   /* 我的贴下边、在左下角,不浮在桌子中间 */
     if(stack){place(lab.W,pad,pad);place(lab.E,aw-pad-lw.E,pad);}
     else{place(lab.W,pad,yMid-lhs.W/2);place(lab.E,aw-pad-lw.E,yMid-lhs.E/2);}
     P.N={x:x0,y:pad,align:'l',max:colMax};
     P.S={x:x0,y:yS,align:'l',max:colMax};
     P.W={x:xW,y:ySide,align:'l',max:side};
     P.E={x:xE,y:ySide,align:'r',max:side};
+    TB.lane={x0:x0,xE:xE};   /* 中间一列和下家那摞共用 [x0, xE] 这一段,按张数分(见 stampPiles) */
     TB.center={x:aw/2,y:ah/2};
     TB.slot={x:x0,y:yS};
   }else{
@@ -9734,6 +9865,7 @@ function layoutTable(){
     P.E={x:xE,y:ySide,align:'r',max:reach};
     TB.center={x:aw/2,y:ySide+th/2};
     TB.slot={x:aw/2-tcw/2,y:yS};
+    TB.lane=null;
   }
   TB.lw=['N','W','E','S'].map(function(k){return lab[k].offsetWidth;}).join();
   TB.P=P;TB.tcw=tcw;TB.th=th;TB.aw=aw;TB.ah=ah;TB.ready=true;
@@ -9747,8 +9879,17 @@ function layoutTable(){
 function stampPiles(){
   if(!TB.ready)return;
   var tcw=TB.tcw,step0=Math.max(14,Math.round(tcw*0.34));
+  /* 矮横屏:对家 / 我那一列和下家那摞抢同一段横向空间。按各自张数要多宽来分,不让先到的一摞占满、另一摞挤成一条 */
+  var mx={};
+  if(TB.two&&TB.lane){
+    var need=function(k){var n=$(SEAT_KEYS[k].pile).children.length;return n?tcw+(n-1)*step0:0;};
+    var c=Math.max(need('N'),need('S')),e=need('E'),room=TB.lane.xE-TB.lane.x0-8;
+    var cm=c+e>room?Math.max(tcw,room*c/(c+e)):room-e;
+    mx.N=mx.S=Math.max(tcw,cm);mx.E=Math.max(tcw,room-mx.N);
+  }
   for(var k in SEAT_KEYS){
     var p=$(SEAT_KEYS[k].pile),a=TB.P[k],n=p.children.length,step=step0;
+    if(mx[k])a={x:a.x,y:a.y,align:a.align,max:mx[k]};
     if(n>1)step=Math.max(6,Math.min(step0,(a.max-tcw)/(n-1)));
     var w=n?tcw+(n-1)*step:0;
     p.style.setProperty('--pstep',step+'px');
@@ -9819,11 +9960,11 @@ function flyCollect(snap,seat){
     setTimeout(function(){gh.remove();},620);
   });
 }
-/* 六六气泡:竖屏 / 宽屏盖在我出牌那一行(轮到我时那里本来空着);矮横屏只占中间一列,不盖上下家的牌 */
+/* 六六气泡:竖屏 / 宽屏盖在我出牌那一行(轮到我时那里本来空着);两行摆法(矮横屏、扁的宽屏)只占中间一列,不盖上下家的牌 */
 function placeBubble(){
   var gr=game.getBoundingClientRect(),ar=arena.getBoundingClientRect();
   bubble.style.bottom=(gr.bottom-ar.bottom+6)+'px';
-  if(L.mode==='l'&&TB.ready){
+  if(TB.ready&&TB.two){
     /* 按上下家牌摞实际占到哪算,两边留 12px */
     var wr=rel($('p3')),er=rel($('p1'));
     var edge=Math.max($('p3').children.length?wr.right:TB.P.W.x,$('p1').children.length?TB.aw-er.left:TB.aw-TB.P.E.x);
@@ -9868,13 +10009,15 @@ function sync(){
   ['idle','dealing','kitty','lowrebel','redealing','play','ended'].forEach(function(k){ctl.classList.toggle('ph-'+k,ph===k);});
   if(!G)return;
   var round=(G.start&&G.start.round||0)+'/'+(G.start&&G.start.seed);
-  if(round!==lastRound){lastRound=round;L.progress=0;lastTf={};TB.snap=null;lastChatId=maxChatId();hideBubble();}
+  if(round!==lastRound){lastRound=round;L.progress=0;lastTf={};TB.snap=null;lastChatId=maxChatId();hideBubble();hideSays();}
   if(ph!==lastPhase){lastPhase=ph;if(ph!=='play')hideBubble();}
   /* 兜底:手牌张数变了却没排过(或有牌没被摆位),补排一次 */
   var hc=hand.children;
   if(hc.length&&(!L.hand||L.hand.rows.reduce(function(a,r){return a+r.cards.length;},0)!==hc.length||!hc[0].style.transform||L.hand.rows[0].cards[0].el!==hc[0]))layout();
   syncTop(G);
   syncSeats(G);
+  chatterDecl(G);
+  if(G.ended)setTimeout(function(){var G2=g();if(G2&&G2.ended)chatterEnd(G2);},60);
   syncCenter(G);
   syncControls(G);
   watchCoach(G);
@@ -9906,7 +10049,7 @@ function syncTop(G){
   var spans=$('status').querySelectorAll('span');
   var lv=spans[4]&&spans[4].textContent.match(/你们[:：]?\s*(\S+)\s*对方[:：]?\s*(\S+)/);
   if(lv){
-    var narrow=window.innerWidth<=440&&L.mode==='p'||window.innerWidth<700&&L.mode==='l';
+    var narrow=window.innerWidth<=440&&L.mode==='p'||L.mode==='l';   /* 横屏的级数在左边窄栏里 */
     var h2='<small>'+(narrow?'我':'我方')+'</small><span class="num">'+lv[1]+'</span><span class="sep"></span><small>'+(narrow?'对':'对方')+'</small><span class="num">'+lv[2]+'</span>';
     var lc=$('levelChip');if(lc.__h!==h2){lc.innerHTML=h2;lc.__h=h2;lc.setAttribute('aria-label','级数:我方打'+lv[1]+',对方打'+lv[2]);}
   }
@@ -9950,7 +10093,8 @@ function syncSeats(G){
   if(collect>=0){
     if(!badge){badge=document.createElement('div');badge.className='winner-label';arena.appendChild(badge);}
     if(badge.textContent!==collectLabel)badge.textContent=collectLabel;
-    badge.__seat=collect;badge.dataset.seat=collect;TB.collect=collect;badge.classList.toggle('theirs',collect%2!==0);
+    badge.__seat=collect;badge.dataset.seat=collect;TB.collect=collect;
+    chatterTrick(G,res);badge.classList.toggle('theirs',collect%2!==0);
     placeStamp();
   }else if(badge)badge.remove();
   /* 名牌上的「领 / 庄 / 托管」一变,名牌宽度就变,按新宽度重排(靠右、居中的名牌才不会出桌) */
@@ -10025,7 +10169,7 @@ setInterval(function(){var G=g();if(G&&G.phase==='finalDecl')syncCenter(G);},400
 var ctEl=$('centerToast'),ctTimer=null;
 function centerFlash(text,kind,ms){
   clearTimeout(ctTimer);
-  ctEl.textContent=text;ctEl.className='center-toast show '+(kind||'info');
+  ctEl.textContent=text;tintSuits(ctEl);ctEl.className='center-toast show '+(kind||'info');
   /* 出错都是轮到我的时候:放在我出牌那一行(那里空着),不盖别家的牌 */
   if(TB.ready){var aw=TB.aw,ah=TB.ah,sy=TB.slot.y+TB.th/2;
     placeFree(ctEl,[{x:aw/2,y:sy},{x:aw/2,y:sy-TB.th*0.35},TB.center,{x:aw/2,y:ah/2},{x:aw/2,y:ah*0.3}]);}
@@ -10222,6 +10366,22 @@ $('cbClose').onclick=hideBubble;
 /* 教练说的话都在产品的消息流里(window.__chat:quiz 先考一道题 → answer 公布答案 → advice 建议单;
    warn 失误提醒、doubt 存疑、review 局末复盘;from:'me' 是笔记和你的作答)。这里只挑当前这墩的弹出来 */
 function chatList(){return window.__chat?window.__chat():[];}
+/* 文字里的牌名按花色上色:只动文字节点,已经是牌面 / 记录小牌的不管 */
+var SUIT_RE=/([♠♥♣♦])\uFE0E?(10|[2-9]|J钩|皮蛋|老K|Ace|[JQKA])?/g,SUIT_OF={'♠':'S','♥':'H','♣':'C','♦':'D'};
+function tintSuits(root){
+  if(!root)return;
+  var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null),nodes=[],n;
+  while((n=w.nextNode()))if(/[♠♥♣♦]/.test(n.nodeValue)&&!(n.parentNode.closest&&n.parentNode.closest('.tcard,.card,.tx-S,.tx-H,.tx-D,.tx-C,input,textarea')))nodes.push(n);
+  nodes.forEach(function(t){
+    var f=document.createDocumentFragment(),s=t.nodeValue,last=0,m;SUIT_RE.lastIndex=0;
+    while((m=SUIT_RE.exec(s))){
+      if(m.index>last)f.appendChild(document.createTextNode(s.slice(last,m.index)));
+      var sp=document.createElement('span');sp.className='tx-'+SUIT_OF[m[1]];sp.textContent=m[0];f.appendChild(sp);last=m.index+m[0].length;
+    }
+    if(last<s.length)f.appendChild(document.createTextNode(s.slice(last)));
+    t.parentNode.replaceChild(f,t);
+  });
+}
 var lastChatId=0;
 function maxChatId(){var c=chatList();return c.length?c[c.length-1].id:0;}
 /* 建议单:首选那一手放在气泡里,其余(也可以的出法、跟牌义务、存疑说明)收在「还有呢」里 */
@@ -10266,6 +10426,7 @@ function showHintBubble(){
       var m=text.querySelector('.cb-more');m.hidden=!m.hidden;this.textContent=m.hidden?'还有呢':'收起';
     };
   }
+  tintSuits(text);
   bubbleKind='hint';placeBubble();bubble.hidden=false;clearTimeout(bubbleTimer);
 }
 /* 问六六:产品出题或给建议(都记进消息流),气泡里接着显示 */
@@ -10283,7 +10444,7 @@ function watchCoach(G){
     var warn=fresh.filter(function(m){return m.from==='coach'&&(m.kind==='warn'||m.kind==='doubt');}).pop();
     if(warn){
       bubble.classList.toggle('warn',warn.kind==='warn');
-      $('cbText').innerHTML=warn.html.replace(/^⚠️?\s*/,'');
+      $('cbText').innerHTML=warn.html.replace(/^⚠️?\s*/,'');tintSuits($('cbText'));
       $('cbActions').innerHTML='';
       bubbleKind='warn';placeBubble();bubble.hidden=false;
       clearTimeout(bubbleTimer);bubbleTimer=setTimeout(hideBubble,8000);
@@ -10351,12 +10512,13 @@ function renderSide(){
   $('recordsFoot').hidden=activeTab!=='coach';
   if(activeTab==='coach')renderCoach();else{if(recPanel.querySelector('#coachInput'))recPanel.innerHTML='';renderLog();}
 }
+function rawTxt(c){var x=cardTxt(c);x.c=c;return x;}   /* 按花色看时要按大小排,留着原牌 */
 /* 局终快照,供回看已完成的局 */
 function snapshotRound(G){
   var no=(G.start&&G.start.round||0)+1;
-  return {no:no,initialHands:G.initialHands?G.initialHands.map(function(h){return h.map(cardTxt);}):null,
+  return {no:no,id:G.recId,trump:G.trump,initialHands:G.initialHands?G.initialHands.map(function(h){return h.map(cardTxt);}):null,
     tricks:(G.tricks||[]).map(function(t){return {no:t.no,winner:t.winner,points:t.points,
-      plays:t.plays.map(function(p){return {seat:p.seat,cards:p.cards.map(cardTxt)};})};})};
+      plays:t.plays.map(function(p){return {seat:p.seat,cards:p.cards.map(rawTxt)};})};})};
 }
 setInterval(function(){
   var G=g();if(!G)return;
@@ -10365,11 +10527,45 @@ setInterval(function(){
   if(document.body.classList.contains('drawer-open'))renderSide();
 },1000);
 var lastLogHtml='';
+/* 出牌标记:点一家出的牌 → 标成「这手有问题」并打开写理由的一行;再点已标的那手 → 打开 / 收起那一行。
+   标记存在产品层(window.__flags,按牌谱 id),随牌谱上传 */
+var flagEdit=null,flagDraft='';   /* flagEdit={id,t,seat}:正在写理由的那一手 */
+function flagsOf(id){return id&&window.__flags?window.__flags.get(id):[];}
+function saveFlagNote(){
+  if(!flagEdit)return;
+  var fl=flagsOf(flagEdit.id).map(function(f){return f.t===flagEdit.t&&f.seat===flagEdit.seat?{t:f.t,seat:f.seat,note:flagDraft.trim()}:f;});
+  window.__flags.set(flagEdit.id,fl);
+}
+recPanel.addEventListener('click',function(e){
+  var b=e.target.closest('[data-ft]');
+  if(b){
+    var a=b.dataset.ft.split(':'),id=a[0],t=+a[1],seat=+a[2],fl=flagsOf(id);
+    var has=fl.some(function(f){return f.t===t&&f.seat===seat;});
+    if(flagEdit)saveFlagNote();
+    if(!has){window.__flags.set(id,fl.concat([{t:t,seat:seat}]));flagEdit={id:id,t:t,seat:seat};flagDraft='';}
+    else if(flagEdit&&flagEdit.id===id&&flagEdit.t===t&&flagEdit.seat===seat)flagEdit=null;
+    else{flagEdit={id:id,t:t,seat:seat};flagDraft=(fl.filter(function(f){return f.t===t&&f.seat===seat;})[0].note)||'';}
+    renderLog();
+    var inp=$('flagNote');if(inp&&!has)inp.focus({preventScroll:true});
+    return;
+  }
+  if(e.target.id==='flagSave'){saveFlagNote();flagEdit=null;renderLog();}
+  else if(e.target.id==='flagDel'&&flagEdit){
+    window.__flags.set(flagEdit.id,flagsOf(flagEdit.id).filter(function(f){return !(f.t===flagEdit.t&&f.seat===flagEdit.seat);}));
+    flagEdit=null;renderLog();
+  }
+});
+recPanel.addEventListener('input',function(e){if(e.target.id==='flagNote')flagDraft=e.target.value;});
+recPanel.addEventListener('keydown',function(e){
+  if(e.target.id==='flagNote'&&e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();saveFlagNote();flagEdit=null;renderLog();}
+});
+recPanel.addEventListener('focusout',function(e){if(e.target.id==='flagNote')saveFlagNote();});
 function renderLog(){
   var G=g();
+  if(document.activeElement&&document.activeElement.id==='flagNote')return;   /* 正在写理由:不重画,免得打断输入 */
   var rounds=roundHistory.slice();
   if(G&&!G.ended){var cur=snapshotRound(G);cur.live=true;cur.initialHands=null;
-    cur.cur=(G.trick||[]).map(function(p){return {seat:p.seat,cards:p.cards.map(cardTxt)};});rounds.push(cur);}
+    cur.cur=(G.trick||[]).map(function(p){return {seat:p.seat,cards:p.cards.map(rawTxt)};});rounds.push(cur);}
   if(!rounds.length){
     var h0='<div class="empty-note">还没开局。开局后这里按墩记下每家出的牌。</div>';
     if(recPanel.__h!==h0){recPanel.innerHTML=h0;recPanel.__h=h0;}return;
@@ -10386,33 +10582,54 @@ function renderLog(){
       return '<div class="ih-row"><span class="ih-who">'+who(s)+'</span><span class="tcards">'+h.map(txtHtml).join('')+'</span></div>';}).join('')+'</details>';
   }
   if(logMode==='trick'){
-    cur2.tricks.forEach(function(t){html+=trickLine(t);});
+    var fl=flagsOf(cur2.id);
+    if(cur2.id&&cur2.tricks.length)html+='<div class="flag-tip">觉得哪手出得不对,点一下那家的牌标出来(🚩),可以写一句为什么。标记跟着牌谱上传,用来改进 AI。'+
+      (fl.length?' 这一局标了 '+fl.length+' 手。':'')+'</div>';
+    cur2.tricks.forEach(function(t,i){
+      html+=trickLine(t,cur2.id,i,fl);
+      if(flagEdit&&flagEdit.id===cur2.id&&flagEdit.t===i){
+        html+='<div class="flag-edit"><span class="fe-who">🚩 第 '+(i+1)+' 墩 · '+who(flagEdit.seat)+' 这手有问题</span>'+
+          '<input id="flagNote" maxlength="200" enterkeyhint="done" placeholder="哪里不对?(可不填)" value="'+esc(flagDraft).replace(/"/g,'&quot;')+'">'+
+          '<button class="btn primary" id="flagSave">好</button><button class="btn" id="flagDel">取消标记</button></div>';
+      }
+    });
     if(cur2.cur&&cur2.cur.length)html+=trickLine({no:cur2.tricks.length+1,winner:-1,points:0,plays:cur2.cur,live:true});
     if(!cur2.tricks.length&&!(cur2.cur&&cur2.cur.length))html+='<div class="empty-note">还没有人出牌。</div>';
   }else{
     var by={},order=['T','♠','♥','♦','♣'],names={T:'主牌','♠':'黑桃','♥':'红桃','♦':'方块','♣':'梅花'};
-    var tsuit=G&&G.trump&&G.trump.suit?SUIT_SYM[G.trump.suit]:null,trank=G&&G.trump?rankName(G.trump.rank):null;
+    var tr=cur2.trump||G&&G.trump;
+    var tsuit=tr&&tr.suit?SUIT_SYM[tr.suit]:null,trank=tr?rankName(tr.rank):null;
     function push(pl){pl.forEach(function(p){p.cards.forEach(function(x){
       var k=x.joker||x.txt[0]===tsuit||x.txt.slice(2)===trank?'T':x.txt[0];(by[k]=by[k]||[]).push(x);});});}
     cur2.tricks.forEach(function(t){push(t.plays);});if(cur2.cur)push(cur2.cur);
+    /* 每门从大到小:主牌按主的大小(大王、小王、主花色级牌、副级牌、主花色 A…),副牌按点数;同大小的副级牌按 ♠♥♣♦ */
+    var SO={S:0,H:1,C:2,D:3,X:-1};
+    function str(x){return x.c&&tr?ordIdx(x.c,tr):0;}
+    for(var k3 in by)by[k3].sort(function(a,b){return str(b)-str(a)||(a.c&&b.c?SO[a.c.suit]-SO[b.c.suit]:0);});
     order.forEach(function(k){if(by[k])html+='<div class="suit-row"><span class="sg-label">'+names[k]+'</span><span class="tcards">'+by[k].map(txtHtml).join('')+'</span></div>';});
   }
   if(recPanel.__h!==html){
     var body=document.querySelector('.records-body');
     var atBottom=body.scrollTop+body.clientHeight>=body.scrollHeight-30;
-    recPanel.innerHTML=html;recPanel.__h=html;
+    recPanel.innerHTML=html;recPanel.__h=html;tintSuits(recPanel);
     $('logRound').onchange=function(){logRoundSel=this.value;renderLog();};
     $('logMode').onchange=function(){logMode=this.value;renderLog();};
     if(atBottom&&logMode==='trick')body.scrollTop=body.scrollHeight;
   }
 }
-function trickLine(t){
-  var ours=t.winner>=0&&t.winner%2===0;
-  /* 每家出的牌前面挂一个小头像,看得出是谁出的 */
-  var cards=t.plays.map(function(p){return '<span class="tplay" title="'+who(p.seat)+'"><i class="who s'+p.seat+'" aria-label="'+who(p.seat)+'">'+PLAYERS[p.seat].ini+'</i>'+p.cards.map(txtHtml).join('')+'</span>';}).join('');
+function trickLine(t,id,i,fl){
+  var ours=t.winner>=0&&t.winner%2===0,can=!!id&&!t.live&&window.__flags;
+  var notes=[];
+  /* 每家出的牌前面挂一个小头像,看得出是谁出的;收掉的墩每一手都能点,标成「有问题」 */
+  var cards=t.plays.map(function(p){
+    var f=can&&fl.filter(function(x){return x.t===i&&x.seat===p.seat;})[0];
+    if(f&&f.note)notes.push(who(p.seat)+' 那手:'+f.note);
+    return '<span class="tplay'+(can?' can':'')+(f?' flag':'')+'"'+(can?' data-ft="'+id+':'+i+':'+p.seat+'" role="button" aria-pressed="'+!!f+'"':'')+' title="'+who(p.seat)+(can?(f?' · 已标记,点一下改理由':' · 点一下标记这手有问题'):'')+'">'+
+      '<i class="who s'+p.seat+'" aria-label="'+who(p.seat)+'">'+PLAYERS[p.seat].ini+'</i>'+p.cards.map(txtHtml).join('')+'</span>';}).join('');
   return '<div class="trick-line'+(ours?' win':'')+'"><span class="tno">'+(t.live?'进行中':'第 '+t.no+' 墩')+'</span>'+
     '<span class="tcards">'+(cards||'—')+'</span>'+
-    (t.winner>=0?'<span class="tsum">'+who(t.winner)+' 收'+(t.points?' +'+t.points:'')+'</span>':'')+'</div>';
+    (t.winner>=0?'<span class="tsum">'+who(t.winner)+' 收'+(t.points?' +'+t.points:'')+'</span>':'')+
+    notes.map(function(n){return '<span class="flag-note">🚩 '+esc(n)+'</span>';}).join('')+'</div>';
 }
 /* 六六教练页:最上面是记笔记的输入框(只建一次,打字时不被重画打断),
    下面依次是记牌表(可折叠)、小测验、六六的建议与提醒、你的笔记 */
@@ -10470,7 +10687,7 @@ function renderCoach(){
   if(!chat.some(function(m){return m.from==='coach';}))html+='<div class="empty-note">轮到你出牌时点「问六六」:六六先考你一道和这手牌有关的题,答完或跳过就给建议;出了明显更差的一手会提醒;一局打完会复盘关键回合。</div>';
   var dyn=$('coachDyn');
   if(dyn.__h===html)return;
-  dyn.innerHTML=html;dyn.__h=html;
+  dyn.innerHTML=html;dyn.__h=html;tintSuits(dyn);
   dyn.querySelectorAll('[data-qz]').forEach(function(b){b.onclick=function(){
     window.__answerQuiz(+b.dataset.mid,+b.dataset.qz);lastChatId=maxChatId();renderCoach();};});
   var mb=$('memBox');if(mb)mb.addEventListener('toggle',function(){memOpen=mb.open;});
@@ -10479,12 +10696,201 @@ function renderCoach(){
 }
 
 /* =====================================================================
+   小黄人说话:收墩、被毙、亮主、局终时,三位电脑玩家偶尔冒一句
+   - 人设:Bob 最小最天真(短、叠词、一哭就哭);Kevin 是你的队友、大哥(爱邀功、装稳、输了找台阶);
+     Stuart 独眼、懒、嘴贱(爱挑衅、爱甩锅给 Bob)。只损牌局,不损真人玩家
+   - 控频:一墩最多一个人说;普通事件按概率,大事件(大分、被毙掉分)几乎必说;
+     同一个人隔 3 墩才再说,全桌至少隔 1 墩;台词不重复最近 4 句;你托管快进时不说
+   - 「对手说话」在设置(显示与音效)里切 多 / 少 / 关
+   ===================================================================== */
+var LINES={
+  1:{ /* Bob */
+    win:['耶耶耶!','香蕉分!香蕉分!','Bob 好厉害~','嘿嘿,都是我的~','抱走抱走!','Bello~分来啦!','Bob 发财啦!','Bob 是天才!(转圈圈)','Kanpai!!!','Tank yu~ 分分!'],
+    lose:['呜……我的分……','不要走哇……','Bob 不哭……Bob 只是眼睛进香蕉了','啊?啊?啊???','分飞走了……','Stuart 说这怪我……','Bob 的香蕉梦碎了……','不要看我!(捂脸)','Poopaye 分分……'],
+    ruff:['毙!毙!毙!','嘿嘿,我没有这门~','Bob 偷吃一口~','咔嚓!','Bob 有主主~'],
+    ruffed:['哎?我的大牌呢?','你、你怎么有主!','Bob 的牌被吃掉了……','坏人!','呜,不带这样的……','我的大牌被吃掉惹……(哇哇哭)'],
+    sour:['你好厉害……讨厌~','哇,你偷偷练过吧?','Bob 记住你了!','能不能分我一点点……','Bob 要告诉 Stuart!'],
+    declare:['我亮!我亮!','这个主好看!','Bob 当家啦~'],
+    endWin:['Banana 派对!','我们赢啦~耶~','Bob 要吃三根香蕉庆祝!'],
+    endLose:['呜哇——','下一局!下一局!','Bob 不服气!(小声)'],
+    kittyDig:['底牌里有宝贝!','挖到啦挖到啦!'],
+    idle:['Bello!','Banana~','Bee-do bee-do bee-do!','嘿嘿嘿嘿','(偷偷看了一眼你的牌)','Bob 想吃香蕉了','啵~','Papoy?','(在桌底下踢 Stuart)','Bob 会数到 10 了!1、2、3……7、香蕉!','(啃手指)','咕噜咕噜~'],
+    wait:['快点嘛~','Bob 要睡着了……zzz','你在算什么呀?','嘀嗒嘀嗒~','Bob 等得香蕉都熟了']},
+  2:{ /* Kevin:你的队友 */
+    carry:['这墩归我罩。','不用谢,记得请我吃香蕉。','看到没,这叫实力。','交给专业的来。','稳。','分我替你收好了。','Bee-do bee-do!分到手了!','(帅气地推了推护目镜)'],
+    praise:['漂亮!不愧是我带出来的。','可以啊队友!','这手我给满分。','跟我学的吧?','好!(其实我也想这么出)'],
+    lose:['……刚才那张不算。','是战术,是战术。','咳,我故意让的。','别看我,看牌。','下墩我包了。','这是我计划的一部分。','(假装没看见)'],
+    ruff:['毙了,别客气。','没这门,不好意思哈。','主牌伺候。'],
+    ruffed:['哎哟?谁让你毙的?','这都能毙?','我的大牌……行吧。'],
+    declare:['主我来定,放心。','这主,稳。'],
+    endWin:['我说什么来着?稳。','队友,击个掌!','香蕉我请了!'],
+    endLose:['下一局才是认真的。','……不准截图。','运气,纯属运气。'],
+    kittyDig:['这底,我早就盯上了。','底给你抠出来了!'],
+    idle:['稳住,我们能赢。','(假装在思考)','Bello~队友!','这局我有数。','Kanpai!','(偷偷把香蕉塞进口袋)','我刚才是不是很帅?','Tank yu~','(对你挤眉弄眼)','嗯,局势尽在掌握。(并没有)'],
+    wait:['慢慢来,不急……其实有点急。','队友,想好了吗?','需要我给你唱首歌吗?','Bee-do~ 提醒一下,轮到你了']},
+  3:{ /* Stuart */
+    win:['就这?','嗯,还行吧。','不好意思,又是我。','收了收了,别看了。','躺着都能赢。','Bello,分我拿走了。','(翻了个大白眼)早说了。'],
+    lose:['是牌的问题,不是我。','Bob!你在干嘛!','我刚才在想香蕉。','这把不算,我没睡醒。','行行行,你们厉害。','这牌是 Bob 洗的。','Poopaye,分。'],
+    ruff:['毙了,不好意思(并不)。','没这门,嘿嘿。','主牌,了解一下?','啪,没了。'],
+    ruffed:['……你礼貌吗?','我那张可是大牌啊!','记仇了。','有主了不起啊?'],
+    sour:['运气好而已。','哦。(翻白眼)','下墩让你哭。','别得意,香蕉还没分完。','你是不是偷看了?','嘁。','你等着。'],
+    declare:['主我亮了,有意见吗?','看好了,这叫亮主。'],
+    endWin:['早说了,躺赢。','Bob,收香蕉。','下一局继续欺负你们。'],
+    endLose:['我不玩了。(没有走)','这局不算。','都怪 Bob。'],
+    kittyDig:['底牌,笑纳了。','抠底,懂?'],
+    idle:['……(打哈欠)','无聊。','Poopaye~','有人带香蕉了吗?','(在你看不见的地方做鬼脸)','我其实不想打,是 Bob 拉我来的。','嗯哼~','Bob,别踢我!','(用一只眼睛盯着你)','啦啦啦~(跑调)'],
+    wait:['你是在下棋吗?','我等得眼睛都闭上了(只有一只)','嘿,醒醒。','zzz……啊?轮到谁了?','快出,香蕉要凉了。']}
+};
+/* 语气词:说话时随机加个开头 / 结尾,同一句话每次听起来不完全一样 */
+/* 按情绪分开挑,免得「坏人!」前面冒出个「哇哦~」 */
+var INTER={1:{happy:{pre:['哇哦~','嘿嘿,','Bello!','啊啦,'],post:['~','!!!','(扭扭)','(蹦蹦跳)']},
+              mad:{pre:['呜……','诶?!','啊啊,'],post:['……','(瘪嘴)','(哇哇哭)']}},
+           2:{happy:{pre:['嗯哼,','喂喂,','Bee-do~'],post:['(推护目镜)','~']},
+              mad:{pre:['咳咳,','呃,'],post:['(清嗓子)','……']}},
+           3:{happy:{pre:['呵,','嗯哼,'],post:['(得意)','~']},
+              mad:{pre:['啧,','切~','哼,'],post:['(翻白眼)','(打哈欠)','。']}}};
+function spice(seat,line,key){
+  var it=INTER[seat]&&INTER[seat][MOOD[key]==='mad'?'mad':'happy'];if(!it)return line;
+  var pick=function(a){return a[Math.floor(Math.random()*a.length)];};
+  if(Math.random()<.35&&!/^[(（]/.test(line)){var pr=pick(it.pre);if(line.indexOf(pr.replace(/[,~?!]/g,''))!==0)line=pr+line;}
+  else if(Math.random()<.3&&!/[)）]$/.test(line)){var po=pick(it.post);line=line.replace(/[。!~]$/,'')+(po==='。'||po==='~'?po:(/^[(（]/.test(po)?po:' '+po));}
+  return line;
+}
+var MOOD={idle:'happy',wait:'mad',win:'happy',carry:'happy',praise:'happy',ruff:'happy',declare:'happy',endWin:'happy',kittyDig:'happy',
+          lose:'mad',ruffed:'mad',sour:'mad',endLose:'mad'};
+var CHAT_KEY='liuliu-chatter';
+function chatterLevel(){try{return localStorage.getItem(CHAT_KEY)||'more';}catch(_){return 'more';}}
+var CH={recent:{},lastSeat:{},lastTrick:-9,trickKey:'',declKey:'',endKey:'',bubbles:{}};
+function pickLine(seat,key){
+  var pool=(LINES[seat]||{})[key];if(!pool||!pool.length)return '';
+  var rk=seat+key,rec=CH.recent[rk]||(CH.recent[rk]=[]);
+  var fresh=pool.filter(function(l){return rec.indexOf(l)<0;});if(!fresh.length)fresh=pool;
+  var line=fresh[Math.floor(Math.random()*fresh.length)];
+  rec.push(line);if(rec.length>4)rec.shift();
+  return line;
+}
+var SEAT_K=['S','E','N','W'];
+function say(seat,key){
+  var line=pickLine(seat,key);if(!line)return false;
+  line=spice(seat,line,key);
+  var el=CH.bubbles[seat];
+  if(!el){el=document.createElement('div');el.className='say';el.setAttribute('role','status');arena.appendChild(el);CH.bubbles[seat]=el;}
+  el.textContent=line;el.setAttribute('aria-label',who(seat)+':'+line);
+  el.classList.remove('show','t-l','t-r','t-t','t-b');void el.offsetWidth;
+  placeSay(el,seat);el.classList.add('show');
+  clearTimeout(el.__t);el.__t=setTimeout(function(){el.classList.remove('show');},2800);
+  var ava=labEl(SEAT_K[seat]).querySelector('.ava');
+  if(ava){var m='emo-'+(MOOD[key]||'happy');ava.classList.remove('emo-happy','emo-mad');void ava.offsetWidth;ava.classList.add(m);
+    clearTimeout(ava.__t);ava.__t=setTimeout(function(){ava.classList.remove(m);},900);}
+  return true;
+}
+/* 气泡贴着说话人的名牌,在名牌朝桌心那边 / 上面 / 下面里挑压牌最少的一处;尖角指回名牌 */
+function placeSay(el,seat){
+  if(!TB.ready)return;
+  var lab=rel(labEl(SEAT_K[seat])),bw=el.offsetWidth,bh=el.offsetHeight,aw=TB.aw,ah=TB.ah,gap=10;
+  var cx=(lab.left+lab.right)/2,cy=(lab.top+lab.bottom)/2;
+  var right={x:lab.right+gap+bw/2,y:cy,t:'t-l'},left={x:lab.left-gap-bw/2,y:cy,t:'t-r'};
+  var inward=cx<aw/2?right:left;
+  /* 先试朝桌心那边,再试另一边(对家在正中,朝哪边都算),再试上、下 */
+  var cands=[inward,inward===right?left:right,{x:cx,y:lab.top-gap-bh/2,t:'t-b'},{x:cx,y:lab.bottom+gap+bh/2,t:'t-t'}];
+  var busy=Array.prototype.map.call(document.querySelectorAll('#arena .played:not(.ghost)'),function(p){return p.children.length?rel(p):null;}).filter(Boolean)
+    .concat(['N','W','E','S'].filter(function(k){return k!==SEAT_K[seat];}).map(function(k){return rel(labEl(k));}))
+    .concat(Array.prototype.map.call(arena.querySelectorAll('.winner-label'),rel));
+  var best=null,bestA=1e18;
+  cands.forEach(function(c){
+    var x=clamp(c.x,bw/2+4,aw-bw/2-4),y=clamp(c.y,bh/2+4,ah-bh/2-4);
+    var r={left:x-bw/2,top:y-bh/2,right:x+bw/2,bottom:y+bh/2};
+    if(hit(r,lab,2))return;
+    var a=busy.reduce(function(n,q){return n+Math.max(0,Math.min(r.right,q.right)-Math.max(r.left,q.left))*Math.max(0,Math.min(r.bottom,q.bottom)-Math.max(r.top,q.top));},0);
+    if(a<bestA){bestA=a;best={x:x,y:y,t:c.t};}
+  });
+  best=best||{x:clamp(inward.x,bw/2+4,aw-bw/2-4),y:inward.y,t:inward.t};
+  place(el,best.x,best.y);el.classList.add(best.t);
+}
+function hideSays(){for(var k in CH.bubbles)CH.bubbles[k].classList.remove('show');}
+window.__hideSays=hideSays;   /* 设置里把「对手说话」关掉时,桌上正挂着的气泡一起收 */
+/* 一墩四家出完(收墩戳刚出来):看这墩发生了什么,挑一个人说一句 */
+function chatterTrick(G,res){
+  var lvl=chatterLevel();if(lvl==='off'||G.auto&&!window.__chatterTest)return;   /* __chatterTest:只给体检脚本用 */
+  var key=(G.start&&G.start.seed)+'/'+G.tricks.length;if(CH.trickKey===key)return;CH.trickKey=key;
+  /* 冷却按「第几墩」算,墩号每局从 0 重数 —— 换局要把上次说话的墩号清掉,
+     否则上一局末尾说过话的人(和全桌间隔)在新一局里一直算作「刚说过」,第二局起就几乎不说话 */
+  var rk=(G.start&&G.start.seed)+'/'+(G.start&&G.start.round);
+  if(CH.roundKey!==rk){CH.roundKey=rk;CH.lastSeat={};CH.lastTrick=-9;}
+  var plays=G.trick,w=res.winner,pts=res.points||0,t=G.trump,no=G.tricks.length;
+  var ev=[],ai=function(s){return s>0;};
+  try{
+    var lead=classify(plays[0].cards,t);
+    var wi=plays.findIndex(function(p){return p.seat===w;});
+    if(lead&&lead.suit!=='T'&&wi>0&&plays[wi].cards.every(function(c){return effSuit(c,t)==='T';})){
+      var prev=resolveTrick(plays.slice(0,wi),t).winner;
+      if(prev%2!==w%2&&ai(prev))ev.push({seat:prev,key:'ruffed',pri:4,major:pts>=10});
+      if(ai(w))ev.push({seat:w,key:'ruff',pri:3,major:pts>=10});
+    }
+  }catch(_){}
+  if(ai(w)&&pts>=20)ev.push({seat:w,key:w===2?'carry':'win',pri:2,major:pts>=30});
+  else if(w===2&&pts>=10)ev.push({seat:2,key:'carry',pri:1});
+  if(w===0&&pts>=10){ev.push({seat:Math.random()<.5?1:3,key:'sour',pri:2,major:pts>=25});ev.push({seat:2,key:'praise',pri:1.5,major:pts>=25});}
+  if(pts>=15){var losers=[1,2,3].filter(function(s){return s%2!==w%2;});
+    if(losers.length)ev.push({seat:losers[Math.floor(Math.random()*losers.length)],key:'lose',pri:1,major:pts>=30});}
+  var k=lvl==='less'?.45:1;
+  ev.sort(function(a,b){return b.pri-a.pri;});
+  for(var i=0;i<ev.length;i++){
+    var e=ev[i],cool=e.major?1:2;
+    if(no-(CH.lastSeat[e.seat]==null?-9:CH.lastSeat[e.seat])<cool)continue;
+    if(Math.random()>=(e.major?1:.7)*k)continue;
+    if(say(e.seat,e.key)){CH.lastSeat[e.seat]=no;CH.lastTrick=no;return;}
+    break;
+  }
+  /* 没什么事的墩:偶尔有人没头没脑冒一句 */
+  if(no-CH.lastTrick>=2&&Math.random()<.3*k){
+    var idle=[1,2,3].filter(function(s){return no-(CH.lastSeat[s]==null?-9:CH.lastSeat[s])>=2;});
+    if(idle.length){var s=idle[Math.floor(Math.random()*idle.length)];if(say(s,'idle')){CH.lastSeat[s]=no;CH.lastTrick=no;}}
+  }
+}
+/* 轮到你、想了 9 秒还没出:有人催一句(每墩最多一次) */
+setInterval(function(){
+  var G=g();if(!G||G.ended||G.auto||chatterLevel()==='off')return;
+  var my=G.phase==='play'&&G.trick.length<4&&(G.leader+G.trick.length)%4===0;
+  var key=my?(G.start&&G.start.seed)+'/'+G.tricks.length:'';
+  if(key!==CH.waitKey){CH.waitKey=key;CH.waitT=Date.now();CH.waited=false;return;}
+  if(!my||CH.waited||Date.now()-CH.waitT<9000)return;
+  if(!bubble.hidden||document.body.classList.contains('drawer-open'))return;   /* 正在看六六的建议、翻记录时不催 */
+  CH.waited=true;
+  if(Math.random()<(chatterLevel()==='less'?.35:.75))say([1,2,3][Math.floor(Math.random()*3)],'wait');
+},1000);
+/* 电脑亮主 / 反主时嘚瑟一句 */
+function chatterDecl(G){
+  var d=G.decl;if(!d||!(G.phase==='dealing'||G.phase==='finalDecl'))return;
+  var key=(G.start&&G.start.seed)+'/'+d.seat+d.suit+d.strength;if(CH.declKey===key)return;CH.declKey=key;
+  var lvl=chatterLevel();if(lvl==='off'||G.auto&&!window.__chatterTest||!d.seat)return;
+  if(Math.random()<(lvl==='less'?.3:.65))say(d.seat,'declare');
+}
+/* 一局打完:局终面板里,队友 Kevin 一句、对手里挑一个一句 */
+function chatterEnd(G){
+  var key=(G.start&&G.start.seed)+'/'+(G.start&&G.start.round);if(CH.endKey===key)return;
+  var oc=$('overlayContent'),head=oc&&oc.querySelector('.res-head');if(!head)return;
+  CH.endKey=key;hideSays();
+  if(chatterLevel()==='off'||oc.querySelector('.res-quips'))return;
+  var won=!oc.querySelector('.res-badge.lose');
+  var dug=/翻出/.test((oc.querySelector('.res-sub')||{}).textContent||'');
+  var defTeam=G.declSeat>=0?(G.declSeat+1)%2:-1;
+  var keyFor=function(s){var mine=s%2===0;return dug&&s%2===defTeam&&(mine===won)?'kittyDig':(mine===won?'endWin':'endLose');};
+  var opp=Math.random()<.5?1:3;
+  var rows=[2,opp].map(function(s){var l=pickLine(s,keyFor(s));return l?'<div class="quip"><span class="ava mug'+(s===2?' mate':'')+'" aria-hidden="true">'+PLAYERS[s].mug+'</span><span><b>'+who(s)+'</b>'+esc(l)+'</span></div>':'';}).join('');
+  if(!rows)return;
+  var box=document.createElement('div');box.className='res-quips';box.innerHTML=rows;
+  var at=oc.querySelector('.res-levels')||oc.querySelector('.panel-actions');
+  at.parentNode.insertBefore(box,at);
+}
+
+/* =====================================================================
    菜单
    ===================================================================== */
 var sheet=$('sheet');
 var ICON={
   set:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>',
-  rec:'<svg viewBox="0 0 24 24"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>',
+  rec:'<svg viewBox="0 0 24 24"><path d="M9 4h6v3H9z"/><path d="M15 5.5h2a2 2 0 0 1 2 2V19a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V7.5a2 2 0 0 1 2-2h2"/><path d="M9 12h6M9 16h4"/></svg>',
   pts:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v8M9 12h6"/></svg>',
   kitty:'<svg viewBox="0 0 24 24"><rect x="5" y="4" width="11" height="15" rx="2"/><path d="M9 20h8a2 2 0 0 0 2-2V8"/></svg>',
   undo:'<svg viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>',

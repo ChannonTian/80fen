@@ -19,7 +19,7 @@ p.on('pageerror',e=>errs.push('PAGEERROR '+e.message));
 await p.goto('file://'+process.cwd()+'/learn.html');
 
 const rows=await p.evaluate(()=>{
-  const {UNITS,winnerOf,isLegalFollow,legalSet,effSuit,classify,countPoints,finishTrick,endMoves,endSolve}=window.__LEARN__;
+  const {UNITS,winnerOf,isLegalFollow,legalSet,effSuit,classify,countPoints,finishTrick,endMoves,endSolve,answerOf,ordIdx}=window.__LEARN__;
   // 我方净得:这一墩的分归谁,就给谁记正负
   const net=r=>r.done?(r.win%2===0?r.got:-r.got):null;
   const out=[];
@@ -54,9 +54,39 @@ const rows=await p.evaluate(()=>{
       return out.push(probs.length?{tag:`${L.id} q${i+1} ${q.task}`,bad:probs.join(';'),end:true}
                                   :{tag:`${L.id} q${i+1} ${q.task}`,note:`收官实战,最优出牌 ${seqOut}`});
     }
-    if(!['trickpick','playset'].includes(q.type)||!q.played) return;
     const tr=q.tr!==undefined?q.tr:L.tr;
     const tag=`${L.id} q${i+1} ${q.task}`;
+    /* 规则题:能由引擎推出来的标答,一律拿引擎再推一遍 */
+    const idk=a=>[].concat(a).slice().sort().join(",");
+    if(q.verify){ if(q.verify()!==true) return out.push({tag,bad:'verify() 不成立',end:true});
+                  return out.push({tag,note:'verify() 成立'}); }
+    if(q.type==='winpick'&&!q.ask&&tr&&q.decl==null){   // 带 decl 的是「谁坐庄」,点的是座位不是赢家
+      const w=winnerOf(q.played,q.lead,tr);
+      return out.push(w===q.answer?{tag,note:`谁收:引擎也判 ${['南','东','北','西'][w]}`}:{tag,bad:`标答 ${q.answer},引擎判 ${w} 收`,end:true});
+    }
+    if(q.type==='winpick'&&q.ask){
+      // 「谁断了门 / 谁没主了」:没跟领出那门的座位,必须恰好是标答那一家
+      const led=effSuit([].concat(q.played[q.lead])[0],tr);
+      const off=[0,1,2,3].filter(s=>s!==q.lead&&effSuit([].concat(q.played[s])[0],tr)!==led);
+      if(q.ask==='notrump'&&led!=='T') return out.push({tag,bad:'问「没主了」,可领出的不是主',end:true});
+      return out.push(off.length===1&&off[0]===q.answer?{tag,note:'没跟的那家对得上'}:{tag,bad:`没跟的座位是 ${off},标答 ${q.answer}`,end:true});
+    }
+    if(['multi','cardpick','order'].includes(q.type)&&(q.chk||q.led||q.type==='order')){
+      const want=answerOf({...q,answer:undefined},tr);
+      if(q.answer!==undefined&&idk(q.answer)!==idk(want)) return out.push({tag,bad:`手写标答 ${idk(q.answer)},引擎推出 ${idk(want)}`,end:true});
+      if(q.type==='order'){
+        const v=c=>(effSuit(c,tr)==='T'?100:0)+ordIdx(c,tr);
+        const vs=q.cards.map(v);
+        if(q.cards.some(c=>effSuit(c,tr)!==effSuit(q.cards[0],tr))) return out.push({tag,bad:'排大小的牌不是同一门 / 不全是主',end:true});
+        return out.push({tag,note:'排大小:'+want.join(' > ')+(new Set(vs).size<vs.length?'(有一样大的)':'')});
+      }
+      if(q.type==='cardpick'&&q.chk==='max'){
+        const vs=q.cards.map(c=>(effSuit(c,tr)==='T'?100:0)+ordIdx(c,tr)).sort((a,b)=>b-a);
+        if(vs[0]===vs[1]) return out.push({tag,bad:'最大的有两张一样大',end:true});
+      }
+      return out.push({tag,note:"引擎推出 "+idk(want)});
+    }
+    if(!['trickpick','playset'].includes(q.type)||!q.played) return;
     if(q.end){
       const e=q.end, ok=new Set([q.answer].concat(q.accept||[])), probs=[];
       const defSide=(e.decl%2)!==0;               // 我(南)是不是闲家
@@ -120,8 +150,11 @@ const BUDGET={prompt:50,good:36,bad:36};
 const texts=await p.evaluate(()=>{
   const t=h=>(h||'').replace(/<[^>]+>/g,'').replace(/\s/g,'');
   const out=[];
-  for(const U of window.__LEARN__.UNITS){ if(U.key==='u1') continue;
-    for(const L of U.lessons){
+  // 原单元 1 那七课的字数产品方认可过,不动;其余(含新课)都按预算
+  const OLD_U1=['l1','l2','l3','l4','l5','l6','l7'];
+  for(const U of window.__LEARN__.UNITS){
+    for(const L of U.lessons){ if(OLD_U1.includes(L.id)) continue;
+      if(L.mins<3||L.mins>6) out.push({tag:L.id,f:'mins',n:-3,m:L.mins});
       if(!L.sum) out.push({tag:L.id,f:'sum',n:-1});
       L.qs.forEach((q,i)=>{
         for(const f of ['prompt','good','bad']) out.push({tag:`${L.id} q${i+1}`,f,n:t(q[f]).length});
@@ -137,7 +170,8 @@ const texts=await p.evaluate(()=>{
 });
 let bad=0;
 for(const x of texts){
-  if(x.n===-1){ bad++; console.log(`✗  ${x.tag} 没有 sum(通关页那一句)`); }
+  if(x.n===-3){ bad++; console.log(`✗  ${x.tag} 估计 ${x.m} 分钟,不在 3~6 分钟`); }
+  else if(x.n===-1){ bad++; console.log(`✗  ${x.tag} 没有 sum(通关页那一句)`); }
   else if(x.n===-2){ bad++; console.log(`✗  ${x.tag} key 里的 ${x.id} 不在桌上`); }
   else if(x.n>BUDGET[x.f]){ bad++; console.log(`✗  ${x.tag} ${x.f} ${x.n} 字,超过 ${BUDGET[x.f]}`); }
 }

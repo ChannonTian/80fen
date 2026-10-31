@@ -10,6 +10,8 @@
  * (简单请求,不发预检)。这里回 {ok, saved:[id], dup:[id], bad:[{id,why}]}:
  *   saved / dup 网页端标成已上传;bad 里 why 不是 'rate' 的也标掉(不再重传),'rate' 的下次再试。
  * 同一个 id 只收一次(网页端传失败会重传)。
+ * 例外:出牌标记(v0.7.48 起,牌谱里的 flags)。玩家打完一局再去「对局记录」里标某一手有问题,网页端会把整份牌谱再传一次;
+ * 这时 id 已经在表里、又带着 flags,就把那一行的 JSON 和「标记」列换成新的(只认同一个匿名编号),回在 upd:[id] 里。
  *
  * 可选:项目设置 → 脚本属性 加 READ_KEY = 一串随机字符,之后
  *   GET …/exec?key=<READ_KEY>[&from=行号]   以一行一局(JSONL)下载全部牌谱(给 AI 线跑脚本用)。
@@ -17,7 +19,8 @@
 
 const SHEET_NAME = '牌谱';
 const HEAD = ['收到时间', 'id', '玩家', '昵称', '版本', '打完时间', '用时(秒)', '局号', '人坐', '庄家',
-              '主', '闲家得分', '重打', '残局', '托管墩数', '悔牌次数', '真人出牌手数', 'JSON'];
+              '主', '闲家得分', '重打', '残局', '托管墩数', '悔牌次数', '真人出牌手数', 'JSON', '标记'];
+const J_COL = HEAD.indexOf('JSON');    // 从 0 数
 const MAX_BODY = 400000;               // 一次请求的上限(8 局 × 约 5KB 绰绰有余)
 const MAX_REC = 45000;                 // 单元格上限 50000 字符
 const MAX_PER_HOUR = 120;              // 每个匿名玩家每小时最多收多少局,防刷
@@ -35,13 +38,22 @@ function doPost(e) {
   try {
     const sh = sheet_();
     const cache = CacheService.getScriptCache();
-    const saved = [], dup = [], bad = [], rows = [];
+    const saved = [], dup = [], bad = [], upd = [], rows = [];
     for (const r of recs.slice(0, 20)) {
       const why = check_(r);
       if (why) { bad.push({ id: r && typeof r.id === 'string' ? r.id : null, why }); continue; }
-      if (rows.some(x => x[1] === r.id) || seen_(sh, r.id)) { dup.push(r.id); continue; }
+      if (rows.some(x => x[1] === r.id)) { dup.push(r.id); continue; }
       const json = JSON.stringify(r);
       if (json.length > MAX_REC) { bad.push({ id: r.id, why: 'big' }); continue; }
+      const at = find_(sh, r.id);
+      if (at) {
+        // 已经收过:带 flags(出牌标记改过)就覆盖这一行的牌谱和标记,否则照旧算重复。只认同一个匿名编号
+        if (Array.isArray(r.flags) && sh.getRange(at, 3).getValue() === r.pid) {
+          sh.getRange(at, J_COL + 1, 1, 2).setValues([[json, flags_(r.flags)]]);
+          upd.push(r.id);
+        } else dup.push(r.id);
+        continue;
+      }
       const k = 'n:' + r.pid, n = +(cache.get(k) || 0), all = +(cache.get('n:*') || 0);
       if (n >= MAX_PER_HOUR || all >= MAX_ALL_HOUR) { bad.push({ id: r.id, why: 'rate' }); continue; }
       cache.put(k, String(n + 1), 3600);
@@ -50,11 +62,12 @@ function doPost(e) {
         a + t.plays.filter(p => p.seat === r.human && (!p.by || p.by === 'h')).length, 0);
       rows.push([new Date(), r.id, r.pid, txt_(r.nick), txt_(r.version), txt_(r.t), num_(r.dur),
                  txt_(r.no), num_(r.human), num_(r.declSeat), trump_(r.trump), num_(r.defPoints),
-                 r.replay ? '是' : '', r.partial ? `${txt_(r.stage)} · ${num_(r.tricksDone)} 墩` : '', num_(r.autoTricks), num_(r.undos), humanPlays, json]);
+                 r.replay ? '是' : '', r.partial ? `${txt_(r.stage)} · ${num_(r.tricksDone)} 墩` : '', num_(r.autoTricks), num_(r.undos), humanPlays, json,
+                 flags_(r.flags)]);
       saved.push(r.id);
     }
     if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, HEAD.length).setValues(rows);
-    return out_({ ok: true, saved, dup, bad });
+    return out_({ ok: true, saved, dup, bad, upd });
   } finally {
     lock.releaseLock();
   }
@@ -103,6 +116,13 @@ function check_(r) {
     }
   }
   if (part ? n >= 100 : n !== 100) return 'tricks';
+  // 出牌标记:[{t 第几墩(从 0 数), seat, note?}]
+  if (r.flags != null) {
+    if (!Array.isArray(r.flags) || r.flags.length > 100) return 'flags';
+    for (const f of r.flags)
+      if (!f || !(Number.isInteger(f.t) && f.t >= 0 && f.t < r.tricks.length) || !(f.seat >= 0 && f.seat <= 3) ||
+          (f.note != null && (typeof f.note !== 'string' || f.note.length > 200))) return 'flags';
+  }
   return '';
 }
 
@@ -118,15 +138,17 @@ function sheet_() {
   }
   return sh;
 }
-/* 表头和脚本对不上 = 旧版脚本建的表(没有「残局」列,牌谱 JSON 在第 16 列)。
- * 逐行挪:JSON 还在旧位置的行在「重打」后面补一个空的「残局」格;已经是新排法的行不动。再换上新表头。 */
+/* 表头和脚本对不上 = 旧版脚本建的表。出过两种:
+ *   · 最早一版没有「残局」列,牌谱 JSON 在第 17 列(从 0 数 16):在「重打」后面补一个空的「残局」格;
+ *   · v0.7.48 之前没有最后的「标记」列:JSON 位置不变,后面补一个空格。
+ * 逐行挪,再换上新表头。 */
 function migrate_(sh) {
   const last = sh.getLastRow();
   if (last >= 2) {
     const width = Math.max(sh.getLastColumn(), HEAD.length);
     const rows = sh.getRange(2, 1, last - 1, width).getValues().map(row => {
       const j = row.findIndex(v => typeof v === 'string' && v.startsWith('{"fmt"'));
-      if (j === HEAD.length - 2) row = row.slice(0, 13).concat([''], row.slice(13, j + 1));   // 旧排法:第 14 列起右移一格
+      if (j === J_COL - 1) row = row.slice(0, 13).concat([''], row.slice(13, j + 1));   // 最早的排法:第 14 列起右移一格
       row = row.slice(0, HEAD.length);
       while (row.length < HEAD.length) row.push('');
       return row;
@@ -136,16 +158,24 @@ function migrate_(sh) {
   }
   sh.getRange(1, 1, 1, HEAD.length).setValues([HEAD]);
 }
-function seen_(sh, id) {
+// 这个 id 在第几行(没有 = 0)
+function find_(sh, id) {
   const last = sh.getLastRow();
-  if (last < 2) return false;
-  return !!sh.getRange(2, 2, last - 1, 1).createTextFinder(id).matchEntireCell(true).findNext();
+  if (last < 2) return 0;
+  const c = sh.getRange(2, 2, last - 1, 1).createTextFinder(id).matchEntireCell(true).findNext();
+  return c ? c.getRow() : 0;
+}
+// 「标记」列:给人看的摘要,如「2 手:第 3 墩 东「应该毙」;第 7 墩 南」
+function flags_(fl) {
+  if (!Array.isArray(fl) || !fl.length) return '';
+  const SEAT = ['南', '东', '北', '西'];
+  return txt_(fl.length + ' 手:' + fl.map(f => `第 ${f.t + 1} 墩 ${SEAT[f.seat] || ''}${f.note ? '「' + f.note + '」' : ''}`).join(';'), 500);
 }
 function out_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 function str_(s, max) { return typeof s === 'string' && s.length > 0 && s.length <= max; }
 function num_(x) { return typeof x === 'number' && isFinite(x) ? x : ''; }
 // 玩家填的文字以 = + - @ 开头会被表格当成公式,前面垫一个 '
-function txt_(s) { s = s == null ? '' : String(s).slice(0, 100); return /^[=+\-@]/.test(s) ? "'" + s : s; }
+function txt_(s, max) { s = s == null ? '' : String(s).slice(0, max || 100); return /^[=+\-@]/.test(s) ? "'" + s : s; }
 function trump_(t) {
   if (!t) return '';
   const SYM = { S: '♠', H: '♥', D: '♦', C: '♣' };
