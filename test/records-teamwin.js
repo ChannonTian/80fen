@@ -1,12 +1,13 @@
 /* 真人牌谱上的「这一手之后本队拿下这墩」校准(2026-10-25):AI 第 2 / 3 家、单张领出时实际出的那一手 ——
  * 现 pTeamWin vs teamWinBelief vs teamWinBelief + 真人修正(willHuman),实 = 这墩真实结果(后手有真人)。
- *   node test/records-teamwin.js <牌谱>...      */
+ *   node test/records-teamwin.js <牌谱>...      (OV='{…}' 覆盖 AIP)  */
 'use strict';
 const fs=require('fs'),vm=require('vm'),path=require('path');
 const {isTestGame}=require('./records-filter.js');
 const files=process.argv.slice(2);
 const sr=[...fs.readFileSync(path.join(__dirname,'..','80fen-test.html'),'utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1])[0];
 const cc={module:{exports:{}},console,Math,Object,Array,Set,Map,JSON,String,Number};cc.globalThis=cc; vm.createContext(cc); vm.runInContext(sr,cc); const E=cc.module.exports; E.AIP.egSearch=0;
+if(process.env.OV) Object.assign(E.AIP,JSON.parse(process.env.OV));   // 例:OV='{"mateOver":1}' 看推演改动在真人牌谱上准不准
 const code=x=>x.suit+x.rank; const R=[]; const seen=new Set();
 const HUM=[-0.36,0.86,-0.73];
 for(const f of files) for(const l of fs.readFileSync(f,'utf8').split('\n')){ if(!l.trim()) continue; let r; try{ r=JSON.parse(l); }catch(e){ continue; }
