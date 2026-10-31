@@ -14,7 +14,7 @@ body{background:var(--paper);color:var(--ink);overflow:hidden;
   font:400 16px/1.5 var(--font-sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 button{font:inherit;color:inherit}
 :focus-visible{outline:3px solid var(--teal);outline-offset:2px}
-.hide{display:none!important}
+.hide,[hidden]{display:none!important}
 
 /* ---------- 六六:一张三格的表情图(平常 / 开心 / 好奇) ---------- */
 .leo{display:inline-block;flex:none;width:100%;aspect-ratio:1;background:url(leo.webp) 0 50%/300% 100% no-repeat}
@@ -232,6 +232,11 @@ button{font:inherit;color:inherit}
 .card.ok:after{content:'✓';background:var(--felt)}
 .card.no:after{content:'✗';background:var(--brick-deep)}
 .card.dim{opacity:.38}
+/* 排大小:点过的牌右上角标第几 */
+.card .ordn{position:absolute;top:calc(var(--w)*-.18);right:calc(var(--w)*-.18);width:max(20px,calc(var(--w)*.36));aspect-ratio:1;
+  display:grid;place-items:center;border-radius:50%;background:var(--honey);color:var(--ink);border:var(--stroke-hair) solid var(--ink);
+  font:900 max(12px,calc(var(--w)*.22))/1 var(--font-num);z-index:3}
+.card.nobadge:after{display:none}   /* 排大小:描圈 + 序号就够了,不再叠一个 ✓ */
 .card.key{outline:3px solid var(--honey-deep);outline-offset:3px;z-index:3}
 .card.played{animation:playIn var(--dur-slide) var(--ease-back)}
 .card.played.still{animation:none}
@@ -289,6 +294,14 @@ button{font:inherit;color:inherit}
 .hero-copy h1{margin:4px 0 2px;font:900 22px/1.25 var(--font-heading)}
 .hero-copy p{margin:0;font-size:14px;color:var(--ink-soft)}
 
+.daily{display:flex;align-items:center;gap:12px;margin-top:14px;padding:12px 14px;background:var(--card-face);
+  border:var(--stroke-ui) solid var(--ink);border-radius:var(--radius-md);box-shadow:var(--shadow-card)}
+.daily-icon{flex:none;display:grid;place-items:center;width:44px;height:44px;border-radius:12px;background:var(--felt-table);color:var(--cream);
+  border:var(--stroke-hair) solid var(--ink);font:900 20px/1 var(--font-num)}
+.daily.is-done .daily-icon{background:var(--felt);font:900 20px/1 var(--font-sans)}
+.daily-copy{flex:1;min-width:0}
+.daily-copy b{display:block;font:900 17px/1.3 var(--font-heading)}
+.daily-copy small{font-size:13px;color:var(--ink-soft)}
 .part{margin:26px 4px 4px;font:800 13px/1.3 var(--font-sans);letter-spacing:.06em;color:var(--ink-faint)}
 .unit{border-bottom:var(--stroke-hair) solid var(--line)}
 .unit-head{display:flex;align-items:center;gap:12px;width:100%;min-height:60px;padding:8px 4px;border:0;background:none;cursor:pointer;text-align:left}
@@ -304,6 +317,7 @@ button{font:inherit;color:inherit}
 .unit.locked .unit-n{background:var(--line);color:var(--ink-faint)}
 .unit.locked .unit-name{color:var(--ink-soft)}
 .unit-body{display:none;padding-bottom:6px}
+.unit-goal{margin:0 4px 2px;font-size:14px;line-height:1.45;color:var(--ink-soft)}
 .unit.open .unit-body{display:block}
 
 /* 课程牌扇面:位置 = 序号均分,旋转/下沉按离中心的距离(--t:-1…1) */
