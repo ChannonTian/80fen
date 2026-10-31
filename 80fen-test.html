@@ -820,7 +820,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.49(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.50(测试版)</div>
 
 
 <script>
@@ -4020,7 +4020,9 @@ function feedP(X, view, plays, cards){
 }
 
 // 跟牌决策
-function aiChooseFollow(view, plays){
+/* extra(v0.7.50,只给教练用):把「你出的这一手」当成一条候选放进同一条流水线 —— 和 AI 自己的候选一起
+ * 过 ruff2Plan / feedPlan 这些事后加减分,返回 {extraScore};不跑收官推演、不改 AI 的选择。不传 = 旧行为。 */
+function aiChooseFollow(view, plays, extra){
   const X=followCtx(view,plays);
   const {trump,lead}=X;
   // 队友钓主:他领的是一张压不住场的小主,标的就是牌权(见 AIP.tiaoAccept)
@@ -4280,6 +4282,12 @@ function aiChooseFollow(view, plays){
     discPts===0&&!discTrump ? '垫废牌,不送分也不拆主'
     : discTrump ? '没有废牌可垫,只能拆一张主'
     : '躲不掉,垫掉手上最轻的分牌');
+  let extraC=null;
+  if(extra){
+    const q=coachFollowPen(X,view,plays,extra);
+    extraC={cards:extra,cat:q.cat,score:scorePlay(X,extra,q.cat,q.wins)-q.pen,reason:''};
+    cands.push(extraC);
+  }
   /* ruff2Plan(产品方 2026-09-29):第 2 家在副牌单张墩断门要毙时,用哪张主毙,先看后面两家这门断不断。
    *   · 第 3 家(对手)极高概率不断 → 用主分牌毙没问题(阈值要高:这门在外还多,倒推他断门概率极低);
    *   · 第 3 家断、第 4 家(队友)不断 → 主分牌毙是纯送:第 3 家拿主分牌一盖,分和牌权都走了。
@@ -4341,6 +4349,7 @@ function aiChooseFollow(view, plays){
       }
     }
   }
+  if(extraC) return {extraScore:extraC.score,extraCat:extraC.cat};
   cands.sort((a,b)=>b.score-a.score);
   const ctx={partnerWinning:X.partnerWinning,isLast:X.isLast,ptsTable:X.ptsTable,
              curSeat:X.cur.seat,curBoss:X.curBoss,leadSuit:lead.suit,phase:X.phase};
@@ -5782,6 +5791,12 @@ function coachFollowScoreFull(view, plays, cards){
   if(AIP.tiaoAccept&&plays[0].seat===X.partnerSeat&&lead.suit==='T'&&lead.type==='single'
      &&plays[0].cards[0].suit!=='X'&&!isBossPlay(lead,X.mem,trump))
     X.tempoW=AIP.leadTempoWeight;
+  const q=coachFollowPen(X,view,plays,cards);
+  return {score:scorePlay(X,cards,q.cat,q.wins)-q.pen, cat:q.cat, reason:null};
+}
+// 一手跟牌的定性(cat、赢不赢)和生成阶段那几条规则的加减分 —— 与 aiChooseFollow 里对应的生成器同一口径
+function coachFollowPen(X, view, plays, cards){
+  const {trump,lead}=X;
   const wins=currentWinner(plays.concat([{seat:view.seat,cards}]),trump).seat===view.seat;
   const cl=classify(cards,trump);
   const isRuff=wins&&!!cl&&cl.suit==='T'&&lead.suit!=='T';
@@ -5798,7 +5813,48 @@ function coachFollowScoreFull(view, plays, cards){
     if(isRuff&&!X.isLast&&!X.curBoss&&X.ptsTable>=AIP.ruffPartnerMinPts&&voidLead) pen+=AIP.ruffPartnerBonus;
     else pen+=AIP.overPartner;
   }
-  return {score:scorePlay(X,cards,cat,wins)-pen, cat, reason:null};
+  return {cat,wins,pen};
+}
+/* 候选分的胜负口径对账(v0.7.50,试玩报障「用主分牌毙下来被说打错」):
+ * followBeatsCheck 关着(v0.7.37 起),AI 的「贴分 / 跟小 / 垫牌」候选一律按**不赢墩**打分 —— 断门时它们挑出来的
+ * 常常是一张主,实际上毙下了这墩。末家断门拿 ♥10 毙,候选表里它挂着「跟分」、本队拿下 2%,于是比拿 ♥5 毙「亏 59 分」。
+ * AI 自己选哪手不动(约束 6);教练拿候选分去评**你出的这手**、排建议单时,把胜负按 currentWinner 改过来:
+ * 只换掉 scorePlay 那一段(换成 coachFollowScoreFull,与候选外的出法同一口径),AI 额外的加减分(ruff2Plan、feedPlan……)原样保留。 */
+function coachCandScore(view, plays, c){
+  if(!c||c.cat===undefined||!c.cards) return c?c.score:0;
+  const wins=currentWinner(plays.concat([{seat:view.seat,cards:c.cards}]),view.trump).seat===view.seat;
+  const beat=c.cat==='ruff'||c.cat==='over';
+  if(wins===beat) return c.score;
+  const X=followCtx(view,plays);
+  if(AIP.tiaoAccept&&plays[0].seat===X.partnerSeat&&X.lead.suit==='T'&&X.lead.type==='single'
+     &&plays[0].cards[0].suit!=='X'&&!isBossPlay(X.lead,X.mem,X.trump))
+    X.tempoW=AIP.leadTempoWeight;
+  return c.score-scorePlay(X,c.cards,c.cat,beat)+coachFollowScoreFull(view,plays,c.cards).score;
+}
+/* 「先把分垫给 / 跟给后面的队友」(AI 第 2 家贴分,v0.7.37 起的理由「队友还在后面」)—— v0.7.50 试玩报障
+ * 「用主分牌毙下来被说打错、建议改送副牌分牌」。这一类打分器给的分差远大于真实差距:
+ *   · 定点反事实(自对弈 300 局、真 AI 续打,`备选 − AI`):断门时改成最小的主毙 −0.04 ±0.04 级、不带分的主毙 −0.07 ±0.04、
+ *     垫不带分的副牌 −0.02 ±0.05;有这门时改跟最小不带分的 −0.06 ~ −0.11 ±0.07 —— 都只差 1~3 分,而教练报的是「约亏 14~56 分」。
+ *   · 下家(对手)已经确定断了这门时更糟:AI 的本墩推演里本队暂大的那家一律跟小 —— 下家看他队友那张小牌暂大,就当他不会毙;
+ *     AI 估本队拿下 63%,实际 35%(第 2 家这样贴分 155 次)。这是 AI 的已知短板,交 AI 线修(ai-progress 第 11 项)。
+ * 教练这边(约束 6:首选不动):你没贴(少带分)或者自己赢下这墩,都不算失误;建议单把这几手列成「也可以」;
+ * 下家已知断门时另说一句「存疑」。返回 {known, seat, suit} 或 null(known = 下家已知断门)。 */
+function coachFeedDoubt(view, plays, adv){
+  if(!plays||plays.length!==1||!adv||!countPoints(adv.cards)) return null;
+  if(!/队友还在后面|队友多半断这门、会毙/.test(adv.reason||'')) return null;
+  const t=view.trump, lead=classify(plays[0].cards,t);
+  if(!lead||lead.suit==='T'||lead.type!=='single') return null;      // 反事实量的是单张墩
+  const s3=(view.seat+1)%4;
+  if(currentWinner(plays.concat([{seat:view.seat,cards:adv.cards}]),t).seat%2===view.seat%2) return null;
+  const voids=makeVoids(view.history||[],t);
+  return {known:!!(voids[s3]&&voids[s3][lead.suit]),seat:s3,suit:lead.suit};
+}
+// 上面那一类里,这手算不算「也行」:少带了分,或者自己赢下了这墩(不动王、级牌、主 A —— 反事实量的是小主毙)
+function coachFeedOK(view, plays, adv, cards){
+  if(coachSame(cards,adv.cards)) return false;
+  const t=view.trump, big=c=>c.suit==='X'||c.rank===t.rank||(effSuit(c,t)==='T'&&c.rank===14);
+  return countPoints(cards)<countPoints(adv.cards)&&!cards.some(big)
+      ||currentWinner(plays.concat([{seat:view.seat,cards}]),t).seat===view.seat&&!cards.some(big);
 }
 function coachLeadScoreFull(view, cards, adv){
   const cl=classify(cards,view.trump);
@@ -5843,6 +5899,7 @@ function coachJudgeFollow(view, plays, adv){
   let alts, unit='pts';
   const uOf=cs=>{ if(!eg) return null; const o=eg.find(o=>coachSame(o.cards,cs)); return o?o.u:null; };
   const uBest=uOf(adv.cards);
+  const bestScore=coachCandScore(view,plays,adv);
   if(uBest!=null){
     unit='eg';
     alts=eg.filter(o=>!coachSame(o.cards,adv.cards)).map(o=>{
@@ -5850,7 +5907,7 @@ function coachJudgeFollow(view, plays, adv){
       return {cards:o.cards,reason:c?c.reason:'',delta:(uBest-o.u)*COACH_EG_PTS};
     });
   }else{
-    alts=cands.filter(c=>!coachSame(c.cards,adv.cards)).map(c=>({cards:c.cards,reason:c.reason,delta:adv.score-c.score}));
+    alts=cands.filter(c=>!coachSame(c.cards,adv.cards)).map(c=>({cards:c.cards,reason:c.reason,delta:bestScore-coachCandScore(view,plays,c)}));
   }
   alts.sort((a,b)=>a.delta-b.delta);
   // 首选不是候选表第一名、又没有推演撑腰 = 规则改判(贴分改判),分数量不出它好在哪
@@ -5858,7 +5915,8 @@ function coachJudgeFollow(view, plays, adv){
   let margin=alts.length?alts[0].delta:Infinity;
   if(rule) margin=0;
   const ladder=coachLadder(view,plays,adv);
-  return {adv,alts,margin,conf:coachConf(margin,ladder),ladder,unit,rule};
+  const feedDoubt=coachFeedDoubt(view,plays,adv);
+  return {adv,alts,margin,conf:coachConf(margin,ladder||feedDoubt),ladder,feedDoubt,unit,rule,bestScore};
 }
 function coachJudgeLead(view, adv){
   adv=adv||aiChooseLead(view);
@@ -5886,7 +5944,10 @@ function coachEvalFollow(view, plays, cards, adv){
   const J=coachJudgeFollow(view,plays,adv);
   adv=J.adv;
   const hit=(adv.cands||[]).find(c=>coachSame(c.cards,cards));
-  const mine=hit?{score:hit.score,cat:hit.cat,reason:hit.reason}:coachFollowScoreFull(view,plays,cards);
+  // 候选外的出法:放进 AI 同一条候选流水线打分(含 ruff2Plan / feedPlan 的事后加减分),而不是只算 scorePlay
+  let mine;
+  if(hit) mine={score:coachCandScore(view,plays,hit),cat:hit.cat,reason:hit.reason};
+  else{ const r=aiChooseFollow(view,plays,cards); mine={score:r.extraScore,cat:r.extraCat,reason:null}; }
   let gap;
   if(coachSame(adv.cards,cards)) gap=0;
   else if(J.unit==='eg'){
@@ -5895,9 +5956,9 @@ function coachEvalFollow(view, plays, cards, adv){
     else{
       // 候选之外的出法:和首选放进同一次推演(同一批抽样世界)再比一次
       const r=endgameSearch(view,plays,[{cards:adv.cards},{cards}]);
-      gap=r?(r[0].u-r[1].u)*COACH_EG_PTS:adv.score-mine.score;
+      gap=r?(r[0].u-r[1].u)*COACH_EG_PTS:J.bestScore-mine.score;
     }
-  }else gap=adv.score-mine.score;
+  }else gap=J.bestScore-mine.score;
   if(J.rule) gap=Math.max(0,gap);
   return {...J,gap,inCands:!!hit,mine};
 }
@@ -6118,7 +6179,7 @@ function coachFollowReasonOK(view, plays, cards, f, r){
   if(/队友还在后面/.test(r)&&(iWin||!partnerAfter)) return false;   // AI 第 2 家带分跟 / 垫(v0.7.37,ai-progress 第 10 项)
   if(/先把分跟上/.test(r)&&!mine.length) return false;
   if(/先把分垫上/.test(r)&&mine.length) return false;
-  if(/毙/.test(r)&&!/被毙|来毙|会毙|能毙|可能毙|让他毙|再毙/.test(r)&&!f.ruff) return false;
+  if(/毙/.test(r)&&!/被毙|来毙|会毙|能毙|可能毙|让他毙|再毙|他毙得下/.test(r)&&!f.ruff) return false;   // 「他毙得下」说的是队友(v0.7.50)
   if(/我断门|断门毙/.test(r)&&mine.length) return false;
   if(/下家已知在这门断门/.test(r)&&!f.behindOppVoid.length) return false;
   if(/躲不掉/.test(r)&&(iWin||coachCheapZeroAlt(view,plays,cards))) return false;
@@ -6156,6 +6217,8 @@ function coachFollowReasonRewrite(view, plays, cards, f, tier, r){
     if(alt) return tier!=='best'?`这手送对手 ${f.pts} 分`
       :noSuit?`先把这 ${f.pts} 分垫掉 —— 我估计这张分牌留着也保不住`
       :`先把这 ${f.pts} 分出掉 —— 我估计这门的分留着也保不住`;
+    // 断了这门、手里还有主:不是「躲不掉」,是没动主(v0.7.50;别写「毙」字 —— 那是说我毙下了)
+    if(alt===false&&noSuit&&view.hand.some(c=>effSuit(c,t)==='T')) return `不动主,垫这 ${f.pts} 分`;
     if(alt===false) return allForced?'这门只剩这几张,带分也只能跟上':'躲不掉,只能带分';
     return '带分跟上';
   }
@@ -6212,7 +6275,9 @@ function coachOptions(view, plays, J, okThr, max){
   const t=view.trump, follow=!!(plays&&plays.length);
   const list=[{cards:J.adv.cards,reason:J.adv.reason,delta:0,tier:'best'}];
   for(const a of J.alts){
-    if(!(a.delta<=okThr)) continue;
+    // 「先把分给后面的队友」那一类:少贴分 / 自己毙下的,实测只差 1~3 分,照样列成「也可以」(见 coachFeedDoubt)
+    const feedOK=follow&&J.feedDoubt&&coachFeedOK(view,plays,J.adv,a.cards);
+    if(!(a.delta<=okThr)&&!feedOK) continue;
     list.push({cards:a.cards,reason:a.reason,delta:a.delta,tier:!J.rule&&a.delta<=COACH_TIE?'tie':'ok'});
   }
   list.sort((a,b)=>(a.tier==='best'?-1:0)-(b.tier==='best'?-1:0)||a.delta-b.delta);
@@ -6304,7 +6369,7 @@ const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
   makeMemory,maxUnseenIdx,unseenPairAbove,pPairAbove,pBeaterIn,keyToCard,isBossPlay,buildFollow,currentWinner,minWinFollow,ruffGuardFollow,oppSpendCeil,
   aiChooseFollow,aiChooseLead,coachScoreFollow,coachScoreLead,
-  coachJudgeFollow,coachJudgeLead,coachEvalFollow,coachEvalLead,coachLadder,coachFollowScoreFull,coachLeadScoreFull,COACH_EG_PTS,COACH_LEAD_SCALE,makeVoids,followCtx,leadCtx,scoreLeadPlay,
+  coachJudgeFollow,coachJudgeLead,coachEvalFollow,coachEvalLead,coachLadder,coachCandScore,coachFeedDoubt,coachFeedOK,coachFollowScoreFull,coachLeadScoreFull,COACH_EG_PTS,COACH_LEAD_SCALE,makeVoids,followCtx,leadCtx,scoreLeadPlay,
   AIP,globalIdx,easeEnds,bossChain,pWinLastTrick,faceValue,voidProb,
   scoreDeclOption,declThreshold,aiDeclDecide,projectLen,trumpCountUnder,sideQuality,pPairOverride,
   phaseOf,futureValue,pTeamWin,laterPoints,scorePlay,unseenPointsIn,leadPointsEV,pSurvive,unseenBeats,roundScore,pointWeight,ruffThrow,SCORE_LADDER,makeReads,maxHoldIn,makeVoidProb,cheapKey,dumpKey,kittyPointsEst,tempoValue,
@@ -8194,17 +8259,22 @@ function humanPlay(){
     const ev=isLead?coachEvalLead(view,sel):coachEvalFollow(view,G.trick,sel);
     const best=ev.adv, thr=GAP_THR[C.gapSens];
     const bestSay=coachReason(view,G.trick,{cards:best.cards,reason:best.reason,tier:'best'});
-    if(ev.gap>thr){
+    /* v0.7.50:首选「先把分垫 / 跟给后面的队友」,你少贴了分、或者自己毙下了 —— 实测只差 1~3 分,不算失误(块① coachFeedDoubt)。
+     * 夹在中间的下家已经断了这门时,这是第二种已知短板:记成「存疑」,把原因说出来;否则什么都不说。 */
+    const feedOK=!isLead&&!!ev.feedDoubt&&coachFeedOK(view,G.trick,best,sel);
+    const feed=feedOK&&ev.feedDoubt.known?feedDoubtLine(view,ev.feedDoubt):null;
+    if(ev.gap>thr&&!(feedOK&&!feed)){
       const no=G.tricks.length+1;
       /* 跨阶梯线(§7 第一行、场景 H1 仍未修):首选不抢、你抢了、抢下正好过线 ——
        * 这种点上评分器系统性偏保守,你多半是对的。记下来,但不算你的失误。 */
       const youTake=!isLead&&currentWinner(G.trick.concat([{seat:HUMAN,cards:sel}]),G.trump).seat%2===HUMAN%2;
-      const doubt=!!(ev.ladder&&youTake);
-      G.coachNotes.push({no,my:sel.slice(),best:best.cards.slice(),gap:ev.gap,reason:bestSay,
-                         unit:ev.unit,doubt,ladder:ev.ladder});
+      const doubt=!!(ev.ladder&&youTake)||!!feed;
+      const note={no,my:sel.slice(),best:best.cards.slice(),gap:ev.gap,reason:bestSay,
+                  unit:ev.unit,doubt,ladder:ev.ladder,feed};
+      G.coachNotes.push(note);
       if(doubt){
         coachSay(no,`🤔 你出 ${desc(sel)},我会出 <b>${desc(best.cards)}</b> —— ${bestSay}。<br>`+
-          `但${ladderLine(ev.ladder)}。「抢不抢过线」正是我已知的短板,<b>这一手存疑,不计入你的失误</b>。`,'doubt');
+          `但${doubtWhy(note)},<b>这一手存疑,不计入你的失误</b>。`,'doubt');
       }else{
         if(C.strict && ev.gap>thr*1.6 &&
            !confirm(`教练:更好的是 ${desc(best.cards)} —— ${bestSay}\n仍要出这手吗?`)){ G.coachNotes.pop(); return; }
@@ -8264,6 +8334,14 @@ const cardsLine=(arr,max)=>arr.slice(0,max||99).map(x=>miniName(x.card)+(x.n>1?`
   (max&&arr.length>max?' 等':'');
 const bucketOf=(v,cuts)=>{ const i=cuts.findIndex(c=>v<=c); return i<0?cuts.length:i; };
 const topOf=(cs,t)=>cs.reduce((a,b)=>!a||ordIdx(b,t)>ordIdx(a,t)?b:a,null);
+// 「存疑」的原因(两种已知短板):抢不抢过线;垫给队友的分夹着一个已经断门的下家
+function feedDoubtLine(view,F){
+  return `${voidWho(view,[F.seat],F.suit)}已经断了${SN(F.suit)},夹在中间可以先毙 —— 「下家会不会先毙」我估得太乐观`;
+}
+function doubtWhy(n){
+  return n.feed?`${n.feed},是我已知的短板`
+               :`${ladderLine(n.ladder)}。「抢不抢过线」正是我已知的短板`;
+}
 function ladderLine(L){
   return L.defender
     ? `这墩抢下来,${T('defenders')}就从 ${L.def} 分到 ${L.reach} 分,过 ${L.line} 线`
@@ -8367,8 +8445,10 @@ function suggestHTML(view,plays,J){
     return `<div class="opt"><b>${names}</b> <span class="tag ${o.tier==='ok'?'ok':'top'}">${tagOf(o)}</span>`+
       `<div class="dim">${o.say}${ft?`。${ft}`:''}</div></div>`;
   }).join('');
-  if(opts.length===1&&J.alts.length) h+=`<div class="dim">其他出法我都不推荐。</div>`;
+  if(opts.length===1&&J.alts.length&&!J.feedDoubt) h+=`<div class="dim">其他出法我都不推荐。</div>`;
   if(J.ladder) h+=`<div class="dim" style="margin-top:4px">⚠️ ${ladderLine(J.ladder)}。「抢不抢过线」是我已知的短板,这类局面你的判断可能比我准。</div>`;
+  if(J.feedDoubt) h+=`<div class="dim" style="margin-top:4px">${J.feedDoubt.known?`⚠️ ${feedDoubtLine(view,J.feedDoubt)}。`:''}`+
+    `先把分给后面的队友是我算着稍好的一手,但这类局面我实测过:${view.hand.some(c=>effSuit(c,view.trump)===classify(plays[0].cards,view.trump).suit)?'跟小的不贴分、或者自己压下来':'不贴分、或者自己用小主毙下来'},整局只差两三分 —— 这几手你出哪手我都不算错。</div>`;
   return h;
 }
 
@@ -8470,7 +8550,7 @@ function reviewHTML(autoNote){
   }
   if(doubt.length){
     h+=`<div style="margin-top:6px"><b>我可能错的地方</b></div>`+
-      doubt.map(n=>`<div>第${n.no}墩:我说出 ${desc(n.best)},你出了 ${desc(n.my)} —— ${ladderLine(n.ladder)}。这类局面我有已知短板,这一手大概率是你对。</div>`).join('');
+      doubt.map(n=>`<div>第${n.no}墩:我说出 ${desc(n.best)},你出了 ${desc(n.my)} —— ${n.feed||ladderLine(n.ladder)}。这类局面我有已知短板,这一手大概率是你对。</div>`).join('');
   }
   if(autoNote) h+=`<div class="dim">${autoNote}</div>`;
   return h;
