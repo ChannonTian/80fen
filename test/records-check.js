@@ -16,6 +16,7 @@
  * AI 线拿去用之前,先看这张表决定哪些能当「真人数据」。 */
 'use strict';
 const fs=require('fs'),vm=require('vm'),path=require('path');
+const {isTestGame}=require('./records-filter.js');
 const args=process.argv.slice(2);
 const html=args.find(a=>a.endsWith('.html'))||path.join(__dirname,'..','80fen-test.html');
 const files=args.filter(a=>!a.startsWith('--')&&!a.endsWith('.html'));
@@ -108,9 +109,13 @@ if(nPart){
 if(bad.length&&args.includes('--bad')) for(const {r,why} of bad) console.log(`  ✗ ${String(r.id).slice(0,8)} ${r.nick||String(r.pid||'').slice(0,8)} 第 ${r.no} 局:${why}`);
 else if(bad.length) console.log('  (加 --bad 看原因)');
 
+// 自动测试局(每手照提示出的浏览器整局测试)不算玩家
+const nTest=good.filter(({r})=>isTestGame(r)).length;
+if(nTest) console.log(`  其中自动测试局 ${nTest} 局(人那一座七成以上照提示出;下面的概况和真人统计都不算)`);
 // 概况:按玩家
 const by={};
 for(const {r} of good){
+  if(isTestGame(r)) continue;
   const k=r.pid||'?'; const o=by[k]||(by[k]={nick:r.nick||'',games:0,part:0,replay:0,h:0,a:0,f:0,hint:0,u:0,undos:0,ver:new Set(),eng:new Set()});
   o.games++; if(r.partial) o.part++; if(r.replay) o.replay++; o.undos+=r.undos||0; o.ver.add(r.version); 
   (r.engines||[]).forEach((v,s)=>{ if(s!==r.human&&v!=='latest') o.eng.add(v); });

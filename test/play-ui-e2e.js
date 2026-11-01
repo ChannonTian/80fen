@@ -166,6 +166,8 @@ async function run(browser,key,opt,base){
   const [w,h]=dim.split('x').map(Number);
   const ctx=await browser.newContext({viewport:{width:w,height:h},...opt});
   const p=await ctx.newPage();
+  /* 牌谱不许传到收集表:测试局混进真人数据(10-25~10-31 传上去 108 局) */
+  await ctx.route('https://script.google.com/**',q=>q.abort());
   if(ins){
     /* Chromium 模拟不了 env(safe-area-inset-*):把页面里的 env(...) 换成固定的数 */
     const [l,r,t,b]=ins.split(',').map(Number),v={left:l,right:r,top:t,bottom:b};

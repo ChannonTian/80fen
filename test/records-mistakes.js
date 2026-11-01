@@ -13,6 +13,7 @@
  */
 'use strict';
 const fs=require('fs'),vm=require('vm'),path=require('path');
+const {isTestGame}=require('./records-filter.js');
 const args=process.argv.slice(2);
 const html=args.find(a=>a.endsWith('.html'))||path.join(__dirname,'..','80fen-test.html');
 const files=args.filter(a=>!a.startsWith('--')&&!a.endsWith('.html'));
@@ -28,7 +29,7 @@ const recs=[]; const seen=new Set();
 for(const f of files) for(const l of fs.readFileSync(f,'utf8').split('\n')){ if(!l.trim()) continue;
   try{ const r=JSON.parse(l); if(seen.has(r.id)) continue; seen.add(r.id);
     if(VER.length&&!VER.some(v=>String(r.version).includes(v))) continue;
-    if(Array.isArray(r.tricks)&&r.tricks.length) recs.push(r); }catch(e){} }
+    if(Array.isArray(r.tricks)&&r.tricks.length&&!isTestGame(r)) recs.push(r); }catch(e){} }
 const big=(x,T)=>x.suit==='X'||x.rank===T.rank||(E.effSuit(x,T)==='T'&&x.rank===14);
 
 /* --cf:从牌谱里的**真实局面**分叉,「实际出的」与备选各用真 AI(搜索关)打完,比本队净升级 / 本队得分。

@@ -1,5 +1,5 @@
 /* 「这一手之后本队拿下这墩」:现在的 pTeamWin vs 逐世界走完本墩的 teamWinBelief vs 实际(2026-10-25)。
- *   node test/calib-teamwin.js [html] [种子数=200]    (SEED0=;DUMP=)
+ *   node test/calib-teamwin.js [html] [种子数=200]    (SEED0=;DUMP=;MATE='[willMateW…]' 另算一列 mateOver=1)
  * 第 2 / 3 家、单张领出:取 AI 的选择 + 最省的压法 + 最小的不压(各自不同时),估计 vs 用 AI 打完这墩的实际。 */
 'use strict';
 const fs=require('fs'),vm=require('vm'),path=require('path');
@@ -7,6 +7,7 @@ const FILE=process.argv[2]||path.join(__dirname,'..','80fen-test.html'), N=+proc
 const sr=[...fs.readFileSync(FILE,'utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1])[0];
 const cc={module:{exports:{}},console,Math,Object,Array,Set,Map,JSON,String,Number};cc.globalThis=cc; vm.createContext(cc); vm.runInContext(sr,cc);
 const E=cc.module.exports; E.AIP.egSearch=0;
+const MATE=process.env.MATE?JSON.parse(process.env.MATE):null;
 const R=[];
 const finishEV=(hands,history,plays,leader,seat,cards,T,D,buried)=>{
   const hs=hands.map(h=>h.slice()); const ps=[...plays,{seat,cards}]; cards.forEach(x=>E.removeCard(hs[seat],x));
@@ -46,7 +47,10 @@ for(let seed=S0+1;seed<=S0+N;seed++){
             const p0=E.pTeamWin(X,[x],bc), p1=E.teamWinBelief(X,[x],B); if(p1===null) continue;
             const my=E.cardPoints(x), gain=X.ptsTable+my+E.laterPoints(X,true), loss=X.ptsTable+my+E.laterPoints(X,false);
             const ev0=p0*gain-(1-p0)*loss, t=E.trickEVBelief(X,[x],B), ev1=t?t.ev:null, evY=finishEV(hands,history,plays,leader,seat,[x],T,D,buried);
-            R.push({dec:seed*1000+history.length*4+i,p0,p1,ev0,ev1,evY,y:finish(hands,history,plays,leader,seat,[x],T,D,buried),bc:bc?1:0,pos:i+1,ai:x===cards[0]?1:0,pw:X.partnerWinning?1:0,pts:E.countPoints(plays.flatMap(p=>p.cards)),n:hand.length}); } } }
+            let p2=p1, ev2=ev1; if(MATE){ const sv=[E.AIP.mateOver,E.AIP.willMateW]; E.AIP.mateOver=1; E.AIP.willMateW=MATE;
+              p2=E.teamWinBelief(X,[x],B); const t2=E.trickEVBelief(X,[x],B); ev2=t2?t2.ev:null; [E.AIP.mateOver,E.AIP.willMateW]=sv; }
+            const v3=i===1&&E.makeVoids(history,T)[(seat+1)%4][lead.suit]?1:0;
+            R.push({dec:seed*1000+history.length*4+i,p0,p1,ev0,ev1,evY,y:finish(hands,history,plays,leader,seat,[x],T,D,buried),bc:bc?1:0,pos:i+1,ai:x===cards[0]?1:0,pw:X.partnerWinning?1:0,pts:E.countPoints(plays.flatMap(p=>p.cards)),n:hand.length,p2,ev2,v3}); } } }
       cards.forEach(x=>E.removeCard(hand,x)); plays.push({seat,cards}); }
     const res=E.resolveTrick(plays,T); history.push(...plays); leader=res.winner; }
 }
@@ -64,3 +68,11 @@ const g=(t,a)=>{ if(a.length<50) return; console.log(`  ${t.padEnd(24)} n=${Stri
 g('全部',R); g('压过当前最大',R.filter(r=>r.bc)); g('不压·对手暂大(靠队友)',R.filter(r=>!r.bc&&!r.pw)); g('不压·队友暂大',R.filter(r=>!r.bc&&r.pw));
 g('第 2 家',R.filter(r=>r.pos===2)); g('第 3 家',R.filter(r=>r.pos===3)); g('台面有分',R.filter(r=>r.pts>0)); g('中盘',R.filter(r=>r.n>12)); g('收官',R.filter(r=>r.n<=12));
 for(let b=0;b<10;b++) g(`新估 [${b/10},${(b+1)/10})`,R.filter(r=>r.p1>=b/10&&(b===9?r.p1<=1:r.p1<(b+1)/10)));
+if(MATE){
+  console.log(`\nmateOver=1(队友暂大、后面还有对手的那家可能压上去保):对数损失 ${m(R.map(r=>ll(r.p1,r.y))).toFixed(4)} → ${m(R.map(r=>ll(r.p2,r.y))).toFixed(4)};本墩得失分均方误差 ${mse('ev1').toFixed(1)} → ${mse('ev2').toFixed(1)}`);
+  const g2=(t,a)=>{ if(a.length<30) return; console.log(`  ${t.padEnd(30)} n=${String(a.length).padStart(5)}  旧 ${(100*m(a.map(r=>r.p1))).toFixed(0).padStart(3)}%  新 ${(100*m(a.map(r=>r.p2))).toFixed(0).padStart(3)}%  实 ${(100*m(a.map(r=>r.y))).toFixed(0).padStart(3)}%   损失 ${m(a.map(r=>ll(r.p1,r.y))).toFixed(3)} → ${m(a.map(r=>ll(r.p2,r.y))).toFixed(3)}   得失分 旧 ${m(a.map(r=>r.ev1)).toFixed(1)} 新 ${m(a.map(r=>r.ev2)).toFixed(1)} 实 ${m(a.map(r=>r.evY)).toFixed(1)}`); };
+  g2('全部',R); g2('第 2 家',R.filter(r=>r.pos===2)); g2('第 2 家·不压',R.filter(r=>r.pos===2&&!r.bc));
+  g2('第 2 家·不压·台面有分',R.filter(r=>r.pos===2&&!r.bc&&r.pts>0));
+  g2('第 2 家·下家已知断这门',R.filter(r=>r.pos===2&&r.v3)); g2('第 2 家·下家已知断这门·不压',R.filter(r=>r.pos===2&&r.v3&&!r.bc));
+  g2('第 2 家·下家没露断门·不压',R.filter(r=>r.pos===2&&!r.v3&&!r.bc)); g2('第 3 家',R.filter(r=>r.pos===3));
+}
