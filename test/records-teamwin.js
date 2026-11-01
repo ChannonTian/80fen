@@ -21,7 +21,7 @@ for(const f of files) for(const l of fs.readFileSync(f,'utf8').split('\n')){ if(
       for(const x of p.cards){ const k=h.findIndex(y=>code(y)===x); if(k<0){ ok=false; break; } cards.push(h.splice(k,1)[0]); } if(!ok) break;
       if(p.seat!==r.human&&(plays.length===1||plays.length===2)&&cards.length===1&&before.length>1){
         const lead=E.classify(plays[0].cards,T);
-        if(lead.type==='single'){ const view={seat:p.seat,hand:before,trump:T,declSeat:D,history:history.concat(plays),buriedKnown:p.seat===D?buried:[],decl:r.decl,humanSeat:r.human};
+        if(lead.type==='single'){ const view={seat:p.seat,hand:before,trump:T,declSeat:D,history:history.concat(plays),buriedKnown:p.seat===D?buried:[],decl:Array.isArray(r.decl)?r.decl[r.decl.length-1]:r.decl,declLog:Array.isArray(r.decl)?r.decl:undefined,humanSeat:r.human};
           const X=E.followCtx(view,plays); const bc=E.currentWinner([...plays,{seat:p.seat,cards}],T).seat===p.seat;
           const p0=E.pTeamWin(X,cards,bc); const B=E.makeBelief(view,plays,30);
           const v0={...view}; delete v0.humanSeat; const X1=E.followCtx(v0,plays); const p1=E.teamWinBelief(X1,cards,B);
@@ -31,7 +31,7 @@ for(const f of files) for(const l of fs.readFileSync(f,'utf8').split('\n')){ if(
           E.AIP.willHuman=HUM; const tv=E.trickEVBelief(X,cards,B); E.AIP.willHuman=null;
           const ev0=p2*gain-(1-p2)*loss, ev1=tv?tv.ev:null;
           const humPos=humBehind?'后':plays[0].seat===r.human?'领':'前', humMate=(r.human%2)===(p.seat%2)?1:0;
-          if(p1!==null) pend.push({p0,p1,p2,ev0,ev1,seat:p.seat,bc:bc?1:0,humBehind:humBehind?1:0,humPos,humMate,pos:plays.length+1,decl:p.seat%2===D%2?1:0,left:before.length,leadHum:plays[0].seat===r.human?1:0,lc:plays[0].cards[0],trump:T}); } }
+          if(p1!==null) pend.push({id:String(r.pid).slice(0,4)+'·'+r.id.slice(0,4),ti:history.length/4,mine:p.cards[0],p0,p1,p2,ev0,ev1,seat:p.seat,bc:bc?1:0,humBehind:humBehind?1:0,humPos,humMate,pos:plays.length+1,decl:p.seat%2===D%2?1:0,left:before.length,leadHum:plays[0].seat===r.human?1:0,lc:plays[0].cards[0],trump:T}); } }
       plays.push({seat:p.seat,cards}); }
     if(!ok||plays.length<4) break;
     const w=E.resolveTrick(plays,T).winner, tp=E.countPoints(plays.flatMap(q=>q.cards)); for(const o of pend) R.push({...o,y:w%2===o.seat%2?1:0,evY:w%2===o.seat%2?tp:-tp});
@@ -61,3 +61,5 @@ const P2=R.filter(r=>r.pos===2), ks=[...new Set(P2.map(lk))].sort();
 const f=a=>a.length?`n=${String(a.length).padStart(3)} 拿下 估 ${(100*m(a.map(r=>r.p2))).toFixed(0)}% 实 ${(100*m(a.map(r=>r.y))).toFixed(0)}% 得失 估 ${m(a.filter(r=>r.ev1!==null).map(r=>r.ev1)).toFixed(1)} 实 ${m(a.map(r=>r.evY)).toFixed(1)}`:'—';
 for(const k of ks){ const a=P2.filter(r=>lk(r)===k); console.log(`  ${k.padEnd(10)} 真人领 ${f(a.filter(r=>r.leadHum))}  |  AI 领 ${f(a.filter(r=>!r.leadHum))}`); }
 if(process.env.DETAIL) for(const k of ks) for(const bc of [1,0]){ const a=P2.filter(r=>lk(r)===k&&r.bc===bc); console.log(`    ${k.padEnd(10)}${bc?'压':'不压'} 真人领 ${f(a.filter(r=>r.leadHum))}  |  AI 领 ${f(a.filter(r=>!r.leadHum))}`); }
+if(process.env.LIST){ const want=process.env.LIST; // 例:LIST=主·小  列出 AI 第 2 家、真人领这一类的每一手
+  for(const r of P2.filter(r=>r.leadHum&&lk(r)===want)) console.log(`  ${r.id} 第 ${r.ti+1} 墩 领 ${r.lc.suit}${r.lc.rank} AI 出 ${r.mine} ${r.bc?'压':'不压'} 估 ${(100*r.p2).toFixed(0)}% ${r.y?'拿下':'丢了'}`); }
