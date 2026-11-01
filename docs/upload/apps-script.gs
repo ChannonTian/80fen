@@ -49,7 +49,7 @@ function doPost(e) {
       if (at) {
         // 已经收过:带 flags(出牌标记改过)就覆盖这一行的牌谱和标记,否则照旧算重复。只认同一个匿名编号
         if (Array.isArray(r.flags) && sh.getRange(at, 3).getValue() === r.pid) {
-          sh.getRange(at, J_COL + 1, 1, 2).setValues([[json, flags_(r.flags)]]);
+          sh.getRange(at, J_COL + 1, 1, 2).setValues([[json, flags_(r)]]);
           upd.push(r.id);
         } else dup.push(r.id);
         continue;
@@ -63,7 +63,7 @@ function doPost(e) {
       rows.push([new Date(), r.id, r.pid, txt_(r.nick), txt_(r.version), txt_(r.t), num_(r.dur),
                  txt_(r.no), num_(r.human), num_(r.declSeat), trump_(r.trump), num_(r.defPoints),
                  r.replay ? '是' : '', r.partial ? `${txt_(r.stage)} · ${num_(r.tricksDone)} 墩` : '', num_(r.autoTricks), num_(r.undos), humanPlays, json,
-                 flags_(r.flags)]);
+                 flags_(r)]);
       saved.push(r.id);
     }
     if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, HEAD.length).setValues(rows);
@@ -116,6 +116,7 @@ function check_(r) {
     }
   }
   if (part ? n >= 100 : n !== 100) return 'tricks';
+  if (r.coachFlags != null && (!Array.isArray(r.coachFlags) || r.coachFlags.length > 100)) return 'flags';
   // 出牌标记:[{t 第几墩(从 0 数), seat, note?}]
   if (r.flags != null) {
     if (!Array.isArray(r.flags) || r.flags.length > 100) return 'flags';
@@ -165,11 +166,14 @@ function find_(sh, id) {
   const c = sh.getRange(2, 2, last - 1, 1).createTextFinder(id).matchEntireCell(true).findNext();
   return c ? c.getRow() : 0;
 }
-// 「标记」列:给人看的摘要,如「2 手:第 3 墩 东「应该毙」;第 7 墩 南」
-function flags_(fl) {
-  if (!Array.isArray(fl) || !fl.length) return '';
-  const SEAT = ['南', '东', '北', '西'];
-  return txt_(fl.length + ' 手:' + fl.map(f => `第 ${f.t + 1} 墩 ${SEAT[f.seat] || ''}${f.note ? '「' + f.note + '」' : ''}`).join(';'), 500);
+// 「标记」列:给人看的摘要,如「2 手:第 3 墩 东「应该毙」;第 7 墩 南 / 教练 1 条:第 4 墩「…」」
+// 出牌标记在 flags,教练消息标记(v0.7.52)在 coachFlags
+function flags_(r) {
+  const SEAT = ['南', '东', '北', '西'], parts = [];
+  const fl = Array.isArray(r.flags) ? r.flags : [], cf = Array.isArray(r.coachFlags) ? r.coachFlags : [];
+  if (fl.length) parts.push(fl.length + ' 手:' + fl.map(f => `第 ${f.t + 1} 墩 ${SEAT[f.seat] || ''}${f.note ? '「' + f.note + '」' : ''}`).join(';'));
+  if (cf.length) parts.push('教练 ' + cf.length + ' 条:' + cf.map(f => `${f.t == null ? '复盘' : '第 ' + (f.t + 1) + ' 墩'}${f.note ? '「' + f.note + '」' : ''}`).join(';'));
+  return txt_(parts.join(' / '), 500);
 }
 function out_(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
 function str_(s, max) { return typeof s === 'string' && s.length > 0 && s.length <= max; }
