@@ -96,6 +96,7 @@
 | 在做 | — | 信念计划余项(见「接手速览」10-31 那条下一步) |
 | 功能线 v0.7.38(2026-10-01 上线) | **真人牌谱自动收集** | 测试版每局自动存本机 + 默认上传到 Google 表格,没打完的局存成残局(`partial`)。**AI 一手没变。** 怎么拉、怎么验收、字段表见 [`docs/upload/README.md`](../upload/README.md);拉下来先过 `test/records-check.js`,只取 `by=h` 的手 |
 | 功能线 v0.7.48 | **玩家出牌标记** | 玩家在「对局记录 · 按墩」里点某一手标成「有问题」,可附一句话,牌谱多一个 `flags:[{t,seat,note?}]`(t 从 0 数)。打完再标会重传、收集表覆盖那一行(要产品方部署新版 `apps-script.gs`)。`records-check.js --flags` 逐条列,`replay-record.js` 在那一手下面标 🚩。**可以当 AI 体检的错例来源**(10-31 还是 0 条) |
+| 功能线 v0.7.52 | **教练消息标记** | 玩家在「六六教练」页标「六六这条说得不对」,牌谱多 `coachFlags:[{t,kind,text,note?}]`(t 从 0 数,复盘 null)。`records-check.js --flags` 一起列。**教练说错的地方,可以当教练 / 引擎体检的错例** |
 
 **分工(产品方,2026-09-26):** 这条线主做**智能**;功能与界面由另一条线做(分支 `claude/80fen-test-attachment-sngsnx`)。
 两边都改 `80fen-test.html` 和 `docs/CHANGELOG.md`。**开 PR 之前**:`git fetch`,看 main 上最新的测试版是哪一号、

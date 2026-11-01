@@ -642,6 +642,12 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 .mem-gate{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font:400 14px/1.5 var(--font-sans)}
 .coachBox{margin:8px 0;padding:10px 12px;border-radius:14px;background:var(--teal-tint);border:1.5px solid rgba(47,111,117,.3);line-height:1.6}
 .coachBox .cno{display:block;font:700 12px/1.4 var(--font-sans);color:var(--teal)}
+.coachBox{position:relative}
+.coachBox .cf-btn{display:block;margin:6px 0 0 auto;padding:2px 8px;border:0;border-radius:999px;background:none;color:var(--ink-soft);font:700 12px/1.5 var(--font-sans);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.coachBox .cf-btn:hover{background:rgba(255,255,255,.6)}
+.coachBox.cflag{background:#F9D9CF;border-color:var(--brick)}
+.coachBox.cflag .cf-btn{color:var(--brick-deep)}
+.coachBox .cf-note{display:block;margin-top:4px;font:500 12px/1.4 var(--font-sans);color:var(--brick-deep)}
 .coachBox .btn{min-height:36px;padding:0 14px;margin:6px 6px 0 0}
 /* 教练的建议单(产品的 suggestHTML):小标题、每个出法一行 + 标签、灰字理由 */
 .coachBox .cSec{font:900 14px/1.4 var(--font-heading);margin-bottom:2px}
@@ -820,7 +826,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.51(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.52(测试版)</div>
 
 
 <script>
@@ -8861,7 +8867,8 @@ function makeRecord(r){
                                    buried:css(part?G.buried:r.buried)}),
     tricks:tricks.map(t=>({plays:t.plays.map(p=>({seat:p.seat,cards:css(p.cards),
       ...(p.by?{by:p.by}:{}),...(p.hint?{hint:1}:{}),...(p.u?{u:1}:{})})),winner:t.winner,points:t.points})),
-    ...(()=>{ const f=getFlags(G.recId).filter(x=>x.t<tricks.length); return f.length?{flags:f}:{}; })()};
+    ...(()=>{ const f=getFlags(G.recId).filter(x=>x.t<tricks.length); return f.length?{flags:f}:{}; })(),
+    ...(()=>{ const c=getCoachFlags(G.recId); return c.length?{coachFlags:c.map(coachFlagOut)}:{}; })()};
 }
 /* 出牌标记(v0.7.48):玩家在「对局记录 · 按墩」里点一家出的牌,标成「这手有问题」,可附一句话。
  * 随牌谱上传,给 AI 线当体检 / 训练样本。本机按牌谱 id 存一份(lsGet('flags')[id] = [{t, seat, note?}],
@@ -8884,7 +8891,28 @@ function setFlags(id,list){
       clearTimeout(flagUpTimer); flagUpTimer=setTimeout(flushUploads,4000); }   // 连着标几手,停下来再一起传
   }else if(G&&G.recId===id) saveCheckpoint();
 }
-window.__flags={get:getFlags,set:setFlags};
+/* 教练消息标记(v0.7.52):六六教练页里的建议 / 考题 / 失误提醒 / 复盘,玩家觉得说错了可以标出来,附一句话。
+ * 本机按牌谱 id 存(lsGet('cflags')[id] = [{mid, t, kind, text, note?}]),mid 是这次打开页面里那条消息的编号,只给界面认是哪一条;
+ * 牌谱里写成 coachFlags:[{t 第几墩(从 0 数,复盘为 null), kind, text 消息原文(去掉排版), note?}]。
+ * 已存档的局改了也重传;重传时牌谱一定带 flags 数组(可以是空的),收集表才会认出是「改了标记」去覆盖那一行。 */
+function getCoachFlags(id){ const all=lsGet('cflags',{}); return Array.isArray(all[id])?all[id]:[]; }
+const coachFlagOut=f=>({t:f.t,kind:f.kind||'',text:f.text,...(f.note?{note:f.note}:{})});
+function setCoachFlags(id,list){
+  list=list.filter(f=>f&&f.text).map(f=>({mid:f.mid,t:f.t==null?null:f.t,kind:String(f.kind||'').slice(0,20),text:String(f.text).slice(0,400),
+    ...(f.note?{note:String(f.note).slice(0,200)}:{})}));
+  const all=lsGet('cflags',{});
+  if(list.length) all[id]=list; else delete all[id];
+  const keys=Object.keys(all);
+  if(keys.length>REC_MAX) keys.slice(0,keys.length-REC_MAX).forEach(k=>delete all[k]);
+  lsSet('cflags',all);
+  const recs=lsGet('recs',[]), r=recs.find(x=>x.id===id);
+  if(r){
+    const out=list.map(coachFlagOut);
+    if(JSON.stringify(r.coachFlags||[])!==JSON.stringify(out)){ r.coachFlags=out; if(!r.flags) r.flags=[]; delete r.up; lsSet('recs',recs);
+      clearTimeout(flagUpTimer); flagUpTimer=setTimeout(flushUploads,4000); }
+  }else if(G&&G.recId===id) saveCheckpoint();
+}
+window.__flags={get:getFlags,set:setFlags,coachGet:getCoachFlags,coachSet:setCoachFlags};
 /* 残局进度:发完牌、开打、每收一墩、悔牌之后各覆盖写一次(本机一格 'cur')。正常打完就清掉;
  * 没打完就离开了(刷新 / 关页面 / 被系统杀掉 / 重打 / 用种子开局 / 重开整场),
  * 下一次开局或下次打开页面时把它转成一份残局牌谱(promoteCheckpoint)。
@@ -9526,7 +9554,7 @@ function chatPush(m){
   if(m.from!=='me'&&activeTab!=='coach') chatUnread++;
   return m;
 }
-function coachSay(no,html,kind){ return chatPush({from:'coach',no,html,kind:kind||''}); }
+function coachSay(no,html,kind){ return chatPush({from:'coach',no,html,kind:kind||'',rec:G&&G.recId}); }   // rec:哪一局的牌谱(教练消息标记用)
 const escHTML=t=>String(t).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
 
 function chatItemHTML(m){
@@ -10725,7 +10753,7 @@ recPanel.addEventListener('click',function(e){
 });
 recPanel.addEventListener('input',function(e){if(e.target.id==='flagNote')flagDraft=e.target.value;});
 recPanel.addEventListener('keydown',function(e){
-  if(e.target.id==='flagNote'&&e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();saveFlagNote();flagEdit=null;renderLog();}
+  if(e.target.id==='flagNote'&&e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();saveFlagNote();flagEdit=null;e.target.blur();renderLog();}
 });
 recPanel.addEventListener('focusout',function(e){if(e.target.id==='flagNote')saveFlagNote();});
 function renderLog(){
@@ -10823,6 +10851,43 @@ function memHtml(){
   }
   return '<details class="mem" id="memBox"'+(memOpen?' open':'')+'><summary>记牌表<small>每门别家还剩什么</small></summary><div class="mem-body">'+body+'</div></details>';
 }
+/* 教练消息标记:点「说得不对?标一下」→ 标上并打开写理由的一行;再点 → 打开 / 收起那一行 */
+var cfEdit=null,cfDraft='';   /* cfEdit={rec,mid} */
+function cfMsg(mid){return chatList().filter(function(m){return m.id===mid;})[0];}
+function saveCfNote(){
+  if(!cfEdit)return;
+  var fl=window.__flags.coachGet(cfEdit.rec).map(function(f){return f.mid===cfEdit.mid?Object.assign({},f,{note:cfDraft.trim()}):f;});
+  window.__flags.coachSet(cfEdit.rec,fl);
+}
+/* 消息原文去掉排版:分行、分块处补「 · 」,不然建议单里几条候选会连成一串 */
+function plainOf(html){var d=document.createElement('div');d.innerHTML=String(html).replace(/<br\s*\/?>|<\/(div|p|li)>/gi,' · ');
+  return d.textContent.replace(/\s+/g,' ').replace(/(\s*·\s*)+/g,' · ').replace(/^ · | · $/g,'').trim();}
+recPanel.addEventListener('click',function(e){
+  var b=e.target.closest('[data-cf]');
+  if(b){
+    var m=cfMsg(+b.dataset.cf);if(!m||!m.rec)return;
+    var fl=window.__flags.coachGet(m.rec),cur=fl.filter(function(f){return f.mid===m.id;})[0];
+    if(cfEdit)saveCfNote();
+    if(!cur){
+      window.__flags.coachSet(m.rec,fl.concat([{mid:m.id,t:m.no?m.no-1:null,kind:m.kind,text:plainOf(m.html)}]));
+      cfEdit={rec:m.rec,mid:m.id};cfDraft='';
+    }else if(cfEdit&&cfEdit.mid===m.id)cfEdit=null;
+    else{cfEdit={rec:m.rec,mid:m.id};cfDraft=cur.note||'';}
+    renderCoach();
+    var inp=$('cflagNote');if(inp&&!cur)inp.focus({preventScroll:true});
+    return;
+  }
+  if(e.target.id==='cflagSave'){saveCfNote();cfEdit=null;renderCoach();}
+  else if(e.target.id==='cflagDel'&&cfEdit){
+    window.__flags.coachSet(cfEdit.rec,window.__flags.coachGet(cfEdit.rec).filter(function(f){return f.mid!==cfEdit.mid;}));
+    cfEdit=null;renderCoach();
+  }
+});
+recPanel.addEventListener('input',function(e){if(e.target.id==='cflagNote')cfDraft=e.target.value;});
+recPanel.addEventListener('keydown',function(e){
+  if(e.target.id==='cflagNote'&&e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();saveCfNote();cfEdit=null;e.target.blur();renderCoach();}   /* 先失焦:输入框有焦点时不重画 */
+});
+recPanel.addEventListener('focusout',function(e){if(e.target.id==='cflagNote')saveCfNote();});
 function renderCoach(){
   var G=g();
   if(!recPanel.querySelector('#coachInput')){
@@ -10835,9 +10900,11 @@ function renderCoach(){
     $('chatNoteSend').onclick=send;
     $('chatNoteInput').onkeydown=function(e){if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();send();}};
   }
+  if(document.activeElement&&document.activeElement.id==='cflagNote')return;   /* 正在写标记理由:不重画 */
   /* 输入框在最上面,下面是记牌表,再下面是消息(新的在上):教练的话、你的作答、笔记 */
   var html=memHtml();
   var chat=chatList().slice().reverse();
+  var cfl={};function cfOf(rec){return rec&&window.__flags&&window.__flags.coachGet?(cfl[rec]=cfl[rec]||window.__flags.coachGet(rec)):[];}
   chat.forEach(function(m){
     if(m.from==='me'){
       html+='<div class="chat-note'+(m.old?' old':'')+'"><span class="cno">'+(m.r?'第 '+m.r+' 局 · ':'')+(m.old?'以前的笔记':'我')+'</span>'+esc(m.t)+'</div>';
@@ -10850,7 +10917,15 @@ function renderCoach(){
         '<button class="btn quiet" data-qz="-1" data-mid="'+m.id+'">跳过</button></div>';
       else if(m.quiz.state==='expired')body+='<div class="dim">(这墩已经打完了)</div>';
     }
-    html+='<div class="coachBox '+(m.kind||'')+'">'+(meta?'<span class="cno">'+meta+'</span>':'')+body+'</div>';
+    /* 教练说的每一条都能标「说得不对」,附一句话,随牌谱上传(见产品层 setCoachFlags) */
+    var cf=cfOf(m.rec).filter(function(f){return f.mid===m.id;})[0];
+    var btn=m.rec?'<button class="cf-btn" data-cf="'+m.id+'" aria-pressed="'+!!cf+'">'+(cf?'🚩 已标记 · 改':'🚩 说得不对?标一下')+'</button>':'';
+    html+='<div class="coachBox '+(m.kind||'')+(cf?' cflag':'')+'">'+(meta?'<span class="cno">'+meta+'</span>':'')+body+
+      (cf&&cf.note?'<span class="cf-note">🚩 '+esc(cf.note)+'</span>':'')+btn+'</div>';
+    if(cfEdit&&cfEdit.mid===m.id)
+      html+='<div class="flag-edit"><span class="fe-who">🚩 六六这条说得不对'+(meta?'('+meta+')':'')+'</span>'+
+        '<input id="cflagNote" maxlength="200" enterkeyhint="done" placeholder="哪里不对?(可不填)" value="'+esc(cfDraft).replace(/"/g,'&quot;')+'">'+
+        '<button class="btn primary" id="cflagSave">好</button><button class="btn" id="cflagDel">取消标记</button></div>';
   });
   if(!chat.some(function(m){return m.from==='coach';}))html+='<div class="empty-note">轮到你出牌时点「问六六」:六六先考你一道和这手牌有关的题,答完或跳过就给建议;出了明显更差的一手会提醒;一局打完会复盘关键回合。</div>';
   var dyn=$('coachDyn');
