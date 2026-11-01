@@ -820,7 +820,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.50(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.51(测试版)</div>
 
 
 <script>
@@ -1486,8 +1486,9 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   beliefSurv: 20,             // (v0.7.44 测试版默认 20 = 4+16;v0.7.42 起是 4)位开关:1 = 跟牌压牌候选、2 = 队友暂大的确定性、4 = 整个 pTeamWin 换成逐世界走完本墩(teamWinBelief)、8 = 领出单张的 leadWinP 也换、16 = 跟牌打分的期望分 ev 也换成逐世界走完本墩(trickEVBelief,含放分模型 dumpExp) —— 改用抽样信念 + 拟合意愿(见 survB);0 = 旧行为
   beliefM: 30,                // 信念服务每次抽几个世界(30 与 60 一样准,5 ms)
   /* 本墩推演(teamWinBelief / trickEVBelief)里「本队暂大 → 跟小」写死了:第 2 家把分垫给后面的队友时,第 3 家看着他队友那张小牌暂大就永远不毙
-   * (教练线 v0.7.50 查出:下家已知断门时估本队拿下 63%、实 35%)。1 = 本队暂大、后面还有对手的那家,按 willMateW 的概率用最便宜那张压上去保。0 = 旧行为。 */
-  mateOver: 0,
+   * (教练线 v0.7.50 查出:下家已知断门时估本队拿下 63%、实 35%)。1 = 本队暂大、后面还有对手的那家,按 willMateW 的概率用最便宜那张压上去保。0 = 旧行为。
+   * (v0.7.51 测试版默认开)ai-h2h 8 × 350 +0.09 ±0.13 分 / +0.0047 ±0.0030 级;ai-pool 8 × 25 +0.77 ±0.36 分 / +0.016 ±0.009 级,对每个历史版本级数不为负。 */
+  mateOver: 1,
   /* 领出推断(信念第 4 步 b):别人单张领出时,抽样世界按领出模型 P(领这一类 | 他的手牌) 重抽(池子 = k × beliefM)。0 = 旧行为。 */
   leadInfer: 0,
   /* test/lead-data.js --fit:8 类 × 11 个手牌特征(leadHandFeat),条件 logit(只在手里有的类之间归一)。
