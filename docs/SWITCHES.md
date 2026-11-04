@@ -228,13 +228,15 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
-| `mateOver` | `1` | (见上方注释)本墩推演(teamWinBelief / trickEVBelief)里「本队暂大 → 跟小」写死了:第 2 家把分垫给后面的队友时,第 3 家看着他队友那张小牌暂大就永远不毙 | `mateCtx` |
+| `mateOver` | `1` | (见上方注释)本墩推演(teamWinBelief / trickEVBelief)里「本队暂大 → 跟小」写死了:第 2 家把分垫给后面的队友时,第 3 家看着他队友那张小牌暂大就永远不毙 | `mateCtx` `teamWinBelief` `trickEVBelief` |
 
 ### 领出推断(信念第 4 步 b):别人单张领出时,抽样世界按领出模型 P(领这一类 | 他的手牌) 重抽(池子 = k × beliefM)。0 = 旧行为。
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
 | `leadInfer` | `0` | (见上方注释)领出推断(信念第 4 步 b):别人单张领出时,抽样世界按领出模型 P(领这一类 \| 他的手牌) 重抽(池子 = k × beliefM)。 | `makeBelief` |
+| `beliefDecl` | `0` | — | `makeBelief` |
+| `beatChoice` | `0` | 1 = 本墩推演里压牌那一叉不再一律「最便宜那张」,按 beatChoiceW 在压得过的牌里取前 3 张加权(beatMix);0 = 旧行为 | `mateCtx` `beatMix` |
 
 ### 推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。
 
