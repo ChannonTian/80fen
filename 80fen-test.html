@@ -1497,6 +1497,9 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   mateOver: 1,
   /* 领出推断(信念第 4 步 b):别人单张领出时,抽样世界按领出模型 P(领这一类 | 他的手牌) 重抽(池子 = k × beliefM)。0 = 旧行为。 */
   leadInfer: 0,
+  followInfer: 0,             // 跟牌推断:池子倍数 k(0 = 旧行为);抽样世界按「他以前本队输着时压没压」的似然重抽(followEvents / followLik)
+  followInferT: 1,
+  leadInferHist: 0,           // 过去所有单张领出也进似然(池子倍数 k,0 = 旧行为;leadEvents / leadHistLik)            // 似然的指数(<1 = 打折,防止少数世界独大)
   beliefDecl: 0,
   beatChoice: 0,              // 1 = 本墩推演里压牌那一叉不再一律「最便宜那张」,按 beatChoiceW 在压得过的牌里取前 3 张加权(beatMix);0 = 旧行为
   beatChoiceW: [2.0856,0.7688,0.1243,-1.8395,-1.3597,-0.4993,-2.3843,3.9895,0,-0.2528,-1.4187,-1.0832,1.7261],   // test/beatchoice-data.js --fit(自对弈 1200 副 7949 个样本,两折对数损失 均匀 1.525 → 0.888)              // 1 = 抽样世界把亮主亮出来的牌(全部亮主记录)钉在亮的那家手里(declKnown);0 = 旧行为(信念服务不用亮主信息)
@@ -5385,6 +5388,45 @@ function declKnown(view, plays, seats){
     for(let i=0;i<want[k]-played;i++) known.push({seat:st,suit,rank:rk}); }
   return known;
 }
+/* 跟牌推断(信念第 4 步 e,followInfer,11-04):别人以前每一次「本队输着时压没压」都是线索 —— 手里明明有压得过的却没压,多半没有;
+ * 世界按意愿模型 willP 的似然加权:那一刻他的手牌 = 这个世界里他现在的牌 + 他从那一墩起打出的牌。只看单张领出、他那一刻本队输着的情形。 */
+function followEvents(view, plays, T){
+  const hist=view.history||[], ev=[], later={0:[],1:[],2:[],3:[]};   // later[s][t] = s 从第 t 墩起打出的牌
+  const tricks=[]; for(let i=0;i<hist.length;i+=4) tricks.push(hist.slice(i,i+4));
+  for(let t=tricks.length-1;t>=0;t--) for(const pl of tricks[t]) later[pl.seat].push({t,cards:pl.cards});
+  const after=(s,t)=>{ const out=[]; for(const x of later[s]) if(x.t>=t) out.push(...x.cards); return out; };
+  tricks.forEach((tr,t)=>{
+    if(!tr.length||tr[0].cards.length!==1) return;
+    for(let j=1;j<tr.length;j++){ const s=tr[j].seat; if(s===view.seat||tr[j].cards.length!==1) continue;
+      const before=tr.slice(0,j), cur=currentWinner(before,T); if(cur.seat%2===s%2) continue;
+      const beat=currentWinner(tr.slice(0,j+1),T).seat===s?1:0, behind=[]; for(let q=j+1;q<4;q++) behind.push((tr[0].seat+q)%4);
+      ev.push({s,before,beat,behind,later:after(s,t)}); } });
+  return ev;
+}
+/* 过去所有单张领出(leadInferHist,11-04):领出那家那一刻的手牌 = 这个世界里他现在的牌 + 他从那一墩起打出的牌(含领的那张)。
+ * 量具 calib-teamwin PIN=last:第 2 家最缺的是**队友(第 4 家)手里有什么**,而队友以前每次领什么正是这方面的线索。 */
+function leadEvents(view, T){
+  const hist=view.history||[], ev=[], tricks=[]; for(let i=0;i<hist.length;i+=4) tricks.push(hist.slice(i,i+4));
+  const later={0:[],1:[],2:[],3:[]}; tricks.forEach((tr,t)=>tr.forEach(pl=>later[pl.seat].push({t,cards:pl.cards})));
+  tricks.forEach((tr,t)=>{ if(tr.length<4||!tr[0]||tr[0].cards.length!==1||tr[0].seat===view.seat) return;
+    const s=tr[0].seat, after=[]; for(const x of later[s]) if(x.t>t) after.push(...x.cards);
+    ev.push({s,lc:tr[0].cards[0],after,y:leadClass8(tr[0].cards[0],T),dt:s%2===view.declSeat%2}); });
+  return ev;
+}
+function leadHistLik(LE, w, T, humanSeat){
+  let L=1;
+  for(const e of LE){ const H=w.hands[e.s]; if(!H) continue;
+    const W=humanSeat===e.s&&AIP.leadModelHuman?AIP.leadModelHuman:AIP.leadModelAI; if(!W) continue;
+    L*=Math.max(leadLik(W,H.concat(e.after,[e.lc]),T,e.dt,e.y),0.01); }
+  return L;
+}
+function followLik(FE, w, T, humanSeat){
+  let L=1;
+  for(const e of FE){ const H=w.hands[e.s]; if(!H) continue;
+    const hand=H.concat(e.later), r=willP(T,e.before,e.s,hand,hand.length,e.behind,humanSeat===e.s);
+    const p=r.p||0; L*=e.beat?Math.max(p,0.02):Math.max(1-p,0.02); }
+  return Math.pow(L,AIP.followInferT||1);
+}
 function makeBelief(view, plays, M){
   const trump=view.trump, n=view.hand.length;
   const mem=makeMemory(view);
@@ -5403,19 +5445,22 @@ function makeBelief(view, plays, M){
   const reads=makeReads(hist,trump);
   const capMemo={};   // 上界只取决于(座, 门),一次决策里不变 —— 抽样时每张牌每家都要问一遍,记下来
   const capOf=(s,su)=>{ const k=s+su; return capMemo[k]!==undefined?capMemo[k]:(capMemo[k]=maxHoldIn(reads,mem,s,su,trump)); };
-  const known=AIP.beliefDecl?declKnown(view,plays,seats):[];
+  const known=(AIP.beliefDecl?declKnown(view,plays,seats):[]).concat(view._pin||[]);   // _pin:只给量具用(test/calib-teamwin.js PIN=),把某家的部分真实手牌钉住
   const ctx={unseen,sizes,seats,voids,trump,kittySize,capOf,known,pVoidOf:null};
   const rand=rng(hist.length*7919+view.seat*31+n*17+7);
   const worlds=[], MM=M||AIP.beliefM;
   // 领出推断(leadInfer = 池子倍数 k,0 = 旧行为):别人单张领出的这墩,先抽 k×M 个世界,按「领出那家在这个世界的手牌下领这一类」的概率重抽 M 个
   const L=plays&&plays.length&&plays[0].seat!==view.seat&&plays[0].cards.length===1?plays[0].seat:-1;
   const LM=L>=0&&AIP.leadInfer?(view.humanSeat===L&&AIP.leadModelHuman?AIP.leadModelHuman:AIP.leadModelAI):null;
-  const pool=LM?MM*AIP.leadInfer:MM;
+  const FE=AIP.followInfer?followEvents(view,plays,trump):null;
+  const LE=AIP.leadInferHist?leadEvents(view,trump):null;
+  const pool=Math.max(LM?MM*AIP.leadInfer:MM,FE&&FE.length?MM*AIP.followInfer:MM,LE&&LE.length?MM*AIP.leadInferHist:MM);
   for(let i=0;i<pool;i++){ const w=sampleWorld(ctx,rand); if(w) worlds.push(w); }
-  if(LM&&worlds.length>MM){
-    const lc=plays[0].cards[0], y=leadClass8(lc,trump), dt=L%2===view.declSeat%2;
-    const wt=worlds.map(w=>leadLik(LM,w.hands[L].concat([lc]),trump,dt,y));
-    const tot=wt.reduce((a,b)=>a+b,0), out=[]; let u=rand()*tot/MM, acc=0, j=0;
+  if((LM||(FE&&FE.length)||(LE&&LE.length))&&worlds.length>MM){
+    const lc=LM?plays[0].cards[0]:null, y=LM?leadClass8(lc,trump):0, dt=L%2===view.declSeat%2;
+    const wt=worlds.map(w=>(LM?leadLik(LM,w.hands[L].concat([lc]),trump,dt,y):1)*(FE&&FE.length?followLik(FE,w,trump,view.humanSeat):1)*(LE&&LE.length?leadHistLik(LE,w,trump,view.humanSeat):1));
+    const tot=wt.reduce((a,b)=>a+b,0); if(!(tot>0)) return {worlds:worlds.slice(0,MM),mem,seats,trump};
+    const out=[]; let u=rand()*tot/MM, acc=0, j=0;
     for(let i=0;i<MM;i++){ const t=u+i*tot/MM; while(j<worlds.length-1&&acc+wt[j]<t){ acc+=wt[j]; j++; } out.push(worlds[j]); }
     return {worlds:out,mem,seats,trump};
   }
@@ -6507,7 +6552,7 @@ function simulateRound(seed, smartSeats=[0,1,2,3]){
 }
 
 /* 引擎公开面 —— 浏览器 #test 与 node 无头测试共用同一份,避免两边漂移 */
-const ENGINE={RULES,makeDeck,willMateFeat,beatChoiceCands,leadClass8,leadHandFeat,leadAvail,leadLik,cardPoints,countPoints,rng,dealRound,
+const ENGINE={RULES,makeDeck,willP,willMateFeat,beatChoiceCands,leadClass8,leadHandFeat,leadAvail,leadLik,cardPoints,countPoints,rng,dealRound,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
   canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,clampAtGate,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
