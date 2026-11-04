@@ -826,7 +826,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.52(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.53(测试版)</div>
 
 
 <script>
@@ -8009,7 +8009,7 @@ function newRound(){ startRound(seedBase++); }
 function startRound(seed){
   // 上一盘可能还有在途的定时器(AI 思考 / 收墩 / 亮主倒计时),不清掉会打到新一盘的局面上
   if(G){ clearTimeout(G.aiTimer); clearTimeout(G.holdTimer); clearTimeout(G.declTimer);
-         clearInterval(G.declTick); }
+         clearInterval(G.declTick); for(const k in G.declPend||{}) clearTimeout(G.declPend[k].timer); }
   promoteCheckpoint();      // 上一局没打完就开了新局(重打 / 种子 / 重开整场):那一局存成残局
   const carryAuto=autoCarry; autoCarry=false;
   const dealerKnown=M.dealer>=0 && !scrambleNext;   // 完全造反重发 → 本盘按无庄盘抢庄
@@ -8034,7 +8034,7 @@ function startRound(seed){
   G={seed,start,firstTaker:first,trumpRank,dealerKnown,
      hands:deal.hands,kittyOrig:deal.kitty,buried:[],
      trump:null,declSeat:dealerKnown?M.dealer:-1,
-     decl:null,rebelHappened:false,
+     decl:null,rebelHappened:false,declPend:{},
      visCount:[0,0,0,0],dealt:0,
      leader:-1,trick:[],trickNo:0,tricks:[],defPoints:0,capturedCards:[],lastWinner:-1,
      lastLeadSize:1,phase:'dealing',selected:new Set(),log:[],awaitNext:false,
@@ -8090,8 +8090,32 @@ function dealTick(){
   setTimeout(dealTick,120);   // 100张 × 120ms ≈ 12秒发完
 }
 
-// AI 抢亮决策(基于已见手牌)—— 打分与门槛在 AI 层的 aiDeclDecide,这里只负责取上下文与执行
-function aiDeclThink(seat){
+/* AI 亮主的反应时间(11-04,产品方):AI 看到牌的同一刻就亮,人要等界面刷出牌、认牌、点按钮 —— 抢开局亮主人几乎永远落后。
+ * 现在 AI 决定亮 / 加固之后先排队,过 [出牌思考上限, 上限 + 1.5 秒](默认 3.0~4.5 秒,总比 AI 出牌思考慢)再亮;
+ * 到点时按当时的局面重新判一次(这期间别人可能已经亮了,他自己也多看到了几张)。排队期间这一家不再另作决定。
+ * 托管替你亮的不排队。发完牌定主时(含点「不亮」)先把排着的结掉,免得「不亮」把 AI 的亮主抢没了。 */
+function aiDeclDelayMs(){
+  const hi=secs(S.aiThinkMax,S_DEFAULT.aiThinkMax);
+  return hi+Math.random()*1500;
+}
+function aiDeclQueue(seat){
+  if(seat===HUMAN&&G.auto){ aiDeclThink(seat,true); return; }
+  const g=G, due=Date.now()+aiDeclDelayMs();
+  G.declPend[seat]={due,timer:setTimeout(()=>{ if(G===g) aiDeclFire(seat); },due-Date.now())};
+}
+function aiDeclFire(seat){
+  const p=G.declPend[seat]; if(!p) return;
+  clearTimeout(p.timer); delete G.declPend[seat];
+  if(G.phase!=='dealing'&&G.phase!=='finalDecl') return;
+  aiDeclThink(seat,true);
+}
+function aiDeclFlush(){   // 定主前:排着的按到点先后结掉
+  for(const s of Object.keys(G.declPend||{}).sort((a,b)=>G.declPend[a].due-G.declPend[b].due)) aiDeclFire(+s);
+}
+// AI 抢亮决策(基于已见手牌)—— 打分与门槛在 AI 层的 aiDeclDecide,这里只负责取上下文与执行。
+// now=false(发牌中每张牌):决定要亮就排队(aiDeclQueue);now=true(到点 / 托管):按当时局面判,要亮就亮
+function aiDeclThink(seat,now){
+  if(!now&&G.declPend&&G.declPend[seat]) return;   // 已经在排队
   const vis=visHand(seat);
   const rand=rng(G.seed*13+G.dealt);
   const ctx={
@@ -8104,8 +8128,9 @@ function aiDeclThink(seat){
   if(canReinforce2(G.decl,seat,vis,rankOf(seat),G.rebelHappened)){
     const asPair=eng(seat).scoreDeclOption(ctx,{suit:G.decl.suit,strength:2}).score;
     const asSingle=eng(seat).scoreDeclOption(ctx,{suit:G.decl.suit,strength:1,hasPair:true}).score;
-    if(asPair>asSingle&&rand()<0.9){
-      applyDecl(seat,{suit:G.decl.suit,strength:2},true); return;
+    if(asPair>asSingle&&(now||rand()<0.9)){
+      if(now) applyDecl(seat,{suit:G.decl.suit,strength:2},true); else aiDeclQueue(seat);
+      return;
     }
   }
   const d=eng(seat).aiDeclDecide(ctx);
@@ -8113,7 +8138,8 @@ function aiDeclThink(seat){
   // 分数越过门槛越多,越果断;贴着门槛则留一点随机,避免四家行为整齐划一
   const margin=d.score-d.threshold;
   if(margin<0) return;
-  if(rand()<Math.min(0.95,0.45+margin/40)) applyDecl(seat,d.opt,false);
+  if(now) applyDecl(seat,d.opt,false);   // 排队前已过了随机那一关,到点只看还该不该亮
+  else if(rand()<Math.min(0.95,0.45+margin/40)) aiDeclQueue(seat);
 }
 
 function applyDecl(seat,opt,isReinforce){
@@ -8144,6 +8170,7 @@ window.__skipDecl=()=>{
 
 function settleTrump(){
   if(G.phase!=='finalDecl'&&G.phase!=='dealing') return;   // 防「不亮」和到点结算重复触发
+  aiDeclFlush();
   clearTimeout(G.declTimer); G.declTimer=null;
   stopDeclCountdown();
   G.trump={suit:G.decl?G.decl.suit:null,rank:G.trumpRank};
