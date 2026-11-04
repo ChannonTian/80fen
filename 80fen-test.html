@@ -374,7 +374,7 @@ html.hasHover #hand .card:hover .face{border-color:var(--teal)}
 #btnAuto:not(.minor){background:var(--teal);color:var(--card-face);border-color:var(--ink)}
 /* 次要操作(问六六 / 托管 / 悔牌):图标 + 小字的方块,省出宽度给主按钮 */
 .tool{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:none;
-  width:50px;height:48px;padding:0;border:2px solid var(--ink);border-radius:14px;background:var(--card-face);color:var(--ink);
+  width:54px;height:48px;padding:0;border:2px solid var(--ink);border-radius:14px;background:var(--card-face);color:var(--ink);
   box-shadow:var(--shadow-card);font:800 12px/1 var(--font-sans);white-space:nowrap;
   transition:transform var(--dur-tap) var(--ease-out),box-shadow var(--dur-tap) var(--ease-out)}
 .tool:active:not(:disabled){transform:translateY(2px);box-shadow:var(--shadow-press)}
@@ -387,12 +387,11 @@ html.hasHover #hand .card:hover .face{border-color:var(--teal)}
 #game.m-l .tool{width:100%;height:44px;font-size:11px}
 #game.m-l .tool svg{width:19px;height:19px}#game.m-l .tool .ico{width:21px;height:21px}
 #game.m-w .tool{width:64px;height:56px;font-size:13px}
-/* 问六六:「问」+ 头像,横排的小药丸 */
-.tool.ask{flex-direction:row;width:auto;height:44px;padding:0 4px 0 11px;gap:1px;border-radius:999px;font:900 16px/1 var(--font-heading)}
-.tool.ask .ico{width:28px;height:28px}
-#game.m-l .tool.ask{width:100%;height:44px;padding:0 3px;justify-content:center;font-size:14px}#game.m-l .tool.ask .ico{width:22px;height:22px}
-#game.m-w .tool.ask{width:auto;height:50px;font-size:17px;padding:0 8px 0 16px}#game.m-w .tool.ask .ico{width:34px;height:34px}
-@media (max-width:360px){.action-bar{gap:4px!important}.action-bar .btn{padding:0 9px}.tool{width:46px;height:48px;font-size:11px}.tool.ask{height:42px;padding:0 4px 0 10px}.tool.ask .ico{width:26px;height:26px}.action-bar .btn.primary{min-width:70px}}
+/* 问六六 / 托管 / 悔牌:同一种圆角方块,上图下字(产品方:原来「问六六」是横排药丸、托管是方块,形状不统一)。
+   六六头像比线条图标略大一点,看着一样重 */
+.tool.ask .ico{width:24px;height:24px}
+#game.m-w .tool svg{width:24px;height:24px}#game.m-w .tool.ask .ico{width:26px;height:26px}
+@media (max-width:360px){.action-bar{gap:4px!important}.action-bar .btn{padding:0 9px}.tool{width:48px;height:48px;font-size:11px}.action-bar .btn.primary{min-width:70px}}
 .ph-dealing #btnHint,.ph-dealing #btnPlay,.ph-dealing #btnClear,.ph-dealing #dealZone,
 .ph-kitty #btnHint,.ph-kitty #btnPlay,.ph-lowrebel #btnPlay,.ph-lowrebel #btnHint,.ph-lowrebel #btnClear,
 .ph-redealing #btnPlay,.ph-redealing #btnHint,.ph-redealing #btnClear,
@@ -591,6 +590,10 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 .init-hands summary{cursor:pointer;font:700 14px/1.6 var(--font-sans);color:var(--ink-soft)}
 .ih-row{display:grid;grid-template-columns:3em minmax(0,1fr);gap:6px;margin-top:8px;align-items:baseline}
 .ih-who{font-size:13px;color:var(--ink-soft);white-space:nowrap}
+.ih-who small{margin-left:3px;padding:0 4px;border-radius:6px;background:var(--ink);color:var(--card-face);font:700 10px/1.5 var(--font-sans)}
+.ih-gap{display:inline-block;width:9px}
+.ih-sep{margin-top:8px;border-top:1.5px dashed var(--line)}
+.init-hands .ih-row{grid-template-columns:4.6em minmax(0,1fr)}
 .trick-line{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 10px;align-items:baseline;padding:7px 10px;margin:4px 0;border-radius:12px;background:var(--card-face);border:1.5px solid var(--line)}
 .trick-line.win{background:var(--ok-tint)}
 .trick-line .tno{font:700 12px/1.4 var(--font-sans);color:var(--ink-soft);white-space:nowrap}
@@ -768,7 +771,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
   </section>
 
   <section class="action-bar" id="controls" aria-label="操作">
-    <button class="tool ask" id="btnHint" aria-label="问六六"><span class="lbl">问</span><span class="leo-avatar ico" aria-hidden="true"></span></button>
+    <button class="tool ask" id="btnHint" aria-label="问六六"><span class="leo-avatar ico" aria-hidden="true"></span><span class="lbl">问六六</span></button>
     <button class="tool minor" id="btnAuto" onclick="window.__setAuto(!(window.__G&&window.__G().auto))"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 8V4.5M9.5 13h.01M14.5 13h.01M9.5 16.5h5M2 12.5v3M22 12.5v3"/><circle cx="12" cy="3.5" r="1"/></svg><span class="lbl">托管</span></button>
     <button class="tool" id="btnUndo" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg><span class="lbl">悔牌</span></button>
     <span class="spacer"></span>
@@ -826,7 +829,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.53(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.54(测试版)</div>
 
 
 <script>
@@ -7972,6 +7975,7 @@ function sortForDisplay(hand,trump){
     return suitOrd(a.suit)-suitOrd(b.suit);
   });
 }
+window.__sortHand=(h,t)=>sortForDisplay(h,t);   // 表现层:对局记录里的初始手牌、底牌按手牌那样排
 function trumpLabel(t){ return t? (t.suit?`${SUIT_SYM[t.suit]} 打${rankName(t.rank)}`:`${T('noTrump')} 打${rankName(t.rank)}`) : '未定'; }
 function log(t){ G.log.unshift({text:t}); }
 function setMsg(t){ document.getElementById('msg').textContent=t||''; }
@@ -10075,7 +10079,7 @@ function layoutTable(){
   TB.two=two;
   if(two){
     /* 矮横屏:名牌是竖排的小头像。上下家在桌子左右两边的中间,牌摞挨着名牌朝桌心长;
-       对家、我两摞在中间一列(上下各一行),头像在牌摞左边 */
+       对家、我两摞在中间一列(上下各一行),对家头像在牌摞左边、我的在牌摞右边(绕桌心点对称) */
     var lhs={};for(var k2 in lab)lhs[k2]=lab[k2].offsetHeight||56;
     th=(ah-2*pad-gv)/2;
     tcw=Math.max(34,Math.floor(Math.min(th/1.43,cap,hard,wide?(aw/2-pad-Math.max(lw.E,lw.W)-g-8)/3.2:1e9)));th=tcw*1.43;
@@ -10089,25 +10093,27 @@ function layoutTable(){
       tcw=Math.max(28,Math.min(tcw,Math.floor((aw/2-lwc-2*g-pad)/1.9)));th=tcw*1.43;
       x0=Math.round(aw/2-tcw/2);colL=x0-g-lwc;
     }
-    /* 上下家牌摞最宽。名牌退到上角时,对家头像也贴最上面,上家的牌摞可以从它下面伸过去,一直到中间那一列 */
-    var side=stack?Math.max(tcw,x0-g-pad):Math.max(tcw,Math.min(beside,tcw*3.2));
-    /* 我的名牌在左下角,和对家的(中间一列左上)左右错开。上家名牌退到上角、牌摞从左边挂下来够得着最下面时,
-       左下角会被牌摞压住,我的名牌就放回我那摞左边,上家牌摞不伸过它 */
-    var sBy=wide&&stack&&pad+Math.max(lhs.W,lhs.E)+lg+th>ah-pad-lhs.S;
-    if(sBy){colL=Math.min(colL,x0-g-lw.S);side=Math.max(tcw,colL-g-pad);}
+    /* 对家和我绕桌心点对称:对家的名牌在上边、自己那摞左边,牌摞从 x0 往右长;
+       我的名牌在下边、自己那摞右边,牌摞右边对齐 x1(= 对家那摞左边的镜像)往左长 */
+    var x1=aw-x0;
     var xW=stack?pad:pad+lw.W+g,xE=stack?aw-pad:aw-pad-lw.E-g;
     var ySide=stack?pad+Math.max(lhs.W,lhs.E)+lg:yMid-th/2;
-    var colMax=Math.max(tcw,xE-side-g-x0);                         /* 中间一列牌摞最宽 */
     var yS=ah-pad-th;
+    /* 上下家牌摞最宽:上家的往右长,不能伸到对家那摞(两者上下有交叠);够得着对家名牌那一条时还得停在名牌左边。
+       下家的镜像:往左长,停在我那摞右边,够得着我的名牌那一条时停在名牌右边。名牌在两边正中时再按 3.2 张牌宽封顶 */
+    var sideCap=stack?1e9:tcw*3.2;
+    var wHard=Math.max(tcw,Math.min(sideCap,(ySide<pad+lhs.N+lg?colL-g:x0-g)-xW));
+    var eHard=Math.max(tcw,Math.min(sideCap,xE-(ySide+th>ah-pad-lhs.S-lg?x1+g+lw.S+g:x1+g)));
     place(lab.N,x0-g-lw.N,pad);                                    /* 对家的名牌贴桌子上边、在自己那摞左边 */
-    place(lab.S,sBy?x0-g-lw.S:pad,ah-pad-lhs.S);                   /* 我的贴下边、在左下角,不浮在桌子中间 */
+    place(lab.S,x1+g,ah-pad-lhs.S);                                /* 我的贴下边、在自己那摞右边 */
     if(stack){place(lab.W,pad,pad);place(lab.E,aw-pad-lw.E,pad);}
     else{place(lab.W,pad,yMid-lhs.W/2);place(lab.E,aw-pad-lw.E,yMid-lhs.E/2);}
-    P.N={x:x0,y:pad,align:'l',max:colMax};
-    P.S={x:x0,y:yS,align:'l',max:colMax};
-    P.W={x:xW,y:ySide,align:'l',max:side};
-    P.E={x:xE,y:ySide,align:'r',max:side};
-    TB.lane={x0:x0,xE:xE};   /* 中间一列和下家那摞共用 [x0, xE] 这一段,按张数分(见 stampPiles) */
+    P.N={x:x0,y:pad,align:'l',max:Math.max(tcw,xE-x0-8)};
+    P.S={x:x1,y:yS,align:'r',max:Math.max(tcw,x1-xW-8)};
+    P.W={x:xW,y:ySide,align:'l',max:wHard};
+    P.E={x:xE,y:ySide,align:'r',max:eHard};
+    /* 对家那摞和下家那摞共用 [x0, xE],我那摞和上家那摞共用 [xW, x1],各按张数分(见 stampPiles) */
+    TB.lane={x0:x0,xE:xE,x1:x1,xW:xW,wHard:wHard,eHard:eHard};
     TB.center={x:aw/2,y:ah/2};
     TB.slot={x:x0,y:yS};
   }else{
@@ -10157,9 +10163,12 @@ function stampPiles(){
   var mx={};
   if(TB.two&&TB.lane){
     var need=function(k){var n=$(SEAT_KEYS[k].pile).children.length;return n?tcw+(n-1)*step0:0;};
-    var c=Math.max(need('N'),need('S')),e=need('E'),room=TB.lane.xE-TB.lane.x0-8;
-    var cm=c+e>room?Math.max(tcw,room*c/(c+e)):room-e;
-    mx.N=mx.S=Math.max(tcw,cm);mx.E=Math.max(tcw,room-mx.N);
+    var Ln=TB.lane;
+    /* a 那摞和 b 那摞抢同一段:放得下就各要各的,放不下按要的宽度比例分 */
+    var split=function(a,b,room,bHard){var c=need(a),e=need(b);
+      var cm=c+e>room?Math.max(tcw,room*c/(c+e)):room-e;mx[a]=Math.max(tcw,cm);mx[b]=Math.max(tcw,Math.min(bHard,room-mx[a]));};
+    split('N','E',Ln.xE-Ln.x0-8,Ln.eHard);
+    split('S','W',Ln.x1-Ln.xW-8,Ln.wHard);
   }
   for(var k in SEAT_KEYS){
     var p=$(SEAT_KEYS[k].pile),a=TB.P[k],n=p.children.length,step=step0;
@@ -10788,9 +10797,20 @@ function renderSide(){
 }
 function rawTxt(c){var x=cardTxt(c);x.c=c;return x;}   /* 按花色看时要按大小排,留着原牌 */
 /* 局终快照,供回看已完成的局 */
+/* 初始手牌、底牌按手牌那样整理:主牌在前、副牌红黑相间,每门从大到小(产品层 sortForDisplay,经 window.__sortHand);g 是这张算哪一门,画的时候门与门之间空一点 */
+function sortedTxt(cards,trump){
+  var a=window.__sortHand&&trump?window.__sortHand(cards,trump):cards.slice();
+  return a.map(function(c){var x=cardTxt(c);x.g=trump&&window.effSuit?effSuit(c,trump):c.suit;return x;});
+}
+function groupedHtml(list){
+  return list.map(function(x,i){return (i&&list[i-1].g!==x.g?'<span class="ih-gap"></span>':'')+txtHtml(x);}).join('');
+}
 function snapshotRound(G){
-  var no=(G.start&&G.start.round||0)+1;
-  return {no:no,id:G.recId,trump:G.trump,initialHands:G.initialHands?G.initialHands.map(function(h){return h.map(cardTxt);}):null,
+  var no=(G.start&&G.start.round||0)+1,ih=G.initialHands&&G.trump;
+  return {no:no,id:G.recId,trump:G.trump,declSeat:G.declSeat,
+    initialHands:ih?G.initialHands.map(function(h){return sortedTxt(h,G.trump);}):null,
+    kitty:ih&&G.kittyOrig&&G.kittyOrig.length?sortedTxt(G.kittyOrig,G.trump):null,
+    buried:ih&&G.buried&&G.buried.length?sortedTxt(G.buried,G.trump):null,
     tricks:(G.tricks||[]).map(function(t){return {no:t.no,winner:t.winner,points:t.points,
       plays:t.plays.map(function(p){return {seat:p.seat,cards:p.cards.map(rawTxt)};})};})};
 }
@@ -10852,8 +10872,11 @@ function renderLog(){
     '<select id="logMode" aria-label="查看方式"><option value="trick"'+(logMode==='trick'?' selected':'')+'>按墩</option>'+
     '<option value="suit"'+(logMode==='suit'?' selected':'')+'>按花色</option></select></div>';
   if(!cur2.live&&cur2.initialHands){
-    html+='<details class="init-hands"><summary>四家初始手牌</summary>'+cur2.initialHands.map(function(h,s){
-      return '<div class="ih-row"><span class="ih-who">'+who(s)+'</span><span class="tcards">'+h.map(txtHtml).join('')+'</span></div>';}).join('')+'</details>';
+    /* 四家扣底之后、开打之前的手牌(庄家那手含底牌换进来的),下面是原来的 8 张底牌和庄家扣下的 8 张 */
+    var ihRow=function(lab,list){return '<div class="ih-row"><span class="ih-who">'+lab+'</span><span class="tcards">'+groupedHtml(list)+'</span></div>';};
+    html+='<details class="init-hands"><summary>四家初始手牌 · 底牌</summary>'+cur2.initialHands.map(function(h,s){
+      return ihRow(who(s)+(s===cur2.declSeat?'<small>庄</small>':''),h);}).join('')+
+      (cur2.kitty?'<div class="ih-sep"></div>'+ihRow('原底牌',cur2.kitty):'')+(cur2.buried?ihRow(who(cur2.declSeat)+'扣下',cur2.buried):'')+'</details>';
   }
   if(logMode==='trick'){
     var fl=flagsOf(cur2.id);
