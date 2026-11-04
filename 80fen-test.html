@@ -374,7 +374,7 @@ html.hasHover #hand .card:hover .face{border-color:var(--teal)}
 #btnAuto:not(.minor){background:var(--teal);color:var(--card-face);border-color:var(--ink)}
 /* 次要操作(问六六 / 托管 / 悔牌):图标 + 小字的方块,省出宽度给主按钮 */
 .tool{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;flex:none;
-  width:50px;height:48px;padding:0;border:2px solid var(--ink);border-radius:14px;background:var(--card-face);color:var(--ink);
+  width:54px;height:48px;padding:0;border:2px solid var(--ink);border-radius:14px;background:var(--card-face);color:var(--ink);
   box-shadow:var(--shadow-card);font:800 12px/1 var(--font-sans);white-space:nowrap;
   transition:transform var(--dur-tap) var(--ease-out),box-shadow var(--dur-tap) var(--ease-out)}
 .tool:active:not(:disabled){transform:translateY(2px);box-shadow:var(--shadow-press)}
@@ -387,12 +387,11 @@ html.hasHover #hand .card:hover .face{border-color:var(--teal)}
 #game.m-l .tool{width:100%;height:44px;font-size:11px}
 #game.m-l .tool svg{width:19px;height:19px}#game.m-l .tool .ico{width:21px;height:21px}
 #game.m-w .tool{width:64px;height:56px;font-size:13px}
-/* 问六六:「问」+ 头像,横排的小药丸 */
-.tool.ask{flex-direction:row;width:auto;height:44px;padding:0 4px 0 11px;gap:1px;border-radius:999px;font:900 16px/1 var(--font-heading)}
-.tool.ask .ico{width:28px;height:28px}
-#game.m-l .tool.ask{width:100%;height:44px;padding:0 3px;justify-content:center;font-size:14px}#game.m-l .tool.ask .ico{width:22px;height:22px}
-#game.m-w .tool.ask{width:auto;height:50px;font-size:17px;padding:0 8px 0 16px}#game.m-w .tool.ask .ico{width:34px;height:34px}
-@media (max-width:360px){.action-bar{gap:4px!important}.action-bar .btn{padding:0 9px}.tool{width:46px;height:48px;font-size:11px}.tool.ask{height:42px;padding:0 4px 0 10px}.tool.ask .ico{width:26px;height:26px}.action-bar .btn.primary{min-width:70px}}
+/* 问六六 / 托管 / 悔牌:同一种圆角方块,上图下字(产品方:原来「问六六」是横排药丸、托管是方块,形状不统一)。
+   六六头像比线条图标略大一点,看着一样重 */
+.tool.ask .ico{width:24px;height:24px}
+#game.m-w .tool svg{width:24px;height:24px}#game.m-w .tool.ask .ico{width:26px;height:26px}
+@media (max-width:360px){.action-bar{gap:4px!important}.action-bar .btn{padding:0 9px}.tool{width:48px;height:48px;font-size:11px}.action-bar .btn.primary{min-width:70px}}
 .ph-dealing #btnHint,.ph-dealing #btnPlay,.ph-dealing #btnClear,.ph-dealing #dealZone,
 .ph-kitty #btnHint,.ph-kitty #btnPlay,.ph-lowrebel #btnPlay,.ph-lowrebel #btnHint,.ph-lowrebel #btnClear,
 .ph-redealing #btnPlay,.ph-redealing #btnHint,.ph-redealing #btnClear,
@@ -591,6 +590,10 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 .init-hands summary{cursor:pointer;font:700 14px/1.6 var(--font-sans);color:var(--ink-soft)}
 .ih-row{display:grid;grid-template-columns:3em minmax(0,1fr);gap:6px;margin-top:8px;align-items:baseline}
 .ih-who{font-size:13px;color:var(--ink-soft);white-space:nowrap}
+.ih-who small{margin-left:3px;padding:0 4px;border-radius:6px;background:var(--ink);color:var(--card-face);font:700 10px/1.5 var(--font-sans)}
+.ih-gap{display:inline-block;width:9px}
+.ih-sep{margin-top:8px;border-top:1.5px dashed var(--line)}
+.init-hands .ih-row{grid-template-columns:4.6em minmax(0,1fr)}
 .trick-line{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:2px 10px;align-items:baseline;padding:7px 10px;margin:4px 0;border-radius:12px;background:var(--card-face);border:1.5px solid var(--line)}
 .trick-line.win{background:var(--ok-tint)}
 .trick-line .tno{font:700 12px/1.4 var(--font-sans);color:var(--ink-soft);white-space:nowrap}
@@ -642,6 +645,12 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 .mem-gate{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font:400 14px/1.5 var(--font-sans)}
 .coachBox{margin:8px 0;padding:10px 12px;border-radius:14px;background:var(--teal-tint);border:1.5px solid rgba(47,111,117,.3);line-height:1.6}
 .coachBox .cno{display:block;font:700 12px/1.4 var(--font-sans);color:var(--teal)}
+.coachBox{position:relative}
+.coachBox .cf-btn{display:block;margin:6px 0 0 auto;padding:2px 8px;border:0;border-radius:999px;background:none;color:var(--ink-soft);font:700 12px/1.5 var(--font-sans);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.coachBox .cf-btn:hover{background:rgba(255,255,255,.6)}
+.coachBox.cflag{background:#F9D9CF;border-color:var(--brick)}
+.coachBox.cflag .cf-btn{color:var(--brick-deep)}
+.coachBox .cf-note{display:block;margin-top:4px;font:500 12px/1.4 var(--font-sans);color:var(--brick-deep)}
 .coachBox .btn{min-height:36px;padding:0 14px;margin:6px 6px 0 0}
 /* 教练的建议单(产品的 suggestHTML):小标题、每个出法一行 + 标签、灰字理由 */
 .coachBox .cSec{font:900 14px/1.4 var(--font-heading);margin-bottom:2px}
@@ -762,7 +771,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
   </section>
 
   <section class="action-bar" id="controls" aria-label="操作">
-    <button class="tool ask" id="btnHint" aria-label="问六六"><span class="lbl">问</span><span class="leo-avatar ico" aria-hidden="true"></span></button>
+    <button class="tool ask" id="btnHint" aria-label="问六六"><span class="leo-avatar ico" aria-hidden="true"></span><span class="lbl">问六六</span></button>
     <button class="tool minor" id="btnAuto" onclick="window.__setAuto(!(window.__G&&window.__G().auto))"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 8V4.5M9.5 13h.01M14.5 13h.01M9.5 16.5h5M2 12.5v3M22 12.5v3"/><circle cx="12" cy="3.5" r="1"/></svg><span class="lbl">托管</span></button>
     <button class="tool" id="btnUndo" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg><span class="lbl">悔牌</span></button>
     <span class="spacer"></span>
@@ -820,7 +829,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.50(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.54(测试版)</div>
 
 
 <script>
@@ -1485,6 +1494,20 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   willHuman: [-0.36,0.86,-0.73], // (v0.7.42 测试版默认开)真人那一家的意愿修正 [常数, 毙, 同门·末家·0分](records-will --all);null = 不修正
   beliefSurv: 20,             // (v0.7.44 测试版默认 20 = 4+16;v0.7.42 起是 4)位开关:1 = 跟牌压牌候选、2 = 队友暂大的确定性、4 = 整个 pTeamWin 换成逐世界走完本墩(teamWinBelief)、8 = 领出单张的 leadWinP 也换、16 = 跟牌打分的期望分 ev 也换成逐世界走完本墩(trickEVBelief,含放分模型 dumpExp) —— 改用抽样信念 + 拟合意愿(见 survB);0 = 旧行为
   beliefM: 30,                // 信念服务每次抽几个世界(30 与 60 一样准,5 ms)
+  /* 本墩推演(teamWinBelief / trickEVBelief)里「本队暂大 → 跟小」写死了:第 2 家把分垫给后面的队友时,第 3 家看着他队友那张小牌暂大就永远不毙
+   * (教练线 v0.7.50 查出:下家已知断门时估本队拿下 63%、实 35%)。1 = 本队暂大、后面还有对手的那家,按 willMateW 的概率用最便宜那张压上去保。0 = 旧行为。
+   * (v0.7.51 测试版默认开)ai-h2h 8 × 350 +0.09 ±0.13 分 / +0.0047 ±0.0030 级;ai-pool 8 × 25 +0.77 ±0.36 分 / +0.016 ±0.009 级,对每个历史版本级数不为负。 */
+  mateOver: 1,
+  /* 领出推断(信念第 4 步 b):别人单张领出时,抽样世界按领出模型 P(领这一类 | 他的手牌) 重抽(池子 = k × beliefM)。0 = 旧行为。 */
+  leadInfer: 0,
+  beliefDecl: 0,
+  beatChoice: 0,              // 1 = 本墩推演里压牌那一叉不再一律「最便宜那张」,按 beatChoiceW 在压得过的牌里取前 3 张加权(beatMix);0 = 旧行为
+  beatChoiceW: [2.0856,0.7688,0.1243,-1.8395,-1.3597,-0.4993,-2.3843,3.9895,0,-0.2528,-1.4187,-1.0832,1.7261],   // test/beatchoice-data.js --fit(自对弈 1200 副 7949 个样本,两折对数损失 均匀 1.525 → 0.888)              // 1 = 抽样世界把亮主亮出来的牌(全部亮主记录)钉在亮的那家手里(declKnown);0 = 旧行为(信念服务不用亮主信息)
+  /* test/lead-data.js --fit:8 类 × 11 个手牌特征(leadHandFeat),条件 logit(只在手里有的类之间归一)。
+   * AI:自对弈 400 副 + 牌谱里 AI 的领出 5979 个,两折对数损失 1.180 → 0.764;真人:牌谱 384 个,1.251 → 0.965。 */
+  leadModelAI: [[-0.693,-0.922,0.187,0.854,-0.296,0.185,-0.405,-0.331,0.144,0.813,0.676],[-0.948,-0.631,-0.643,0.132,-0.653,0.357,-0.391,-0.079,-0.412,-0.167,0.17],[-0.958,-0.519,-0.686,0.461,-0.931,0.349,-0.453,-0.136,-0.207,-0.258,0.581],[-1.047,-0.4,-0.093,0.044,-0.352,-0.032,-0.398,-0.351,0.658,-0.471,0.012],[0.509,-0.002,0.89,-0.173,2.367,0.336,1.099,0.785,-0.54,0.04,-0.666],[0.609,0.813,0.076,-0.39,-0.298,-0.069,0.71,0.215,-0.089,-0.111,-0.356],[1.109,0.74,0.311,-0.582,0.499,-0.409,-0.096,-0.138,0.056,0.182,-0.343],[1.421,0.922,-0.043,-0.346,-0.336,-0.715,-0.066,0.034,0.391,-0.028,-0.074]],
+  leadModelHuman: [[-1.874,-1.321,1.111,0.349,-1.077,-0.315,-0.423,-0.902,0.899,-0.81,0.87],[-0.557,0.02,-0.404,0.053,-0.286,-0.505,-0.908,-0.262,-0.312,-0.429,0.325],[-0.739,-0.291,-0.069,0.742,-1.054,-0.803,-0.47,-0.309,0.562,-0.003,0.012],[-0.172,1.003,0.105,-0.427,0.648,0.001,0.363,0.065,0.221,-0.403,-0.93],[-0.284,0.497,0.531,-1.234,2.689,1.377,0.347,1.74,-0.414,0.833,-0.304],[0.916,-0.07,-0.473,0.053,-0.537,0.588,1.839,0.22,-0.749,0.134,-0.135],[0.716,0.012,0.096,0.238,-0.33,-0.485,-0.483,0.224,0.185,0.538,0.184],[1.994,0.15,-0.897,0.227,-0.055,0.145,-0.265,-0.776,-0.391,0.141,-0.022]],
+  willMateW: [-0.434,0.8459,0,0.3124,-1.1175,0.335,0.3713,1.1864,-0.3998,1.0617,-0.4073,0.0359,-0.434,1.0388,0],   // test/willmate-data.js --fit(自对弈 2000 副 7244 个样本,两折对数损失 0.654 → 0.523)
   /* 推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。
    * 真人(以及 guardJoker 之后的 AI)王留到最后。n>0:手里多于 n 张时推演领出不出王。0 = 旧行为。 */
   egRollKeepJoker: 0,
@@ -5349,6 +5372,22 @@ function levelUtility(sc, myTeam, declTeam){
  * 和收官搜索同一个 sampleWorld(硬断门、maxHoldIn 上界、亮主钉牌、底牌模型)。现在**只读**:
  * 给打分器里那些散落的概率各配一个「数世界」的版本,先量谁更准(test/calib-belief.js),不改任何决策。
  * belief-calib 量过:坛子公式估「某家握在外最大那张」系统性偏低(28% vs 实 33%),约束抽样一步改掉大半。 */
+/* 亮主亮出来的牌是硬信息(beliefDecl,11-01):每一家亮过的级牌 / 王对,减去他已经打出的,钉在他手里。
+ * view.declLog(界面 / 牌谱:全部亮主记录,被反掉的那家亮过的也算)优先,没有就用 curDecl / decl(最后一次)。
+ * 收官搜索早就这么做(egDeclKnown,只用最后一次);信念服务以前没用。 */
+function declKnown(view, plays, seats){
+  const T=view.trump, log=Array.isArray(view.declLog)?view.declLog:(()=>{ const d=view.curDecl||view.decl; return d&&!Array.isArray(d)?[d]:Array.isArray(d)?d:[]; })();
+  const want={};   // seat|suit|rank → 张数(同一家多次亮,取最多的那次)
+  for(const d of log){ if(!d||d.seat===undefined||d.seat<0||d.seat===view.seat||!seats.includes(d.seat)) continue;
+    const w=d.strength>=3?{suit:'X',rank:d.strength===4?16:15,n:2}:d.suit?{suit:d.suit,rank:T.rank,n:d.strength}:null;
+    if(!w) continue; const k=d.seat+'|'+w.suit+'|'+w.rank; want[k]=Math.max(want[k]||0,w.n); }
+  const known=[];
+  for(const k in want){ const [seat,suit,rank]=k.split('|'); const st=+seat, rk=+rank;
+    let played=0; for(const pl of view.history||[]) if(pl.seat===st)   // history 已含本墩已出的(makeBelief 的约定)
+      for(const c of pl.cards) if(c.suit===suit&&c.rank===rk) played++;
+    for(let i=0;i<want[k]-played;i++) known.push({seat:st,suit,rank:rk}); }
+  return known;
+}
 function makeBelief(view, plays, M){
   const trump=view.trump, n=view.hand.length;
   const mem=makeMemory(view);
@@ -5367,11 +5406,22 @@ function makeBelief(view, plays, M){
   const reads=makeReads(hist,trump);
   const capMemo={};   // 上界只取决于(座, 门),一次决策里不变 —— 抽样时每张牌每家都要问一遍,记下来
   const capOf=(s,su)=>{ const k=s+su; return capMemo[k]!==undefined?capMemo[k]:(capMemo[k]=maxHoldIn(reads,mem,s,su,trump)); };
-  const known=[];
+  const known=AIP.beliefDecl?declKnown(view,plays,seats):[];
   const ctx={unseen,sizes,seats,voids,trump,kittySize,capOf,known,pVoidOf:null};
   const rand=rng(hist.length*7919+view.seat*31+n*17+7);
-  const worlds=[];
-  for(let i=0;i<(M||AIP.beliefM);i++){ const w=sampleWorld(ctx,rand); if(w) worlds.push(w); }
+  const worlds=[], MM=M||AIP.beliefM;
+  // 领出推断(leadInfer = 池子倍数 k,0 = 旧行为):别人单张领出的这墩,先抽 k×M 个世界,按「领出那家在这个世界的手牌下领这一类」的概率重抽 M 个
+  const L=plays&&plays.length&&plays[0].seat!==view.seat&&plays[0].cards.length===1?plays[0].seat:-1;
+  const LM=L>=0&&AIP.leadInfer?(view.humanSeat===L&&AIP.leadModelHuman?AIP.leadModelHuman:AIP.leadModelAI):null;
+  const pool=LM?MM*AIP.leadInfer:MM;
+  for(let i=0;i<pool;i++){ const w=sampleWorld(ctx,rand); if(w) worlds.push(w); }
+  if(LM&&worlds.length>MM){
+    const lc=plays[0].cards[0], y=leadClass8(lc,trump), dt=L%2===view.declSeat%2;
+    const wt=worlds.map(w=>leadLik(LM,w.hands[L].concat([lc]),trump,dt,y));
+    const tot=wt.reduce((a,b)=>a+b,0), out=[]; let u=rand()*tot/MM, acc=0, j=0;
+    for(let i=0;i<MM;i++){ const t=u+i*tot/MM; while(j<worlds.length-1&&acc+wt[j]<t){ acc+=wt[j]; j++; } out.push(worlds[j]); }
+    return {worlds:out,mem,seats,trump};
+  }
   return worlds.length?{worlds,mem,seats,trump}:null;
 }
 /* pSurvive 的信念版:「后手谁拿得出压我 / 毙我的牌」逐个世界按真实手牌判,意愿那几个常数照旧(先只换信念,不换意愿)。
@@ -5462,8 +5512,93 @@ function willP(T, plays, seat, hand, n, behind, isHuman){
   if(isHuman&&AIP.willHuman){ const a=AIP.willHuman; z+=a[0]+a[1]*(kind===1?1:0)+a[2]*(kind===0&&last&&pts===0?1:0); }
   return {p:1/(1+Math.exp(-z)),card:ch};
 }
+/* 「队友暂大、后面还有对手时,肯不肯自己压上去保」的特征(10-31,mateOver;test/willmate-data.js 拟合 willMateW)。
+ * unseenHi(suit,top) = 这一家看来,在外比 top 大的这门牌张数(关键牌);voids = makeVoids(已完成的墩)。没得压 / 后面没有对手 → null。 */
+/* 压上去用哪张(beatChoice,11-01;test/beatchoice-data.js 拟合 beatChoiceW):他所有压得过当前最大的单张(同门 / 毙,与 willP 同口径),
+ * 按牌从小到大排;每张的特征从他自己看得到的算(unseenHi(su,top) = 还没打出、比 top 大的这门张数,**含他自己手里的**,这里再减掉)。cands[0] = 最便宜那张。 */
+function beatChoiceCands(T, plays, seat, hand, unseenHi, mate){
+  const lead=classify(plays[0].cards,T), cur=currentWinner(plays,T), ccl=classify(plays.find(p=>p.seat===cur.seat).cards,T);
+  const ls=lead.suit, hasLead=hand.some(c=>effSuit(c,T)===ls), curRuff=ccl.suit==='T'&&ls!=='T';
+  let bs;
+  if(curRuff) bs=hasLead?[]:hand.filter(c=>effSuit(c,T)==='T'&&ordIdx(c,T)>ccl.top);
+  else if(ls!=='T'&&!hasLead) bs=hand.filter(c=>effSuit(c,T)==='T');
+  else bs=hand.filter(c=>effSuit(c,T)===ccl.suit&&ordIdx(c,T)>ccl.top);
+  if(!bs.length) return null;
+  bs=bs.slice().sort((a,b)=>ordIdx(a,T)-ordIdx(b,T));
+  const seen=new Set(), cands=[]; for(const c of bs){ const k=c.suit+c.rank; if(seen.has(k)) continue; seen.add(k); cands.push(c); }   // 同点数的两张只算一张
+  const pts=countPoints(plays.flatMap(p=>p.cards));
+  const feats=cands.map((c,k)=>{ const su=effSuit(c,T), up=unseenHi(su,ordIdx(c,T)); let mine=0; for(const d of hand) if(effSuit(d,T)===su&&ordIdx(d,T)>ordIdx(c,T)) mine++;
+    const a=Math.max(0,up-mine), pt=cardPoints(c)>0?1:0;
+    return [k===0?1:0,Math.min(a,6)/3,a===0?1:0,c.suit==='X'?1:0,c.rank===T.rank&&c.suit!=='X'?1:0,c.rank===14&&c.suit!=='X'?1:0,pt,pt*(pts===0?1:0),
+            ls!=='T'&&su==='T'?1:0,(Math.min(a,6)/3)*(mate?1:0),(Math.min(a,6)/3)*Math.min(pts,40)/10,
+            (Math.min(a,6)/3)*(ls==='T'?1:0),(c.suit==='X'||c.rank===T.rank)&&ls==='T'?1:0]; });
+  return {cands,feats};
+}
+function willMateFeat(T, plays, seat, hand, unseenHi, voids, behind){
+  const ob=behind.filter(z=>z%2!==seat%2); if(!ob.length) return null;
+  const lead=classify(plays[0].cards,T), cur=currentWinner(plays,T);
+  const ccl=classify(plays.find(p=>p.seat===cur.seat).cards,T);
+  const ls=lead.suit, hasLead=hand.some(c=>effSuit(c,T)===ls), curRuff=ccl.suit==='T'&&ls!=='T';
+  let kind, beaters;
+  if(curRuff){ kind=2; beaters=hasLead?[]:hand.filter(c=>effSuit(c,T)==='T'&&ordIdx(c,T)>ccl.top); }
+  else if(ls!=='T'&&!hasLead){ kind=1; beaters=hand.filter(c=>effSuit(c,T)==='T'); }
+  else { kind=0; beaters=hand.filter(c=>effSuit(c,T)===ccl.suit&&ordIdx(c,T)>ccl.top); }
+  if(!beaters.length) return null;
+  let ch=beaters[0]; for(const c of beaters) if(ordIdx(c,T)<ordIdx(ch,T)) ch=c;
+  return {kind,pts:countPoints(plays.flatMap(p=>p.cards)),cheapPts:cardPoints(ch),
+    cheapBig:ch.suit==='X'||ch.rank===T.rank||(effSuit(ch,T)==='T'&&ch.rank===14)?1:0,
+    hi:unseenHi(ccl.suit,ccl.top),vB:ob.some(z=>voids[z]&&voids[z][ls])?1:0,vBT:ob.some(z=>voids[z]&&voids[z].T)?1:0,
+    curSide:ccl.suit!=='T'?1:0,curLead:cur.seat===plays[0].seat?1:0,n:hand.length,mateBehind:behind.some(z=>z%2===seat%2)?1:0,card:ch};
+}
+/* 领出推断(信念第 4 步 b,10-31):领出那一张分 8 类,领出模型 P(类 | 领出那家的手牌) 给抽样世界加权 —— 他敢领这张 / 只领得出这张,
+ * 说明了他手里(以及别人手里)有什么。test/lead-data.js 取样 + 拟合 leadModelAI / leadModelHuman。 */
+function leadClass8(c, T){
+  const t=effSuit(c,T)==='T', big=c.suit==='X'||c.rank===T.rank||c.rank===14, pt=cardPoints(c)>0;
+  return (t?0:4)+(big?0:pt?1:c.rank>=11?2:3);
+}
+function leadAvail(hand, T){ let m=0; for(const c of hand) m|=1<<leadClass8(c,T); return m; }   // 手里有哪几类(只在有的类之间归一)
+function leadLik(W, hand, T, declTeam, y){
+  const f=leadHandFeat(hand,T,declTeam), av=leadAvail(hand,T); if(!(av>>y&1)) return 0;
+  const z=W.map(r=>r.reduce((a,v,j)=>a+v*f[j],0)); let mx=-1e9; for(let k=0;k<8;k++) if(av>>k&1) mx=Math.max(mx,z[k]);
+  let S=0; for(let k=0;k<8;k++) if(av>>k&1) S+=Math.exp(z[k]-mx); return Math.exp(z[y]-mx)/S;
+}
+function leadHandFeat(hand, T, declTeam){
+  let nT=0,bigT=0,jok=0,sidePts=0,sideA=0,voids=0,maxLen=0; const len={};
+  for(const c of hand){ if(effSuit(c,T)==='T'){ nT++; if(c.suit==='X'||c.rank===T.rank||c.rank===14) bigT++; if(c.suit==='X') jok++; }
+    else { len[c.suit]=(len[c.suit]||0)+1; if(cardPoints(c)>0) sidePts++; if(c.rank===14) sideA++; } }
+  for(const su of ['S','H','D','C']){ if(su===T.suit) continue; const l=len[su]||0; if(!l) voids++; maxLen=Math.max(maxLen,l); }
+  const n=Math.max(1,hand.length);
+  return [1,nT/n,Math.min(bigT,6)/3,jok/2,n/25,declTeam?1:0,Math.min(sidePts,8)/4,sideA/2,voids/2,maxLen/n,n<=8?1:0];
+}
+/* mateOver 用:在世界 w 里,s 那一家看来比 top 大的这门在外几张 = 我看来在外的 + 我手里(除去这手出的)+ 我知道的底 − s 手里的。 */
+function mateCtx(X, cards){
+  if(!((AIP.mateOver&&AIP.willMateW)||(AIP.beatChoice&&AIP.beatChoiceW))||!X.view||!X.mem) return null;
+  const T=X.trump, h=X.view.history, done=h.slice(0,h.length-X.plays.length);
+  const out=X.view.hand.filter(c=>!cards.some(d=>d.id===c.id)).concat(X.view.buriedKnown||[]);   // 埋的底只有庄家自己知道
+  const cnt=(su,top)=>{ let n=0; for(const k in X.mem.unseen){ const c=keyToCard(k); if(X.mem.unseen[k]>0&&effSuit(c,T)===su&&ordIdx(c,T)>top) n+=X.mem.unseen[k]; }
+    for(const c of out) if(effSuit(c,T)===su&&ordIdx(c,T)>top) n++; return n; };
+  return {voids:makeVoids(done,T),cnt};
+}
+/* 压上去用哪张的分布(beatChoice):按 beatChoiceW 在他压得过的牌里取概率最大的 3 张、重新归一;关着 / 没模型 → 只用 fallback 那张。 */
+function beatMix(T, plays, s, H, M, fallback){
+  if(!AIP.beatChoice||!AIP.beatChoiceW||!M) return [{card:fallback,q:1}];
+  const cur=currentWinner(plays,T), c=beatChoiceCands(T,plays,s,H,M.cnt,cur.seat%2===s%2);
+  if(!c||c.cands.length<2) return [{card:fallback,q:1}];
+  const w=AIP.beatChoiceW, z=c.feats.map(f=>f.reduce((a,v,j)=>a+v*(w[j]||0),0)), mx=Math.max(...z);
+  const e=z.map(v=>Math.exp(v-mx)), top=e.map((v,k)=>[v,k]).sort((a,b)=>b[0]-a[0]).slice(0,3), S=top.reduce((a,b)=>a+b[0],0);
+  return top.map(([v,k])=>({card:c.cands[k],q:v/S}));
+}
+function willMateP(T, plays, s, H, behind, M){
+  const f=willMateFeat(T,plays,s,H,(su,top)=>{ let n=M.cnt(su,top); for(const c of H) if(effSuit(c,T)===su&&ordIdx(c,T)>top) n--; return Math.max(0,n); },M.voids,behind);
+  if(!f) return {p:0};
+  const x=[1,f.kind===1?1:0,f.kind===2?1:0,Math.min(f.pts,40)/10,f.pts===0?1:0,f.cheapBig,f.cheapPts>0?1:0,Math.min(f.hi,6)/3,f.hi===0?1:0,
+    f.vB,f.vB*f.curSide,f.vBT,f.curLead,f.n<=12?1:0,f.mateBehind];
+  const w=AIP.willMateW; let z=0; for(let i=0;i<w.length&&i<x.length;i++) z+=w[i]*x[i];
+  return {p:1/(1+Math.exp(-z)),card:f.card};
+}
 function teamWinBelief(X, cards, B){
   if(!B||!X.lead||X.lead.type!=='single'||cards.length!==1) return null;
+  const M=mateCtx(X,cards);
   const T=X.trump, me=X.seat%2, hs=X.view&&X.view.humanSeat!==undefined?X.view.humanSeat:-1;
   const plays0=[...X.plays,{seat:X.seat,cards}];
   const order=X.remaining||[];
@@ -5473,10 +5608,16 @@ function teamWinBelief(X, cards, B){
       if(i>=order.length) return currentWinner(plays,T).seat%2===me?1:0;
       const s=order[i], H=w.hands[s]; if(!H) return rec(plays,i+1);
       const cur=currentWinner(plays,T);
-      if(cur.seat%2===s%2) return rec(plays,i+1);          // 本队赢着,跟小
+      if(cur.seat%2===s%2){                                 // 本队赢着:跟小(mateOver:后面还有对手时按 willMateP 压上去保)
+        const q=M&&AIP.mateOver&&i<order.length-1?willMateP(T,plays,s,H,order.slice(i+1),M):null;
+        if(!q||!q.p) return rec(plays,i+1);
+        let y=0; for(const b of beatMix(T,plays,s,H,M,q.card)) y+=b.q*rec([...plays,{seat:s,cards:[b.card]}],i+1);
+        return q.p*y+(1-q.p)*rec(plays,i+1);
+      }
       const r=willP(T,plays,s,H,H.length,order.slice(i+1),hs===s);
       if(!r.p) return rec(plays,i+1);
-      return r.p*rec([...plays,{seat:s,cards:[r.card]}],i+1)+(1-r.p)*rec(plays,i+1);
+      let y=0; for(const b of beatMix(T,plays,s,H,M,r.card)) y+=b.q*rec([...plays,{seat:s,cards:[b.card]}],i+1);
+      return r.p*y+(1-r.p)*rec(plays,i+1);
     };
     acc+=rec(plays0,0);
   }
@@ -5505,7 +5646,7 @@ function trickEVBelief(X, cards, B){
   const T=X.trump, me=X.seat%2, hs=X.view&&X.view.humanSeat!==undefined?X.view.humanSeat:-1;
   const plays0=[...X.plays,{seat:X.seat,cards}];
   const order=X.remaining||[], lead=X.lead;
-  const pts0=countPoints(plays0.flatMap(p=>p.cards));
+  const pts0=countPoints(plays0.flatMap(p=>p.cards)), M=mateCtx(X,cards);
   let aP=0, aE=0;
   for(const w of B.worlds){
     const rec=(plays,i,pts)=>{
@@ -5513,11 +5654,17 @@ function trickEVBelief(X, cards, B){
       const s=order[i], H=w.hands[s]; if(!H) return rec(plays,i+1,pts);
       const last=i===order.length-1?1:0;
       const cur=currentWinner(plays,T);
-      if(cur.seat%2===s%2) return rec(plays,i+1,pts+dumpExp(T,lead,H,1,last,pts));
+      if(cur.seat%2===s%2){
+        const no=rec(plays,i+1,pts+dumpExp(T,lead,H,1,last,pts));
+        const q=M&&AIP.mateOver&&!last?willMateP(T,plays,s,H,order.slice(i+1),M):null;
+        if(!q||!q.p) return no;
+        const yes=[0,0]; for(const b of beatMix(T,plays,s,H,M,q.card)){ const o=rec([...plays,{seat:s,cards:[b.card]}],i+1,pts+cardPoints(b.card)); yes[0]+=b.q*o[0]; yes[1]+=b.q*o[1]; }
+        return [q.p*yes[0]+(1-q.p)*no[0], q.p*yes[1]+(1-q.p)*no[1]];
+      }
       const r=willP(T,plays,s,H,H.length,order.slice(i+1),hs===s);
       const no=rec(plays,i+1,pts+dumpExp(T,lead,H,0,last,pts));
       if(!r.p) return no;
-      const yes=rec([...plays,{seat:s,cards:[r.card]}],i+1,pts+cardPoints(r.card));
+      const yes=[0,0]; for(const b of beatMix(T,plays,s,H,M,r.card)){ const o=rec([...plays,{seat:s,cards:[b.card]}],i+1,pts+cardPoints(b.card)); yes[0]+=b.q*o[0]; yes[1]+=b.q*o[1]; }
       return [r.p*yes[0]+(1-r.p)*no[0], r.p*yes[1]+(1-r.p)*no[1]];
     };
     const o=rec(plays0,0,pts0); aP+=o[0]; aE+=o[1];
@@ -6363,7 +6510,7 @@ function simulateRound(seed, smartSeats=[0,1,2,3]){
 }
 
 /* 引擎公开面 —— 浏览器 #test 与 node 无头测试共用同一份,避免两边漂移 */
-const ENGINE={RULES,makeDeck,cardPoints,countPoints,rng,dealRound,
+const ENGINE={RULES,makeDeck,willMateFeat,beatChoiceCands,leadClass8,leadHandFeat,leadAvail,leadLik,cardPoints,countPoints,rng,dealRound,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
   canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,clampAtGate,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
@@ -7786,6 +7933,7 @@ function viewFor(seat){
           history:[...G.tricks.flatMap(t=>t.plays),...G.trick],
           buriedKnown:seat===G.declSeat?G.buried:[],
           decl:G.decl,             // 谁亮的什么主(v0.7.15:收官抽样把亮主者的级牌钉在他手里)
+          declLog:G.declLog,       // 全部亮主记录(被反掉的那家亮过的也算;信念服务 beliefDecl 用)
           humanSeat:HUMAN};        // 哪一家是真人(意愿模型的真人修正 willHuman 用;自对弈里没有这个字段)
 }
 
@@ -7827,6 +7975,7 @@ function sortForDisplay(hand,trump){
     return suitOrd(a.suit)-suitOrd(b.suit);
   });
 }
+window.__sortHand=(h,t)=>sortForDisplay(h,t);   // 表现层:对局记录里的初始手牌、底牌按手牌那样排
 function trumpLabel(t){ return t? (t.suit?`${SUIT_SYM[t.suit]} 打${rankName(t.rank)}`:`${T('noTrump')} 打${rankName(t.rank)}`) : '未定'; }
 function log(t){ G.log.unshift({text:t}); }
 function setMsg(t){ document.getElementById('msg').textContent=t||''; }
@@ -7864,7 +8013,7 @@ function newRound(){ startRound(seedBase++); }
 function startRound(seed){
   // 上一盘可能还有在途的定时器(AI 思考 / 收墩 / 亮主倒计时),不清掉会打到新一盘的局面上
   if(G){ clearTimeout(G.aiTimer); clearTimeout(G.holdTimer); clearTimeout(G.declTimer);
-         clearInterval(G.declTick); }
+         clearInterval(G.declTick); for(const k in G.declPend||{}) clearTimeout(G.declPend[k].timer); }
   promoteCheckpoint();      // 上一局没打完就开了新局(重打 / 种子 / 重开整场):那一局存成残局
   const carryAuto=autoCarry; autoCarry=false;
   const dealerKnown=M.dealer>=0 && !scrambleNext;   // 完全造反重发 → 本盘按无庄盘抢庄
@@ -7889,7 +8038,7 @@ function startRound(seed){
   G={seed,start,firstTaker:first,trumpRank,dealerKnown,
      hands:deal.hands,kittyOrig:deal.kitty,buried:[],
      trump:null,declSeat:dealerKnown?M.dealer:-1,
-     decl:null,rebelHappened:false,
+     decl:null,rebelHappened:false,declPend:{},
      visCount:[0,0,0,0],dealt:0,
      leader:-1,trick:[],trickNo:0,tricks:[],defPoints:0,capturedCards:[],lastWinner:-1,
      lastLeadSize:1,phase:'dealing',selected:new Set(),log:[],awaitNext:false,
@@ -7945,8 +8094,32 @@ function dealTick(){
   setTimeout(dealTick,120);   // 100张 × 120ms ≈ 12秒发完
 }
 
-// AI 抢亮决策(基于已见手牌)—— 打分与门槛在 AI 层的 aiDeclDecide,这里只负责取上下文与执行
-function aiDeclThink(seat){
+/* AI 亮主的反应时间(11-04,产品方):AI 看到牌的同一刻就亮,人要等界面刷出牌、认牌、点按钮 —— 抢开局亮主人几乎永远落后。
+ * 现在 AI 决定亮 / 加固之后先排队,过 [出牌思考上限, 上限 + 1.5 秒](默认 3.0~4.5 秒,总比 AI 出牌思考慢)再亮;
+ * 到点时按当时的局面重新判一次(这期间别人可能已经亮了,他自己也多看到了几张)。排队期间这一家不再另作决定。
+ * 托管替你亮的不排队。发完牌定主时(含点「不亮」)先把排着的结掉,免得「不亮」把 AI 的亮主抢没了。 */
+function aiDeclDelayMs(){
+  const hi=secs(S.aiThinkMax,S_DEFAULT.aiThinkMax);
+  return hi+Math.random()*1500;
+}
+function aiDeclQueue(seat){
+  if(seat===HUMAN&&G.auto){ aiDeclThink(seat,true); return; }
+  const g=G, due=Date.now()+aiDeclDelayMs();
+  G.declPend[seat]={due,timer:setTimeout(()=>{ if(G===g) aiDeclFire(seat); },due-Date.now())};
+}
+function aiDeclFire(seat){
+  const p=G.declPend[seat]; if(!p) return;
+  clearTimeout(p.timer); delete G.declPend[seat];
+  if(G.phase!=='dealing'&&G.phase!=='finalDecl') return;
+  aiDeclThink(seat,true);
+}
+function aiDeclFlush(){   // 定主前:排着的按到点先后结掉
+  for(const s of Object.keys(G.declPend||{}).sort((a,b)=>G.declPend[a].due-G.declPend[b].due)) aiDeclFire(+s);
+}
+// AI 抢亮决策(基于已见手牌)—— 打分与门槛在 AI 层的 aiDeclDecide,这里只负责取上下文与执行。
+// now=false(发牌中每张牌):决定要亮就排队(aiDeclQueue);now=true(到点 / 托管):按当时局面判,要亮就亮
+function aiDeclThink(seat,now){
+  if(!now&&G.declPend&&G.declPend[seat]) return;   // 已经在排队
   const vis=visHand(seat);
   const rand=rng(G.seed*13+G.dealt);
   const ctx={
@@ -7959,8 +8132,9 @@ function aiDeclThink(seat){
   if(canReinforce2(G.decl,seat,vis,rankOf(seat),G.rebelHappened)){
     const asPair=eng(seat).scoreDeclOption(ctx,{suit:G.decl.suit,strength:2}).score;
     const asSingle=eng(seat).scoreDeclOption(ctx,{suit:G.decl.suit,strength:1,hasPair:true}).score;
-    if(asPair>asSingle&&rand()<0.9){
-      applyDecl(seat,{suit:G.decl.suit,strength:2},true); return;
+    if(asPair>asSingle&&(now||rand()<0.9)){
+      if(now) applyDecl(seat,{suit:G.decl.suit,strength:2},true); else aiDeclQueue(seat);
+      return;
     }
   }
   const d=eng(seat).aiDeclDecide(ctx);
@@ -7968,7 +8142,8 @@ function aiDeclThink(seat){
   // 分数越过门槛越多,越果断;贴着门槛则留一点随机,避免四家行为整齐划一
   const margin=d.score-d.threshold;
   if(margin<0) return;
-  if(rand()<Math.min(0.95,0.45+margin/40)) applyDecl(seat,d.opt,false);
+  if(now) applyDecl(seat,d.opt,false);   // 排队前已过了随机那一关,到点只看还该不该亮
+  else if(rand()<Math.min(0.95,0.45+margin/40)) aiDeclQueue(seat);
 }
 
 function applyDecl(seat,opt,isReinforce){
@@ -7999,6 +8174,7 @@ window.__skipDecl=()=>{
 
 function settleTrump(){
   if(G.phase!=='finalDecl'&&G.phase!=='dealing') return;   // 防「不亮」和到点结算重复触发
+  aiDeclFlush();
   clearTimeout(G.declTimer); G.declTimer=null;
   stopDeclCountdown();
   G.trump={suit:G.decl?G.decl.suit:null,rank:G.trumpRank};
@@ -8773,7 +8949,8 @@ function makeRecord(r){
                                    buried:css(part?G.buried:r.buried)}),
     tricks:tricks.map(t=>({plays:t.plays.map(p=>({seat:p.seat,cards:css(p.cards),
       ...(p.by?{by:p.by}:{}),...(p.hint?{hint:1}:{}),...(p.u?{u:1}:{})})),winner:t.winner,points:t.points})),
-    ...(()=>{ const f=getFlags(G.recId).filter(x=>x.t<tricks.length); return f.length?{flags:f}:{}; })()};
+    ...(()=>{ const f=getFlags(G.recId).filter(x=>x.t<tricks.length); return f.length?{flags:f}:{}; })(),
+    ...(()=>{ const c=getCoachFlags(G.recId); return c.length?{coachFlags:c.map(coachFlagOut)}:{}; })()};
 }
 /* 出牌标记(v0.7.48):玩家在「对局记录 · 按墩」里点一家出的牌,标成「这手有问题」,可附一句话。
  * 随牌谱上传,给 AI 线当体检 / 训练样本。本机按牌谱 id 存一份(lsGet('flags')[id] = [{t, seat, note?}],
@@ -8796,7 +8973,28 @@ function setFlags(id,list){
       clearTimeout(flagUpTimer); flagUpTimer=setTimeout(flushUploads,4000); }   // 连着标几手,停下来再一起传
   }else if(G&&G.recId===id) saveCheckpoint();
 }
-window.__flags={get:getFlags,set:setFlags};
+/* 教练消息标记(v0.7.52):六六教练页里的建议 / 考题 / 失误提醒 / 复盘,玩家觉得说错了可以标出来,附一句话。
+ * 本机按牌谱 id 存(lsGet('cflags')[id] = [{mid, t, kind, text, note?}]),mid 是这次打开页面里那条消息的编号,只给界面认是哪一条;
+ * 牌谱里写成 coachFlags:[{t 第几墩(从 0 数,复盘为 null), kind, text 消息原文(去掉排版), note?}]。
+ * 已存档的局改了也重传;重传时牌谱一定带 flags 数组(可以是空的),收集表才会认出是「改了标记」去覆盖那一行。 */
+function getCoachFlags(id){ const all=lsGet('cflags',{}); return Array.isArray(all[id])?all[id]:[]; }
+const coachFlagOut=f=>({t:f.t,kind:f.kind||'',text:f.text,...(f.note?{note:f.note}:{})});
+function setCoachFlags(id,list){
+  list=list.filter(f=>f&&f.text).map(f=>({mid:f.mid,t:f.t==null?null:f.t,kind:String(f.kind||'').slice(0,20),text:String(f.text).slice(0,400),
+    ...(f.note?{note:String(f.note).slice(0,200)}:{})}));
+  const all=lsGet('cflags',{});
+  if(list.length) all[id]=list; else delete all[id];
+  const keys=Object.keys(all);
+  if(keys.length>REC_MAX) keys.slice(0,keys.length-REC_MAX).forEach(k=>delete all[k]);
+  lsSet('cflags',all);
+  const recs=lsGet('recs',[]), r=recs.find(x=>x.id===id);
+  if(r){
+    const out=list.map(coachFlagOut);
+    if(JSON.stringify(r.coachFlags||[])!==JSON.stringify(out)){ r.coachFlags=out; if(!r.flags) r.flags=[]; delete r.up; lsSet('recs',recs);
+      clearTimeout(flagUpTimer); flagUpTimer=setTimeout(flushUploads,4000); }
+  }else if(G&&G.recId===id) saveCheckpoint();
+}
+window.__flags={get:getFlags,set:setFlags,coachGet:getCoachFlags,coachSet:setCoachFlags};
 /* 残局进度:发完牌、开打、每收一墩、悔牌之后各覆盖写一次(本机一格 'cur')。正常打完就清掉;
  * 没打完就离开了(刷新 / 关页面 / 被系统杀掉 / 重打 / 用种子开局 / 重开整场),
  * 下一次开局或下次打开页面时把它转成一份残局牌谱(promoteCheckpoint)。
@@ -9438,7 +9636,7 @@ function chatPush(m){
   if(m.from!=='me'&&activeTab!=='coach') chatUnread++;
   return m;
 }
-function coachSay(no,html,kind){ return chatPush({from:'coach',no,html,kind:kind||''}); }
+function coachSay(no,html,kind){ return chatPush({from:'coach',no,html,kind:kind||'',rec:G&&G.recId}); }   // rec:哪一局的牌谱(教练消息标记用)
 const escHTML=t=>String(t).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
 
 function chatItemHTML(m){
@@ -9881,7 +10079,7 @@ function layoutTable(){
   TB.two=two;
   if(two){
     /* 矮横屏:名牌是竖排的小头像。上下家在桌子左右两边的中间,牌摞挨着名牌朝桌心长;
-       对家、我两摞在中间一列(上下各一行),头像在牌摞左边 */
+       对家、我两摞在中间一列(上下各一行),对家头像在牌摞左边、我的在牌摞右边(绕桌心点对称) */
     var lhs={};for(var k2 in lab)lhs[k2]=lab[k2].offsetHeight||56;
     th=(ah-2*pad-gv)/2;
     tcw=Math.max(34,Math.floor(Math.min(th/1.43,cap,hard,wide?(aw/2-pad-Math.max(lw.E,lw.W)-g-8)/3.2:1e9)));th=tcw*1.43;
@@ -9895,25 +10093,27 @@ function layoutTable(){
       tcw=Math.max(28,Math.min(tcw,Math.floor((aw/2-lwc-2*g-pad)/1.9)));th=tcw*1.43;
       x0=Math.round(aw/2-tcw/2);colL=x0-g-lwc;
     }
-    /* 上下家牌摞最宽。名牌退到上角时,对家头像也贴最上面,上家的牌摞可以从它下面伸过去,一直到中间那一列 */
-    var side=stack?Math.max(tcw,x0-g-pad):Math.max(tcw,Math.min(beside,tcw*3.2));
-    /* 我的名牌在左下角,和对家的(中间一列左上)左右错开。上家名牌退到上角、牌摞从左边挂下来够得着最下面时,
-       左下角会被牌摞压住,我的名牌就放回我那摞左边,上家牌摞不伸过它 */
-    var sBy=wide&&stack&&pad+Math.max(lhs.W,lhs.E)+lg+th>ah-pad-lhs.S;
-    if(sBy){colL=Math.min(colL,x0-g-lw.S);side=Math.max(tcw,colL-g-pad);}
+    /* 对家和我绕桌心点对称:对家的名牌在上边、自己那摞左边,牌摞从 x0 往右长;
+       我的名牌在下边、自己那摞右边,牌摞右边对齐 x1(= 对家那摞左边的镜像)往左长 */
+    var x1=aw-x0;
     var xW=stack?pad:pad+lw.W+g,xE=stack?aw-pad:aw-pad-lw.E-g;
     var ySide=stack?pad+Math.max(lhs.W,lhs.E)+lg:yMid-th/2;
-    var colMax=Math.max(tcw,xE-side-g-x0);                         /* 中间一列牌摞最宽 */
     var yS=ah-pad-th;
+    /* 上下家牌摞最宽:上家的往右长,不能伸到对家那摞(两者上下有交叠);够得着对家名牌那一条时还得停在名牌左边。
+       下家的镜像:往左长,停在我那摞右边,够得着我的名牌那一条时停在名牌右边。名牌在两边正中时再按 3.2 张牌宽封顶 */
+    var sideCap=stack?1e9:tcw*3.2;
+    var wHard=Math.max(tcw,Math.min(sideCap,(ySide<pad+lhs.N+lg?colL-g:x0-g)-xW));
+    var eHard=Math.max(tcw,Math.min(sideCap,xE-(ySide+th>ah-pad-lhs.S-lg?x1+g+lw.S+g:x1+g)));
     place(lab.N,x0-g-lw.N,pad);                                    /* 对家的名牌贴桌子上边、在自己那摞左边 */
-    place(lab.S,sBy?x0-g-lw.S:pad,ah-pad-lhs.S);                   /* 我的贴下边、在左下角,不浮在桌子中间 */
+    place(lab.S,x1+g,ah-pad-lhs.S);                                /* 我的贴下边、在自己那摞右边 */
     if(stack){place(lab.W,pad,pad);place(lab.E,aw-pad-lw.E,pad);}
     else{place(lab.W,pad,yMid-lhs.W/2);place(lab.E,aw-pad-lw.E,yMid-lhs.E/2);}
-    P.N={x:x0,y:pad,align:'l',max:colMax};
-    P.S={x:x0,y:yS,align:'l',max:colMax};
-    P.W={x:xW,y:ySide,align:'l',max:side};
-    P.E={x:xE,y:ySide,align:'r',max:side};
-    TB.lane={x0:x0,xE:xE};   /* 中间一列和下家那摞共用 [x0, xE] 这一段,按张数分(见 stampPiles) */
+    P.N={x:x0,y:pad,align:'l',max:Math.max(tcw,xE-x0-8)};
+    P.S={x:x1,y:yS,align:'r',max:Math.max(tcw,x1-xW-8)};
+    P.W={x:xW,y:ySide,align:'l',max:wHard};
+    P.E={x:xE,y:ySide,align:'r',max:eHard};
+    /* 对家那摞和下家那摞共用 [x0, xE],我那摞和上家那摞共用 [xW, x1],各按张数分(见 stampPiles) */
+    TB.lane={x0:x0,xE:xE,x1:x1,xW:xW,wHard:wHard,eHard:eHard};
     TB.center={x:aw/2,y:ah/2};
     TB.slot={x:x0,y:yS};
   }else{
@@ -9963,9 +10163,12 @@ function stampPiles(){
   var mx={};
   if(TB.two&&TB.lane){
     var need=function(k){var n=$(SEAT_KEYS[k].pile).children.length;return n?tcw+(n-1)*step0:0;};
-    var c=Math.max(need('N'),need('S')),e=need('E'),room=TB.lane.xE-TB.lane.x0-8;
-    var cm=c+e>room?Math.max(tcw,room*c/(c+e)):room-e;
-    mx.N=mx.S=Math.max(tcw,cm);mx.E=Math.max(tcw,room-mx.N);
+    var Ln=TB.lane;
+    /* a 那摞和 b 那摞抢同一段:放得下就各要各的,放不下按要的宽度比例分 */
+    var split=function(a,b,room,bHard){var c=need(a),e=need(b);
+      var cm=c+e>room?Math.max(tcw,room*c/(c+e)):room-e;mx[a]=Math.max(tcw,cm);mx[b]=Math.max(tcw,Math.min(bHard,room-mx[a]));};
+    split('N','E',Ln.xE-Ln.x0-8,Ln.eHard);
+    split('S','W',Ln.x1-Ln.xW-8,Ln.wHard);
   }
   for(var k in SEAT_KEYS){
     var p=$(SEAT_KEYS[k].pile),a=TB.P[k],n=p.children.length,step=step0;
@@ -10594,9 +10797,20 @@ function renderSide(){
 }
 function rawTxt(c){var x=cardTxt(c);x.c=c;return x;}   /* 按花色看时要按大小排,留着原牌 */
 /* 局终快照,供回看已完成的局 */
+/* 初始手牌、底牌按手牌那样整理:主牌在前、副牌红黑相间,每门从大到小(产品层 sortForDisplay,经 window.__sortHand);g 是这张算哪一门,画的时候门与门之间空一点 */
+function sortedTxt(cards,trump){
+  var a=window.__sortHand&&trump?window.__sortHand(cards,trump):cards.slice();
+  return a.map(function(c){var x=cardTxt(c);x.g=trump&&window.effSuit?effSuit(c,trump):c.suit;return x;});
+}
+function groupedHtml(list){
+  return list.map(function(x,i){return (i&&list[i-1].g!==x.g?'<span class="ih-gap"></span>':'')+txtHtml(x);}).join('');
+}
 function snapshotRound(G){
-  var no=(G.start&&G.start.round||0)+1;
-  return {no:no,id:G.recId,trump:G.trump,initialHands:G.initialHands?G.initialHands.map(function(h){return h.map(cardTxt);}):null,
+  var no=(G.start&&G.start.round||0)+1,ih=G.initialHands&&G.trump;
+  return {no:no,id:G.recId,trump:G.trump,declSeat:G.declSeat,
+    initialHands:ih?G.initialHands.map(function(h){return sortedTxt(h,G.trump);}):null,
+    kitty:ih&&G.kittyOrig&&G.kittyOrig.length?sortedTxt(G.kittyOrig,G.trump):null,
+    buried:ih&&G.buried&&G.buried.length?sortedTxt(G.buried,G.trump):null,
     tricks:(G.tricks||[]).map(function(t){return {no:t.no,winner:t.winner,points:t.points,
       plays:t.plays.map(function(p){return {seat:p.seat,cards:p.cards.map(rawTxt)};})};})};
 }
@@ -10637,7 +10851,7 @@ recPanel.addEventListener('click',function(e){
 });
 recPanel.addEventListener('input',function(e){if(e.target.id==='flagNote')flagDraft=e.target.value;});
 recPanel.addEventListener('keydown',function(e){
-  if(e.target.id==='flagNote'&&e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();saveFlagNote();flagEdit=null;renderLog();}
+  if(e.target.id==='flagNote'&&e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();saveFlagNote();flagEdit=null;e.target.blur();renderLog();}
 });
 recPanel.addEventListener('focusout',function(e){if(e.target.id==='flagNote')saveFlagNote();});
 function renderLog(){
@@ -10658,8 +10872,11 @@ function renderLog(){
     '<select id="logMode" aria-label="查看方式"><option value="trick"'+(logMode==='trick'?' selected':'')+'>按墩</option>'+
     '<option value="suit"'+(logMode==='suit'?' selected':'')+'>按花色</option></select></div>';
   if(!cur2.live&&cur2.initialHands){
-    html+='<details class="init-hands"><summary>四家初始手牌</summary>'+cur2.initialHands.map(function(h,s){
-      return '<div class="ih-row"><span class="ih-who">'+who(s)+'</span><span class="tcards">'+h.map(txtHtml).join('')+'</span></div>';}).join('')+'</details>';
+    /* 四家扣底之后、开打之前的手牌(庄家那手含底牌换进来的),下面是原来的 8 张底牌和庄家扣下的 8 张 */
+    var ihRow=function(lab,list){return '<div class="ih-row"><span class="ih-who">'+lab+'</span><span class="tcards">'+groupedHtml(list)+'</span></div>';};
+    html+='<details class="init-hands"><summary>四家初始手牌 · 底牌</summary>'+cur2.initialHands.map(function(h,s){
+      return ihRow(who(s)+(s===cur2.declSeat?'<small>庄</small>':''),h);}).join('')+
+      (cur2.kitty?'<div class="ih-sep"></div>'+ihRow('原底牌',cur2.kitty):'')+(cur2.buried?ihRow(who(cur2.declSeat)+'扣下',cur2.buried):'')+'</details>';
   }
   if(logMode==='trick'){
     var fl=flagsOf(cur2.id);
@@ -10735,6 +10952,43 @@ function memHtml(){
   }
   return '<details class="mem" id="memBox"'+(memOpen?' open':'')+'><summary>记牌表<small>每门别家还剩什么</small></summary><div class="mem-body">'+body+'</div></details>';
 }
+/* 教练消息标记:点「说得不对?标一下」→ 标上并打开写理由的一行;再点 → 打开 / 收起那一行 */
+var cfEdit=null,cfDraft='';   /* cfEdit={rec,mid} */
+function cfMsg(mid){return chatList().filter(function(m){return m.id===mid;})[0];}
+function saveCfNote(){
+  if(!cfEdit)return;
+  var fl=window.__flags.coachGet(cfEdit.rec).map(function(f){return f.mid===cfEdit.mid?Object.assign({},f,{note:cfDraft.trim()}):f;});
+  window.__flags.coachSet(cfEdit.rec,fl);
+}
+/* 消息原文去掉排版:分行、分块处补「 · 」,不然建议单里几条候选会连成一串 */
+function plainOf(html){var d=document.createElement('div');d.innerHTML=String(html).replace(/<br\s*\/?>|<\/(div|p|li)>/gi,' · ');
+  return d.textContent.replace(/\s+/g,' ').replace(/(\s*·\s*)+/g,' · ').replace(/^ · | · $/g,'').trim();}
+recPanel.addEventListener('click',function(e){
+  var b=e.target.closest('[data-cf]');
+  if(b){
+    var m=cfMsg(+b.dataset.cf);if(!m||!m.rec)return;
+    var fl=window.__flags.coachGet(m.rec),cur=fl.filter(function(f){return f.mid===m.id;})[0];
+    if(cfEdit)saveCfNote();
+    if(!cur){
+      window.__flags.coachSet(m.rec,fl.concat([{mid:m.id,t:m.no?m.no-1:null,kind:m.kind,text:plainOf(m.html)}]));
+      cfEdit={rec:m.rec,mid:m.id};cfDraft='';
+    }else if(cfEdit&&cfEdit.mid===m.id)cfEdit=null;
+    else{cfEdit={rec:m.rec,mid:m.id};cfDraft=cur.note||'';}
+    renderCoach();
+    var inp=$('cflagNote');if(inp&&!cur)inp.focus({preventScroll:true});
+    return;
+  }
+  if(e.target.id==='cflagSave'){saveCfNote();cfEdit=null;renderCoach();}
+  else if(e.target.id==='cflagDel'&&cfEdit){
+    window.__flags.coachSet(cfEdit.rec,window.__flags.coachGet(cfEdit.rec).filter(function(f){return f.mid!==cfEdit.mid;}));
+    cfEdit=null;renderCoach();
+  }
+});
+recPanel.addEventListener('input',function(e){if(e.target.id==='cflagNote')cfDraft=e.target.value;});
+recPanel.addEventListener('keydown',function(e){
+  if(e.target.id==='cflagNote'&&e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();saveCfNote();cfEdit=null;e.target.blur();renderCoach();}   /* 先失焦:输入框有焦点时不重画 */
+});
+recPanel.addEventListener('focusout',function(e){if(e.target.id==='cflagNote')saveCfNote();});
 function renderCoach(){
   var G=g();
   if(!recPanel.querySelector('#coachInput')){
@@ -10747,9 +11001,11 @@ function renderCoach(){
     $('chatNoteSend').onclick=send;
     $('chatNoteInput').onkeydown=function(e){if(e.key==='Enter'&&!e.isComposing&&e.keyCode!==229){e.preventDefault();send();}};
   }
+  if(document.activeElement&&document.activeElement.id==='cflagNote')return;   /* 正在写标记理由:不重画 */
   /* 输入框在最上面,下面是记牌表,再下面是消息(新的在上):教练的话、你的作答、笔记 */
   var html=memHtml();
   var chat=chatList().slice().reverse();
+  var cfl={};function cfOf(rec){return rec&&window.__flags&&window.__flags.coachGet?(cfl[rec]=cfl[rec]||window.__flags.coachGet(rec)):[];}
   chat.forEach(function(m){
     if(m.from==='me'){
       html+='<div class="chat-note'+(m.old?' old':'')+'"><span class="cno">'+(m.r?'第 '+m.r+' 局 · ':'')+(m.old?'以前的笔记':'我')+'</span>'+esc(m.t)+'</div>';
@@ -10762,7 +11018,15 @@ function renderCoach(){
         '<button class="btn quiet" data-qz="-1" data-mid="'+m.id+'">跳过</button></div>';
       else if(m.quiz.state==='expired')body+='<div class="dim">(这墩已经打完了)</div>';
     }
-    html+='<div class="coachBox '+(m.kind||'')+'">'+(meta?'<span class="cno">'+meta+'</span>':'')+body+'</div>';
+    /* 教练说的每一条都能标「说得不对」,附一句话,随牌谱上传(见产品层 setCoachFlags) */
+    var cf=cfOf(m.rec).filter(function(f){return f.mid===m.id;})[0];
+    var btn=m.rec?'<button class="cf-btn" data-cf="'+m.id+'" aria-pressed="'+!!cf+'">'+(cf?'🚩 已标记 · 改':'🚩 说得不对?标一下')+'</button>':'';
+    html+='<div class="coachBox '+(m.kind||'')+(cf?' cflag':'')+'">'+(meta?'<span class="cno">'+meta+'</span>':'')+body+
+      (cf&&cf.note?'<span class="cf-note">🚩 '+esc(cf.note)+'</span>':'')+btn+'</div>';
+    if(cfEdit&&cfEdit.mid===m.id)
+      html+='<div class="flag-edit"><span class="fe-who">🚩 六六这条说得不对'+(meta?'('+meta+')':'')+'</span>'+
+        '<input id="cflagNote" maxlength="200" enterkeyhint="done" placeholder="哪里不对?(可不填)" value="'+esc(cfDraft).replace(/"/g,'&quot;')+'">'+
+        '<button class="btn primary" id="cflagSave">好</button><button class="btn" id="cflagDel">取消标记</button></div>';
   });
   if(!chat.some(function(m){return m.from==='coach';}))html+='<div class="empty-note">轮到你出牌时点「问六六」:六六先考你一道和这手牌有关的题,答完或跳过就给建议;出了明显更差的一手会提醒;一局打完会复盘关键回合。</div>';
   var dyn=$('coachDyn');

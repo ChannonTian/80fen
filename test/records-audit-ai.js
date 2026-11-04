@@ -10,6 +10,7 @@
  */
 'use strict';
 const fs=require('fs'),vm=require('vm'),path=require('path');
+const {isTestGame}=require('./records-filter.js');
 const args=process.argv.slice(2);
 const html=args.find(a=>a.endsWith('.html'))||path.join(__dirname,'..','80fen-test.html');
 const files=args.filter(a=>!a.startsWith('--')&&!a.endsWith('.html'));
@@ -25,7 +26,7 @@ const nm=x=>x.suit==='X'?(x.rank===16?'大王':'小王'):({S:'♠',H:'♥',D:'�
 const ns=cs=>cs.map(nm).join('');
 const recs=[]; const seen=new Set();
 for(const f of files) for(const l of fs.readFileSync(f,'utf8').split('\n')){ if(!l.trim()) continue;
-  try{ const r=JSON.parse(l); if(seen.has(r.id)) continue; seen.add(r.id); if(Array.isArray(r.initialHands)&&Array.isArray(r.tricks)&&r.tricks.length) recs.push(r); }catch(e){} }
+  try{ const r=JSON.parse(l); if(seen.has(r.id)) continue; seen.add(r.id); if(Array.isArray(r.initialHands)&&Array.isArray(r.tricks)&&r.tricks.length&&!isTestGame(r)) recs.push(r); }catch(e){} }
 
 const big=(x,T)=>x.suit==='X'||(x.rank===T.rank);              // 王 / 级牌(含副级牌)
 const bigT=(x,T)=>x.suit==='X'||(x.rank===T.rank&&x.suit===T.suit); // 王 / 主级牌
