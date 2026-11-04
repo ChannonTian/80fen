@@ -103,7 +103,9 @@ function audit(){
   // 矮横屏:左边竖栏、右边按钮栏都不伸进牌桌
   if(game.classList.contains('m-l')&&!modal&&!drawer){
     const ar=R(document.getElementById('arena'));
-    for(const e of document.querySelectorAll('.topbar>*'))if(vis(e)&&R(e).right>ar.left+1){out.push('左边竖栏压到牌桌:'+name(e));break;}
+    // 左边竖栏只有测试版有(顶栏是 grid);UI 测试页的横屏顶栏还是横在上面的一行,不查这条
+    if(getComputedStyle(document.querySelector('.topbar')).display==='grid')
+      for(const e of document.querySelectorAll('.topbar>*'))if(vis(e)&&R(e).right>ar.left+1){out.push('左边竖栏压到牌桌:'+name(e));break;}
     for(const e of document.querySelectorAll('#controls>*'))if(vis(e)&&R(e).left<ar.right-1){out.push('右边按钮栏压到牌桌:'+name(e));break;}
   }
   // 矮横屏:右边按钮栏不压牌桌上的牌摞和名牌
@@ -299,6 +301,9 @@ async function run(browser,key,opt,base){
   await p.evaluate(()=>document.querySelector('#tabs button[data-tab=coach]').click());await p.waitForTimeout(150);
   await p.evaluate(()=>{const b=document.getElementById('memReveal');if(b)b.click();const d=document.getElementById('memBox');if(d)d.open=true;});
   await check('六六教练·记牌表');
+  // 切回「对局记录」:记录要重新画出来(v0.7.55 修:两个页签共用一块,切回来曾经是空的)
+  await p.evaluate(()=>document.querySelector('#tabs button[data-tab=log]').click());await p.waitForTimeout(200);
+  if(!await p.evaluate(()=>document.querySelectorAll('#recPanel .trick-line,#recPanel .suit-row').length))problems.push('[切回对局记录] 记录是空的');
   await click('#sideClose');
   await click('#menuBtn');await check('菜单');await p.evaluate(()=>document.getElementById('sheet').close());
   await click('#scoreChip');await check('闲家分牌');await p.evaluate(()=>{document.getElementById('scoreModal').hidden=true;});

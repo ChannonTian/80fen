@@ -829,7 +829,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.54(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.55(测试版)</div>
 
 
 <script>
@@ -10768,7 +10768,11 @@ var recPanel=document.createElement('div');recPanel.id='recPanel';
 $('panel').hidden=true;$('panel').parentNode.appendChild(recPanel);
 var activeTab='log',logRoundSel='cur',logMode='trick',roundHistory=[],lastEnded=null;
 function openSide(tab){if(tab)activeTab=tab;document.body.classList.add('drawer-open');renderSide();}
-function closeSide(){document.body.classList.remove('drawer-open');}
+function closeSide(){
+  document.body.classList.remove('drawer-open');
+  /* 写标记理由写到一半就关了抽屉:输入框还拿着焦点的话,记录 / 教练页会一直「正在输入、不重画」 */
+  var a=document.activeElement;if(a&&a.closest&&a.closest('#side'))a.blur();
+}
 $('recordsBtn').onclick=function(){document.body.classList.contains('drawer-open')?closeSide():openSide();};
 $('sideClose').onclick=closeSide;
 document.addEventListener('click',function(e){
@@ -10793,7 +10797,9 @@ function renderSide(){
   Array.prototype.forEach.call($('tabs').querySelectorAll('button'),function(x){
     x.classList.toggle('on',x.dataset.tab===activeTab);x.setAttribute('aria-selected',String(x.dataset.tab===activeTab));});
   $('recordsFoot').hidden=activeTab!=='coach';
-  if(activeTab==='coach')renderCoach();else{if(recPanel.querySelector('#coachInput'))recPanel.innerHTML='';renderLog();}
+  /* 两个页签共用 #recPanel:换页签清空时要连「上次画的是什么」(__h)一起清,不然切回「对局记录」时
+     renderLog 以为内容没变、不重画,记录就是空的(玩家报的「对局记录不显示」) */
+  if(activeTab==='coach')renderCoach();else{if(recPanel.querySelector('#coachInput')){recPanel.innerHTML='';recPanel.__h='';}renderLog();}
 }
 function rawTxt(c){var x=cardTxt(c);x.c=c;return x;}   /* 按花色看时要按大小排,留着原牌 */
 /* 局终快照,供回看已完成的局 */
@@ -10992,6 +10998,7 @@ recPanel.addEventListener('focusout',function(e){if(e.target.id==='cflagNote')sa
 function renderCoach(){
   var G=g();
   if(!recPanel.querySelector('#coachInput')){
+    recPanel.__h='';
     recPanel.innerHTML='<div class="chat-input" id="coachInput"><input id="chatNoteInput" maxlength="120" enterkeyhint="done" placeholder="记一笔,只存在这台设备上"><button class="btn" id="chatNoteSend">记下</button></div><div id="coachDyn"></div>';
     var send=function(){
       var v=$('chatNoteInput').value.trim();if(!v||!window.__addNote)return;
