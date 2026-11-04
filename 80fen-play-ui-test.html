@@ -9499,7 +9499,8 @@ function renderSide(){
   Array.prototype.forEach.call($('tabs').querySelectorAll('button'),function(x){
     x.classList.toggle('on',x.dataset.tab===activeTab);x.setAttribute('aria-selected',String(x.dataset.tab===activeTab));});
   $('recordsFoot').hidden=activeTab!=='coach';
-  if(activeTab==='coach')renderCoach();else{if(recPanel.querySelector('#coachInput'))recPanel.innerHTML='';renderLog();}
+  /* 换页签清空 #recPanel 时连 __h 一起清,不然切回「对局记录」时 renderLog 以为没变、不重画,记录就是空的 */
+  if(activeTab==='coach')renderCoach();else{if(recPanel.querySelector('#coachInput')){recPanel.innerHTML='';recPanel.__h='';}renderLog();}
 }
 /* 局终快照,供回看已完成的局 */
 function snapshotRound(G){
@@ -9592,6 +9593,7 @@ function memHtml(){
 function renderCoach(){
   var G=g();
   if(!recPanel.querySelector('#coachInput')){
+    recPanel.__h='';
     recPanel.innerHTML='<div class="chat-input" id="coachInput"><input id="chatNoteInput" maxlength="120" enterkeyhint="done" placeholder="记一笔,只存在这台设备上"><button class="btn" id="chatNoteSend">记下</button></div><div id="coachDyn"></div>';
     recPanel.__h='';
     var send=function(){
