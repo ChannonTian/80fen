@@ -299,6 +299,9 @@ button{cursor:pointer;touch-action:manipulation}
 /* ---------- 手牌 ---------- */
 .hand-area{grid-area:hand;position:relative;min-height:0;min-width:0}
 .fan-viewport{position:absolute;inset:0;overflow:hidden;touch-action:none}
+/* 矮横屏:选中的牌抬过手牌区上沿、盖到牌桌下沿(产品方:没问题,还能多点地方);左右仍然裁掉(要拨牌时) */
+#game.m-l .fan-viewport{overflow:visible;clip-path:inset(-80px 0 -60px 0)}
+#game.m-l .hand-area{z-index:35}
 #hand{position:absolute;inset:0}
 #hand .card{position:absolute;left:0;top:0;cursor:pointer;transform-origin:50% 100%;
   transition:transform var(--dur-tap) var(--ease-out)}
@@ -9840,7 +9843,7 @@ function detectMode(){
 }
 function handCfg(mode,W,H){
   /* 手牌不再抢牌桌的地方:竖屏两行、整张露出;矮横屏手牌贴着屏幕底边,只露上半截 */
-  if(mode==='l')return {minCw:44,maxCw:66,budget:Math.max(96,H*0.36),visK:1,rowK:0.55,lift:14,pad:8,maxRows:1,rowPen:10,fan:true,tilt:5};
+  if(mode==='l')return {minCw:44,maxCw:66,budget:Math.max(96,H*0.36),visK:1,rowK:0.55,lift:4,pad:8,maxRows:1,rowPen:10,fan:true,tilt:6};
   if(mode==='w')return {minCw:58,maxCw:94,budget:H*0.24,visK:1,rowK:0.56,lift:20,pad:16,maxRows:2,rowPen:24};
   return {minCw:W<360?44:50,maxCw:W>=600?96:76,budget:Math.max(136,H*0.25),visK:1,rowK:0.58,lift:16,pad:10,maxRows:3,rowPen:14};
 }
@@ -9862,7 +9865,10 @@ function splitRows(groups,r){
 }
 function planHand(groups,W,H,cfg,planN){
   /* 整张露出时,扇形两端往下弯(curve)、又转了角度(tilt),牌角比平放低一点,要把这点算进高度 */
-  function bowOf(c){return cfg.fan?cfg.zone:cfg.visK>=1?(cfg.curve||5)+c*Math.sin((cfg.tilt||4)*Math.PI/180)*0.5+6:4;}
+  /* 扇形(矮横屏):整排沿一条自然的弧线摆,正中最高、往两边越来越低(按整手牌的宽度算,打掉几张弧线不变、牌桌不跳)。
+     正中 zoneW 那一段两头的牌,下沿也要离屏幕底 zone;所以手牌区要比牌高再多出 zone + 那一点下沉 */
+  var fanU=cfg.fan?Math.min(1,(cfg.zoneW||0)/Math.max(1,W-cfg.pad*2)):0;
+  function bowOf(c){return cfg.fan?cfg.zone+c*1.43*0.5*fanU*fanU:cfg.visK>=1?(cfg.curve||5)+c*Math.sin((cfg.tilt||4)*Math.PI/180)*0.5+6:4;}
   var n=groups.length;
   var N=Math.max(n,planN||0);
   var best=null;
@@ -9889,11 +9895,11 @@ function planHand(groups,W,H,cfg,planN){
     var span=cw+step*Math.max(0,len-1);
     var start=cfg.pad+Math.max(0,(avail-span)/2);
     var cards=[];
-    /* 扇形(矮横屏):挨着正中 zoneW 那一段的牌不往下沉;离开那一段越远沉得越多,最边上那张沉到只露约六成 */
-    var zl=W/2-(cfg.zoneW||0)/2,zr=W/2+(cfg.zoneW||0)/2,drop=ch*0.4+(cfg.zone||0),ramp=Math.max(40,zl-cfg.pad);
+    /* 扇形(矮横屏):牌的中线离屏幕正中 u(整手宽度的一半记作 1),往下沉 0.5 张牌高 × u²;最边上那张沉得最多 */
+    var half=Math.max(1,(W-cfg.pad*2)/2);
     for(var i=0;i<len;i++){
       var t=len<2?0:i/(len-1)*2-1,x=start+i*step,dy;
-      if(cfg.fan){var dd=Math.max(0,zl-(x+cw),x-zr);dy=drop*Math.pow(Math.min(1,dd/ramp),1.4);}
+      if(cfg.fan){var u=Math.min(1,Math.abs(x+cw/2-W/2)/half);dy=ch*0.5*u*u;}
       else dy=(cfg.curve||5)*t*t;
       cards.push({i:idx++,x:x,y:cfg.lift+ri*cfg.rowK*ch+dy,a:t*(cfg.tilt||4)});
     }
@@ -9933,7 +9939,7 @@ function layout(){
   var cfg=handCfg(mode,handW,H);
   /* 矮横屏手牌扇形贴底边:正中 zoneW 那一段的牌整张露出、底边离屏幕底 zone(底部横条 + 一点余量),
      两边的牌往下沉、只露上半截。底部横条、上滑回主屏、轻点两下叫 Siri 都在屏幕底边正中 */
-  if(mode==='l'){cfg.zone=Math.max(SA.b,14)+8;cfg.zoneW=Math.min(W*0.42,330);}
+  if(mode==='l'){cfg.zone=Math.max(SA.b,14)+8;cfg.zoneW=Math.min(W*0.42,330);cfg.selLift=Math.round(Math.min(cfg.maxCw,66)*1.43*0.3);}
   /* 牌桌太矮、桌面牌比手牌小一截时,手牌让一点(同一屏幕尺寸只算一次,一局里手牌大小不变) */
   var bkey=mode+W+'x'+H;if(L.balKey!==bkey){L.balKey=bkey;L.capCw=0;L.balN=0;}
   if(L.capCw)cfg.maxCw=Math.min(cfg.maxCw,L.capCw);
@@ -9955,9 +9961,10 @@ function layout(){
   if(!(plan&&plan.overflow))L.progress=0;
   positionHand();
   layoutTable();
-  if(mode!=='l'&&(L.balN||0)<4&&TB.ready&&TB.tcw<0.9*L.idleCw&&L.idleCw>cfg.minCw){
-    /* 手牌每窄 1px,省下的高度分给三行桌面牌:f = 手牌高度系数 / 3;名牌换行等因素估不准,最多再试几次 */
-    var f=(cfg.visK+cfg.rowK*(idlePlan.rows.length-1))/3;
+  if((L.balN||0)<4&&TB.ready&&TB.tcw<0.9*L.idleCw&&L.idleCw>cfg.minCw){
+    /* 手牌每窄 1px,省下的高度分给三行桌面牌:f = 手牌高度系数 / 3;名牌换行等因素估不准,最多再试几次。
+       矮横屏(v0.7.56 起手牌整张露出、桌面两行)同样:手机横屏带地址栏时手牌 64、桌面牌只剩 47,手牌让一点 */
+    var f=mode==='l'?0.5:(cfg.visK+cfg.rowK*(idlePlan.rows.length-1))/3;
     L.balN=(L.balN||0)+1;
     L.capCw=Math.max(cfg.minCw,Math.min(L.idleCw-1,Math.floor(L.idleCw-(0.9*L.idleCw-TB.tcw)/(f+0.9))));
     layout();
@@ -9965,14 +9972,14 @@ function layout(){
 }
 function positionHand(){
   var plan=L.hand;if(!plan)return;
-  var lift=plan.cfg.lift;
+  var lift=plan.cfg.lift,up=plan.cfg.selLift||lift*0.85;   /* 选中的牌往上抬多少;矮横屏抬过手牌区上沿、盖到牌桌下沿也没关系 */
   var G=g(),dealing=!!G&&(G.phase==='dealing'||G.phase==='finalDecl'||G.phase==='kitty')&&!reduceMotion,deckTf=null;
   plan.rows.forEach(function(row,ri){
     var off=row.over*L.progress;
     row.cards.forEach(function(p,i){
       var el=p.el;if(!el)return;
       var sel=el.classList.contains('sel');
-      var tf='translate('+(p.x-off).toFixed(1)+'px,'+(p.y-(sel?lift*0.85:0)).toFixed(1)+'px) rotate('+p.a.toFixed(2)+'deg)';
+      var tf='translate('+(p.x-off).toFixed(1)+'px,'+(p.y-(sel?up:0)).toFixed(1)+'px) rotate('+p.a.toFixed(2)+'deg)';
       /* 产品每次 render 都重建手牌元素:新元素先放在同一张牌上次的位置,下一帧再过渡到新位置
          (选中上抬、出牌后合拢都有动画);发牌、拿底牌时新来的牌从桌心飞进来,其余没见过的牌直接落位 */
       if(!el.__placed){
@@ -10104,6 +10111,8 @@ function layoutTable(){
     /* 对家和我绕桌心点对称:对家的名牌在上边、自己那摞左边,牌摞从 x0 往右长;
        我的名牌在下边、自己那摞右边,牌摞右边对齐 x1(= 对家那摞左边的镜像)往左长 */
     var x1=aw-x0;
+    /* 右下那组按钮很宽时(很窄的横屏亮主阶段:不亮 + 亮主…),我的名牌放不下就整摞往左让,不压按钮 */
+    if(BZ&&BZ.r>0)x1=Math.max(Math.min(x1,BZ.r-2*g-lw.S),pad+tcw);
     var xW=stack?pad:pad+lw.W+g,xE=stack?aw-pad:aw-pad-lw.E-g;
     var ySide=stack?pad+Math.max(lhs.W,lhs.E)+lg:yMid-th/2;
     /* 上下家那摞的下沿不压两个下角的按钮:往上挪(名牌跟着牌摞的中线走) */
@@ -10128,7 +10137,7 @@ function layoutTable(){
     TB.lane={x0:x0,xE:xE,x1:x1,xW:xW,wHard:wHard,eHard:eHard,sCap:sCap};
     TB.bz=BZ?JSON.stringify(BZ):'';
     TB.center={x:aw/2,y:ah/2};
-    TB.slot={x:x0,y:yS};
+    TB.slot={x:x1-tcw,y:yS};
   }else{
     /* 上下家名牌先试着和对家那摞并排(省一行);并排时对家那摞连一对都放不下,名牌就单占一行 */
     for(var stacked=0;stacked<2;stacked++){
