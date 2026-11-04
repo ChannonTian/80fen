@@ -107,4 +107,5 @@ node test/replay-record.js records.jsonl --game=3                    # 逐手还
 | `coach` | 教练失误反馈灵敏度(`off` = 教练关) |
 | `undos` / `autoTricks` | 本局悔牌次数 / 托管替人出的墩数 |
 | `flags` | **v0.7.48 起,玩家标了才有。** 玩家在「对局记录 · 按墩」里标的「这手有问题」:`[{t, seat, note?}]`,`t` 是第几墩(从 0 数,对应 `tricks[t]`),`seat` 是哪一家出的那手,`note` 是玩家写的理由(可空,≤ 200 字)。打完再标会把整份牌谱重传,收集表覆盖那一行(见「现状」) |
+| `coachFlags` | **v0.7.52 起,玩家标了才有。** 玩家在「六六教练」页里标的「六六这条说得不对」:`[{t, kind, text, note?}]`,`t` 是那条消息说的是第几墩(从 0 数;局后复盘为 `null`),`kind` 是消息类别(`advice` 建议、`quiz` 考题、`answer` 答案、`review` 复盘,空 = 失误提醒),`text` 是消息原文(去掉排版),`note` 是玩家写的理由。打完再标会重传,牌谱带上 `flags` 数组(可以是空的),收集表照出牌标记那样覆盖那一行 |
 | `partial` / `stage` / `tricksDone` | **只有残局才有**。`stage` 是停在哪个阶段:`finalDecl` 亮主等待、`lowrebel` 造反、`kitty` 扣底、`play` 出牌;`tricksDone` 是已经收掉几墩。残局的 `tricks` 只有收掉的墩,`defPoints` 是到那时为止的墩上分,没有 `levelsAfter` / `defendersWin` / `kittyPts` / `mult`。开打前离开的没有 `initialHands` / `buried`,手牌用 `dealRound(seed, firstTaker)` 重发 |

@@ -131,10 +131,16 @@ for(const [k,o] of Object.entries(by).sort((a,b)=>b[1].games-a[1].games)){
 }
 // 出牌标记(v0.7.48):玩家在对局记录里点出来的「这手有问题」
 const flagged=good.filter(({r})=>Array.isArray(r.flags)&&r.flags.length);
+const cflagged=good.filter(({r})=>Array.isArray(r.coachFlags)&&r.coachFlags.length);   // 教练消息标记(v0.7.52)
 if(flagged.length){
   const SN=['南','东','北','西'];
   console.log(`\n出牌标记:${flagged.length} 局、${flagged.reduce((a,{r})=>a+r.flags.length,0)} 手`+(args.includes('--flags')?'':'(加 --flags 逐条列出)'));
   if(args.includes('--flags')) for(const {r} of flagged) for(const f of r.flags)
     console.log(`  ${String(r.id).slice(0,8)} ${r.nick||String(r.pid||'').slice(0,8)} 第 ${r.no} 局 第 ${f.t+1} 墩 ${SN[f.seat]}${f.seat===r.human?'(人)':''}${f.note?':'+f.note:''}`);
+}
+if(cflagged.length){
+  console.log(`\n教练消息标记:${cflagged.length} 局、${cflagged.reduce((a,{r})=>a+r.coachFlags.length,0)} 条`+(args.includes('--flags')?'':'(加 --flags 逐条列出)'));
+  if(args.includes('--flags')) for(const {r} of cflagged) for(const f of r.coachFlags)
+    console.log(`  ${String(r.id).slice(0,8)} ${r.nick||String(r.pid||'').slice(0,8)} 第 ${r.no} 局 ${f.t==null?'复盘':'第 '+(f.t+1)+' 墩'} [${f.kind||'提醒'}] ${f.text.slice(0,60)}${f.note?' ← '+f.note:''}`);
 }
 console.log('\n用作「真人数据」时建议:只取 by=h 的手;重打(replay)的局人可能已见过牌,另算;照提示出(hint)的手算半个 AI 决定。');
