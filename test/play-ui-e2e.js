@@ -256,6 +256,14 @@ async function run(browser,key,opt,base){
       for(let s=0;s<4;s++){const el=document.getElementById('p'+s);if(el.__keep==null)el.__keep=el.innerHTML;
         el.innerHTML=src.slice(s*n%Math.max(1,src.length-n),s*n%Math.max(1,src.length-n)+n).map(c=>'<div class="'+c.className.replace(/\b(sel|hintc)\b/g,'')+'">'+c.innerHTML+'</div>').join('');}},n);
     await check(`桌面压力·每家 ${n} 张`);
+    // 小黄人说话的气泡不盖住桌上的牌(v0.7.56:对家说话会盖住他自己的牌)。
+    // 每家 2 张:谁的牌都不能盖;每家 4 张:小屏上实在没空处,只查不盖住说话人自己的牌;每家 6 张不查
+    if(n<=4){const hit=await p.evaluate(n=>{if(!window.__say)return [];const out=[],PILE={1:'p1',2:'p2',3:'p3'};
+      for(const seat of [1,2,3]){window.__hideSays();window.__say(seat,'idle');const el=[...document.querySelectorAll('.say.show')][0];if(!el)continue;
+        const q=el.getBoundingClientRect();for(const c of document.querySelectorAll(n<=2?'.played:not(.ghost) .card':'#'+PILE[seat]+' .card')){const r=c.getBoundingClientRect();
+          if(r.left<q.right-2&&q.left<r.right-2&&r.top<q.bottom-2&&q.top<r.bottom-2){out.push(seat+'→#'+c.closest('.played').id);break;}}}
+      window.__hideSays();return out;},n);
+      for(const x of hit)problems.push(`[桌面压力·每家 ${n} 张] 说话气泡压住桌上的牌:${x}`);}
   }
   await p.evaluate(()=>{for(let s=0;s<4;s++){const el=document.getElementById('p'+s);el.innerHTML=el.__keep;el.__keep=null;}});
   // 多张一起拖:点选六六建议的那一组(≥2 张),按住 0.4 秒再往牌桌上拖
