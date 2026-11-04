@@ -34,6 +34,8 @@ const SIZES=[
   /* 带刘海 / 灵动岛的 iPhone:@左,右,上,下 是让出的边(env(safe-area-inset-*))。
      844x390 = iPhone 16e 加到主屏幕当网页 App 横放;874x340 = 17 / 18 Pro 的 Chrome 横放(估的);956x400 = Pro Max;402x874 = Pro 竖放 */
   ['844x390@47,47,0,21',PHONE],['874x340@62,62,0,21',PHONE],['956x400@62,62,0,21',PHONE],['402x874@0,0,62,34',PHONE],
+  /* 浏览器的地址栏 / 工具栏占掉一截的横屏(估的):844x330 = iPhone Safari 横放带地址栏,915x340 = 安卓 Chrome 横放 */
+  ['844x330@47,47,0,0',PHONE],['915x340',PHONE],
 ].filter(([k])=>!args.only||String(args.only).split(/,(?=\d+x)/).includes(k));
 
 /* ---------- 一个只读的静态服务器,免得依赖外面开着的 http.server ---------- */
@@ -106,7 +108,16 @@ function audit(){
     // 左边竖栏只有测试版有(顶栏是 grid);UI 测试页的横屏顶栏还是横在上面的一行,不查这条
     if(getComputedStyle(document.querySelector('.topbar')).display==='grid')
       for(const e of document.querySelectorAll('.topbar>*'))if(vis(e)&&R(e).right>ar.left+1){out.push('左边竖栏压到牌桌:'+name(e));break;}
-    for(const e of document.querySelectorAll('#controls>*'))if(vis(e)&&R(e).left<ar.right-1){out.push('右边按钮栏压到牌桌:'+name(e));break;}
+    // 右边按钮栏(v0.7.55 以前):不伸进牌桌;v0.7.56 起按钮浮在牌桌两个下角,改由下面「按钮压住牌桌」那条管
+    if(getComputedStyle(document.getElementById('controls')).position!=='absolute')
+      for(const e of document.querySelectorAll('#controls>*'))if(vis(e)&&R(e).left<ar.right-1){out.push('右边按钮栏压到牌桌:'+name(e));break;}
+    // 手牌扇形:正中那几张的下沿要离开屏幕底边(底部横条、上滑回主屏、轻点两下叫 Siri 都在那里)
+    if(getComputedStyle(document.getElementById('controls')).position==='absolute'){
+      const cs=[...document.querySelectorAll('#hand .card')].map(R).filter(r=>r.width);
+      const mid=cs.filter(r=>r.left<W/2+20&&r.right>W/2-20);
+      const zone=Math.max((window.__SAFE&&window.__SAFE.b)||0,14);
+      if(mid.length&&!document.getElementById('handArea').classList.contains('overflow')&&Math.max(...mid.map(r=>r.bottom))>H-zone)out.push(`手牌正中压到屏幕底边让位区:下沿 ${Math.round(Math.max(...mid.map(r=>r.bottom)))} > ${H-zone}`);
+    }
   }
   // 矮横屏:右边按钮栏不压牌桌上的牌摞和名牌
   if(game.classList.contains('m-l')&&!modal&&!drawer){
@@ -124,8 +135,14 @@ function audit(){
       // 收墩的戳本来就盖在赢的那摞上
       if([a,b].some(x=>x.classList.contains('winner-label')&&[a,b].some(y=>y.id==='p'+x.dataset.seat)))continue;
       if(inter(R(a),R(b),3))out.push(`压住了:${name(a)} / ${name(b)}`);}
+    // 桌上每一摞:相邻两张错开至少 0.3 张牌宽,左上角的点数和花色要露出来(甩牌多张时不能叠成一条)
+    // 量排版位置(offsetLeft / offsetWidth):牌刚落桌时有缩放的入场动画,外框量出来忽大忽小
+    for(const pile of document.querySelectorAll('.played:not(.ghost)')){const cs=[...pile.children];
+      for(let i=1;i<cs.length;i++){const d=cs[i].offsetLeft-cs[i-1].offsetLeft;
+        if(d<cs[i].offsetWidth*0.3-1){out.push(`桌上的牌叠得看不见点数:#${pile.id} ${cs.length} 张,错开 ${d}px / 牌宽 ${cs[i].offsetWidth}`);break;}}}
     // 桌面牌不能比手牌小一截(竖屏、宽屏)
-    const tc=document.querySelector('.played .card'),hc=document.querySelector('#hand .card');
+    // 取桌上最大的那张:放不下的那摞会整体缩小(v0.7.56),那是有意的,不算「桌面牌太小」
+    const tc=[...document.querySelectorAll('.played:not(.ghost) .card')].sort((a,b)=>b.offsetWidth-a.offsetWidth)[0],hc=document.querySelector('#hand .card');
     // 扣底时手里 33 张,窄屏要排三排、牌桌变矮;那时桌上只有亮主的一两张,先顾手牌,这条不查
     const kitty=window.__G&&window.__G()&&window.__G().phase==='kitty';
     if(tc&&hc&&!kitty&&!game.classList.contains('m-l')){const k=tc.offsetWidth/(parseFloat(hc.style.getPropertyValue('--w'))||hc.offsetWidth);   // 量排版宽度:出牌动画开头牌是缩小的
@@ -139,7 +156,8 @@ function audit(){
       for(const c of document.querySelectorAll('#hand .card')){const r=R(c);if(r.left<hr.left-8||r.right>hr.right+8){out.push('手牌出了手牌区');break;}}}
     // 六六气泡不盖住「出牌」
     const bub=document.getElementById('coachBubble');
-    if(vis(bub)&&inter(R(bub),R(document.getElementById('controls'))))out.push('六六气泡压住了操作栏');
+    // 比各个按钮(矮横屏的操作区是浮在牌桌下角的两组,整条容器横跨牌桌,不能拿容器比)
+    if(vis(bub)&&[...document.querySelectorAll('#controls button')].filter(vis).some(b=>inter(R(bub),R(b))))out.push('六六气泡压住了操作栏');
   }
   // 5. 弹窗:面板在屏幕里,按钮看得见
   for(const sel of ['#overlay .panel','#setOverlay .panel','#scoreModal .zpanel','#sheet']){
