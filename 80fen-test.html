@@ -826,7 +826,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.52(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.53(测试版)</div>
 
 
 <script>
@@ -1497,6 +1497,9 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   mateOver: 1,
   /* 领出推断(信念第 4 步 b):别人单张领出时,抽样世界按领出模型 P(领这一类 | 他的手牌) 重抽(池子 = k × beliefM)。0 = 旧行为。 */
   leadInfer: 0,
+  beliefDecl: 0,
+  beatChoice: 0,              // 1 = 本墩推演里压牌那一叉不再一律「最便宜那张」,按 beatChoiceW 在压得过的牌里取前 3 张加权(beatMix);0 = 旧行为
+  beatChoiceW: [2.0856,0.7688,0.1243,-1.8395,-1.3597,-0.4993,-2.3843,3.9895,0,-0.2528,-1.4187,-1.0832,1.7261],   // test/beatchoice-data.js --fit(自对弈 1200 副 7949 个样本,两折对数损失 均匀 1.525 → 0.888)              // 1 = 抽样世界把亮主亮出来的牌(全部亮主记录)钉在亮的那家手里(declKnown);0 = 旧行为(信念服务不用亮主信息)
   /* test/lead-data.js --fit:8 类 × 11 个手牌特征(leadHandFeat),条件 logit(只在手里有的类之间归一)。
    * AI:自对弈 400 副 + 牌谱里 AI 的领出 5979 个,两折对数损失 1.180 → 0.764;真人:牌谱 384 个,1.251 → 0.965。 */
   leadModelAI: [[-0.693,-0.922,0.187,0.854,-0.296,0.185,-0.405,-0.331,0.144,0.813,0.676],[-0.948,-0.631,-0.643,0.132,-0.653,0.357,-0.391,-0.079,-0.412,-0.167,0.17],[-0.958,-0.519,-0.686,0.461,-0.931,0.349,-0.453,-0.136,-0.207,-0.258,0.581],[-1.047,-0.4,-0.093,0.044,-0.352,-0.032,-0.398,-0.351,0.658,-0.471,0.012],[0.509,-0.002,0.89,-0.173,2.367,0.336,1.099,0.785,-0.54,0.04,-0.666],[0.609,0.813,0.076,-0.39,-0.298,-0.069,0.71,0.215,-0.089,-0.111,-0.356],[1.109,0.74,0.311,-0.582,0.499,-0.409,-0.096,-0.138,0.056,0.182,-0.343],[1.421,0.922,-0.043,-0.346,-0.336,-0.715,-0.066,0.034,0.391,-0.028,-0.074]],
@@ -5366,6 +5369,22 @@ function levelUtility(sc, myTeam, declTeam){
  * 和收官搜索同一个 sampleWorld(硬断门、maxHoldIn 上界、亮主钉牌、底牌模型)。现在**只读**:
  * 给打分器里那些散落的概率各配一个「数世界」的版本,先量谁更准(test/calib-belief.js),不改任何决策。
  * belief-calib 量过:坛子公式估「某家握在外最大那张」系统性偏低(28% vs 实 33%),约束抽样一步改掉大半。 */
+/* 亮主亮出来的牌是硬信息(beliefDecl,11-01):每一家亮过的级牌 / 王对,减去他已经打出的,钉在他手里。
+ * view.declLog(界面 / 牌谱:全部亮主记录,被反掉的那家亮过的也算)优先,没有就用 curDecl / decl(最后一次)。
+ * 收官搜索早就这么做(egDeclKnown,只用最后一次);信念服务以前没用。 */
+function declKnown(view, plays, seats){
+  const T=view.trump, log=Array.isArray(view.declLog)?view.declLog:(()=>{ const d=view.curDecl||view.decl; return d&&!Array.isArray(d)?[d]:Array.isArray(d)?d:[]; })();
+  const want={};   // seat|suit|rank → 张数(同一家多次亮,取最多的那次)
+  for(const d of log){ if(!d||d.seat===undefined||d.seat<0||d.seat===view.seat||!seats.includes(d.seat)) continue;
+    const w=d.strength>=3?{suit:'X',rank:d.strength===4?16:15,n:2}:d.suit?{suit:d.suit,rank:T.rank,n:d.strength}:null;
+    if(!w) continue; const k=d.seat+'|'+w.suit+'|'+w.rank; want[k]=Math.max(want[k]||0,w.n); }
+  const known=[];
+  for(const k in want){ const [seat,suit,rank]=k.split('|'); const st=+seat, rk=+rank;
+    let played=0; for(const pl of view.history||[]) if(pl.seat===st)   // history 已含本墩已出的(makeBelief 的约定)
+      for(const c of pl.cards) if(c.suit===suit&&c.rank===rk) played++;
+    for(let i=0;i<want[k]-played;i++) known.push({seat:st,suit,rank:rk}); }
+  return known;
+}
 function makeBelief(view, plays, M){
   const trump=view.trump, n=view.hand.length;
   const mem=makeMemory(view);
@@ -5384,7 +5403,7 @@ function makeBelief(view, plays, M){
   const reads=makeReads(hist,trump);
   const capMemo={};   // 上界只取决于(座, 门),一次决策里不变 —— 抽样时每张牌每家都要问一遍,记下来
   const capOf=(s,su)=>{ const k=s+su; return capMemo[k]!==undefined?capMemo[k]:(capMemo[k]=maxHoldIn(reads,mem,s,su,trump)); };
-  const known=[];
+  const known=AIP.beliefDecl?declKnown(view,plays,seats):[];
   const ctx={unseen,sizes,seats,voids,trump,kittySize,capOf,known,pVoidOf:null};
   const rand=rng(hist.length*7919+view.seat*31+n*17+7);
   const worlds=[], MM=M||AIP.beliefM;
@@ -5492,6 +5511,26 @@ function willP(T, plays, seat, hand, n, behind, isHuman){
 }
 /* 「队友暂大、后面还有对手时,肯不肯自己压上去保」的特征(10-31,mateOver;test/willmate-data.js 拟合 willMateW)。
  * unseenHi(suit,top) = 这一家看来,在外比 top 大的这门牌张数(关键牌);voids = makeVoids(已完成的墩)。没得压 / 后面没有对手 → null。 */
+/* 压上去用哪张(beatChoice,11-01;test/beatchoice-data.js 拟合 beatChoiceW):他所有压得过当前最大的单张(同门 / 毙,与 willP 同口径),
+ * 按牌从小到大排;每张的特征从他自己看得到的算(unseenHi(su,top) = 还没打出、比 top 大的这门张数,**含他自己手里的**,这里再减掉)。cands[0] = 最便宜那张。 */
+function beatChoiceCands(T, plays, seat, hand, unseenHi, mate){
+  const lead=classify(plays[0].cards,T), cur=currentWinner(plays,T), ccl=classify(plays.find(p=>p.seat===cur.seat).cards,T);
+  const ls=lead.suit, hasLead=hand.some(c=>effSuit(c,T)===ls), curRuff=ccl.suit==='T'&&ls!=='T';
+  let bs;
+  if(curRuff) bs=hasLead?[]:hand.filter(c=>effSuit(c,T)==='T'&&ordIdx(c,T)>ccl.top);
+  else if(ls!=='T'&&!hasLead) bs=hand.filter(c=>effSuit(c,T)==='T');
+  else bs=hand.filter(c=>effSuit(c,T)===ccl.suit&&ordIdx(c,T)>ccl.top);
+  if(!bs.length) return null;
+  bs=bs.slice().sort((a,b)=>ordIdx(a,T)-ordIdx(b,T));
+  const seen=new Set(), cands=[]; for(const c of bs){ const k=c.suit+c.rank; if(seen.has(k)) continue; seen.add(k); cands.push(c); }   // 同点数的两张只算一张
+  const pts=countPoints(plays.flatMap(p=>p.cards));
+  const feats=cands.map((c,k)=>{ const su=effSuit(c,T), up=unseenHi(su,ordIdx(c,T)); let mine=0; for(const d of hand) if(effSuit(d,T)===su&&ordIdx(d,T)>ordIdx(c,T)) mine++;
+    const a=Math.max(0,up-mine), pt=cardPoints(c)>0?1:0;
+    return [k===0?1:0,Math.min(a,6)/3,a===0?1:0,c.suit==='X'?1:0,c.rank===T.rank&&c.suit!=='X'?1:0,c.rank===14&&c.suit!=='X'?1:0,pt,pt*(pts===0?1:0),
+            ls!=='T'&&su==='T'?1:0,(Math.min(a,6)/3)*(mate?1:0),(Math.min(a,6)/3)*Math.min(pts,40)/10,
+            (Math.min(a,6)/3)*(ls==='T'?1:0),(c.suit==='X'||c.rank===T.rank)&&ls==='T'?1:0]; });
+  return {cands,feats};
+}
 function willMateFeat(T, plays, seat, hand, unseenHi, voids, behind){
   const ob=behind.filter(z=>z%2!==seat%2); if(!ob.length) return null;
   const lead=classify(plays[0].cards,T), cur=currentWinner(plays,T);
@@ -5530,12 +5569,21 @@ function leadHandFeat(hand, T, declTeam){
 }
 /* mateOver 用:在世界 w 里,s 那一家看来比 top 大的这门在外几张 = 我看来在外的 + 我手里(除去这手出的)+ 我知道的底 − s 手里的。 */
 function mateCtx(X, cards){
-  if(!AIP.mateOver||!AIP.willMateW||!X.view||!X.mem) return null;
+  if(!((AIP.mateOver&&AIP.willMateW)||(AIP.beatChoice&&AIP.beatChoiceW))||!X.view||!X.mem) return null;
   const T=X.trump, h=X.view.history, done=h.slice(0,h.length-X.plays.length);
   const out=X.view.hand.filter(c=>!cards.some(d=>d.id===c.id)).concat(X.view.buriedKnown||[]);   // 埋的底只有庄家自己知道
   const cnt=(su,top)=>{ let n=0; for(const k in X.mem.unseen){ const c=keyToCard(k); if(X.mem.unseen[k]>0&&effSuit(c,T)===su&&ordIdx(c,T)>top) n+=X.mem.unseen[k]; }
     for(const c of out) if(effSuit(c,T)===su&&ordIdx(c,T)>top) n++; return n; };
   return {voids:makeVoids(done,T),cnt};
+}
+/* 压上去用哪张的分布(beatChoice):按 beatChoiceW 在他压得过的牌里取概率最大的 3 张、重新归一;关着 / 没模型 → 只用 fallback 那张。 */
+function beatMix(T, plays, s, H, M, fallback){
+  if(!AIP.beatChoice||!AIP.beatChoiceW||!M) return [{card:fallback,q:1}];
+  const cur=currentWinner(plays,T), c=beatChoiceCands(T,plays,s,H,M.cnt,cur.seat%2===s%2);
+  if(!c||c.cands.length<2) return [{card:fallback,q:1}];
+  const w=AIP.beatChoiceW, z=c.feats.map(f=>f.reduce((a,v,j)=>a+v*(w[j]||0),0)), mx=Math.max(...z);
+  const e=z.map(v=>Math.exp(v-mx)), top=e.map((v,k)=>[v,k]).sort((a,b)=>b[0]-a[0]).slice(0,3), S=top.reduce((a,b)=>a+b[0],0);
+  return top.map(([v,k])=>({card:c.cands[k],q:v/S}));
 }
 function willMateP(T, plays, s, H, behind, M){
   const f=willMateFeat(T,plays,s,H,(su,top)=>{ let n=M.cnt(su,top); for(const c of H) if(effSuit(c,T)===su&&ordIdx(c,T)>top) n--; return Math.max(0,n); },M.voids,behind);
@@ -5558,13 +5606,15 @@ function teamWinBelief(X, cards, B){
       const s=order[i], H=w.hands[s]; if(!H) return rec(plays,i+1);
       const cur=currentWinner(plays,T);
       if(cur.seat%2===s%2){                                 // 本队赢着:跟小(mateOver:后面还有对手时按 willMateP 压上去保)
-        const q=M&&i<order.length-1?willMateP(T,plays,s,H,order.slice(i+1),M):null;
+        const q=M&&AIP.mateOver&&i<order.length-1?willMateP(T,plays,s,H,order.slice(i+1),M):null;
         if(!q||!q.p) return rec(plays,i+1);
-        return q.p*rec([...plays,{seat:s,cards:[q.card]}],i+1)+(1-q.p)*rec(plays,i+1);
+        let y=0; for(const b of beatMix(T,plays,s,H,M,q.card)) y+=b.q*rec([...plays,{seat:s,cards:[b.card]}],i+1);
+        return q.p*y+(1-q.p)*rec(plays,i+1);
       }
       const r=willP(T,plays,s,H,H.length,order.slice(i+1),hs===s);
       if(!r.p) return rec(plays,i+1);
-      return r.p*rec([...plays,{seat:s,cards:[r.card]}],i+1)+(1-r.p)*rec(plays,i+1);
+      let y=0; for(const b of beatMix(T,plays,s,H,M,r.card)) y+=b.q*rec([...plays,{seat:s,cards:[b.card]}],i+1);
+      return r.p*y+(1-r.p)*rec(plays,i+1);
     };
     acc+=rec(plays0,0);
   }
@@ -5603,15 +5653,15 @@ function trickEVBelief(X, cards, B){
       const cur=currentWinner(plays,T);
       if(cur.seat%2===s%2){
         const no=rec(plays,i+1,pts+dumpExp(T,lead,H,1,last,pts));
-        const q=M&&!last?willMateP(T,plays,s,H,order.slice(i+1),M):null;
+        const q=M&&AIP.mateOver&&!last?willMateP(T,plays,s,H,order.slice(i+1),M):null;
         if(!q||!q.p) return no;
-        const yes=rec([...plays,{seat:s,cards:[q.card]}],i+1,pts+cardPoints(q.card));
+        const yes=[0,0]; for(const b of beatMix(T,plays,s,H,M,q.card)){ const o=rec([...plays,{seat:s,cards:[b.card]}],i+1,pts+cardPoints(b.card)); yes[0]+=b.q*o[0]; yes[1]+=b.q*o[1]; }
         return [q.p*yes[0]+(1-q.p)*no[0], q.p*yes[1]+(1-q.p)*no[1]];
       }
       const r=willP(T,plays,s,H,H.length,order.slice(i+1),hs===s);
       const no=rec(plays,i+1,pts+dumpExp(T,lead,H,0,last,pts));
       if(!r.p) return no;
-      const yes=rec([...plays,{seat:s,cards:[r.card]}],i+1,pts+cardPoints(r.card));
+      const yes=[0,0]; for(const b of beatMix(T,plays,s,H,M,r.card)){ const o=rec([...plays,{seat:s,cards:[b.card]}],i+1,pts+cardPoints(b.card)); yes[0]+=b.q*o[0]; yes[1]+=b.q*o[1]; }
       return [r.p*yes[0]+(1-r.p)*no[0], r.p*yes[1]+(1-r.p)*no[1]];
     };
     const o=rec(plays0,0,pts0); aP+=o[0]; aE+=o[1];
@@ -6457,7 +6507,7 @@ function simulateRound(seed, smartSeats=[0,1,2,3]){
 }
 
 /* 引擎公开面 —— 浏览器 #test 与 node 无头测试共用同一份,避免两边漂移 */
-const ENGINE={RULES,makeDeck,willMateFeat,leadClass8,leadHandFeat,leadAvail,leadLik,cardPoints,countPoints,rng,dealRound,
+const ENGINE={RULES,makeDeck,willMateFeat,beatChoiceCands,leadClass8,leadHandFeat,leadAvail,leadLik,cardPoints,countPoints,rng,dealRound,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
   canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,clampAtGate,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
@@ -7880,6 +7930,7 @@ function viewFor(seat){
           history:[...G.tricks.flatMap(t=>t.plays),...G.trick],
           buriedKnown:seat===G.declSeat?G.buried:[],
           decl:G.decl,             // 谁亮的什么主(v0.7.15:收官抽样把亮主者的级牌钉在他手里)
+          declLog:G.declLog,       // 全部亮主记录(被反掉的那家亮过的也算;信念服务 beliefDecl 用)
           humanSeat:HUMAN};        // 哪一家是真人(意愿模型的真人修正 willHuman 用;自对弈里没有这个字段)
 }
 
@@ -7958,7 +8009,7 @@ function newRound(){ startRound(seedBase++); }
 function startRound(seed){
   // 上一盘可能还有在途的定时器(AI 思考 / 收墩 / 亮主倒计时),不清掉会打到新一盘的局面上
   if(G){ clearTimeout(G.aiTimer); clearTimeout(G.holdTimer); clearTimeout(G.declTimer);
-         clearInterval(G.declTick); }
+         clearInterval(G.declTick); for(const k in G.declPend||{}) clearTimeout(G.declPend[k].timer); }
   promoteCheckpoint();      // 上一局没打完就开了新局(重打 / 种子 / 重开整场):那一局存成残局
   const carryAuto=autoCarry; autoCarry=false;
   const dealerKnown=M.dealer>=0 && !scrambleNext;   // 完全造反重发 → 本盘按无庄盘抢庄
@@ -7983,7 +8034,7 @@ function startRound(seed){
   G={seed,start,firstTaker:first,trumpRank,dealerKnown,
      hands:deal.hands,kittyOrig:deal.kitty,buried:[],
      trump:null,declSeat:dealerKnown?M.dealer:-1,
-     decl:null,rebelHappened:false,
+     decl:null,rebelHappened:false,declPend:{},
      visCount:[0,0,0,0],dealt:0,
      leader:-1,trick:[],trickNo:0,tricks:[],defPoints:0,capturedCards:[],lastWinner:-1,
      lastLeadSize:1,phase:'dealing',selected:new Set(),log:[],awaitNext:false,
@@ -8039,8 +8090,32 @@ function dealTick(){
   setTimeout(dealTick,120);   // 100张 × 120ms ≈ 12秒发完
 }
 
-// AI 抢亮决策(基于已见手牌)—— 打分与门槛在 AI 层的 aiDeclDecide,这里只负责取上下文与执行
-function aiDeclThink(seat){
+/* AI 亮主的反应时间(11-04,产品方):AI 看到牌的同一刻就亮,人要等界面刷出牌、认牌、点按钮 —— 抢开局亮主人几乎永远落后。
+ * 现在 AI 决定亮 / 加固之后先排队,过 [出牌思考上限, 上限 + 1.5 秒](默认 3.0~4.5 秒,总比 AI 出牌思考慢)再亮;
+ * 到点时按当时的局面重新判一次(这期间别人可能已经亮了,他自己也多看到了几张)。排队期间这一家不再另作决定。
+ * 托管替你亮的不排队。发完牌定主时(含点「不亮」)先把排着的结掉,免得「不亮」把 AI 的亮主抢没了。 */
+function aiDeclDelayMs(){
+  const hi=secs(S.aiThinkMax,S_DEFAULT.aiThinkMax);
+  return hi+Math.random()*1500;
+}
+function aiDeclQueue(seat){
+  if(seat===HUMAN&&G.auto){ aiDeclThink(seat,true); return; }
+  const g=G, due=Date.now()+aiDeclDelayMs();
+  G.declPend[seat]={due,timer:setTimeout(()=>{ if(G===g) aiDeclFire(seat); },due-Date.now())};
+}
+function aiDeclFire(seat){
+  const p=G.declPend[seat]; if(!p) return;
+  clearTimeout(p.timer); delete G.declPend[seat];
+  if(G.phase!=='dealing'&&G.phase!=='finalDecl') return;
+  aiDeclThink(seat,true);
+}
+function aiDeclFlush(){   // 定主前:排着的按到点先后结掉
+  for(const s of Object.keys(G.declPend||{}).sort((a,b)=>G.declPend[a].due-G.declPend[b].due)) aiDeclFire(+s);
+}
+// AI 抢亮决策(基于已见手牌)—— 打分与门槛在 AI 层的 aiDeclDecide,这里只负责取上下文与执行。
+// now=false(发牌中每张牌):决定要亮就排队(aiDeclQueue);now=true(到点 / 托管):按当时局面判,要亮就亮
+function aiDeclThink(seat,now){
+  if(!now&&G.declPend&&G.declPend[seat]) return;   // 已经在排队
   const vis=visHand(seat);
   const rand=rng(G.seed*13+G.dealt);
   const ctx={
@@ -8053,8 +8128,9 @@ function aiDeclThink(seat){
   if(canReinforce2(G.decl,seat,vis,rankOf(seat),G.rebelHappened)){
     const asPair=eng(seat).scoreDeclOption(ctx,{suit:G.decl.suit,strength:2}).score;
     const asSingle=eng(seat).scoreDeclOption(ctx,{suit:G.decl.suit,strength:1,hasPair:true}).score;
-    if(asPair>asSingle&&rand()<0.9){
-      applyDecl(seat,{suit:G.decl.suit,strength:2},true); return;
+    if(asPair>asSingle&&(now||rand()<0.9)){
+      if(now) applyDecl(seat,{suit:G.decl.suit,strength:2},true); else aiDeclQueue(seat);
+      return;
     }
   }
   const d=eng(seat).aiDeclDecide(ctx);
@@ -8062,7 +8138,8 @@ function aiDeclThink(seat){
   // 分数越过门槛越多,越果断;贴着门槛则留一点随机,避免四家行为整齐划一
   const margin=d.score-d.threshold;
   if(margin<0) return;
-  if(rand()<Math.min(0.95,0.45+margin/40)) applyDecl(seat,d.opt,false);
+  if(now) applyDecl(seat,d.opt,false);   // 排队前已过了随机那一关,到点只看还该不该亮
+  else if(rand()<Math.min(0.95,0.45+margin/40)) aiDeclQueue(seat);
 }
 
 function applyDecl(seat,opt,isReinforce){
@@ -8093,6 +8170,7 @@ window.__skipDecl=()=>{
 
 function settleTrump(){
   if(G.phase!=='finalDecl'&&G.phase!=='dealing') return;   // 防「不亮」和到点结算重复触发
+  aiDeclFlush();
   clearTimeout(G.declTimer); G.declTimer=null;
   stopDeclCountdown();
   G.trump={suit:G.decl?G.decl.suit:null,rank:G.trumpRank};
