@@ -697,6 +697,9 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
    拖牌时容易碰到底部横条。v0.7.56 起和宽屏一个思路:顶上一条细栏,牌桌铺满宽度,按钮浮在牌桌两个下角,
    手牌扇形贴着底边、中间几张抬高让开底部横条(planHand 的 fan) */
 #game.m-l .arena{margin:4px 4px 0}
+/* 手机上输入框的字不小于 16px:iPhone 的 Safari / 加到主屏幕的网页 App 在点进小于 16px 的输入框时会自动放大整页,
+   放大后牌桌、手牌区为了拖牌关掉了浏览器手势,只剩顶栏底栏能缩回去(产品方:记录栏输入时自动放大、很难缩小) */
+@media (hover:none) and (pointer:coarse){input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea{font-size:16px!important}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -811,7 +814,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.56(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.57(测试版)</div>
 
 
 <script>
@@ -10305,6 +10308,16 @@ function onHandChange(){
 }
 new MutationObserver(onHandChange).observe(hand,{childList:true});
 window.addEventListener('resize',function(){layout();});
+/* 兜底:万一还是被放大了(别的浏览器、别的输入框),离开输入框时缩回原样 ——
+   临时给 viewport 加 maximum-scale=1,iOS 会弹回 1 倍,马上再去掉(不影响之后双指缩放) */
+document.addEventListener('focusout',function(e){
+  if(!/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))return;
+  var vv=window.visualViewport,m=document.querySelector('meta[name=viewport]');
+  if(!vv||!m||vv.scale<=1.01)return;
+  var base=m.getAttribute('content').replace(/,?maximum-scale=[^,]*/,'');
+  m.setAttribute('content',base+',maximum-scale=1');
+  setTimeout(function(){m.setAttribute('content',base);},400);
+});
 /* 手机浏览器的地址栏 / 工具栏收起、展开时,有的只改可视区域、不发 window 的 resize:跟着重排 */
 if(window.visualViewport)window.visualViewport.addEventListener('resize',function(){if(Math.abs(window.visualViewport.height-(L.vvH||0))>2){L.vvH=window.visualViewport.height;layout();}});
 document.addEventListener('focusout',function(){setTimeout(layout,250);});
