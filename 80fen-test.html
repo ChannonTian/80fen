@@ -1491,6 +1491,8 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   /* pointWeight 的居中常数(ai-progress 第四节第 12 项 H,产品方 11-07):手定的 0.6、注释「以典型局面为 1」,没有测量依据;
    * (闲家已得, 剩余分) 网格上高斯包络中位数 0.92、均值 0.80 —— pw 多数时候 > 1,而它只乘本墩 EV、不乘留手和牌权,整体偏向「现在兑现」。0.6 = 旧行为。 */
   pwCenter: 0.6,
+  tiaoWhenBad: 0,             // 1 = 中盘首选打分 < tiaoWhenBadThr 时改领最小的不带分小主(第 12 项 F);0 = 旧行为
+  tiaoWhenBadThr: 0,
   _leadCapture: null,         // 只给量具用:{} 时 scoreLeadEV / scoreLeadPlay 把打分分项写进 .last(test/lead-rank.js CAPTURE=1)           // 过去所有单张领出也进似然(池子倍数 k,0 = 旧行为;leadEvents / leadHistLik)            // 似然的指数(<1 = 打折,防止少数世界独大)
   beliefDecl: 0,
   beatChoice: 0,              // 1 = 本墩推演里压牌那一叉不再一律「最便宜那张」,按 beatChoiceW 在压得过的牌里取前 3 张加权(beatMix);0 = 旧行为
@@ -5928,6 +5930,17 @@ function aiChooseLead(view){
     for(const c of cands) if(c.cards.length===1&&c.cards[0].suit==='X') c.score-=AIP.jokerLeadDef;
   cands.sort((a,b)=>b.score-a.score);
   let best=cands[0]||{cards:[view.hand[0]],reason:'兜底',score:0};
+  /* 没有好领法时钓主(tiaoWhenBad,ai-progress 第四节第 12 项 F,11-07):中盘、首选打分 < tiaoWhenBadThr、手里有不带分的小主(不是王 / 级牌 / 主 A)
+   * → 领最小的那张小主。cf-situations T 类(1200 副、9652 个局面):首选分 < 0 时钓主比 AI 首选 +0.079 ±0.025 级(庄家 +0.136 ±0.041),
+   * 首选分 ≥ 0 时 −0.035(AI 对)。0 = 旧行为。 */
+  if(AIP.tiaoWhenBad&&view.hand.length>12&&best.score<AIP.tiaoWhenBadThr){
+    const small=view.hand.filter(c=>effSuit(c,trump)==='T'&&c.suit!=='X'&&c.rank!==trump.rank&&c.rank!==14&&cardPoints(c)===0)
+      .sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump));
+    if(small.length&&!(best.cards.length===1&&small.some(c=>c.id===best.cards[0].id))){
+      const hit=cands.find(q=>q.cards.length===1&&q.cards[0].id===small[0].id);
+      best={...(hit||{score:best.score,suit:'T'}),cards:[small[0]],reason:'没有好领法 —— 钓一张小主,看队友接不接、对手肯花多大的主'};
+    }
+  }
   /* v0.7.0:收官交给搜索。只用它**排序**(目标函数是「净升几级」,和分制不同量纲),
    * 而且要比启发式选中的那个高出 egMargin 级才改判 —— 样本噪声区里仍然听启发式的。 */
   const eg=endgameSearch(view,null,cands.slice(0,AIP.egMaxCands));
