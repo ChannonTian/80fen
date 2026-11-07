@@ -47,11 +47,14 @@ for(let seed=S0+1;seed<=S0+N;seed++){
             const team=seat%2, decl=team===D%2;
             const out=cands.map(q=>{ const o=finish(hands,history,seat,T,D,buried,def,q.cards,E.rng(seed*13+ti)); return {k:key(q.cards),s0:q.score,pts:decl?-o.def:o.def,lv:decl?o.declUp:-o.declUp}; });
             // MC=n:每个候选在 n 个抽样世界(领出者视角,makeBelief)里也打到局终取平均,作为一列 smc —— 看排对率的天花板(噪声有多大)
-            if(+process.env.MC){ const B=E.makeBelief(view,[],+process.env.MC);
+            // MCF=n:同样的 MC,但续打用快速策略(关掉信念服务 beliefSurv=0)—— 看便宜的版本还剩多少
+            const mcCol=(n,col,fast)=>{ const B=E.makeBelief(view,[],n), t0=Date.now(), sv=E.AIP.beliefSurv; if(fast) E.AIP.beliefSurv=0;
               out.forEach((o,qi)=>{ let acc=0,cnt=0; if(B) for(const w of B.worlds){ const hs=[0,1,2,3].map(s=>s===seat?hand.slice():w.hands[s].slice());
                   const bu=view.buriedKnown&&view.buriedKnown.length?buried:w.kitty;
                   const q=cands[qi].cards, oo=finish(hs,history,seat,T,D,bu,def,q,E.rng(seed*17+ti)); acc+=decl?-oo.def:oo.def; cnt++; }
-                o.smc=cnt?acc/cnt:0; }); }
+                o[col]=cnt?acc/cnt:0; });
+              E.AIP.beliefSurv=sv; return Date.now()-t0; };
+            const tm={}; if(+process.env.MC) tm.mc=mcCol(+process.env.MC,'smc',false); if(+process.env.MCF) tm.mcf=mcCol(+process.env.MCF,'smcf',true);
             // CAPTURE=1:每个候选的打分分项 + 几个原始特征(按队主牌等),给 test/fit-lead.js 回归
             if(process.env.CAPTURE){ const L=E.leadCtx(view), mate=(seat+2)%4, opp=[(seat+1)%4,(seat+3)%4];
               const myT=hand.filter(x=>E.effSuit(x,T)==='T').length, mateT=E.expHoldIn(L,mate,'T'), oppT=E.expHoldIn(L,opp[0],'T')+E.expHoldIn(L,opp[1],'T');
@@ -62,7 +65,7 @@ for(let seed=S0+1;seed<=S0+N;seed++){
             for(const [vi,v] of VARS.entries()){ const sv={}; for(const k in v){ sv[k]=E.AIP[k]; E.AIP[k]=v[k]; }
               const r2=E.aiChooseLead(view), m={}; for(const q of r2.all){ const k=key(q.cards); if(m[k]===undefined) m[k]=q.score; }
               out.forEach(o=>{ o['s'+(vi+1)]=m[o.k]!==undefined?m[o.k]:-1e9; }); Object.assign(E.AIP,sv); }
-            R.push({seed,ti,n:hand.length,role:seat===D?'庄':team===D%2?'帮':'闲',cands:out});
+            R.push({seed,ti,n:hand.length,role:seat===D?'庄':team===D%2?'帮':'闲',cands:out,tm});
           }
           done=true; }
         const chk=E.checkThrow(hands,seat,cards,T); if(!chk.ok) cards=chk.forced; }
@@ -75,7 +78,7 @@ for(let seed=S0+1;seed<=S0+N;seed++){
 if(process.env.DUMP) fs.writeFileSync(process.env.DUMP,JSON.stringify(R));
 }else for(const f of process.argv.slice(3)) R.push(...JSON.parse(fs.readFileSync(f,'utf8')));
 // 报告:每个打分列的排对率(按本局得分、按净升级)、首选的遗憾(前 K 名里最好的结果 − 打分最高那手的结果)
-const cols=Object.keys((R[0]||{cands:[{}]}).cands[0]).filter(k=>/^s(\d+|mc)$/.test(k));
+const cols=Object.keys((R[0]||{cands:[{}]}).cands[0]).filter(k=>/^s(\d+|mc|mcf)$/.test(k));
 const m=a=>a.reduce((x,y)=>x+y,0)/Math.max(1,a.length);
 const rep=(t,rs)=>{ if(!rs.length) return; const line=[];
   for(const col of cols){ let n=0,ok=0,loss=0,nl=0,okl=0; const reg=[],regl=[];
@@ -85,5 +88,6 @@ const rep=(t,rs)=>{ if(!rs.length) return; const line=[];
       const top=a.reduce((b,x)=>x[col]>b[col]?x:b,a[0]); reg.push(Math.max(...a.map(x=>x.pts))-top.pts); regl.push(Math.max(...a.map(x=>x.lv))-top.lv); }
     line.push(`${col} 排对(分)${(100*ok/Math.max(1,n)).toFixed(1)}%(级)${(100*okl/Math.max(1,nl)).toFixed(1)}% 每对损失 ${(loss/Math.max(1,n)).toFixed(2)} 首选遗憾 ${m(reg).toFixed(2)} 分 / ${m(regl).toFixed(3)} 级`); }
   console.log(`${t.padEnd(10)} 局面 ${String(rs.length).padStart(4)}\n    `+line.join('\n    ')); };
-console.log(`领出排对率:${R.length} 个中盘领出局面,每个前 ${R[0]?R[0].cands.length:0} 名候选真 AI 打到局终(s0 = 现在的打分,s1… = VARS)`);
+const tms=k=>{ const a=R.filter(r=>r.tm&&r.tm[k]!==undefined).map(r=>r.tm[k]); return a.length?`,${k} 每个局面 ${(a.reduce((x,y)=>x+y,0)/a.length/1000).toFixed(1)} 秒`:''; };
+console.log(`领出排对率:${R.length} 个中盘领出局面,每个前 ${R[0]?R[0].cands.length:0} 名候选真 AI 打到局终(s0 = 现在的打分,s1… = VARS)`+tms('mc')+tms('mcf'));
 rep('全部',R); for(const ro of ['庄','帮','闲']) rep(ro,R.filter(r=>r.role===ro));
