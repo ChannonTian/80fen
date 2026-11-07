@@ -159,6 +159,10 @@ function audit(){
     // 比各个按钮(矮横屏的操作区是浮在牌桌下角的两组,整条容器横跨牌桌,不能拿容器比)
     if(vis(bub)&&[...document.querySelectorAll('#controls button')].filter(vis).some(b=>inter(R(bub),R(b))))out.push('六六气泡压住了操作栏');
   }
+  // 手机上看得见的输入框 / 下拉框字号不小于 16px(iPhone 点进更小的会自动放大整页,v0.7.57)
+  if(matchMedia('(hover:none) and (pointer:coarse)').matches)
+    for(const e of document.querySelectorAll('input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea'))
+      if(vis(e)&&parseFloat(getComputedStyle(e).fontSize)<16){out.push('输入框字号小于 16px(iPhone 会自动放大):'+name(e));break;}
   // 5. 弹窗:面板在屏幕里,按钮看得见
   for(const sel of ['#overlay .panel','#setOverlay .panel','#scoreModal .zpanel','#sheet']){
     const e=document.querySelector(sel);if(!vis(e))continue;const r=R(e);
