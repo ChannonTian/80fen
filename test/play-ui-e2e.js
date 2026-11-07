@@ -34,6 +34,8 @@ const SIZES=[
   /* 带刘海 / 灵动岛的 iPhone:@左,右,上,下 是让出的边(env(safe-area-inset-*))。
      844x390 = iPhone 16e 加到主屏幕当网页 App 横放;874x340 = 17 / 18 Pro 的 Chrome 横放(估的);956x400 = Pro Max;402x874 = Pro 竖放 */
   ['844x390@47,47,0,21',PHONE],['874x340@62,62,0,21',PHONE],['956x400@62,62,0,21',PHONE],['402x874@0,0,62,34',PHONE],
+  /* 浏览器的地址栏 / 工具栏占掉一截的横屏(估的):844x330 = iPhone Safari 横放带地址栏,915x340 = 安卓 Chrome 横放 */
+  ['844x330@47,47,0,0',PHONE],['915x340',PHONE],
 ].filter(([k])=>!args.only||String(args.only).split(/,(?=\d+x)/).includes(k));
 
 /* ---------- 一个只读的静态服务器,免得依赖外面开着的 http.server ---------- */
@@ -103,8 +105,19 @@ function audit(){
   // 矮横屏:左边竖栏、右边按钮栏都不伸进牌桌
   if(game.classList.contains('m-l')&&!modal&&!drawer){
     const ar=R(document.getElementById('arena'));
-    for(const e of document.querySelectorAll('.topbar>*'))if(vis(e)&&R(e).right>ar.left+1){out.push('左边竖栏压到牌桌:'+name(e));break;}
-    for(const e of document.querySelectorAll('#controls>*'))if(vis(e)&&R(e).left<ar.right-1){out.push('右边按钮栏压到牌桌:'+name(e));break;}
+    // 左边竖栏只有测试版有(顶栏是 grid);UI 测试页的横屏顶栏还是横在上面的一行,不查这条
+    if(getComputedStyle(document.querySelector('.topbar')).display==='grid')
+      for(const e of document.querySelectorAll('.topbar>*'))if(vis(e)&&R(e).right>ar.left+1){out.push('左边竖栏压到牌桌:'+name(e));break;}
+    // 右边按钮栏(v0.7.55 以前):不伸进牌桌;v0.7.56 起按钮浮在牌桌两个下角,改由下面「按钮压住牌桌」那条管
+    if(getComputedStyle(document.getElementById('controls')).position!=='absolute')
+      for(const e of document.querySelectorAll('#controls>*'))if(vis(e)&&R(e).left<ar.right-1){out.push('右边按钮栏压到牌桌:'+name(e));break;}
+    // 手牌扇形:正中那几张的下沿要离开屏幕底边(底部横条、上滑回主屏、轻点两下叫 Siri 都在那里)
+    if(getComputedStyle(document.getElementById('controls')).position==='absolute'){
+      const cs=[...document.querySelectorAll('#hand .card')].map(R).filter(r=>r.width);
+      const mid=cs.filter(r=>r.left<W/2+20&&r.right>W/2-20);
+      const zone=Math.max((window.__SAFE&&window.__SAFE.b)||0,14);
+      if(mid.length&&!document.getElementById('handArea').classList.contains('overflow')&&Math.max(...mid.map(r=>r.bottom))>H-zone)out.push(`手牌正中压到屏幕底边让位区:下沿 ${Math.round(Math.max(...mid.map(r=>r.bottom)))} > ${H-zone}`);
+    }
   }
   // 矮横屏:右边按钮栏不压牌桌上的牌摞和名牌
   if(game.classList.contains('m-l')&&!modal&&!drawer){
@@ -122,8 +135,14 @@ function audit(){
       // 收墩的戳本来就盖在赢的那摞上
       if([a,b].some(x=>x.classList.contains('winner-label')&&[a,b].some(y=>y.id==='p'+x.dataset.seat)))continue;
       if(inter(R(a),R(b),3))out.push(`压住了:${name(a)} / ${name(b)}`);}
+    // 桌上每一摞:相邻两张错开至少 0.3 张牌宽,左上角的点数和花色要露出来(甩牌多张时不能叠成一条)
+    // 量排版位置(offsetLeft / offsetWidth):牌刚落桌时有缩放的入场动画,外框量出来忽大忽小
+    for(const pile of document.querySelectorAll('.played:not(.ghost)')){const cs=[...pile.children];
+      for(let i=1;i<cs.length;i++){const d=cs[i].offsetLeft-cs[i-1].offsetLeft;
+        if(d<cs[i].offsetWidth*0.3-1){out.push(`桌上的牌叠得看不见点数:#${pile.id} ${cs.length} 张,错开 ${d}px / 牌宽 ${cs[i].offsetWidth}`);break;}}}
     // 桌面牌不能比手牌小一截(竖屏、宽屏)
-    const tc=document.querySelector('.played .card'),hc=document.querySelector('#hand .card');
+    // 取桌上最大的那张:放不下的那摞会整体缩小(v0.7.56),那是有意的,不算「桌面牌太小」
+    const tc=[...document.querySelectorAll('.played:not(.ghost) .card')].sort((a,b)=>b.offsetWidth-a.offsetWidth)[0],hc=document.querySelector('#hand .card');
     // 扣底时手里 33 张,窄屏要排三排、牌桌变矮;那时桌上只有亮主的一两张,先顾手牌,这条不查
     const kitty=window.__G&&window.__G()&&window.__G().phase==='kitty';
     if(tc&&hc&&!kitty&&!game.classList.contains('m-l')){const k=tc.offsetWidth/(parseFloat(hc.style.getPropertyValue('--w'))||hc.offsetWidth);   // 量排版宽度:出牌动画开头牌是缩小的
@@ -137,8 +156,13 @@ function audit(){
       for(const c of document.querySelectorAll('#hand .card')){const r=R(c);if(r.left<hr.left-8||r.right>hr.right+8){out.push('手牌出了手牌区');break;}}}
     // 六六气泡不盖住「出牌」
     const bub=document.getElementById('coachBubble');
-    if(vis(bub)&&inter(R(bub),R(document.getElementById('controls'))))out.push('六六气泡压住了操作栏');
+    // 比各个按钮(矮横屏的操作区是浮在牌桌下角的两组,整条容器横跨牌桌,不能拿容器比)
+    if(vis(bub)&&[...document.querySelectorAll('#controls button')].filter(vis).some(b=>inter(R(bub),R(b))))out.push('六六气泡压住了操作栏');
   }
+  // 手机上看得见的输入框 / 下拉框字号不小于 16px(iPhone 点进更小的会自动放大整页,v0.7.57)
+  if(matchMedia('(hover:none) and (pointer:coarse)').matches)
+    for(const e of document.querySelectorAll('input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea'))
+      if(vis(e)&&parseFloat(getComputedStyle(e).fontSize)<16){out.push('输入框字号小于 16px(iPhone 会自动放大):'+name(e));break;}
   // 5. 弹窗:面板在屏幕里,按钮看得见
   for(const sel of ['#overlay .panel','#setOverlay .panel','#scoreModal .zpanel','#sheet']){
     const e=document.querySelector(sel);if(!vis(e))continue;const r=R(e);
@@ -236,6 +260,14 @@ async function run(browser,key,opt,base){
       for(let s=0;s<4;s++){const el=document.getElementById('p'+s);if(el.__keep==null)el.__keep=el.innerHTML;
         el.innerHTML=src.slice(s*n%Math.max(1,src.length-n),s*n%Math.max(1,src.length-n)+n).map(c=>'<div class="'+c.className.replace(/\b(sel|hintc)\b/g,'')+'">'+c.innerHTML+'</div>').join('');}},n);
     await check(`桌面压力·每家 ${n} 张`);
+    // 小黄人说话的气泡不盖住桌上的牌(v0.7.56:对家说话会盖住他自己的牌)。
+    // 每家 2 张:谁的牌都不能盖;每家 4 张:小屏上实在没空处,只查不盖住说话人自己的牌;每家 6 张不查
+    if(n<=4){const hit=await p.evaluate(n=>{if(!window.__say)return [];const out=[],PILE={1:'p1',2:'p2',3:'p3'};
+      for(const seat of [1,2,3]){window.__hideSays();window.__say(seat,'idle');const el=[...document.querySelectorAll('.say.show')][0];if(!el)continue;
+        const q=el.getBoundingClientRect();for(const c of document.querySelectorAll(n<=2?'.played:not(.ghost) .card':'#'+PILE[seat]+' .card')){const r=c.getBoundingClientRect();
+          if(r.left<q.right-2&&q.left<r.right-2&&r.top<q.bottom-2&&q.top<r.bottom-2){out.push(seat+'→#'+c.closest('.played').id);break;}}}
+      window.__hideSays();return out;},n);
+      for(const x of hit)problems.push(`[桌面压力·每家 ${n} 张] 说话气泡压住桌上的牌:${x}`);}
   }
   await p.evaluate(()=>{for(let s=0;s<4;s++){const el=document.getElementById('p'+s);el.innerHTML=el.__keep;el.__keep=null;}});
   // 多张一起拖:点选六六建议的那一组(≥2 张),按住 0.4 秒再往牌桌上拖
@@ -299,6 +331,9 @@ async function run(browser,key,opt,base){
   await p.evaluate(()=>document.querySelector('#tabs button[data-tab=coach]').click());await p.waitForTimeout(150);
   await p.evaluate(()=>{const b=document.getElementById('memReveal');if(b)b.click();const d=document.getElementById('memBox');if(d)d.open=true;});
   await check('六六教练·记牌表');
+  // 切回「对局记录」:记录要重新画出来(v0.7.55 修:两个页签共用一块,切回来曾经是空的)
+  await p.evaluate(()=>document.querySelector('#tabs button[data-tab=log]').click());await p.waitForTimeout(200);
+  if(!await p.evaluate(()=>document.querySelectorAll('#recPanel .trick-line,#recPanel .suit-row').length))problems.push('[切回对局记录] 记录是空的');
   await click('#sideClose');
   await click('#menuBtn');await check('菜单');await p.evaluate(()=>document.getElementById('sheet').close());
   await click('#scoreChip');await check('闲家分牌');await p.evaluate(()=>{document.getElementById('scoreModal').hidden=true;});

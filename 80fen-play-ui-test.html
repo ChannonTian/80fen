@@ -618,6 +618,9 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 #dragGhost .drag-count{align-self:flex-start;margin-left:6px;padding:3px 9px;border:2px solid var(--ink);border-radius:999px;background:var(--honey);font:900 14px/1 var(--font-num)}
 #versionTag{display:none}
 #tests{display:none}
+/* 手机上输入框的字不小于 16px:iPhone 的 Safari / 加到主屏幕的网页 App 在点进小于 16px 的输入框时会自动放大整页,
+   放大后牌桌、手牌区为了拖牌关掉了浏览器手势,只剩顶栏底栏能缩回去(产品方:记录栏输入时自动放大、很难缩小) */
+@media (hover:none) and (pointer:coarse){input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea{font-size:16px!important}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -8918,11 +8921,17 @@ function stampPiles(){
   var tcw=TB.tcw,step0=Math.max(14,Math.round(tcw*0.34));
   for(var k in SEAT_KEYS){
     var p=$(SEAT_KEYS[k].pile),a=TB.P[k],n=p.children.length,step=step0;
-    if(n>1)step=Math.max(6,Math.min(step0,(a.max-tcw)/(n-1)));
-    var w=n?tcw+(n-1)*step:0;
+    /* 每张都要露出左上角的点数和花色(约 0.32 张牌宽);放不下时这一摞的牌整体缩小,不再叠成一条(同测试版 v0.7.56) */
+    var cw=tcw;
+    if(n>1){
+      step=Math.min(step0,(a.max-tcw)/(n-1));
+      if(step<tcw*0.32){cw=Math.max(Math.round(tcw*0.62),Math.floor(a.max/(1+0.32*(n-1))));step=Math.max(6,Math.min(cw*0.34,(a.max-cw)/(n-1)));}
+    }
+    if(cw<tcw)p.style.setProperty('--tcw',cw+'px');else p.style.removeProperty('--tcw');
+    var w=n?cw+(n-1)*step:0;
     p.style.setProperty('--pstep',step+'px');
     p.style.width=w+'px';
-    place(p,a.align==='l'?a.x:a.align==='r'?a.x-w:a.x-w/2,a.y);
+    place(p,a.align==='l'?a.x:a.align==='r'?a.x-w:a.x-w/2,a.y+(k==='S'?(tcw-cw)*1.43:0));
     for(var i=0;i<n;i++)p.children[i].style.setProperty('--i',i);
   }
   /* 收墩:四摞都在桌上时记下样子;下一次四摞全变了(产品清桌),就用影子把这四摞飞向赢家 */
@@ -9499,7 +9508,8 @@ function renderSide(){
   Array.prototype.forEach.call($('tabs').querySelectorAll('button'),function(x){
     x.classList.toggle('on',x.dataset.tab===activeTab);x.setAttribute('aria-selected',String(x.dataset.tab===activeTab));});
   $('recordsFoot').hidden=activeTab!=='coach';
-  if(activeTab==='coach')renderCoach();else{if(recPanel.querySelector('#coachInput'))recPanel.innerHTML='';renderLog();}
+  /* 换页签清空 #recPanel 时连 __h 一起清,不然切回「对局记录」时 renderLog 以为没变、不重画,记录就是空的 */
+  if(activeTab==='coach')renderCoach();else{if(recPanel.querySelector('#coachInput')){recPanel.innerHTML='';recPanel.__h='';}renderLog();}
 }
 /* 局终快照,供回看已完成的局 */
 function snapshotRound(G){
@@ -9592,6 +9602,7 @@ function memHtml(){
 function renderCoach(){
   var G=g();
   if(!recPanel.querySelector('#coachInput')){
+    recPanel.__h='';
     recPanel.innerHTML='<div class="chat-input" id="coachInput"><input id="chatNoteInput" maxlength="120" enterkeyhint="done" placeholder="记一笔,只存在这台设备上"><button class="btn" id="chatNoteSend">记下</button></div><div id="coachDyn"></div>';
     recPanel.__h='';
     var send=function(){

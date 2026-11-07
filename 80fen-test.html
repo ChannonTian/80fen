@@ -59,9 +59,8 @@ button{cursor:pointer;touch-action:manipulation}
   grid-template-rows:auto minmax(0,1fr) var(--hand-h,170px) auto;
   grid-template-areas:"top" "arena" "hand" "act";
   padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right)}
-/* 矮横屏:操作按钮是牌桌右边一条竖栏,手牌占满整个屏幕宽、贴着屏幕底边 */
-#game.m-l{grid-template-columns:minmax(0,1fr) var(--act-w,116px);grid-template-rows:auto minmax(0,1fr) var(--hand-h,80px);
-  grid-template-areas:"top top" "arena act" "hand hand"}
+/* 矮横屏(手机横放):顶上一条细栏、牌桌铺满宽度、手牌贴着屏幕底边;操作按钮浮在牌桌两个下角(见文件末尾那一节) */
+#game.m-l{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) var(--hand-h,80px);grid-template-areas:"top" "arena" "hand"}
 /* 开局前:没有手牌也没有可点的操作,只留牌桌当背景 */
 #game.idle .hand-area,#game.idle .action-bar{visibility:hidden}
 
@@ -113,12 +112,13 @@ button{cursor:pointer;touch-action:manipulation}
 .score-chip b{font:900 18px/1 var(--font-num);letter-spacing:-.02em}
 .score-total{font:800 12px/1 var(--font-sans);color:var(--ink-soft)}
 #game.m-l .score-chip,#game.m-w .score-chip{order:3;flex:1 1 180px;max-width:420px;height:38px}
-#game.m-l .topbar{padding:max(4px,env(safe-area-inset-top)) 10px 2px 10px;gap:6px;flex-wrap:nowrap}
-#game.m-l .chip{flex:0 1 auto;min-width:0;padding:0 10px}
-@media (max-width:700px){#game.m-l .topbar .logo{display:none}#game.m-l .score-label{display:none}}
-#game.m-l .topbar .logo{width:36px;height:36px}
-#game.m-l .chip,#game.m-l .score-chip,#game.m-l .icon-btn{height:38px}
-#game.m-l .icon-btn{width:40px}
+#game.m-l .topbar{padding:max(4px,env(safe-area-inset-top)) 8px 0;gap:6px;flex-wrap:nowrap;background:none}
+#game.m-l .topbar .logo{display:none}   /* 手机横屏高度最缺,六六头像不放(产品方:没什么意义) */
+#game.m-l .chip{flex:0 1 auto;min-width:0;padding:0 10px;font-size:13px}
+@media (max-width:700px){#game.m-l .score-label{display:none}}
+#game.m-l .chip,#game.m-l .score-chip,#game.m-l .icon-btn{height:32px}
+#game.m-l .score-chip{max-width:360px}
+#game.m-l .icon-btn{width:38px;border-radius:11px}#game.m-l .icon-btn svg{width:19px;height:19px}
 #game.m-w .topbar{padding:12px 20px 8px;gap:10px}
 #game.m-w .chip{height:42px;font-size:15px}
 
@@ -299,6 +299,9 @@ button{cursor:pointer;touch-action:manipulation}
 /* ---------- 手牌 ---------- */
 .hand-area{grid-area:hand;position:relative;min-height:0;min-width:0}
 .fan-viewport{position:absolute;inset:0;overflow:hidden;touch-action:none}
+/* 矮横屏:选中的牌抬过手牌区上沿、盖到牌桌下沿(产品方:没问题,还能多点地方);左右仍然裁掉(要拨牌时) */
+#game.m-l .fan-viewport{overflow:visible;clip-path:inset(-80px 0 -60px 0)}
+#game.m-l .hand-area{z-index:35}
 #hand{position:absolute;inset:0}
 #hand .card{position:absolute;left:0;top:0;cursor:pointer;transform-origin:50% 100%;
   transition:transform var(--dur-tap) var(--ease-out)}
@@ -322,16 +325,15 @@ html.hasHover #hand .card:hover .face{border-color:var(--teal)}
 #dealZone{display:flex;align-items:center;gap:8px;min-width:0}
 #dealZone:empty,#dealZone>span:only-child:empty{display:none}
 #dealZone span{font:700 14px/1.3 var(--font-sans);color:var(--ink-soft)}
-#game.m-l .action-bar{display:grid;grid-template-columns:1fr 1fr;align-content:end;gap:6px;border:0;background:none;
-  width:var(--act-w,116px);padding:4px 8px 6px 0}
-#game.m-l .action-bar .spacer{display:none}
-#game.m-l .action-bar>*{order:5}
-#game.m-l #btnHint{order:1}#game.m-l #btnAuto{order:2}#game.m-l #btnUndo{order:3}#game.m-l #btnClear{order:4}
-#game.m-l #dealZone,#game.m-l #btnSkipDecl,#game.m-l #bidAction,#game.m-l #btnBury,#game.m-l #btnPlay{grid-column:1/-1}
-#game.m-l #dealZone{flex-direction:column;align-items:stretch;gap:6px}
+/* 矮横屏:操作区不再占一条,左右两组浮在牌桌两个下角(问六六 / 托管 / 悔牌在左,清选 / 出牌在右);
+   避开屏幕底边正中(底部横条、上滑回主屏、轻点两下叫 Siri 都在那里)。--al / --ar 由 layoutTable 按牌桌位置给 */
+#game.m-l .action-bar{position:absolute;left:var(--al,12px);right:var(--ar,12px);bottom:calc(var(--hand-h,80px) + var(--ab,10px));
+  display:flex;align-items:flex-end;gap:6px;padding:0;border:0;background:none;pointer-events:none;z-index:40}
+#game.m-l .action-bar>*{pointer-events:auto}
+#game.m-l .action-bar .spacer{pointer-events:none}
 #game.m-l #dealZone>span{display:none}
-#game.m-l .action-bar .btn{min-height:42px;padding:0 6px;font-size:14px;width:100%;min-width:0}
-#game.m-l .action-bar .btn.primary{min-height:50px;font-size:17px}
+#game.m-l .action-bar .btn{min-height:42px;padding:0 12px;font-size:14px}
+#game.m-l .action-bar .btn.primary{min-height:46px;min-width:92px;font-size:17px}
 #game.m-w .action-bar{padding:10px 20px max(10px,env(safe-area-inset-bottom));gap:10px}
 #game.m-w .btn{min-height:48px;padding:0 20px;font-size:16px}
 #game.m-w .btn.primary{font-size:18px;min-width:120px}
@@ -384,7 +386,7 @@ html.hasHover #hand .card:hover .face{border-color:var(--teal)}
 .tool .ico{width:24px;height:24px}
 .action-bar .btn{min-height:46px}
 .action-bar .btn.primary{flex:0 1 auto;min-width:88px}
-#game.m-l .tool{width:100%;height:44px;font-size:11px}
+#game.m-l .tool{width:50px;height:44px;font-size:11px}
 #game.m-l .tool svg{width:19px;height:19px}#game.m-l .tool .ico{width:21px;height:21px}
 #game.m-w .tool{width:64px;height:56px;font-size:13px}
 /* 问六六 / 托管 / 悔牌:同一种圆角方块,上图下字(产品方:原来「问六六」是横排药丸、托管是方块,形状不统一)。
@@ -401,7 +403,7 @@ html.hasHover #hand .card:hover .face{border-color:var(--teal)}
 #dealZone button.minor{background:var(--card-face);font-weight:800}
 #dealZone button:active{transform:translateY(2px);box-shadow:var(--shadow-press)}
 #dealZone span{color:var(--ink-soft)!important}
-#game.m-l #dealZone button{min-height:42px;padding:0 6px;font-size:14px}
+#game.m-l #dealZone button{min-height:42px;padding:0 12px;font-size:14px}
 #btnPlay.ready{animation:readyPulse 1.8s var(--ease-in-out) infinite}
 @keyframes readyPulse{0%,100%{box-shadow:var(--shadow-card),0 0 0 0 rgba(237,185,79,.8)}50%{box-shadow:var(--shadow-card),0 0 0 7px rgba(237,185,79,0)}}
 
@@ -690,31 +692,14 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 #dragGhost .drag-count{align-self:flex-start;margin-left:6px;padding:3px 9px;border:2px solid var(--ink);border-radius:999px;background:var(--honey);font:900 14px/1 var(--font-num)}
 #versionTag{display:none}
 #tests{display:none}
-/* ---------- 矮横屏:顶栏改成左边一条竖栏 ----------
-   横屏最缺的是高度。原来顶栏横在上面占掉 46px,牌桌只剩一半屏高,桌上的牌只能很小,两侧却空着。
-   现在左边一条窄栏放主牌 / 级数 / 得分 / 记录 / 菜单,右边一条放操作按钮,牌桌拿到整个屏高;手牌仍占满整个屏幕宽 */
-#game.m-l{grid-template-columns:var(--info-w,92px) minmax(0,1fr) var(--act-w,116px);grid-template-rows:minmax(0,1fr) var(--hand-h,80px);
-  grid-template-areas:"top arena act" "hand hand hand"}
-#game.m-l .topbar{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:auto auto auto auto minmax(0,1fr) auto;align-content:start;
-  gap:6px;padding:max(6px,env(safe-area-inset-top)) 4px 6px 8px;background:none}   /* 左右刘海的让位 #game 已经给了,这里不再加 */
-#game.m-l .topbar>*{grid-column:1/-1;min-width:0}
-#game.m-l .topbar .logo{grid-row:1;justify-self:center;width:34px;height:34px}
-#game.m-l #trumpChip{grid-row:2}#game.m-l #levelChip{grid-row:3}#game.m-l #scoreChip{grid-row:4}
-#game.m-l .topbar .spacer{grid-row:5}
-#game.m-l #recordsBtn{grid-row:6;grid-column:1;justify-self:center}#game.m-l #menuBtn{grid-row:6;grid-column:2;justify-self:center}
-#game.m-l .topbar .chip{height:auto;min-height:34px;padding:5px 6px;border-radius:14px;flex-wrap:wrap;justify-content:center;row-gap:2px;column-gap:4px;white-space:normal;text-align:center}
-#game.m-l .topbar .chip .sep{display:none}
-#game.m-l .score-chip{height:auto;flex-wrap:wrap;justify-content:center;align-items:baseline;gap:2px 4px;padding:6px 6px 7px;border-radius:14px;max-width:none}
-#game.m-l .score-chip .score-label{display:block;flex-basis:100%;text-align:center;font-size:11px}
-#game.m-l .score-chip .score-track{order:9;flex:1 1 100%;min-width:0;height:8px;margin-top:3px}
-#game.m-l .score-chip .score-total{display:inline}
-#game.m-l .score-chip .score-gain{order:8;padding:2px 5px 1px;font-size:12px}
-#game.m-l .score-chip:has(.score-gain:not([hidden])) .score-total{display:none}
-#game.m-l .icon-btn{width:38px;height:38px;border-radius:12px}
-#game.m-l .icon-btn svg{width:20px;height:20px}
-#game.m-l .arena{margin:6px 4px 6px 4px}
-/* 很矮的横屏(SE 横放):不放头像,省一行 */
-@media (max-height:340px){#game.m-l .topbar .logo{display:none}#game.m-l .score-chip .score-label{display:none}}
+/* ---------- 矮横屏(手机横放) ----------
+   v0.7.46 ~ v0.7.55 是左边信息栏 + 右边按钮栏夹着牌桌。产品方真机:三栏别扭、右上角空着、上下家被挤到上角、桌面牌比手牌大、
+   拖牌时容易碰到底部横条。v0.7.56 起和宽屏一个思路:顶上一条细栏,牌桌铺满宽度,按钮浮在牌桌两个下角,
+   手牌扇形贴着底边、中间几张抬高让开底部横条(planHand 的 fan) */
+#game.m-l .arena{margin:4px 4px 0}
+/* 手机上输入框的字不小于 16px:iPhone 的 Safari / 加到主屏幕的网页 App 在点进小于 16px 的输入框时会自动放大整页,
+   放大后牌桌、手牌区为了拖牌关掉了浏览器手势,只剩顶栏底栏能缩回去(产品方:记录栏输入时自动放大、很难缩小) */
+@media (hover:none) and (pointer:coarse){input:not([type=checkbox]):not([type=radio]):not([type=range]),select,textarea{font-size:16px!important}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -829,7 +814,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.54(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.57(测试版)</div>
 
 
 <script>
@@ -9861,7 +9846,7 @@ function detectMode(){
 }
 function handCfg(mode,W,H){
   /* 手牌不再抢牌桌的地方:竖屏两行、整张露出;矮横屏手牌贴着屏幕底边,只露上半截 */
-  if(mode==='l')return {minCw:44,maxCw:66,budget:Math.max(70,H*0.25),visK:0.62,rowK:0.55,lift:10,pad:8,maxRows:2,rowPen:10};
+  if(mode==='l')return {minCw:44,maxCw:66,budget:Math.max(96,H*0.36),visK:1,rowK:0.55,lift:4,pad:8,maxRows:1,rowPen:10,fan:true,tilt:6};
   if(mode==='w')return {minCw:58,maxCw:94,budget:H*0.24,visK:1,rowK:0.56,lift:20,pad:16,maxRows:2,rowPen:24};
   return {minCw:W<360?44:50,maxCw:W>=600?96:76,budget:Math.max(136,H*0.25),visK:1,rowK:0.58,lift:16,pad:10,maxRows:3,rowPen:14};
 }
@@ -9883,7 +9868,10 @@ function splitRows(groups,r){
 }
 function planHand(groups,W,H,cfg,planN){
   /* 整张露出时,扇形两端往下弯(curve)、又转了角度(tilt),牌角比平放低一点,要把这点算进高度 */
-  function bowOf(c){return cfg.visK>=1?(cfg.curve||5)+c*Math.sin((cfg.tilt||4)*Math.PI/180)*0.5+6:4;}
+  /* 扇形(矮横屏):整排沿一条自然的弧线摆,正中最高、往两边越来越低(按整手牌的宽度算,打掉几张弧线不变、牌桌不跳)。
+     正中 zoneW 那一段两头的牌,下沿也要离屏幕底 zone;所以手牌区要比牌高再多出 zone + 那一点下沉 */
+  var fanU=cfg.fan?Math.min(1,(cfg.zoneW||0)/Math.max(1,W-cfg.pad*2)):0;
+  function bowOf(c){return cfg.fan?cfg.zone+c*1.43*0.5*fanU*fanU:cfg.visK>=1?(cfg.curve||5)+c*Math.sin((cfg.tilt||4)*Math.PI/180)*0.5+6:4;}
   var n=groups.length;
   var N=Math.max(n,planN||0);
   var best=null;
@@ -9894,7 +9882,7 @@ function planHand(groups,W,H,cfg,planN){
     var cwFit=(W-cfg.pad*2)/(1+0.42*(longest-1));
     var cw=Math.min(cfg.maxCw,cwFit);
     var hOf=function(c){return cfg.lift+c*1.43*(cfg.visK+cfg.rowK*(r-1))+bowOf(c);};
-    if(hOf(cw)>cfg.budget)cw=(cfg.budget-cfg.lift-4)/(1.43*(cfg.visK+cfg.rowK*(r-1)));
+    if(hOf(cw)>cfg.budget)cw=(cfg.budget-cfg.lift-(cfg.fan?cfg.zone:4))/(1.43*(cfg.visK+cfg.rowK*(r-1)));
     var fits=cw>=cfg.minCw;
     cw=Math.max(cfg.minCw,cw);
     /* 牌越大越好;多一行、要左右拨才看得全,都要扣分 */
@@ -9910,9 +9898,13 @@ function planHand(groups,W,H,cfg,planN){
     var span=cw+step*Math.max(0,len-1);
     var start=cfg.pad+Math.max(0,(avail-span)/2);
     var cards=[];
+    /* 扇形(矮横屏):牌的中线离屏幕正中 u(整手宽度的一半记作 1),往下沉 0.5 张牌高 × u²;最边上那张沉得最多 */
+    var half=Math.max(1,(W-cfg.pad*2)/2);
     for(var i=0;i<len;i++){
-      var t=len<2?0:i/(len-1)*2-1;
-      cards.push({i:idx++,x:start+i*step,y:cfg.lift+ri*cfg.rowK*ch+(cfg.curve||5)*t*t,a:t*(cfg.tilt||4)});
+      var t=len<2?0:i/(len-1)*2-1,x=start+i*step,dy;
+      if(cfg.fan){var u=Math.min(1,Math.abs(x+cw/2-W/2)/half);dy=ch*0.5*u*u;}
+      else dy=(cfg.curve||5)*t*t;
+      cards.push({i:idx++,x:x,y:cfg.lift+ri*cfg.rowK*ch+dy,a:t*(cfg.tilt||4)});
     }
     rows.push({cards:cards,span:span,over:Math.max(0,span-avail)});
   });
@@ -9946,10 +9938,11 @@ function layout(){
   var W=game.clientWidth-SA.l-SA.r,H=window.innerHeight;
   var G=g();
   var cards=Array.prototype.slice.call(hand.children);
-  var actW=0;
-  if(mode==='l'){actW=W<700?116:132;game.style.setProperty('--act-w',actW+'px');game.style.setProperty('--info-w',(W<700?88:100)+'px');}
   var handW=W;
   var cfg=handCfg(mode,handW,H);
+  /* 矮横屏手牌扇形贴底边:正中 zoneW 那一段的牌整张露出、底边离屏幕底 zone(底部横条 + 一点余量),
+     两边的牌往下沉、只露上半截。底部横条、上滑回主屏、轻点两下叫 Siri 都在屏幕底边正中 */
+  if(mode==='l'){cfg.zone=Math.max(SA.b,14)+8;cfg.zoneW=Math.min(W*0.42,330);cfg.selLift=Math.round(Math.min(cfg.maxCw,66)*1.43*0.3);}
   /* 牌桌太矮、桌面牌比手牌小一截时,手牌让一点(同一屏幕尺寸只算一次,一局里手牌大小不变) */
   var bkey=mode+W+'x'+H;if(L.balKey!==bkey){L.balKey=bkey;L.capCw=0;L.balN=0;}
   if(L.capCw)cfg.maxCw=Math.min(cfg.maxCw,L.capCw);
@@ -9959,7 +9952,6 @@ function layout(){
   var idlePlan=planHand(new Array(25).fill('x'),handW,H,cfg,25);
   L.idleCw=idlePlan.cw;
   var hh=plan?Math.max(plan.height,mode==='l'?idlePlan.height:0):idlePlan.height;
-  if(mode==='l')hh+=SA.b;   /* 底部横条下面不放要点的牌 */
   game.style.setProperty('--hand-h',hh+'px');
   L.hand=plan;
   if(plan){
@@ -9972,9 +9964,10 @@ function layout(){
   if(!(plan&&plan.overflow))L.progress=0;
   positionHand();
   layoutTable();
-  if(mode!=='l'&&(L.balN||0)<4&&TB.ready&&TB.tcw<0.9*L.idleCw&&L.idleCw>cfg.minCw){
-    /* 手牌每窄 1px,省下的高度分给三行桌面牌:f = 手牌高度系数 / 3;名牌换行等因素估不准,最多再试几次 */
-    var f=(cfg.visK+cfg.rowK*(idlePlan.rows.length-1))/3;
+  if((L.balN||0)<4&&TB.ready&&TB.tcw<0.9*L.idleCw&&L.idleCw>cfg.minCw){
+    /* 手牌每窄 1px,省下的高度分给三行桌面牌:f = 手牌高度系数 / 3;名牌换行等因素估不准,最多再试几次。
+       矮横屏(v0.7.56 起手牌整张露出、桌面两行)同样:手机横屏带地址栏时手牌 64、桌面牌只剩 47,手牌让一点 */
+    var f=mode==='l'?0.5:(cfg.visK+cfg.rowK*(idlePlan.rows.length-1))/3;
     L.balN=(L.balN||0)+1;
     L.capCw=Math.max(cfg.minCw,Math.min(L.idleCw-1,Math.floor(L.idleCw-(0.9*L.idleCw-TB.tcw)/(f+0.9))));
     layout();
@@ -9982,14 +9975,14 @@ function layout(){
 }
 function positionHand(){
   var plan=L.hand;if(!plan)return;
-  var lift=plan.cfg.lift;
+  var lift=plan.cfg.lift,up=plan.cfg.selLift||lift*0.85;   /* 选中的牌往上抬多少;矮横屏抬过手牌区上沿、盖到牌桌下沿也没关系 */
   var G=g(),dealing=!!G&&(G.phase==='dealing'||G.phase==='finalDecl'||G.phase==='kitty')&&!reduceMotion,deckTf=null;
   plan.rows.forEach(function(row,ri){
     var off=row.over*L.progress;
     row.cards.forEach(function(p,i){
       var el=p.el;if(!el)return;
       var sel=el.classList.contains('sel');
-      var tf='translate('+(p.x-off).toFixed(1)+'px,'+(p.y-(sel?lift*0.85:0)).toFixed(1)+'px) rotate('+p.a.toFixed(2)+'deg)';
+      var tf='translate('+(p.x-off).toFixed(1)+'px,'+(p.y-(sel?up:0)).toFixed(1)+'px) rotate('+p.a.toFixed(2)+'deg)';
       /* 产品每次 render 都重建手牌元素:新元素先放在同一张牌上次的位置,下一帧再过渡到新位置
          (选中上抬、出牌后合拢都有动画);发牌、拿底牌时新来的牌从桌心飞进来,其余没见过的牌直接落位 */
       if(!el.__placed){
@@ -10052,6 +10045,22 @@ var SEAT_KEYS={N:{lab:'#playerN .player-label',pile:'p2'},W:{lab:'#playerW .play
                E:{lab:'#playerE .player-label',pile:'p1'},S:{lab:'#myPlay .player-label',pile:'p0'}};
 function labEl(k){return document.querySelector(SEAT_KEYS[k].lab);}
 function place(el,x,y){var l=Math.round(x)+'px',t=Math.round(y)+'px';if(el.style.left!==l)el.style.left=l;if(el.style.top!==t)el.style.top=t;}
+/* 矮横屏两组浮动按钮在牌桌里占的地方(牌桌坐标):l = 左下那组的右边,r = 右下那组的左边,top = 按钮最高的上沿。
+   以 .spacer 为界分左右两组;一个都看不见时返回 null */
+function btnZones(){
+  var bar=$('controls'),sp=bar.querySelector('.spacer'),l=0,r=0,top=1e9,any=false,left=true;
+  for(var i=0;i<bar.children.length;i++){var e=bar.children[i];
+    if(e===sp){left=false;continue;}
+    if(!e.offsetWidth||!e.offsetHeight)continue;
+    var q=rel(e);any=true;top=Math.min(top,q.top);
+    if(left)l=Math.max(l,q.right);else r=r?Math.min(r,q.left):q.left;}
+  return any?{l:Math.round(l),r:Math.round(r||TB.aw||0),top:Math.round(top)}:null;
+}
+/* 按钮换了(发牌、扣底、出牌阶段各不一样)、两组占的地方变了,桌面重排一次 */
+new MutationObserver(function(){
+  if(L.mode!=='l'||!TB.ready||TB.bzPending)return;TB.bzPending=true;
+  requestAnimationFrame(function(){TB.bzPending=false;var z=btnZones();if((z?JSON.stringify(z):'')!==TB.bz)layoutTable();});
+}).observe($('controls'),{childList:true,subtree:true,attributes:true,attributeFilter:['hidden','class','style']});
 function layoutTable(){
   var aw=arena.clientWidth,ah=arena.clientHeight;if(!aw||!ah)return;
   var mode=L.mode,wide=mode==='w';
@@ -10063,7 +10072,8 @@ function layoutTable(){
   for(var k in lab)lw[k]=lab[k].offsetWidth||90;
   var hcw=L.idleCw||(L.hand?L.hand.cw:60);
   /* 桌面牌不超过手牌的 1.25 倍;矮横屏的手牌只露上半截、本来就小,放宽到 1.7 倍 */
-  var cap=hcw*(mode==='l'?1.7:1.25),hard=wide?118:mode==='l'?124:112;
+  /* 桌面牌不超过手牌的 1.25 倍;矮横屏(v0.7.56 起手牌整张露出)压到 1.1 倍 —— 产品方:手机横屏桌上的牌比手牌大太多 */
+  var cap=hcw*(mode==='l'?1.1:1.25),hard=wide?118:mode==='l'?100:112;
   var tcw,th,P={};   /* P[k]={x,y,align,max} 牌摞锚点 */
   /* 宽屏但桌子扁(平板横放、浏览器工具栏又占掉一截):三行摆牌会被高度卡得很小、全挤在中间,
      改用矮横屏那种两行摆法(上下家在左右两边),牌能大一半;牌明显变大才换 */
@@ -10081,6 +10091,14 @@ function layoutTable(){
     /* 矮横屏:名牌是竖排的小头像。上下家在桌子左右两边的中间,牌摞挨着名牌朝桌心长;
        对家、我两摞在中间一列(上下各一行),对家头像在牌摞左边、我的在牌摞右边(绕桌心点对称) */
     var lhs={};for(var k2 in lab)lhs[k2]=lab[k2].offsetHeight||56;
+    /* 矮横屏的按钮浮在牌桌两个下角:先把按钮区放到位,量出两组按钮占的地方(BZ),牌摞、名牌让开 */
+    var BZ=null;
+    if(mode==='l'){
+      var gr0=game.getBoundingClientRect(),ar0=arena.getBoundingClientRect();
+      game.style.setProperty('--al',Math.round(ar0.left-gr0.left+pad)+'px');game.style.setProperty('--ar',Math.round(gr0.right-ar0.right+pad)+'px');
+      game.style.setProperty('--ab',pad+'px');
+      BZ=btnZones();
+    }
     th=(ah-2*pad-gv)/2;
     tcw=Math.max(34,Math.floor(Math.min(th/1.43,cap,hard,wide?(aw/2-pad-Math.max(lw.E,lw.W)-g-8)/3.2:1e9)));th=tcw*1.43;
     var lwc=lw.N,yMid=ah/2;
@@ -10096,8 +10114,12 @@ function layoutTable(){
     /* 对家和我绕桌心点对称:对家的名牌在上边、自己那摞左边,牌摞从 x0 往右长;
        我的名牌在下边、自己那摞右边,牌摞右边对齐 x1(= 对家那摞左边的镜像)往左长 */
     var x1=aw-x0;
+    /* 右下那组按钮很宽时(很窄的横屏亮主阶段:不亮 + 亮主…),我的名牌放不下就整摞往左让,不压按钮 */
+    if(BZ&&BZ.r>0)x1=Math.max(Math.min(x1,BZ.r-2*g-lw.S),pad+tcw);
     var xW=stack?pad:pad+lw.W+g,xE=stack?aw-pad:aw-pad-lw.E-g;
     var ySide=stack?pad+Math.max(lhs.W,lhs.E)+lg:yMid-th/2;
+    /* 上下家那摞的下沿不压两个下角的按钮:往上挪(名牌跟着牌摞的中线走) */
+    if(BZ&&!stack)ySide=Math.max(pad,Math.min(ySide,BZ.top-g-th));
     var yS=ah-pad-th;
     /* 上下家牌摞最宽:上家的往右长,不能伸到对家那摞(两者上下有交叠);够得着对家名牌那一条时还得停在名牌左边。
        下家的镜像:往左长,停在我那摞右边,够得着我的名牌那一条时停在名牌右边。名牌在两边正中时再按 3.2 张牌宽封顶 */
@@ -10107,15 +10129,18 @@ function layoutTable(){
     place(lab.N,x0-g-lw.N,pad);                                    /* 对家的名牌贴桌子上边、在自己那摞左边 */
     place(lab.S,x1+g,ah-pad-lhs.S);                                /* 我的贴下边、在自己那摞右边 */
     if(stack){place(lab.W,pad,pad);place(lab.E,aw-pad-lw.E,pad);}
-    else{place(lab.W,pad,yMid-lhs.W/2);place(lab.E,aw-pad-lw.E,yMid-lhs.E/2);}
+    else{var yc=ySide+th/2;place(lab.W,pad,yc-lhs.W/2);place(lab.E,aw-pad-lw.E,yc-lhs.E/2);}
+    /* 我那摞往左长,不伸进左下角那组按钮 */
+    var sCap=BZ&&BZ.l>0?Math.max(tcw,x1-(BZ.l+g)):1e9;
     P.N={x:x0,y:pad,align:'l',max:Math.max(tcw,xE-x0-8)};
-    P.S={x:x1,y:yS,align:'r',max:Math.max(tcw,x1-xW-8)};
+    P.S={x:x1,y:yS,align:'r',max:Math.max(tcw,Math.min(sCap,x1-xW-8))};
     P.W={x:xW,y:ySide,align:'l',max:wHard};
     P.E={x:xE,y:ySide,align:'r',max:eHard};
     /* 对家那摞和下家那摞共用 [x0, xE],我那摞和上家那摞共用 [xW, x1],各按张数分(见 stampPiles) */
-    TB.lane={x0:x0,xE:xE,x1:x1,xW:xW,wHard:wHard,eHard:eHard};
+    TB.lane={x0:x0,xE:xE,x1:x1,xW:xW,wHard:wHard,eHard:eHard,sCap:sCap};
+    TB.bz=BZ?JSON.stringify(BZ):'';
     TB.center={x:aw/2,y:ah/2};
-    TB.slot={x:x0,y:yS};
+    TB.slot={x:x1-tcw,y:yS};
   }else{
     /* 上下家名牌先试着和对家那摞并排(省一行);并排时对家那摞连一对都放不下,名牌就单占一行 */
     for(var stacked=0;stacked<2;stacked++){
@@ -10169,15 +10194,24 @@ function stampPiles(){
       var cm=c+e>room?Math.max(tcw,room*c/(c+e)):room-e;mx[a]=Math.max(tcw,cm);mx[b]=Math.max(tcw,Math.min(bHard,room-mx[a]));};
     split('N','E',Ln.xE-Ln.x0-8,Ln.eHard);
     split('S','W',Ln.x1-Ln.xW-8,Ln.wHard);
+    if(Ln.sCap<1e9)mx.S=Math.max(tcw,Math.min(mx.S,Ln.sCap));
   }
   for(var k in SEAT_KEYS){
     var p=$(SEAT_KEYS[k].pile),a=TB.P[k],n=p.children.length,step=step0;
     if(mx[k])a={x:a.x,y:a.y,align:a.align,max:mx[k]};
-    if(n>1)step=Math.max(6,Math.min(step0,(a.max-tcw)/(n-1)));
-    var w=n?tcw+(n-1)*step:0;
+    /* 每张都要露出左上角的点数和花色(约 0.32 张牌宽);放不下时这一摞的牌整体缩小,不再叠成一条
+       (产品方:甩 4、5 张时叠在一起看不见出了什么)。最小缩到 0.62 倍 */
+    var cw=tcw;
+    if(n>1){
+      step=Math.min(step0,(a.max-tcw)/(n-1));
+      if(step<tcw*0.32){cw=Math.max(Math.round(tcw*0.62),Math.floor(a.max/(1+0.32*(n-1))));step=Math.max(6,Math.min(cw*0.34,(a.max-cw)/(n-1)));}
+    }
+    if(cw<tcw)p.style.setProperty('--tcw',cw+'px');else p.style.removeProperty('--tcw');
+    var w=n?cw+(n-1)*step:0;
     p.style.setProperty('--pstep',step+'px');
     p.style.width=w+'px';
-    place(p,a.align==='l'?a.x:a.align==='r'?a.x-w:a.x-w/2,a.y);
+    /* 缩小的那摞:我那摞(最下面一行)贴着下沿,其余贴着上沿 */
+    place(p,a.align==='l'?a.x:a.align==='r'?a.x-w:a.x-w/2,a.y+(k==='S'?(tcw-cw)*1.43:0));
     for(var i=0;i<n;i++)p.children[i].style.setProperty('--i',i);
   }
   /* 收墩:四摞都在桌上时记下样子;下一次四摞全变了(产品清桌),就用影子把这四摞飞向赢家 */
@@ -10251,8 +10285,11 @@ function placeBubble(){
     /* 按上下家牌摞实际占到哪算,两边留 12px */
     var wr=rel($('p3')),er=rel($('p1'));
     var edge=Math.max($('p3').children.length?wr.right:TB.P.W.x,$('p1').children.length?TB.aw-er.left:TB.aw-TB.P.E.x);
-    var w=Math.min(600,Math.max(340,TB.aw-2*(edge+12)));
-    bubble.style.left=(ar.left-gr.left+(TB.aw-w)/2)+'px';bubble.style.right='auto';bubble.style.width=w+'px';bubble.style.maxWidth=w+'px';
+    var w=Math.min(600,Math.max(340,TB.aw-2*(edge+12))),cx=TB.aw/2;
+    /* 矮横屏按钮浮在牌桌两个下角:气泡夹在两组按钮中间,不盖住「出牌」 */
+    var z=L.mode==='l'&&btnZones();
+    if(z&&z.r>z.l){w=Math.min(w,z.r-z.l-16);cx=(z.l+z.r)/2;}
+    bubble.style.left=(ar.left-gr.left+cx-w/2)+'px';bubble.style.right='auto';bubble.style.width=w+'px';bubble.style.maxWidth=w+'px';
   }else{bubble.style.left='';bubble.style.right='';bubble.style.width='';bubble.style.maxWidth='';}
 }
 new MutationObserver(function(){stampPiles();}).observe($('players'),{childList:true,subtree:true});
@@ -10271,6 +10308,18 @@ function onHandChange(){
 }
 new MutationObserver(onHandChange).observe(hand,{childList:true});
 window.addEventListener('resize',function(){layout();});
+/* 兜底:万一还是被放大了(别的浏览器、别的输入框),离开输入框时缩回原样 ——
+   临时给 viewport 加 maximum-scale=1,iOS 会弹回 1 倍,马上再去掉(不影响之后双指缩放) */
+document.addEventListener('focusout',function(e){
+  if(!/^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName))return;
+  var vv=window.visualViewport,m=document.querySelector('meta[name=viewport]');
+  if(!vv||!m||vv.scale<=1.01)return;
+  var base=m.getAttribute('content').replace(/,?maximum-scale=[^,]*/,'');
+  m.setAttribute('content',base+',maximum-scale=1');
+  setTimeout(function(){m.setAttribute('content',base);},400);
+});
+/* 手机浏览器的地址栏 / 工具栏收起、展开时,有的只改可视区域、不发 window 的 resize:跟着重排 */
+if(window.visualViewport)window.visualViewport.addEventListener('resize',function(){if(Math.abs(window.visualViewport.height-(L.vvH||0))>2){L.vvH=window.visualViewport.height;layout();}});
 document.addEventListener('focusout',function(){setTimeout(layout,250);});
 try{new ResizeObserver(function(){layout();}).observe(game);}catch(_){}
 
@@ -10332,7 +10381,7 @@ function syncTop(G){
   var spans=$('status').querySelectorAll('span');
   var lv=spans[4]&&spans[4].textContent.match(/你们[:：]?\s*(\S+)\s*对方[:：]?\s*(\S+)/);
   if(lv){
-    var narrow=window.innerWidth<=440&&L.mode==='p'||L.mode==='l';   /* 横屏的级数在左边窄栏里 */
+    var narrow=window.innerWidth<=440&&L.mode==='p';
     var h2='<small>'+(narrow?'我':'我方')+'</small><span class="num">'+lv[1]+'</span><span class="sep"></span><small>'+(narrow?'对':'对方')+'</small><span class="num">'+lv[2]+'</span>';
     var lc=$('levelChip');if(lc.__h!==h2){lc.innerHTML=h2;lc.__h=h2;lc.setAttribute('aria-label','级数:我方打'+lv[1]+',对方打'+lv[2]);}
   }
@@ -10768,7 +10817,11 @@ var recPanel=document.createElement('div');recPanel.id='recPanel';
 $('panel').hidden=true;$('panel').parentNode.appendChild(recPanel);
 var activeTab='log',logRoundSel='cur',logMode='trick',roundHistory=[],lastEnded=null;
 function openSide(tab){if(tab)activeTab=tab;document.body.classList.add('drawer-open');renderSide();}
-function closeSide(){document.body.classList.remove('drawer-open');}
+function closeSide(){
+  document.body.classList.remove('drawer-open');
+  /* 写标记理由写到一半就关了抽屉:输入框还拿着焦点的话,记录 / 教练页会一直「正在输入、不重画」 */
+  var a=document.activeElement;if(a&&a.closest&&a.closest('#side'))a.blur();
+}
 $('recordsBtn').onclick=function(){document.body.classList.contains('drawer-open')?closeSide():openSide();};
 $('sideClose').onclick=closeSide;
 document.addEventListener('click',function(e){
@@ -10793,7 +10846,9 @@ function renderSide(){
   Array.prototype.forEach.call($('tabs').querySelectorAll('button'),function(x){
     x.classList.toggle('on',x.dataset.tab===activeTab);x.setAttribute('aria-selected',String(x.dataset.tab===activeTab));});
   $('recordsFoot').hidden=activeTab!=='coach';
-  if(activeTab==='coach')renderCoach();else{if(recPanel.querySelector('#coachInput'))recPanel.innerHTML='';renderLog();}
+  /* 两个页签共用 #recPanel:换页签清空时要连「上次画的是什么」(__h)一起清,不然切回「对局记录」时
+     renderLog 以为内容没变、不重画,记录就是空的(玩家报的「对局记录不显示」) */
+  if(activeTab==='coach')renderCoach();else{if(recPanel.querySelector('#coachInput')){recPanel.innerHTML='';recPanel.__h='';}renderLog();}
 }
 function rawTxt(c){var x=cardTxt(c);x.c=c;return x;}   /* 按花色看时要按大小排,留着原牌 */
 /* 局终快照,供回看已完成的局 */
@@ -10992,6 +11047,7 @@ recPanel.addEventListener('focusout',function(e){if(e.target.id==='cflagNote')sa
 function renderCoach(){
   var G=g();
   if(!recPanel.querySelector('#coachInput')){
+    recPanel.__h='';
     recPanel.innerHTML='<div class="chat-input" id="coachInput"><input id="chatNoteInput" maxlength="120" enterkeyhint="done" placeholder="记一笔,只存在这台设备上"><button class="btn" id="chatNoteSend">记下</button></div><div id="coachDyn"></div>';
     var send=function(){
       var v=$('chatNoteInput').value.trim();if(!v||!window.__addNote)return;
@@ -11128,31 +11184,60 @@ function say(seat,key){
     clearTimeout(ava.__t);ava.__t=setTimeout(function(){ava.classList.remove(m);},900);}
   return true;
 }
-/* 气泡贴着说话人的名牌,在名牌朝桌心那边 / 上面 / 下面里挑压牌最少的一处;尖角指回名牌 */
+/* 气泡贴着说话人的名牌,挑一个不压牌、不压名牌、离名牌最近的空处;尖角指回名牌。
+   要躲的不只是桌上现有的牌:每家「接下来要出牌」的那块也算(说完话常常马上出牌,原来对家的气泡会盖住他自己刚出的牌)。
+   候选:名牌四周(朝桌心那边优先)、四个斜角,再加整张桌上一张网格;
+   代价 = 压住桌上的牌 / 名牌 / 收墩戳的面积 × 20(说话人自己的牌 × 40)+ 压住「将要出牌的空位」的面积 × 4(自己的 × 20)+ 离名牌的距离。
+   竖屏桌上满了找不到空处时,把气泡收窄(两三行)再找一遍,取代价小的 */
 function placeSay(el,seat){
   if(!TB.ready)return;
-  var lab=rel(labEl(SEAT_K[seat])),bw=el.offsetWidth,bh=el.offsetHeight,aw=TB.aw,ah=TB.ah,gap=10;
-  var cx=(lab.left+lab.right)/2,cy=(lab.top+lab.bottom)/2;
-  var right={x:lab.right+gap+bw/2,y:cy,t:'t-l'},left={x:lab.left-gap-bw/2,y:cy,t:'t-r'};
-  var inward=cx<aw/2?right:left;
-  /* 先试朝桌心那边,再试另一边(对家在正中,朝哪边都算),再试上、下 */
-  var cands=[inward,inward===right?left:right,{x:cx,y:lab.top-gap-bh/2,t:'t-b'},{x:cx,y:lab.bottom+gap+bh/2,t:'t-t'}];
-  var busy=Array.prototype.map.call(document.querySelectorAll('#arena .played:not(.ghost)'),function(p){return p.children.length?rel(p):null;}).filter(Boolean)
-    .concat(['N','W','E','S'].filter(function(k){return k!==SEAT_K[seat];}).map(function(k){return rel(labEl(k));}))
-    .concat(Array.prototype.map.call(arena.querySelectorAll('.winner-label'),rel));
-  var best=null,bestA=1e18;
-  cands.forEach(function(c){
-    var x=clamp(c.x,bw/2+4,aw-bw/2-4),y=clamp(c.y,bh/2+4,ah-bh/2-4);
-    var r={left:x-bw/2,top:y-bh/2,right:x+bw/2,bottom:y+bh/2};
-    if(hit(r,lab,2))return;
-    var a=busy.reduce(function(n,q){return n+Math.max(0,Math.min(r.right,q.right)-Math.max(r.left,q.left))*Math.max(0,Math.min(r.bottom,q.bottom)-Math.max(r.top,q.top));},0);
-    if(a<bestA){bestA=a;best={x:x,y:y,t:c.t};}
+  el.style.maxWidth='';
+  var lab=rel(labEl(SEAT_K[seat])),aw=TB.aw,ah=TB.ah,gap=10;
+  var cx=(lab.left+lab.right)/2,cy=(lab.top+lab.bottom)/2,inR=cx<aw/2;
+  var busy=[],st=Math.max(14,Math.round(TB.tcw*0.34)),add=function(q,w){busy.push({q:q,w:w});};
+  ['N','W','E','S'].forEach(function(k){
+    /* 说话人自己的牌和他要出牌的那块罚得最重:最常见的就是边说边出,盖住自己刚出的牌 */
+    var own=k===SEAT_K[seat];
+    var p=$(SEAT_KEYS[k].pile);if(p.children.length)add(rel(p),own?40:20);
+    var a=TB.P&&TB.P[k];
+    if(a){var w=Math.min(a.max||TB.tcw,TB.tcw+3*st),x=a.align==='l'?a.x:a.align==='r'?a.x-w:a.x-w/2;add({left:x,top:a.y,right:x+w,bottom:a.y+TB.th},own?20:4);}
+    if(k!==SEAT_K[seat])add(rel(labEl(k)),20);
   });
-  best=best||{x:clamp(inward.x,bw/2+4,aw-bw/2-4),y:inward.y,t:inward.t};
-  place(el,best.x,best.y);el.classList.add(best.t);
+  Array.prototype.forEach.call(arena.querySelectorAll('.winner-label'),function(e){add(rel(e),20);});
+  if($('turnSlot')&&!$('turnSlot').hidden)add(rel($('turnSlot')),4);
+  function search(){
+    var bw=el.offsetWidth,bh=el.offsetHeight;
+    var cands=[{x:lab.right+gap+bw/2,y:cy},{x:lab.left-gap-bw/2,y:cy},{x:cx,y:lab.top-gap-bh/2},{x:cx,y:lab.bottom+gap+bh/2},
+      {x:lab.right+gap+bw/2,y:lab.bottom+gap/2+bh/2},{x:lab.left-gap-bw/2,y:lab.bottom+gap/2+bh/2},
+      {x:lab.right+gap+bw/2,y:lab.top-gap/2-bh/2},{x:lab.left-gap-bw/2,y:lab.top-gap/2-bh/2}];
+    for(var gy=1;gy<10;gy++)for(var gx=1;gx<10;gx++)cands.push({x:aw*gx/10,y:ah*gy/10});
+    var best=null;
+    cands.forEach(function(c,i){
+      var x=clamp(c.x,bw/2+4,aw-bw/2-4),y=clamp(c.y,bh/2+4,ah-bh/2-4);
+      var r={left:x-bw/2,top:y-bh/2,right:x+bw/2,bottom:y+bh/2};
+      if(hit(r,lab,2))return;
+      var a=busy.reduce(function(n,b){var q=b.q;return n+b.w*Math.max(0,Math.min(r.right,q.right)-Math.max(r.left,q.left))*Math.max(0,Math.min(r.bottom,q.bottom)-Math.max(r.top,q.top));},0);
+      var d=Math.max(0,Math.max(r.left-lab.right,lab.left-r.right))+Math.max(0,Math.max(r.top-lab.bottom,lab.top-r.bottom));
+      var cost=a+d+(i===(inR?0:1)?0:4);   /* 一样空、一样近时,朝桌心那边优先 */
+      if(!best||cost<best.cost)best={x:x,y:y,cost:cost,bw:bw,bh:bh};
+    });
+    return best;
+  }
+  var best=search();
+  if(best&&best.cost>400&&el.offsetWidth>120){
+    el.style.maxWidth='110px';var b2=search();
+    if(b2&&b2.cost<best.cost*0.5)best=b2;else el.style.maxWidth='';   /* 收窄的气泡又高又挤,明显更好才用 */
+  }
+  if(!best)return;
+  /* 尖角朝名牌:气泡在名牌哪一侧离得最开就指向哪边 */
+  var r2={left:best.x-best.bw/2,top:best.y-best.bh/2,right:best.x+best.bw/2,bottom:best.y+best.bh/2};
+  var dx=r2.left>=lab.right-4?'t-l':r2.right<=lab.left+4?'t-r':null,dy=r2.top>=lab.bottom-4?'t-t':r2.bottom<=lab.top+4?'t-b':null;
+  var t=dx&&dy?(Math.abs(best.x-cx)/best.bw>Math.abs(best.y-cy)/best.bh?dx:dy):(dx||dy||'t-l');
+  place(el,best.x,best.y);el.classList.add(t);
 }
 function hideSays(){for(var k in CH.bubbles)CH.bubbles[k].classList.remove('show');}
 window.__hideSays=hideSays;   /* 设置里把「对手说话」关掉时,桌上正挂着的气泡一起收 */
+window.__say=function(seat,key){return say(seat,key||'idle');};   /* 体检脚本用:让某一家马上说一句 */
 /* 一墩四家出完(收墩戳刚出来):看这墩发生了什么,挑一个人说一句 */
 function chatterTrick(G,res){
   var lvl=chatterLevel();if(lvl==='off'||G.auto&&!window.__chatterTest)return;   /* __chatterTest:只给体检脚本用 */
