@@ -46,6 +46,19 @@ for(let seed=S0+1;seed<=S0+N;seed++){
           if(cands.length>=2){
             const team=seat%2, decl=team===D%2;
             const out=cands.map(q=>{ const o=finish(hands,history,seat,T,D,buried,def,q.cards,E.rng(seed*13+ti)); return {k:key(q.cards),s0:q.score,pts:decl?-o.def:o.def,lv:decl?o.declUp:-o.declUp}; });
+            // MC=n:每个候选在 n 个抽样世界(领出者视角,makeBelief)里也打到局终取平均,作为一列 smc —— 看排对率的天花板(噪声有多大)
+            if(+process.env.MC){ const B=E.makeBelief(view,[],+process.env.MC);
+              out.forEach((o,qi)=>{ let acc=0,cnt=0; if(B) for(const w of B.worlds){ const hs=[0,1,2,3].map(s=>s===seat?hand.slice():w.hands[s].slice());
+                  const bu=view.buriedKnown&&view.buriedKnown.length?buried:w.kitty;
+                  const q=cands[qi].cards, oo=finish(hs,history,seat,T,D,bu,def,q,E.rng(seed*17+ti)); acc+=decl?-oo.def:oo.def; cnt++; }
+                o.smc=cnt?acc/cnt:0; }); }
+            // CAPTURE=1:每个候选的打分分项 + 几个原始特征(按队主牌等),给 test/fit-lead.js 回归
+            if(process.env.CAPTURE){ const L=E.leadCtx(view), mate=(seat+2)%4, opp=[(seat+1)%4,(seat+3)%4];
+              const myT=hand.filter(x=>E.effSuit(x,T)==='T').length, mateT=E.expHoldIn(L,mate,'T'), oppT=E.expHoldIn(L,opp[0],'T')+E.expHoldIn(L,opp[1],'T');
+              out.forEach((o,qi)=>{ const cs=cands[qi].cards, cl=E.classify(cs,T); E.AIP._leadCapture={}; const sc=E.scoreLeadPlay(L,cl,cs); const cp=E.AIP._leadCapture.last; E.AIP._leadCapture=null;
+                const su=cl?cl.suit:'?', mySuit=hand.filter(x=>E.effSuit(x,T)===su).length;
+                o.f={...(cp||{}),hasParts:cp?1:0,score:sc.score,throw:cl&&cl.type==='throw'?1:0,boss:cl&&E.isBossPlay(cl,L.mem,T)?1:0,mySuit,
+                     teamTrump:myT+mateT-oppT,myT,mateT,oppT,n:hand.length,role:seat===D?0:team===D%2?1:2,joker:cs.some(x=>x.suit==='X')?1:0}; }); }
             for(const [vi,v] of VARS.entries()){ const sv={}; for(const k in v){ sv[k]=E.AIP[k]; E.AIP[k]=v[k]; }
               const r2=E.aiChooseLead(view), m={}; for(const q of r2.all){ const k=key(q.cards); if(m[k]===undefined) m[k]=q.score; }
               out.forEach(o=>{ o['s'+(vi+1)]=m[o.k]!==undefined?m[o.k]:-1e9; }); Object.assign(E.AIP,sv); }
@@ -62,7 +75,7 @@ for(let seed=S0+1;seed<=S0+N;seed++){
 if(process.env.DUMP) fs.writeFileSync(process.env.DUMP,JSON.stringify(R));
 }else for(const f of process.argv.slice(3)) R.push(...JSON.parse(fs.readFileSync(f,'utf8')));
 // 报告:每个打分列的排对率(按本局得分、按净升级)、首选的遗憾(前 K 名里最好的结果 − 打分最高那手的结果)
-const cols=Object.keys((R[0]||{cands:[{}]}).cands[0]).filter(k=>/^s\d+$/.test(k));
+const cols=Object.keys((R[0]||{cands:[{}]}).cands[0]).filter(k=>/^s(\d+|mc)$/.test(k));
 const m=a=>a.reduce((x,y)=>x+y,0)/Math.max(1,a.length);
 const rep=(t,rs)=>{ if(!rs.length) return; const line=[];
   for(const col of cols){ let n=0,ok=0,loss=0,nl=0,okl=0; const reg=[],regl=[];
