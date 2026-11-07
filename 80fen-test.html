@@ -814,7 +814,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.57(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.58(测试版)</div>
 
 
 <script>
@@ -1491,7 +1491,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   /* pointWeight 的居中常数(ai-progress 第四节第 12 项 H,产品方 11-07):手定的 0.6、注释「以典型局面为 1」,没有测量依据;
    * (闲家已得, 剩余分) 网格上高斯包络中位数 0.92、均值 0.80 —— pw 多数时候 > 1,而它只乘本墩 EV、不乘留手和牌权,整体偏向「现在兑现」。0.6 = 旧行为。 */
   pwCenter: 0.6,
-  tiaoWhenBad: 0,             // 1 = 中盘首选打分 < tiaoWhenBadThr 时改领最小的不带分小主(第 12 项 F);2 = 只有庄家这么做;0 = 旧行为
+  tiaoWhenBad: 2,             // (v0.7.58 测试版默认 2)1 = 中盘首选打分 < tiaoWhenBadThr 时改领最小的不带分小主(第 12 项 F);2 = 只有庄家这么做;0 = 旧行为
   tiaoWhenBadThr: 0,
   _leadCapture: null,         // 只给量具用:{} 时 scoreLeadEV / scoreLeadPlay 把打分分项写进 .last(test/lead-rank.js CAPTURE=1)           // 过去所有单张领出也进似然(池子倍数 k,0 = 旧行为;leadEvents / leadHistLik)            // 似然的指数(<1 = 打折,防止少数世界独大)
   beliefDecl: 0,
@@ -1865,8 +1865,10 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   /* ② 钓主里那条「逼对手吐主」的收益。**默认 0 —— v0.6.0 起改由 pTeam 表达。**
    * 领出一张小主,两个对手各跟一张他们最小的主,大主一张不掉 ——
    * 这条收益大半是虚的。实测关掉它之后:小主领出的将牌墩里
-   * **队友接走 25.2% → 30.3%**、领出方输掉 54.1% → 52.7%。 */
-  tiaoDrawOut: 0,
+   * **队友接走 25.2% → 30.3%**、领出方输掉 54.1% → 52.7%。
+   * (v0.7.58 测试版默认开,ai-progress 第四节第 12 项 E)当年对手不肯为牌权花主;现在会了,这条收益回来了:
+   * 单开 ai-h2h 8 × 350 +0.20 ±0.13 分、ai-pool 16 × 25 +0.78 ±0.32 分 / +0.016 ±0.007 级。 */
+  tiaoDrawOut: 1,
   /* ② 队友救回来的概率到多少才算「这是一次钓主」。**只影响理由字符串,不影响出牌。**
    * partnerRescueP 的典型值是 share(≈1/3) × leadRescueDamp(0.7) ≈ 0.23,
    * 所以门槛取 0.20;取 0.30 的话教练面板几乎标不出钓主,可行为本身是在调的。 */
