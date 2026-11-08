@@ -1493,7 +1493,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   pwCenter: 0.6,
   tiaoWhenBad: 2,             // (v0.7.58 测试版默认 2)1 = 中盘首选打分 < tiaoWhenBadThr 时改领最小的不带分小主(第 12 项 F);2 = 只有庄家这么做;3 = 庄家方(庄家 + 帮家);0 = 旧行为
   tiaoWhenBadThr: 0,
-  followFix: 0,               // 跟牌快修(位开关):1 = 没把握时不送副牌分、2 = 断门有主就毙;0 = 旧行为
+  followFix: 0,               // 跟牌快修(位开关):1 = 没把握时不送副牌分、2 = 断门有主就毙、4 = 位 2 只在垫上去本队拿下 < followFixP 时;0 = 旧行为
   followFixMargin: 8,         // 位 2:首选不带分时,毙的分差在这之内才改
   followFixP: 0.4,            // 位 1:本队拿下的估计低于这个才算「没把握」
   throwEval: 1,               // (v0.7.59 测试版默认开)1 = 甩牌在信念世界里按失败概率评估、非全钢板的整门甩牌也进候选(第 12 项 G);0 = 旧行为
@@ -4410,7 +4410,8 @@ function aiChooseFollow(view, plays, extra){
       let fixed=false;
       if(AIP.followFix&2&&voidS&&effSuit(c,trump)!=='T'&&view.hand.some(x=>effSuit(x,trump)==='T')){
         const ruffs=cands.filter(q=>q.cards.length===1&&effSuit(q.cards[0],trump)==='T'&&wins(q.cards[0]));
-        if(ruffs.length&&(cPts>0||ruffs[0].score>=best.score-AIP.followFixMargin)){
+        // 位 4:只在「垫上去本队拿下」的估计 < followFixP 时改毙(队友多半救不回来);不开位 4 = 一律改
+        if(ruffs.length&&(cPts>0||ruffs[0].score>=best.score-AIP.followFixMargin)&&(!(AIP.followFix&4)||pTeamWin(X,[c],false)<AIP.followFixP)){
           best={...ruffs[0],reason:'这门断了 —— 毙下来,不往对手那里垫'}; fixed=true; }
       }
       if(!fixed&&AIP.followFix&1&&effSuit(c,trump)!=='T'&&cPts>0&&!wins(c)&&pTeamWin(X,[c],false)<AIP.followFixP){
