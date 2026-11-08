@@ -814,7 +814,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.57(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.58(测试版)</div>
 
 
 <script>
@@ -1485,6 +1485,15 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   mateOver: 1,
   /* 领出推断(信念第 4 步 b):别人单张领出时,抽样世界按领出模型 P(领这一类 | 他的手牌) 重抽(池子 = k × beliefM)。0 = 旧行为。 */
   leadInfer: 0,
+  followInfer: 0,             // 跟牌推断:池子倍数 k(0 = 旧行为);抽样世界按「他以前本队输着时压没压」的似然重抽(followEvents / followLik)
+  followInferT: 1,
+  leadInferHist: 0,
+  /* pointWeight 的居中常数(ai-progress 第四节第 12 项 H,产品方 11-07):手定的 0.6、注释「以典型局面为 1」,没有测量依据;
+   * (闲家已得, 剩余分) 网格上高斯包络中位数 0.92、均值 0.80 —— pw 多数时候 > 1,而它只乘本墩 EV、不乘留手和牌权,整体偏向「现在兑现」。0.6 = 旧行为。 */
+  pwCenter: 0.6,
+  tiaoWhenBad: 2,             // (v0.7.58 测试版默认 2)1 = 中盘首选打分 < tiaoWhenBadThr 时改领最小的不带分小主(第 12 项 F);2 = 只有庄家这么做;0 = 旧行为
+  tiaoWhenBadThr: 0,
+  _leadCapture: null,         // 只给量具用:{} 时 scoreLeadEV / scoreLeadPlay 把打分分项写进 .last(test/lead-rank.js CAPTURE=1)           // 过去所有单张领出也进似然(池子倍数 k,0 = 旧行为;leadEvents / leadHistLik)            // 似然的指数(<1 = 打折,防止少数世界独大)
   beliefDecl: 0,
   beatChoice: 0,              // 1 = 本墩推演里压牌那一叉不再一律「最便宜那张」,按 beatChoiceW 在压得过的牌里取前 3 张加权(beatMix);0 = 旧行为
   beatChoiceW: [2.0856,0.7688,0.1243,-1.8395,-1.3597,-0.4993,-2.3843,3.9895,0,-0.2528,-1.4187,-1.0832,1.7261],   // test/beatchoice-data.js --fit(自对弈 1200 副 7949 个样本,两折对数损失 均匀 1.525 → 0.888)              // 1 = 抽样世界把亮主亮出来的牌(全部亮主记录)钉在亮的那家手里(declKnown);0 = 旧行为(信念服务不用亮主信息)
@@ -1856,8 +1865,10 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   /* ② 钓主里那条「逼对手吐主」的收益。**默认 0 —— v0.6.0 起改由 pTeam 表达。**
    * 领出一张小主,两个对手各跟一张他们最小的主,大主一张不掉 ——
    * 这条收益大半是虚的。实测关掉它之后:小主领出的将牌墩里
-   * **队友接走 25.2% → 30.3%**、领出方输掉 54.1% → 52.7%。 */
-  tiaoDrawOut: 0,
+   * **队友接走 25.2% → 30.3%**、领出方输掉 54.1% → 52.7%。
+   * (v0.7.58 测试版默认开,ai-progress 第四节第 12 项 E)当年对手不肯为牌权花主;现在会了,这条收益回来了:
+   * 单开 ai-h2h 8 × 350 +0.20 ±0.13 分、ai-pool 16 × 25 +0.78 ±0.32 分 / +0.016 ±0.007 级。 */
+  tiaoDrawOut: 1,
   /* ② 队友救回来的概率到多少才算「这是一次钓主」。**只影响理由字符串,不影响出牌。**
    * partnerRescueP 的典型值是 share(≈1/3) × leadRescueDamp(0.7) ≈ 0.23,
    * 所以门槛取 0.20;取 0.30 的话教练面板几乎标不出钓主,可行为本身是在调的。 */
@@ -3624,7 +3635,7 @@ function pointWeight(def, live){
     // gap 落在「还剩的分」的可达中段时最敏感;贴着 0 或贴着 live 都已基本注定
     best=Math.max(best,Math.exp(-Math.pow(gap-live/2,2)/(2*sigma*sigma)));
   }
-  return 1+AIP.pwGain*(best-0.6);          // 以典型局面为 1,只在胜负敏感区上下浮动
+  return 1+AIP.pwGain*(best-AIP.pwCenter);   // 以典型局面为 1,只在胜负敏感区上下浮动(pwCenter 见 AIP)
 }
 
 // 后手还会往这一墩里加多少分。
@@ -4921,9 +4932,13 @@ function scoreLeadEV(L, cl, cards, pre){
   const gain=pts+leadPointsEV(L,cl,cards);
   const loss=pts+leadLossPoints(L,cl,cards);
   let s=(p*gain-(1-p)*loss)*(L.pw||1)-fut, reason;
+  // 量具用(test/lead-rank.js):把打分分项记下来,按「同一决策里谁更好」回归权重。平时 _leadCapture 为空,不影响打分
+  const cap=AIP._leadCapture?{ev:(p*gain-(1-p)*loss)*(L.pw||1),evRaw:p*gain-(1-p)*loss,p,pMine:pMine===undefined?p:pMine,gain,loss,fut,pw:L.pw||1,
+    shape:0,dtPos:0,trumpPen:0,tw:0,fr:0,probe:0,voidCost:0,trump:cl.suit==='T'?1:0,pair:cl.type==='pair'?1:0,tractor:cl.type==='tractor'?1:0,n:cards.length,pts}:null;
   // 牌型本身的可打性:拖拉机/对子难被跟死,同样的 p 下更该打 —— 这一点 p 表达不了
   if(cl.type==='tractor') s+=AIP.leadShapeBonus*(cards.length-1);
   else if(cl.type==='pair') s+=AIP.leadShapeBonus;
+  if(cap) cap.shape=cl.type==='tractor'?AIP.leadShapeBonus*(cards.length-1):cl.type==='pair'?AIP.leadShapeBonus:0;
   if(cl.type==='tractor') reason=p>0.6?'拖拉机难跟,压一手':'拖拉机,但在外还有更大的';
   else if(cl.type==='pair') reason=p>0.6?'这一对多半压得住,先收一墩':(pts?'分对慎出':'出对子');
   else reason=p>0.6?'这张多半压得住':'小牌探路';
@@ -4943,10 +4958,11 @@ function scoreLeadEV(L, cl, cards, pre){
     const trumpPen=-dtNeg+AIP.leadWeakTrump*(1-p)+trumpLeadPrior(L,cards);
     s+=p*Math.max(0,dt)-trumpPen;
     pre.trumpPen=trumpPen;
+    if(cap){ cap.dtPos=p*Math.max(0,dt); cap.trumpPen=trumpPen; cap.dt=dt; }
     if(dt>8&&p>0.5&&cards.every(c=>c.suit!=='X')) reason='主牌多于对手,钓主清场';
     // 钓主:EV 模型看不见「把牌权过渡给队友」的那一小截额外价值
     const tw=tiaoWangValue(L,cl,cards);
-    s+=tw;
+    s+=tw; if(cap) cap.tw=tw;
     /* v0.6.0:理由字符串跟着**判据**走,不再跟着 tw 的大小走。
      * 现在「这是不是一次钓主」的判据是:这张压不住场(p_mine 低),
      * 但本队仍有相当把握拿下这墩 —— 也就是 pTeam 里**队友救回来**的那一截占了大头。
@@ -4959,22 +4975,25 @@ function scoreLeadEV(L, cl, cards, pre){
     else if(p<0.4&&!(dt>8&&p>0.5)) reason='小主领出压不住场,吊不出对手的大主';
   }else{
     const fr=feedRuffValue(L,cl,cards);
-    if(fr>0){ s+=fr; reason='主打队友的断门,让他毙下这墩'; }
+    if(fr>0){ s+=fr; if(cap) cap.fr=fr; reason='主打队友的断门,让他毙下这墩'; }
     else if(L.partnerAce&&L.partnerAce[cl.suit]&&p<0.6){
-      s+=AIP.probeSafeBonus; reason='队友多半握着这门的 A —— 这是贴分,不是探路'; }
+      s+=AIP.probeSafeBonus; if(cap) cap.probe=AIP.probeSafeBonus; reason='队友多半握着这门的 A —— 这是贴分,不是探路'; }
     // unseenPointsIn 数的是**在外**的分:我自己手上这张分牌不在其中。
     // 所以话得说成「别人手上没分了」,不能说成「这门的分打光了」—— 我领出的可能正是分牌。
     else if(p<0.4&&unseenPointsIn(L.mem,cl.suit,L.trump)===0) reason='这门在外已无分,交牌权代价小';
   }
   if(ruffP>0.25&&cl.suit!=='T'&&p>0.6){ reason='压得住,但对手可能缺门来毙'; }
   if(AIP.voidLeadCost&&cl.suit!=='T') s-=AIP.voidLeadCost*ruffP;
+  if(cap){ cap.voidCost=AIP.voidLeadCost&&cl.suit!=='T'?AIP.voidLeadCost*ruffP:0; cap.ruffP=ruffP; cap.coreEV=s; AIP._leadCapture.last=cap; }
   return {score:s,reason,pWin:p,pMine,trumpPen:pre.trumpPen};
 }
 
 function scoreLeadPlay(L, cl, cards){
   const r=scoreLeadCore(L,cl,cards);
   if(r.pWin===undefined) return r;
-  return {score:r.score+leadTempo(L,cards,r.pWin,r.pMine), reason:r.reason, trumpPen:r.trumpPen, pWin:r.pWin};
+  const tempo=leadTempo(L,cards,r.pWin,r.pMine);
+  if(AIP._leadCapture&&AIP._leadCapture.last){ AIP._leadCapture.last.tempo=tempo; AIP._leadCapture.last.core=r.score; }
+  return {score:r.score+tempo, reason:r.reason, trumpPen:r.trumpPen, pWin:r.pWin};
 }
 
 function scoreLeadCore(L, cl, cards){
@@ -5373,6 +5392,45 @@ function declKnown(view, plays, seats){
     for(let i=0;i<want[k]-played;i++) known.push({seat:st,suit,rank:rk}); }
   return known;
 }
+/* 跟牌推断(信念第 4 步 e,followInfer,11-04):别人以前每一次「本队输着时压没压」都是线索 —— 手里明明有压得过的却没压,多半没有;
+ * 世界按意愿模型 willP 的似然加权:那一刻他的手牌 = 这个世界里他现在的牌 + 他从那一墩起打出的牌。只看单张领出、他那一刻本队输着的情形。 */
+function followEvents(view, plays, T){
+  const hist=view.history||[], ev=[], later={0:[],1:[],2:[],3:[]};   // later[s][t] = s 从第 t 墩起打出的牌
+  const tricks=[]; for(let i=0;i<hist.length;i+=4) tricks.push(hist.slice(i,i+4));
+  for(let t=tricks.length-1;t>=0;t--) for(const pl of tricks[t]) later[pl.seat].push({t,cards:pl.cards});
+  const after=(s,t)=>{ const out=[]; for(const x of later[s]) if(x.t>=t) out.push(...x.cards); return out; };
+  tricks.forEach((tr,t)=>{
+    if(!tr.length||tr[0].cards.length!==1) return;
+    for(let j=1;j<tr.length;j++){ const s=tr[j].seat; if(s===view.seat||tr[j].cards.length!==1) continue;
+      const before=tr.slice(0,j), cur=currentWinner(before,T); if(cur.seat%2===s%2) continue;
+      const beat=currentWinner(tr.slice(0,j+1),T).seat===s?1:0, behind=[]; for(let q=j+1;q<4;q++) behind.push((tr[0].seat+q)%4);
+      ev.push({s,before,beat,behind,later:after(s,t)}); } });
+  return ev;
+}
+/* 过去所有单张领出(leadInferHist,11-04):领出那家那一刻的手牌 = 这个世界里他现在的牌 + 他从那一墩起打出的牌(含领的那张)。
+ * 量具 calib-teamwin PIN=last:第 2 家最缺的是**队友(第 4 家)手里有什么**,而队友以前每次领什么正是这方面的线索。 */
+function leadEvents(view, T){
+  const hist=view.history||[], ev=[], tricks=[]; for(let i=0;i<hist.length;i+=4) tricks.push(hist.slice(i,i+4));
+  const later={0:[],1:[],2:[],3:[]}; tricks.forEach((tr,t)=>tr.forEach(pl=>later[pl.seat].push({t,cards:pl.cards})));
+  tricks.forEach((tr,t)=>{ if(tr.length<4||!tr[0]||tr[0].cards.length!==1||tr[0].seat===view.seat) return;
+    const s=tr[0].seat, after=[]; for(const x of later[s]) if(x.t>t) after.push(...x.cards);
+    ev.push({s,lc:tr[0].cards[0],after,y:leadClass8(tr[0].cards[0],T),dt:s%2===view.declSeat%2}); });
+  return ev;
+}
+function leadHistLik(LE, w, T, humanSeat){
+  let L=1;
+  for(const e of LE){ const H=w.hands[e.s]; if(!H) continue;
+    const W=humanSeat===e.s&&AIP.leadModelHuman?AIP.leadModelHuman:AIP.leadModelAI; if(!W) continue;
+    L*=Math.max(leadLik(W,H.concat(e.after,[e.lc]),T,e.dt,e.y),0.01); }
+  return L;
+}
+function followLik(FE, w, T, humanSeat){
+  let L=1;
+  for(const e of FE){ const H=w.hands[e.s]; if(!H) continue;
+    const hand=H.concat(e.later), r=willP(T,e.before,e.s,hand,hand.length,e.behind,humanSeat===e.s);
+    const p=r.p||0; L*=e.beat?Math.max(p,0.02):Math.max(1-p,0.02); }
+  return Math.pow(L,AIP.followInferT||1);
+}
 function makeBelief(view, plays, M){
   const trump=view.trump, n=view.hand.length;
   const mem=makeMemory(view);
@@ -5391,19 +5449,22 @@ function makeBelief(view, plays, M){
   const reads=makeReads(hist,trump);
   const capMemo={};   // 上界只取决于(座, 门),一次决策里不变 —— 抽样时每张牌每家都要问一遍,记下来
   const capOf=(s,su)=>{ const k=s+su; return capMemo[k]!==undefined?capMemo[k]:(capMemo[k]=maxHoldIn(reads,mem,s,su,trump)); };
-  const known=AIP.beliefDecl?declKnown(view,plays,seats):[];
+  const known=(AIP.beliefDecl?declKnown(view,plays,seats):[]).concat(view._pin||[]);   // _pin:只给量具用(test/calib-teamwin.js PIN=),把某家的部分真实手牌钉住
   const ctx={unseen,sizes,seats,voids,trump,kittySize,capOf,known,pVoidOf:null};
   const rand=rng(hist.length*7919+view.seat*31+n*17+7);
   const worlds=[], MM=M||AIP.beliefM;
   // 领出推断(leadInfer = 池子倍数 k,0 = 旧行为):别人单张领出的这墩,先抽 k×M 个世界,按「领出那家在这个世界的手牌下领这一类」的概率重抽 M 个
   const L=plays&&plays.length&&plays[0].seat!==view.seat&&plays[0].cards.length===1?plays[0].seat:-1;
   const LM=L>=0&&AIP.leadInfer?(view.humanSeat===L&&AIP.leadModelHuman?AIP.leadModelHuman:AIP.leadModelAI):null;
-  const pool=LM?MM*AIP.leadInfer:MM;
+  const FE=AIP.followInfer?followEvents(view,plays,trump):null;
+  const LE=AIP.leadInferHist?leadEvents(view,trump):null;
+  const pool=Math.max(LM?MM*AIP.leadInfer:MM,FE&&FE.length?MM*AIP.followInfer:MM,LE&&LE.length?MM*AIP.leadInferHist:MM);
   for(let i=0;i<pool;i++){ const w=sampleWorld(ctx,rand); if(w) worlds.push(w); }
-  if(LM&&worlds.length>MM){
-    const lc=plays[0].cards[0], y=leadClass8(lc,trump), dt=L%2===view.declSeat%2;
-    const wt=worlds.map(w=>leadLik(LM,w.hands[L].concat([lc]),trump,dt,y));
-    const tot=wt.reduce((a,b)=>a+b,0), out=[]; let u=rand()*tot/MM, acc=0, j=0;
+  if((LM||(FE&&FE.length)||(LE&&LE.length))&&worlds.length>MM){
+    const lc=LM?plays[0].cards[0]:null, y=LM?leadClass8(lc,trump):0, dt=L%2===view.declSeat%2;
+    const wt=worlds.map(w=>(LM?leadLik(LM,w.hands[L].concat([lc]),trump,dt,y):1)*(FE&&FE.length?followLik(FE,w,trump,view.humanSeat):1)*(LE&&LE.length?leadHistLik(LE,w,trump,view.humanSeat):1));
+    const tot=wt.reduce((a,b)=>a+b,0); if(!(tot>0)) return {worlds:worlds.slice(0,MM),mem,seats,trump};
+    const out=[]; let u=rand()*tot/MM, acc=0, j=0;
     for(let i=0;i<MM;i++){ const t=u+i*tot/MM; while(j<worlds.length-1&&acc+wt[j]<t){ acc+=wt[j]; j++; } out.push(worlds[j]); }
     return {worlds:out,mem,seats,trump};
   }
@@ -5871,6 +5932,17 @@ function aiChooseLead(view){
     for(const c of cands) if(c.cards.length===1&&c.cards[0].suit==='X') c.score-=AIP.jokerLeadDef;
   cands.sort((a,b)=>b.score-a.score);
   let best=cands[0]||{cards:[view.hand[0]],reason:'兜底',score:0};
+  /* 没有好领法时钓主(tiaoWhenBad,ai-progress 第四节第 12 项 F,11-07):中盘、首选打分 < tiaoWhenBadThr、手里有不带分的小主(不是王 / 级牌 / 主 A)
+   * → 领最小的那张小主。cf-situations T 类(1200 副、9652 个局面):首选分 < 0 时钓主比 AI 首选 +0.079 ±0.025 级(庄家 +0.136 ±0.041),
+   * 首选分 ≥ 0 时 −0.035(AI 对)。0 = 旧行为。 */
+  if(AIP.tiaoWhenBad&&(AIP.tiaoWhenBad!==2||view.seat===view.declSeat)&&view.hand.length>12&&best.score<AIP.tiaoWhenBadThr){
+    const small=view.hand.filter(c=>effSuit(c,trump)==='T'&&c.suit!=='X'&&c.rank!==trump.rank&&c.rank!==14&&cardPoints(c)===0)
+      .sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump));
+    if(small.length&&!(best.cards.length===1&&small.some(c=>c.id===best.cards[0].id))){
+      const hit=cands.find(q=>q.cards.length===1&&q.cards[0].id===small[0].id);
+      best={...(hit||{score:best.score,suit:'T'}),cards:[small[0]],reason:'没有好领法 —— 钓一张小主,看队友接不接、对手肯花多大的主'};
+    }
+  }
   /* v0.7.0:收官交给搜索。只用它**排序**(目标函数是「净升几级」,和分制不同量纲),
    * 而且要比启发式选中的那个高出 egMargin 级才改判 —— 样本噪声区里仍然听启发式的。 */
   const eg=endgameSearch(view,null,cands.slice(0,AIP.egMaxCands));
@@ -6495,7 +6567,7 @@ function simulateRound(seed, smartSeats=[0,1,2,3]){
 }
 
 /* 引擎公开面 —— 浏览器 #test 与 node 无头测试共用同一份,避免两边漂移 */
-const ENGINE={RULES,makeDeck,willMateFeat,beatChoiceCands,leadClass8,leadHandFeat,leadAvail,leadLik,cardPoints,countPoints,rng,dealRound,
+const ENGINE={RULES,makeDeck,willP,expHoldIn,isBossPlay,willMateFeat,beatChoiceCands,leadClass8,leadHandFeat,leadAvail,leadLik,cardPoints,countPoints,rng,dealRound,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
   canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,clampAtGate,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,

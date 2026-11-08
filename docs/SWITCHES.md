@@ -235,6 +235,17 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
 | `leadInfer` | `0` | (见上方注释)领出推断(信念第 4 步 b):别人单张领出时,抽样世界按领出模型 P(领这一类 \| 他的手牌) 重抽(池子 = k × beliefM)。 | `makeBelief` |
+| `followInfer` | `0` | 跟牌推断:池子倍数 k(0 = 旧行为);抽样世界按「他以前本队输着时压没压」的似然重抽(followEvents / followLik) | `makeBelief` |
+| `followInferT` | `1` | — | `followLik` |
+| `leadInferHist` | `0` | — | `makeBelief` |
+
+### pointWeight 的居中常数(ai-progress 第四节第 12 项 H,产品方 11-07):手定的 0.6、注释「以典型局面为 1」,没有测量依据;
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `pwCenter` | `0.6` | (见上方注释)pointWeight 的居中常数(ai-progress 第四节第 12 项 H,产品方 11-07):手定的 0.6、注释「以典型局面为 1」,没有测量依据; | `pointWeight` |
+| `tiaoWhenBad` | `2` | (v0.7.58 测试版默认 2)1 = 中盘首选打分 < tiaoWhenBadThr 时改领最小的不带分小主(第 12 项 F);2 = 只有庄家这么做;0 = 旧行为 | `aiChooseLead` |
+| `tiaoWhenBadThr` | `0` | — | `aiChooseLead` |
 | `beliefDecl` | `0` | — | `makeBelief` |
 | `beatChoice` | `0` | 1 = 本墩推演里压牌那一叉不再一律「最便宜那张」,按 beatChoiceW 在压得过的牌里取前 3 张加权(beatMix);0 = 旧行为 | `mateCtx` `beatMix` |
 
@@ -570,7 +581,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
-| `tiaoDrawOut` | `0` | (见上方注释)② 钓主里那条「逼对手吐主」的收益。 | `tiaoWangValue` |
+| `tiaoDrawOut` | `1` | (见上方注释)② 钓主里那条「逼对手吐主」的收益。 | `tiaoWangValue` |
 
 ### ② 队友救回来的概率到多少才算「这是一次钓主」。**只影响理由字符串,不影响出牌。**
 

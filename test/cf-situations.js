@@ -1,6 +1,6 @@
 /* 按「局面」(出牌那一刻就能认出来,不看结果)做定点反事实:某条备选规则 vs AI 自己的选择(2026-10-24)。
  *
- *   node test/cf-situations.js [html] [种子数=300]      (SEED0= 起始种子;OV= 覆盖 AIP;DUMP=x.json)
+ *   node test/cf-situations.js [html] [种子数=300]      (SEED0= 起始种子;OV= 覆盖 AIP;DUMP=x.json;SIT=T 只跑某几类)
  *
  * 自对弈(搜索关,快),每遇到一种局面,把「AI 的选择」和每条备选规则各用真 AI 从真实牌打完,记本队净升级 / 本队得分之差(备选 − AI)。
  * 只在备选和 AI 选得不一样时记。不挑「事后最好的」那一手 —— 每条规则单独一个均值,避免「几个里挑最好」的赢家诅咒。
@@ -12,6 +12,7 @@
  *   F  第 2 家贴分   第 2 家跟本门、AI 出了分牌    规则:改出最小不带分的
  *   G  领分牌       AI 领出带分的牌               规则:启发式里最好的不带分领出
  *   K  守底时花大牌  庄家方、底里 ≥10 分、手里 ≥4 张、AI 在 ≤5 分的墩上出王 / 主级牌(对)   规则:改出最便宜的合法牌
+ *   T  钓主(第 12 项 F) 中盘、手里有不带分的小主、AI 没领小主   规则:改领最小的那张小主(按角色 / 主张数 / AI 首选分正负分层)
  *   L  末家不吃分   我坐末家、对手暂大、台面 ≥10 分、AI 没吃                                 规则:最省的吃法
  */
 'use strict';
@@ -111,7 +112,18 @@ for(let seed=S0+1;seed<=S0+N;seed++){
           const cl=E.classify(cards,T);
           if(alt) tests.push(['G',`${cl.suit==='T'?'主':'副'}${cl.type==='single'?'单张':'成组'}·${hand.length>12?'中盘':'收官'}`,'改领最好的不带分',alt.cards]);
         }
+        // T 钓主(ai-progress 第四节第 12 项 F,产品方 11-07):中盘、手里有不带分的小主(不是王 / 级牌 / 主 A)、AI 没领小主 → 改领最小的那张小主
+        if(hand.length>12){
+          const small=hand.filter(y=>E.effSuit(y,T)==='T'&&y.suit!=='X'&&y.rank!==T.rank&&y.rank!==14&&E.cardPoints(y)===0).sort((a,b)=>E.ordIdx(a,T)-E.ordIdx(b,T));
+          const cl=E.classify(cards,T), aiSmallT=cl&&cl.suit==='T'&&cl.type==='single'&&small.some(y=>y.id===cards[0].id);
+          if(small.length&&!aiSmallT){
+            const nT=hand.filter(y=>E.effSuit(y,T)==='T').length, role=seat===D?'庄家':seat%2===D%2?'帮家':'闲家';
+            const top=(q.all||[])[0], bad=top&&top.score<0?'首选分<0':'首选分≥0';
+            tests.push(['T',`${role}·主${nT<=5?'≤5':nT<=8?'6~8':'≥9'}张·${bad}`,'改领最小的小主',[small[0]]]);
+          }
+        }
       }
+      if(process.env.SIT){ const keep=process.env.SIT; for(let z=tests.length-1;z>=0;z--) if(!keep.includes(tests[z][0])) tests.splice(z,1); }   // SIT=T:只跑某几类
       if(tests.length){
         const base=playOut(hands,history,plays,leader,T,D,buried,dp,seat,cards);
         for(const [sit,sub,rule,alt] of tests){
