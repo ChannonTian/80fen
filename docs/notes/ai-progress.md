@@ -8,6 +8,8 @@
 
 ## 〇、接手速览(按日期,最新的在最上面)
 
+> **11-08:产品方问麻将 AI LuckyJ 能借鉴什么** → [`external-ai-lessons.md`](external-ai-lessons.md)(LuckyJ / Suphx / DouZero 对照我们的瓶颈;建议先做「局面价值模型」打中盘领出 52% 那个瓶颈)。
+
 > **11-08(先看这条):v0.7.59 = 第 12 项第二批里过关的只有 G(`throwEval 1` + `throwFailPen 10`)。** A / B / F(帮家)都持平不开。 ① **A `trumpTeam`(默认 0):** `drawTrumpValue` 改成 (我 + 队友) − 两对手、在信念世界里数(亮主钉牌照用);
 > 中盘 1242 个领出上和真实按队差的相关 旧式 0.497 → 均匀 + 区间 0.668 → **信念世界 0.751**。旧式恒偏负(均值 −3.6 张)、别的常数围着它标 →
 > 平移 `trumpTeamShift 5.4` 让均值对齐,`trumpTeamScale` 1 / 0.56 两档。**整局都持平:h2h 3 × 350 −0.25 ±0.20 / −0.30 ±0.22 分,pool 8 × 25 −0.04 / +0.04 分 → 不开**(negative-results 二十)。
