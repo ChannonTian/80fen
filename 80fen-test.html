@@ -1493,6 +1493,8 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   pwCenter: 0.6,
   tiaoWhenBad: 2,             // (v0.7.58 测试版默认 2)1 = 中盘首选打分 < tiaoWhenBadThr 时改领最小的不带分小主(第 12 项 F);2 = 只有庄家这么做;0 = 旧行为
   tiaoWhenBadThr: 0,
+  throwEval: 0,               // 1 = 甩牌在信念世界里按失败概率评估、非全钢板的整门甩牌也进候选(第 12 项 G);0 = 旧行为
+  throwFailPen: 3,            // 甩牌失败的额外代价(被拦下、亮了牌型)
   trumpTeam: 0,               // 1 = drawTrumpValue 改成按队、在信念世界里数主(第 12 项 A);0 = 旧行为(一家比两家的均匀份额)
   trumpTeamShift: 5.4,        // 平移:中盘领出上 按队信念均值 1.76 − 旧式均值 −3.62
   trumpTeamScale: 1,          // 缩放:0.56 = 波动压回旧式的大小(sd 4.11 → 2.29)
@@ -5022,6 +5024,30 @@ function scoreLeadCore(L, cl, cards){
   const ruffable=ruffP>0.5;
   const fut=futureValue(cards,L);              // 机会成本:这手留着以后值多少
   if(cl.type==='throw'){
+    /* 甩牌按失败概率评估(throwEval,ai-progress 第四节第 12 项 G,产品方 ①):在信念世界里照 checkThrow 的规则逐个世界判 ——
+     * 有别家压得住任何一组 → 失败,只出被压住的最小一组(按那一组单独领出来打分);没人压得住 → 按「整门最大」的甩牌值,
+     * 对手断这门、主够多则算被毙。取平均。0 = 旧行为(只认全钢板,其余占位 5 − 4 × 带分)。 */
+    if(AIP.throwEval&&L.view&&L.seat!==undefined){
+      const B=L._lB!==undefined?L._lB:(L._lB=makeBelief(L.view,[],AIP.beliefM));
+      if(B&&B.worlds.length){
+        const sBoss=68+size*3+leadPointsEV(L,cl,cards)*1.4*(L.pw||1)-fut*0.35;
+        const others=[0,1,2,3].filter(p=>p!==L.seat), opps=others.filter(p=>p%2!==L.seat%2);
+        const sz=c=>c.cards.length; let acc=0, ok=0;
+        for(const w of B.worlds){
+          const inS=p=>(w.hands[p]||[]).filter(c=>effSuit(c,trump)===cl.suit);
+          const beaten=comps.filter(comp=>others.some(p=>canBeatComp(inS(p),comp,trump)));
+          if(!beaten.length){
+            const ruffed=cl.suit!=='T'&&opps.some(p=>!inS(p).length&&(w.hands[p]||[]).filter(c=>effSuit(c,trump)==='T').length>=size);
+            acc+=ruffed?-(pts*2*(L.pw||1)+size):sBoss; if(!ruffed) ok++;
+          }else{
+            const low=beaten.reduce((a,c)=>sz(c)!==sz(a)?(sz(c)<sz(a)?c:a):(c.top<a.top?c:a));
+            const lcl=classify(low.cards,trump); acc+=(lcl?scoreLeadCore(L,lcl,low.cards).score:-20)-AIP.throwFailPen;
+          }
+        }
+        const pOk=ok/B.worlds.length;
+        return {score:acc/B.worlds.length,reason:pOk>=0.8?'甩牌多半甩得成':`甩牌:约 ${Math.round(100*(1-pOk))}% 会被拦下`,pWin:pOk};
+      }
+    }
     if(allBoss&&!ruffable)
       return {score:68+size*3+leadPointsEV(L,cl,cards)*1.4*(L.pw||1)-fut*0.35,
               reason:'整门都是最大,甩牌施压',pWin:LEAD_PWIN.throwBoss};
@@ -5895,7 +5921,7 @@ function aiChooseLead(view){
       const cl=classify(bySuit[s],trump);
       if(cl&&cl.type==='throw'){
         const r=scoreLeadPlay(L,cl,bySuit[s]);
-        if(r.score>40) cands.push({cards:bySuit[s],score:r.score,reason:r.reason});
+        if(r.score>40||AIP.throwEval) cands.push({cards:bySuit[s],score:r.score,reason:r.reason});   // throwEval:按失败概率打过分,交给排序
       }
     }
     /* 甩**子集**:本门里压不住的那几组一起甩,把带不动的小牌留下。
