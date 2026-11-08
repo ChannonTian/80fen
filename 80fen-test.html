@@ -1493,6 +1493,9 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   pwCenter: 0.6,
   tiaoWhenBad: 2,             // (v0.7.58 测试版默认 2)1 = 中盘首选打分 < tiaoWhenBadThr 时改领最小的不带分小主(第 12 项 F);2 = 只有庄家这么做;0 = 旧行为
   tiaoWhenBadThr: 0,
+  trumpTeam: 0,               // 1 = drawTrumpValue 改成按队、在信念世界里数主(第 12 项 A);0 = 旧行为(一家比两家的均匀份额)
+  trumpTeamShift: 5.4,        // 平移:中盘领出上 按队信念均值 1.76 − 旧式均值 −3.62
+  trumpTeamScale: 1,          // 缩放:0.56 = 波动压回旧式的大小(sd 4.11 → 2.29)
   _leadCapture: null,         // 只给量具用:{} 时 scoreLeadEV / scoreLeadPlay 把打分分项写进 .last(test/lead-rank.js CAPTURE=1)           // 过去所有单张领出也进似然(池子倍数 k,0 = 旧行为;leadEvents / leadHistLik)            // 似然的指数(<1 = 打折,防止少数世界独大)
   beliefDecl: 0,
   beatChoice: 0,              // 1 = 本墩推演里压牌那一叉不再一律「最便宜那张」,按 beatChoiceW 在压得过的牌里取前 3 张加权(beatMix);0 = 旧行为
@@ -4692,6 +4695,19 @@ const LEAD_PWIN={throwBoss:0.95, boss:0.95, tractor:0.60, pair:0.45, single:0.25
 function drawTrumpValue(L){
   if(L._dt!==undefined) return L._dt;
   const {mem,trump}=L;
+  /* 主牌按队算(trumpTeam,ai-progress 第四节第 12 项 A,产品方 ④「主牌价值问题最大」):(我 + 队友) − 两个对手,队友 / 对手的张数在信念世界里数
+   * (亮主钉牌照用)。中盘 1242 个领出:和真实按队差的相关 旧式 0.497 → 0.751。旧式一家比两家、恒偏负(均值 −3.6 张),
+   * 别的常数是围着这个偏差标的 —— 所以平移 trumpTeamShift 让均值和旧式对齐、只换进「谁真有主」的信息;trumpTeamScale 缩放波动。0 = 旧行为。 */
+  if(AIP.trumpTeam&&L.view&&L.seat!==undefined){
+    const sv=AIP.beliefDecl; AIP.beliefDecl=1;
+    const B=makeBelief(L.view,[],AIP.beliefM); AIP.beliefDecl=sv;
+    if(B&&B.worlds.length){
+      const mate=(L.seat+2)%4, o1=(L.seat+1)%4, o2=(L.seat+3)%4, nT=h=>(h||[]).filter(c=>effSuit(c,trump)==='T').length;
+      let d=0; for(const w of B.worlds) d+=L.nTrump+nT(w.hands[mate])-nT(w.hands[o1])-nT(w.hands[o2]);
+      d/=B.worlds.length;
+      return L._dt=clamp(AIP.drawTrumpUnit*(d-AIP.trumpTeamShift)*AIP.trumpTeamScale,-AIP.drawTrumpCap,AIP.drawTrumpCap);
+    }
+  }
   let unseenTotal=0, unseenTrump=0;
   for(const k in mem.unseen){
     const n=mem.unseen[k]; if(n<=0) continue;
@@ -6567,7 +6583,7 @@ function simulateRound(seed, smartSeats=[0,1,2,3]){
 }
 
 /* 引擎公开面 —— 浏览器 #test 与 node 无头测试共用同一份,避免两边漂移 */
-const ENGINE={RULES,makeDeck,willP,expHoldIn,isBossPlay,willMateFeat,beatChoiceCands,leadClass8,leadHandFeat,leadAvail,leadLik,cardPoints,countPoints,rng,dealRound,
+const ENGINE={RULES,makeDeck,willP,expHoldIn,drawTrumpValue,isBossPlay,willMateFeat,beatChoiceCands,leadClass8,leadHandFeat,leadAvail,leadLik,cardPoints,countPoints,rng,dealRound,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
   canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,clampAtGate,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
