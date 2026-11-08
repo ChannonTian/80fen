@@ -1493,6 +1493,9 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   pwCenter: 0.6,
   tiaoWhenBad: 2,             // (v0.7.58 测试版默认 2)1 = 中盘首选打分 < tiaoWhenBadThr 时改领最小的不带分小主(第 12 项 F);2 = 只有庄家这么做;3 = 庄家方(庄家 + 帮家);0 = 旧行为
   tiaoWhenBadThr: 0,
+  followFix: 0,               // 跟牌快修(位开关):1 = 没把握时不送副牌分、2 = 断门有主就毙;0 = 旧行为
+  followFixMargin: 8,         // 位 2:首选不带分时,毙的分差在这之内才改
+  followFixP: 0.4,            // 位 1:本队拿下的估计低于这个才算「没把握」
   throwEval: 1,               // (v0.7.59 测试版默认开)1 = 甩牌在信念世界里按失败概率评估、非全钢板的整门甩牌也进候选(第 12 项 G);0 = 旧行为
   throwFailPen: 10,           // 甩牌失败的额外代价(被拦下、亮了牌型);3 时每局甩 1.28 次、失败 12%,10 时 1.20 次、8%
   trumpTeam: 0,               // 1 = drawTrumpValue 改成按队、在信念世界里数主(第 12 项 A);0 = 旧行为(一家比两家的均匀份额)
@@ -4395,6 +4398,27 @@ function aiChooseFollow(view, plays, extra){
         .map(x=>({x,s:coachScoreFollow(view,plays,[x])})).sort((a,b)=>b.s-a.s);
       if(dumps.length) best={cards:[dumps[0].x],cat:'dump',score:dumps[0].s,
         reason:`队友多半断这门、会毙 —— 先把这 ${cardPoints(dumps[0].x)} 分贴上去`};
+    }
+    /* 跟牌快修(followFix,11-08,产品方 + 玩家出牌标记):真人牌谱里 AI 座位 ——
+     *   P1「对手暂大、自己不压、有不带分的牌却送副牌分」占跟牌 3.3%(真人 1.4%);
+     *   P2「断门有主却不毙(对手暂大或台面有分)」27%(真人 15%),其中 116 次还顺手垫了分。
+     * 位 2:断门、有主、对手暂大或台面有分、首选不是主 → 改用最好的那手毙(首选带分时一律改;不带分时毙的分差在 followFixMargin 内才改)。
+     * 位 1:对手暂大、首选不压、出的是副牌分牌、这墩本队拿下的估计 < followFixP、有不带分的合法牌 → 改出最好的不带分那手。0 = 旧行为。 */
+    if(AIP.followFix&&lead.type==='single'&&best.cards.length===1&&!X.partnerWinning){
+      const c=best.cards[0], cPts=cardPoints(c), wins=x=>currentWinner([...plays,{seat:view.seat,cards:[x]}],trump).seat===view.seat;
+      const voidS=lead.suit!=='T'&&!view.hand.some(x=>effSuit(x,trump)===lead.suit);
+      let fixed=false;
+      if(AIP.followFix&2&&voidS&&effSuit(c,trump)!=='T'&&view.hand.some(x=>effSuit(x,trump)==='T')){
+        const ruffs=cands.filter(q=>q.cards.length===1&&effSuit(q.cards[0],trump)==='T'&&wins(q.cards[0]));
+        if(ruffs.length&&(cPts>0||ruffs[0].score>=best.score-AIP.followFixMargin)){
+          best={...ruffs[0],reason:'这门断了 —— 毙下来,不往对手那里垫'}; fixed=true; }
+      }
+      if(!fixed&&AIP.followFix&1&&effSuit(c,trump)!=='T'&&cPts>0&&!wins(c)&&pTeamWin(X,[c],false)<AIP.followFixP){
+        const alt=cands.filter(q=>q.cards.length===1&&cardPoints(q.cards[0])===0)[0]
+          ||(()=>{ const xs=view.hand.filter(x=>cardPoints(x)===0&&isLegalFollow(view.hand,lead,[x],trump)).sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump));
+                   return xs.length?{cards:[xs[0]],cat:'cheap',score:best.score}:null; })();
+        if(alt) best={...alt,reason:'这墩多半是对手的 —— 不带分的先出,分留着'};
+      }
     }
     const eg=endgameSearch(view,plays,cands.slice(0,AIP.egMaxCands));
     if(eg){
