@@ -1491,7 +1491,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   /* pointWeight 的居中常数(ai-progress 第四节第 12 项 H,产品方 11-07):手定的 0.6、注释「以典型局面为 1」,没有测量依据;
    * (闲家已得, 剩余分) 网格上高斯包络中位数 0.92、均值 0.80 —— pw 多数时候 > 1,而它只乘本墩 EV、不乘留手和牌权,整体偏向「现在兑现」。0.6 = 旧行为。 */
   pwCenter: 0.6,
-  tiaoWhenBad: 2,             // (v0.7.58 测试版默认 2)1 = 中盘首选打分 < tiaoWhenBadThr 时改领最小的不带分小主(第 12 项 F);2 = 只有庄家这么做;0 = 旧行为
+  tiaoWhenBad: 2,             // (v0.7.58 测试版默认 2)1 = 中盘首选打分 < tiaoWhenBadThr 时改领最小的不带分小主(第 12 项 F);2 = 只有庄家这么做;3 = 庄家方(庄家 + 帮家);0 = 旧行为
   tiaoWhenBadThr: 0,
   throwEval: 0,               // 1 = 甩牌在信念世界里按失败概率评估、非全钢板的整门甩牌也进候选(第 12 项 G);0 = 旧行为
   throwFailPen: 3,            // 甩牌失败的额外代价(被拦下、亮了牌型)
@@ -5977,7 +5977,7 @@ function aiChooseLead(view){
   /* 没有好领法时钓主(tiaoWhenBad,ai-progress 第四节第 12 项 F,11-07):中盘、首选打分 < tiaoWhenBadThr、手里有不带分的小主(不是王 / 级牌 / 主 A)
    * → 领最小的那张小主。cf-situations T 类(1200 副、9652 个局面):首选分 < 0 时钓主比 AI 首选 +0.079 ±0.025 级(庄家 +0.136 ±0.041),
    * 首选分 ≥ 0 时 −0.035(AI 对)。0 = 旧行为。 */
-  if(AIP.tiaoWhenBad&&(AIP.tiaoWhenBad!==2||view.seat===view.declSeat)&&view.hand.length>12&&best.score<AIP.tiaoWhenBadThr){
+  if(AIP.tiaoWhenBad&&(AIP.tiaoWhenBad===1||(AIP.tiaoWhenBad===2&&view.seat===view.declSeat)||(AIP.tiaoWhenBad===3&&view.seat%2===view.declSeat%2))&&view.hand.length>12&&best.score<AIP.tiaoWhenBadThr){
     const small=view.hand.filter(c=>effSuit(c,trump)==='T'&&c.suit!=='X'&&c.rank!==trump.rank&&c.rank!==14&&cardPoints(c)===0)
       .sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump));
     if(small.length&&!(best.cards.length===1&&small.some(c=>c.id===best.cards[0].id))){
