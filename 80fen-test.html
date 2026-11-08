@@ -814,7 +814,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.58(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.59(测试版)</div>
 
 
 <script>
@@ -1493,8 +1493,8 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   pwCenter: 0.6,
   tiaoWhenBad: 2,             // (v0.7.58 测试版默认 2)1 = 中盘首选打分 < tiaoWhenBadThr 时改领最小的不带分小主(第 12 项 F);2 = 只有庄家这么做;3 = 庄家方(庄家 + 帮家);0 = 旧行为
   tiaoWhenBadThr: 0,
-  throwEval: 0,               // 1 = 甩牌在信念世界里按失败概率评估、非全钢板的整门甩牌也进候选(第 12 项 G);0 = 旧行为
-  throwFailPen: 3,            // 甩牌失败的额外代价(被拦下、亮了牌型)
+  throwEval: 1,               // (v0.7.59 测试版默认开)1 = 甩牌在信念世界里按失败概率评估、非全钢板的整门甩牌也进候选(第 12 项 G);0 = 旧行为
+  throwFailPen: 10,           // 甩牌失败的额外代价(被拦下、亮了牌型);3 时每局甩 1.28 次、失败 12%,10 时 1.20 次、8%
   trumpTeam: 0,               // 1 = drawTrumpValue 改成按队、在信念世界里数主(第 12 项 A);0 = 旧行为(一家比两家的均匀份额)
   trumpTeamShift: 5.4,        // 平移:中盘领出上 按队信念均值 1.76 − 旧式均值 −3.62
   trumpTeamScale: 1,          // 缩放:0.56 = 波动压回旧式的大小(sd 4.11 → 2.29)

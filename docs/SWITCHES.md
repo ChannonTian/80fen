@@ -222,7 +222,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `egRolloutAI` | `0` | (见上方注释)推演用真正的 AI 打完(而不是 rolloutLead / rolloutFollow 那套便宜策略)。 | `endgameSearch` |
 | `willW` | `null` | 后手对手「拿得出」时真会压 / 毙的意愿模型(test/fit-will.js);null = pSurviveBelief 用旧意愿常数 | `pSurviveBelief` `survB` |
 | `beliefSurv` | `20` | (v0.7.44 测试版默认 20 = 4+16;v0.7.42 起是 4)位开关:1 = 跟牌压牌候选、2 = 队友暂大的确定性、4 = 整个 pTeamWin 换成逐世界走完本墩(teamWinBelief)、8 = 领出单张的 leadWinP 也换、16 = 跟牌打分的期望分 ev 也换成逐世界走完本墩(trickEVBelief,含放分模型 dumpExp) —— 改用抽样信念 + 拟合意愿(见 survB);0 = 旧行为 | `pTeamWin` `followCtx` `scorePlay` `leadWinP` |
-| `beliefM` | `30` | 信念服务每次抽几个世界(30 与 60 一样准,5 ms) | `pTeamWin` `scorePlay` `leadWinBelief` `makeBelief` `survB` |
+| `beliefM` | `30` | 信念服务每次抽几个世界(30 与 60 一样准,5 ms) | `pTeamWin` `scorePlay` `drawTrumpValue` `leadWinBelief` `scoreLeadCore` `makeBelief` `survB` |
 
 ### 本墩推演(teamWinBelief / trickEVBelief)里「本队暂大 → 跟小」写死了:第 2 家把分垫给后面的队友时,第 3 家看着他队友那张小牌暂大就永远不毙
 
@@ -244,9 +244,15 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
 | `pwCenter` | `0.6` | (见上方注释)pointWeight 的居中常数(ai-progress 第四节第 12 项 H,产品方 11-07):手定的 0.6、注释「以典型局面为 1」,没有测量依据; | `pointWeight` |
-| `tiaoWhenBad` | `2` | (v0.7.58 测试版默认 2)1 = 中盘首选打分 < tiaoWhenBadThr 时改领最小的不带分小主(第 12 项 F);2 = 只有庄家这么做;0 = 旧行为 | `aiChooseLead` |
+| `tiaoWhenBad` | `2` | (v0.7.58 测试版默认 2)1 = 中盘首选打分 < tiaoWhenBadThr 时改领最小的不带分小主(第 12 项 F);2 = 只有庄家这么做;3 = 庄家方(庄家 + 帮家);0 = 旧行为 | `aiChooseLead` |
 | `tiaoWhenBadThr` | `0` | — | `aiChooseLead` |
-| `beliefDecl` | `0` | — | `makeBelief` |
+| `throwEval` | `1` | (v0.7.59 测试版默认开)1 = 甩牌在信念世界里按失败概率评估、非全钢板的整门甩牌也进候选(第 12 项 G);0 = 旧行为 | `scoreLeadCore` `aiChooseLead` |
+| `throwFailPen` | `10` | 甩牌失败的额外代价(被拦下、亮了牌型);3 时每局甩 1.28 次、失败 12%,10 时 1.20 次、8% | `scoreLeadCore` |
+| `trumpTeam` | `0` | 1 = drawTrumpValue 改成按队、在信念世界里数主(第 12 项 A);0 = 旧行为(一家比两家的均匀份额) | `drawTrumpValue` |
+| `trumpTeamShift` | `5.4` | 平移:中盘领出上 按队信念均值 1.76 − 旧式均值 −3.62 | `drawTrumpValue` |
+| `trumpTeamScale` | `1` | 缩放:0.56 = 波动压回旧式的大小(sd 4.11 → 2.29) | `drawTrumpValue` |
+| `beliefDecl` | `0` | — | `drawTrumpValue` `makeBelief` |
+| `beliefAceRead` | `0` | 1 = 抽样世界里「光领过副牌 A 的那家」没有这门第二张 A(aceReads,拒绝采样);0 = 旧行为 | `makeBelief` |
 | `beatChoice` | `0` | 1 = 本墩推演里压牌那一叉不再一律「最便宜那张」,按 beatChoiceW 在压得过的牌里取前 3 张加权(beatMix);0 = 旧行为 | `mateCtx` `beatMix` |
 
 ### 推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。
