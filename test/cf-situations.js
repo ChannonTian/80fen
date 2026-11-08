@@ -119,7 +119,9 @@ for(let seed=S0+1;seed<=S0+N;seed++){
           if(small.length&&!aiSmallT){
             const nT=hand.filter(y=>E.effSuit(y,T)==='T').length, role=seat===D?'庄家':seat%2===D%2?'帮家':'闲家';
             const top=(q.all||[])[0], bad=top&&top.score<0?'首选分<0':'首选分≥0';
-            tests.push(['T',`${role}·主${nT<=5?'≤5':nT<=8?'6~8':'≥9'}张·${bad}`,'改领最小的小主',[small[0]]]);
+            // TROLE=帮家 / TBAD=1:只记某个角色、只记首选分 < 0 的(补样本用,省掉其余局面的续打)
+            if((!process.env.TROLE||process.env.TROLE===role)&&(!process.env.TBAD||bad==='首选分<0'))
+              tests.push(['T',`${role}·主${nT<=5?'≤5':nT<=8?'6~8':'≥9'}张·${bad}`,'改领最小的小主',[small[0]]]);
           }
         }
       }
