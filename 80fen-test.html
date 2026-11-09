@@ -1507,6 +1507,17 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
                               // 位 2 不带位 4(一律毙)整局 pool −4.29 分,见 negative-results 二十一
   followFixMargin: 8,         // 位 2:首选不带分时,毙的分差在这之内才改
   followFixP: 0.4,            // 位 1:本队拿下的估计低于这个才算「没把握」
+  /* 玩家标记快修(flagFix,11-10,产品方 v0.7.58~60 的 14 手标记,test/records-flags.js):位开关,0 = 旧行为。
+   *   1 = 毙小主几乎不增胜算就垫:断门、首选是毙,「毙」比「垫最小的不带分副牌」本队拿下只多 < ruffFixGain(或 × 台面分 < ruffFixPts)→ 改垫
+   *       (5f83443a 毙 ♥7 62% vs 垫 60%、打分 23 vs 4;3a4cab2c 毙 ♦6 9% vs 垫 4%;3f63ea70 毙 ♠2 25% vs 14%)
+   *   2 = 设防:毙小主本队拿下 < 0.5、台面 ≥ ruffFixHiPts 时,改用能让本队拿下 ≥ ruffFixHiP 的最小一张主(3a4cab2c 小王 61%)
+   *   4 = 收官搜索不把「不带分的首选」改判成本队拿下 < followFixP 的贴分(3a4cab2c 第 12 墩:搜索 20 样本把垫 ♣4 改成贴 ♥K,估 8%)
+   *   8 = followFix 位 1 也管主牌分(3f63ea70 第 16 墩:♠10 / ♠Q 都 2%,贴了 10);替上去的不能是王、级牌、主 A */
+  flagFix: 0,
+  ruffFixGain: 0.15,
+  ruffFixPts: 2,
+  ruffFixHiP: 0.6,
+  ruffFixHiPts: 10,
   /* 分牌命运(followFate,11-09,产品方:「留着的分牌是在找更高概率得利的机会」—— 单一概率 + 阈值管不住):
    * 1 = followFix 位 1 不再看 followFixP,改比两个期望:现在贴 = 本队拿下(贴之后)×(台面 + 这张);
    * 留着 = 本队拿下(出不带分的)× 台面 + fateP(这张最后归本队的概率,test/fit-fate.js 从自对弈拟合)× 这张。留着多出 followFateMargin 分才改。0 = 旧行为。 */
@@ -4432,10 +4443,12 @@ function aiChooseFollow(view, plays, extra){
         if(ruffs.length&&(cPts>0||ruffs[0].score>=best.score-AIP.followFixMargin)&&(!(AIP.followFix&4)||pTeamWin(X,[c],false)<AIP.followFixP)){
           best={...ruffs[0],reason:'这门断了 —— 毙下来,不往对手那里垫'}; fixed=true; }
       }
-      if(!fixed&&AIP.followFix&1&&effSuit(c,trump)!=='T'&&cPts>0&&!wins(c)&&(AIP.followFate||pTeamWin(X,[c],false)<AIP.followFixP)){
+      if(!fixed&&AIP.followFix&1&&(effSuit(c,trump)!=='T'||AIP.flagFix&8)&&cPts>0&&!wins(c)&&(AIP.followFate||pTeamWin(X,[c],false)<AIP.followFixP)){
         // 位 8:替上去的那张不能是 A、也不能是同门里比原来那张大的 —— 否则 ♥A K 10 被领 A 压死时会拿 A 去换 10(自测「副门被压死时出10留A+K」)。
         // (先试过 cheapKey 比大小:跨花色比较不可靠,pool −0.21 ±0.21 分 / −0.010 ±0.005 级)
-        const cheapOK=q=>{ if(!(AIP.followFix&8)) return true; const a=q.cards[0];
+        const cheapOK=q=>{ const a=q.cards[0];
+          if(effSuit(c,trump)==='T') return a.suit!=='X'&&a.rank!==trump.rank&&a.rank!==14;   // 主牌分(flagFix 8):别拿王 / 级牌 / 主 A 去换
+          if(!(AIP.followFix&8)) return true;
           return a.rank!==14&&!(effSuit(a,trump)===effSuit(c,trump)&&ordIdx(a,trump)>ordIdx(c,trump)); };
         const alt=cands.filter(q=>q.cards.length===1&&cardPoints(q.cards[0])===0&&cheapOK(q))[0]
           ||(()=>{ const xs=view.hand.filter(x=>cardPoints(x)===0&&isLegalFollow(view.hand,lead,[x],trump)&&cheapOK({cards:[x]})).sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump));
@@ -4449,10 +4462,31 @@ function aiChooseFollow(view, plays, extra){
         if(keep) best={...alt,reason:'这墩多半是对手的 —— 不带分的先出,分留着'};
       }
     }
+    /* flagFix 1 / 2:毙小主几乎不增胜算 → 垫;毙小主多半被盖、台面够大 → 用能稳住的那张主(设防) */
+    if((AIP.flagFix&3)&&lead.type==='single'&&lead.suit!=='T'&&best.cards.length===1&&!X.isLast
+       &&effSuit(best.cards[0],trump)==='T'&&!view.hand.some(x=>effSuit(x,trump)===lead.suit)
+       &&currentWinner([...plays,{seat:view.seat,cards:best.cards}],trump).seat===view.seat){
+      const r0=best.cards[0], tbl=X.ptsTable||0, pR=pTeamWin(X,[r0],true);
+      let done=false;
+      if(AIP.flagFix&2&&pR<0.5&&tbl>=AIP.ruffFixHiPts){
+        const hi=view.hand.filter(x=>effSuit(x,trump)==='T'&&ordIdx(x,trump)>ordIdx(r0,trump)).sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump))
+          .find(x=>pTeamWin(X,[x],true)>=AIP.ruffFixHiP);
+        if(hi){ best={cards:[hi],cat:'ruff',score:best.score,reason:'后手会盖毙 —— 毙就毙到稳住为止'}; done=true; }
+      }
+      if(!done&&AIP.flagFix&1){
+        const ds=view.hand.filter(x=>effSuit(x,trump)!=='T'&&cardPoints(x)===0).sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump));
+        if(ds.length){ const pD=pTeamWin(X,[ds[0]],false), g=pR-pD;
+          if(g<AIP.ruffFixGain||g*tbl<AIP.ruffFixPts)
+            best={cards:[ds[0]],cat:'cheap',score:best.score,reason:`毙了也多半被盖(本队拿下 ${Math.round(100*pR)}% vs 垫 ${Math.round(100*pD)}%)—— 主留着,垫一张小的`}; }
+      }
+    }
     const eg=endgameSearch(view,plays,cands.slice(0,AIP.egMaxCands));
     if(eg){
       const cur=eg.find(o=>o.cards===best.cards);
-      const top=egOverride(eg,cur);
+      let top=egOverride(eg,cur);
+      /* flagFix 4:首选不带分时,搜索不能把它改判成「贴分、自己不压、本队拿下 < followFixP」的那手(样本少时搜索会这么改) */
+      if(top&&AIP.flagFix&4&&lead.type==='single'&&top.cards.length===1&&countPoints(best.cards)===0&&cardPoints(top.cards[0])>0
+         &&currentWinner([...plays,{seat:view.seat,cards:top.cards}],trump).seat!==view.seat&&pTeamWin(X,top.cards,false)<AIP.followFixP) top=null;
       if(top){
         const c=cands.find(x=>x.cards===top.cards);
         if(c) best={...c,reason:'收官推演:'+c.reason+`(${eg.samples}样本,净升 ${top.u.toFixed(2)} 级)`};
