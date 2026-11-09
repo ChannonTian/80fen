@@ -197,6 +197,12 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 |---|---|---|---|
 | `egKittyPtW` | `0.6` | 分牌进底牌的相对权重(1 = 和闲牌一样容易被埋) | `sampleWorld` |
 
+### 底牌按点数加权(egKittyRankW,11-09):AI 庄家实际埋牌比例(1500 副,副牌):3 76% · 4 72% · 5 47% · 6 60% · 7 51% · 8 42% · 9 33% · 10 18% · J 23% · Q 20% · K 10% · A 0。
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `egKittyRankW` | `null` | (见上方注释)底牌按点数加权(egKittyRankW,11-09):AI 庄家实际埋牌比例(1500 副,副牌):3 76% · 4 72% · 5 47% · 6 60% · 7 51% · | `sampleWorld` |
+
 ### 收官抽样:把亮主者亮出的那几张(级牌 / 王对)钉在他手里 —— 硬信息,不是推断
 
 | 参数 | 默认 | 说明 | 读取于 |
@@ -222,7 +228,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `egRolloutAI` | `0` | (见上方注释)推演用真正的 AI 打完(而不是 rolloutLead / rolloutFollow 那套便宜策略)。 | `endgameSearch` |
 | `willW` | `null` | 后手对手「拿得出」时真会压 / 毙的意愿模型(test/fit-will.js);null = pSurviveBelief 用旧意愿常数 | `pSurviveBelief` `survB` |
 | `beliefSurv` | `20` | (v0.7.44 测试版默认 20 = 4+16;v0.7.42 起是 4)位开关:1 = 跟牌压牌候选、2 = 队友暂大的确定性、4 = 整个 pTeamWin 换成逐世界走完本墩(teamWinBelief)、8 = 领出单张的 leadWinP 也换、16 = 跟牌打分的期望分 ev 也换成逐世界走完本墩(trickEVBelief,含放分模型 dumpExp) —— 改用抽样信念 + 拟合意愿(见 survB);0 = 旧行为 | `pTeamWin` `followCtx` `scorePlay` `leadWinP` |
-| `beliefM` | `30` | 信念服务每次抽几个世界(30 与 60 一样准,5 ms) | `pTeamWin` `scorePlay` `drawTrumpValue` `leadWinBelief` `scoreLeadCore` `makeBelief` `survB` |
+| `beliefM` | `30` | 信念服务每次抽几个世界(30 与 60 一样准,5 ms) | `pTeamWin` `scorePlay` `aiChooseFollow` `drawTrumpValue` `leadWinBelief` `scoreLeadCore` `makeBelief` `survB` |
 
 ### 本墩推演(teamWinBelief / trickEVBelief)里「本队暂大 → 跟小」写死了:第 2 家把分垫给后面的队友时,第 3 家看着他队友那张小牌暂大就永远不毙
 
@@ -239,6 +245,14 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `followInferT` | `1` | — | `followLik` |
 | `leadInferHist` | `0` | — | `makeBelief` |
 
+### 领小不握大(leadTopRead,11-09,产品方情形 A:「对手领过这门却没出大牌 → 大牌在队友手里」):别人单张领出副牌、领的不是这门当时在外最大的 ——
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `leadTopRead` | `0` | (见上方注释)领小不握大(leadTopRead,11-09,产品方情形 A:「对手领过这门却没出大牌 → 大牌在队友手里」):别人单张领出副牌、领的不是这门当时在外最大的 —— | `leadTopEvents` `makeBelief` |
+| `leadTopReadAtk` | `null` | — | `leadTopEvents` |
+| `beliefNoReads` | `0` | 1 = makeBelief 抽样不用「他会先出最便宜 / 贴最大的分」两条软读牌上界(硬断门照用;11-09 查大牌估低用);0 = 旧行为 | `makeBelief` |
+
 ### pointWeight 的居中常数(ai-progress 第四节第 12 项 H,产品方 11-07):手定的 0.6、注释「以典型局面为 1」,没有测量依据;
 
 | 参数 | 默认 | 说明 | 读取于 |
@@ -249,13 +263,22 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `followFix` | `7` | (v0.7.60 测试版默认 7)跟牌快修(位开关):1 = 没把握时不送副牌分、2 = 断门有主就毙、4 = 位 2 只在垫上去本队拿下 < followFixP 时;0 = 旧行为 | `aiChooseFollow` |
 | `followFixMargin` | `8` | 位 2:首选不带分时,毙的分差在这之内才改 | `aiChooseFollow` |
 | `followFixP` | `0.4` | 位 1:本队拿下的估计低于这个才算「没把握」 | `aiChooseFollow` |
+
+### 分牌命运(followFate,11-09,产品方:「留着的分牌是在找更高概率得利的机会」—— 单一概率 + 阈值管不住):
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `followFate` | `0` | (见上方注释)分牌命运(followFate,11-09,产品方:「留着的分牌是在找更高概率得利的机会」—— 单一概率 + 阈值管不住): | `aiChooseFollow` |
+| `followFateMargin` | `0` | — | `aiChooseFollow` |
+| `fateW` | `null` | {b, w:[…]},特征顺序同 fateX;null = 用内置拟合值 | `fateP` |
 | `throwEval` | `1` | (v0.7.59 测试版默认开)1 = 甩牌在信念世界里按失败概率评估、非全钢板的整门甩牌也进候选(第 12 项 G);0 = 旧行为 | `scoreLeadCore` `aiChooseLead` |
 | `throwFailPen` | `10` | 甩牌失败的额外代价(被拦下、亮了牌型);3 时每局甩 1.28 次、失败 12%,10 时 1.20 次、8% | `scoreLeadCore` |
 | `trumpTeam` | `0` | 1 = drawTrumpValue 改成按队、在信念世界里数主(第 12 项 A);0 = 旧行为(一家比两家的均匀份额) | `drawTrumpValue` |
 | `trumpTeamShift` | `5.4` | 平移:中盘领出上 按队信念均值 1.76 − 旧式均值 −3.62 | `drawTrumpValue` |
 | `trumpTeamScale` | `1` | 缩放:0.56 = 波动压回旧式的大小(sd 4.11 → 2.29) | `drawTrumpValue` |
 | `beliefDecl` | `0` | — | `drawTrumpValue` `makeBelief` |
-| `beliefAceRead` | `0` | 1 = 抽样世界里「光领过副牌 A 的那家」没有这门第二张 A(aceReads,拒绝采样);0 = 旧行为 | `makeBelief` |
+| `beliefAceRead` | `0` | — | `makeBelief` |
+| `declVoidBoost` | `0` | 庄家扣底做断门的先验 β:抽样世界权重 × exp(β × 庄家断的副牌门数);0 = 旧行为           // 1 = 抽样世界里「光领过副牌 A 的那家」没有这门第二张 A(aceReads,拒绝采样);0 = 旧行为 | `makeBelief` |
 | `beatChoice` | `0` | 1 = 本墩推演里压牌那一叉不再一律「最便宜那张」,按 beatChoiceW 在压得过的牌里取前 3 张加权(beatMix);0 = 旧行为 | `mateCtx` `beatMix` |
 
 ### 推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。
