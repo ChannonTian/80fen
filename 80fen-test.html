@@ -1451,6 +1451,10 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * 要对上得降到 0.45。主牌 0 张、A 0 张两项两边完全一致。分数上没差别(见上),
    * 但别把这一格当成一个已经标定死的常数。 */
   egKittyPtW: 0.6,            // 分牌进底牌的相对权重(1 = 和闲牌一样容易被埋)
+  /* 底牌按点数加权(egKittyRankW,11-09):AI 庄家实际埋牌比例(1500 副,副牌):3 76% · 4 72% · 5 47% · 6 60% · 7 51% · 8 42% · 9 33% · 10 18% · J 23% · Q 20% · K 10% · A 0。
+   * 旧模型只分「分牌 0.6 / 其他 1」—— Q 和 3 一样容易进底,于是 A 出完之后这门在外最大的 K / Q 被抽进底牌 44~66%(实 15~25%,test/top-odds.js SEATS=1)。
+   * 数组按点数下标给相对权重;null = 旧行为。 */
+  egKittyRankW: null,
   /* 收官抽样:把亮主者亮出的那几张(级牌 / 王对)钉在他手里 —— 硬信息,不是推断
    * (需要 view 带 curDecl / decl,界面、裁判、ai-h2h 都给了)。三批 × 700 种子:
    * +0.29 ±0.19 / −0.07 ±0.17 / −0.05 ±0.17,合并 +0.05 ±0.10,只改变 16% 的种子 ——
@@ -1493,6 +1497,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * leadTopReadAtk:领出的是闲家时用的 q(null = 同 leadTopRead)。0 = 旧行为。 */
   leadTopRead: 0,
   leadTopReadAtk: null,
+  beliefNoReads: 0,           // 1 = makeBelief 抽样不用「他会先出最便宜 / 贴最大的分」两条软读牌上界(硬断门照用;11-09 查大牌估低用);0 = 旧行为
   /* pointWeight 的居中常数(ai-progress 第四节第 12 项 H,产品方 11-07):手定的 0.6、注释「以典型局面为 1」,没有测量依据;
    * (闲家已得, 剩余分) 网格上高斯包络中位数 0.92、均值 0.80 —— pw 多数时候 > 1,而它只乘本墩 EV、不乘留手和牌权,整体偏向「现在兑现」。0.6 = 旧行为。 */
   pwCenter: 0.6,
@@ -5281,7 +5286,7 @@ function sampleWorld(ctx, rand){
      * 这里就按它抽:先从「非主、非 A」的牌里挑底牌,分牌降权,再把其余的牌分给三家。 */
     if(AIP.egKittyModel&&kittySize>0){
       const elig=pool.filter(c=>effSuit(c,trump)!=='T'&&c.rank!==14);
-      const w=c=>cardPoints(c)?AIP.egKittyPtW:1;
+      const w=c=>AIP.egKittyRankW?(AIP.egKittyRankW[c.rank]!==undefined?AIP.egKittyRankW[c.rank]:0.76):cardPoints(c)?AIP.egKittyPtW:1;
       const rest=new Set();
       while(kitty.length<kittySize&&elig.length){
         let tot=0; for(const c of elig) if(!rest.has(c.id)) tot+=w(c);
@@ -5504,7 +5509,7 @@ function leadEvents(view, T){
     ev.push({s,lc:tr[0].cards[0],after,y:leadClass8(tr[0].cards[0],T),dt:s%2===view.declSeat%2}); });
   return ev;
 }
-/* leadTopRead 的事件:别人(不是我)单张领出副牌、领的那张低于这门当时还没出过的最大点(两副牌,同点算最大)。
+/* leadTopRead 的事件:别人(不是我)单张领出副牌、领的那张不高于这门当时还没出过的最大点(两副牌;领的就是最大点时,看他有没有同点的另一张)。
  * 他那一刻的手牌 = 世界里他现在的牌 + 他从那一墩起打出的牌(含领的那张)。 */
 function leadTopEvents(view, plays, T){
   const hist=(view.history||[]).slice(0,(view.history||[]).length-((plays||[]).length)), ev=[];
@@ -5518,10 +5523,11 @@ function leadTopEvents(view, plays, T){
     if(L&&L.seat!==view.seat&&L.cards.length===1&&effSuit(L.cards[0],T)!=='T'){
       const su=effSuit(L.cards[0],T); let top=-1;
       for(const c of full){ if(effSuit(c,T)!==su) continue; if((gone[pairKey(c)]||0)>=2) continue; top=Math.max(top,ordIdx(c,T)); }
-      if(ordIdx(L.cards[0],T)<top){ const after=[]; for(const x of later[L.seat]) if(x.t>=t) after.push(...x.cards);
+      // 领的就是最大点(单张):他手里没有同点的另一张 —— 有一对会领对子
+      if(ordIdx(L.cards[0],T)<=top){ const after=[]; for(const x of later[L.seat]) if(x.t>=t) after.push(...x.cards);
         const atk=view.declSeat!==undefined&&L.seat%2!==view.declSeat%2;
         const q=atk&&AIP.leadTopReadAtk!=null?AIP.leadTopReadAtk:AIP.leadTopRead;
-        if(q<1) ev.push({s:L.seat,su,top,after,q}); } }
+        if(q<1) ev.push({s:L.seat,su,top,after,q,self:ordIdx(L.cards[0],T)===top?1:0}); } }
     tr.forEach(pl=>pl.cards.forEach(c=>{ const k=pairKey(c); gone[k]=(gone[k]||0)+1; }));
   });
   return ev;
@@ -5529,7 +5535,8 @@ function leadTopEvents(view, plays, T){
 function leadTopLik(TE, w, T){
   let L=1;
   for(const e of TE){ const H=w.hands[e.s]; if(!H) continue;
-    if(H.some(c=>effSuit(c,T)===e.su&&ordIdx(c,T)===e.top)||e.after.some(c=>effSuit(c,T)===e.su&&ordIdx(c,T)===e.top)) L*=e.q; }
+    const k=H.filter(c=>effSuit(c,T)===e.su&&ordIdx(c,T)===e.top).length+e.after.filter(c=>effSuit(c,T)===e.su&&ordIdx(c,T)===e.top).length-e.self;
+    if(k>0) L*=e.q; }
   return L;
 }
 function leadHistLik(LE, w, T, humanSeat){
@@ -5573,7 +5580,7 @@ function makeBelief(view, plays, M){
     for(let j=1;j<plays.length;j++) if(plays[j].cards.some(c=>effSuit(c,trump)!==lead.suit)) voids[plays[j].seat][lead.suit]=true; }
   const reads=makeReads(hist,trump);
   const capMemo={};   // 上界只取决于(座, 门),一次决策里不变 —— 抽样时每张牌每家都要问一遍,记下来
-  const capOf=(s,su)=>{ const k=s+su; return capMemo[k]!==undefined?capMemo[k]:(capMemo[k]=maxHoldIn(reads,mem,s,su,trump)); };
+  const capOf=AIP.beliefNoReads?(()=>99):(s,su)=>{ const k=s+su; return capMemo[k]!==undefined?capMemo[k]:(capMemo[k]=maxHoldIn(reads,mem,s,su,trump)); };
   const known=(AIP.beliefDecl?declKnown(view,plays,seats):[]).concat(view._pin||[]);   // _pin:只给量具用(test/calib-teamwin.js PIN=),把某家的部分真实手牌钉住
   const ctx={unseen,sizes,seats,voids,trump,kittySize,capOf,known,pVoidOf:null};
   const rand=rng(hist.length*7919+view.seat*31+n*17+7);

@@ -8,7 +8,7 @@ const FILE=process.argv[2]||path.join(__dirname,'..','80fen-test.html'), N=+proc
 const sr=[...fs.readFileSync(FILE,'utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1])[0];
 const cc={module:{exports:{}},console,Math,Object,Array,Set,Map,JSON,String,Number};cc.globalThis=cc; vm.createContext(cc); vm.runInContext(sr,cc);
 const E=cc.module.exports; E.AIP.egSearch=0; const OVS=JSON.parse(process.env.OVS||'[{}]');   // 几组推断开关,同一批局面各估一次(打法不变)
-const R=[];
+const R=[], SR=[];   // SR:SEATS=1 时按位置拆(领出的 / 另一对手 / 队友 / 底),用 OVS 最后一组
 for(let seed=S0+1;seed<=S0+N;seed++){
   const {first}=E.cutForFirst(seed); const {hands,kitty}=E.dealRound(seed,first);
   let best=null,D=-1; for(let s=0;s<4;s++){const o=E.declOptions(hands[s],E.RULES.levelStart)[0]; if(o&&(!best||o.strength>best.strength)){best=o;D=s;}}
@@ -32,6 +32,10 @@ for(let seed=S0+1;seed<=S0+N;seed++){
             const has=q=>hands[q].some(x=>E.effSuit(x,T)===su&&E.ordIdx(x,T)===top);
             const est=OVS.map(ov=>{ const save={...E.AIP}; Object.assign(E.AIP,ov); const B=E.makeBelief(view,plays,30); Object.assign(E.AIP,save);
               return B?B.worlds.filter(w=>(w.hands[mate]||[]).some(x=>E.effSuit(x,T)===su&&E.ordIdx(x,T)===top)).length/B.worlds.length:0.5; });
+            const ld=plays[0].seat, oth=opp.find(q=>q!==ld);
+            const hasW=(B,q)=>B.worlds.filter(w=>(w.hands[q]||[]).some(x=>E.effSuit(x,T)===su&&E.ordIdx(x,T)===top)).length/B.worlds.length;
+            if(process.env.SEATS){ const save={...E.AIP}; Object.assign(E.AIP,OVS[OVS.length-1]); const B=E.makeBelief(view,plays,30); Object.assign(E.AIP,save);
+              if(B) SR.push({meDecl:seat%2===D%2?1:0,oppLed,t:[has(ld),has(oth),has(mate),buried.some(x=>E.effSuit(x,T)===su&&E.ordIdx(x,T)===top)].map(Number),e:[hasW(B,ld),hasW(B,oth),hasW(B,mate),B.worlds.filter(w=>(w.kitty||[]).some(x=>E.effSuit(x,T)===su&&E.ordIdx(x,T)===top)).length/B.worlds.length],top:topK.rank,dup:mem.unseen[topK.suit+':'+topK.rank]}); }
             R.push({oppLed,leaderOpp:plays[0].seat!==mate?1:0,truth:has(mate)?1:0,est,meDecl:seat%2===D%2?1:0}); } }
         cards=E.aiChooseFollow(view,plays).cards; if(!E.isLegalFollow(hand,lead,cards,T)) cards=E.genFollow(hand,lead,T,E.rng(seed)); }
       cards.forEach(x=>E.removeCard(hand,x)); plays.push({seat,cards}); }
@@ -45,3 +49,7 @@ const row=(lab,a)=>{ if(a.length<20) return; console.log(`  ${lab.padEnd(22)} n=
 for(const [lab,f] of [['对手没领过这门',r=>r.oppLed===0],['对手领过 1 次',r=>r.oppLed===1],['对手领过 ≥2 次',r=>r.oppLed>=2]])
   for(const md of [0,1]) row(`${lab}·${md?'我庄方':'我闲方'}`,R.filter(r=>f(r)&&r.meDecl===md));
 row('全部',R);
+if(process.env.SEATS) for(const md of [0,1]){ const a=SR.filter(r=>r.meDecl===md); if(!a.length) continue;
+  console.log(`  按位置(${md?'我庄方':'我闲方'},n=${a.length},${JSON.stringify(OVS[OVS.length-1])}):`+['领出的','另一对手','队友','底牌'].map((nm,k)=>`${nm} 实 ${(100*m(a.map(r=>r.t[k]))).toFixed(0)}%`+` 估 ${(100*m(a.map(r=>r.e[k]))).toFixed(0)}%`).join(' · ')); }
+if(process.env.SEATS) for(const md of [0,1]) for(const rk of [14,13,12]) for(const dp of [1,2]){ const a=SR.filter(r=>r.meDecl===md&&r.top===rk&&r.dup===dp); if(a.length<15) continue;
+  console.log(`    ${md?'我庄方':'我闲方'}·最大是 ${rk}·在外 ${dp} 张 n=${a.length}:`+['领出的','另一对手','队友','底牌'].map((nm,k)=>`${nm} ${(100*m(a.map(r=>r.t[k]))).toFixed(0)}/${(100*m(a.map(r=>r.e[k]))).toFixed(0)}`).join(' · ')); }
