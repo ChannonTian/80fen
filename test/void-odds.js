@@ -7,7 +7,7 @@ const fs=require('fs'),vm=require('vm'),path=require('path');
 const FILE=process.argv[2]||path.join(__dirname,'..','80fen-test.html'), N=+process.argv[3]||300, S0=+(process.env.SEED0||0);
 const sr=[...fs.readFileSync(FILE,'utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>m[1])[0];
 const cc={module:{exports:{}},console,Math,Object,Array,Set,Map,JSON,String,Number};cc.globalThis=cc; vm.createContext(cc); vm.runInContext(sr,cc);
-const E=cc.module.exports; E.AIP.egSearch=0;
+const E=cc.module.exports; E.AIP.egSearch=0; if(process.env.OV) Object.assign(E.AIP,JSON.parse(process.env.OV));
 const R=[];
 for(let seed=S0+1;seed<=S0+N;seed++){
   const {first}=E.cutForFirst(seed); const {hands,kitty}=E.dealRound(seed,first);

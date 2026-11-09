@@ -1504,7 +1504,8 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   trumpTeamScale: 1,          // 缩放:0.56 = 波动压回旧式的大小(sd 4.11 → 2.29)
   _leadCapture: null,         // 只给量具用:{} 时 scoreLeadEV / scoreLeadPlay 把打分分项写进 .last(test/lead-rank.js CAPTURE=1)           // 过去所有单张领出也进似然(池子倍数 k,0 = 旧行为;leadEvents / leadHistLik)            // 似然的指数(<1 = 打折,防止少数世界独大)
   beliefDecl: 0,
-  beliefAceRead: 0,           // 1 = 抽样世界里「光领过副牌 A 的那家」没有这门第二张 A(aceReads,拒绝采样);0 = 旧行为
+  beliefAceRead: 0,
+  declVoidBoost: 0,           // 庄家扣底做断门的先验 β:抽样世界权重 × exp(β × 庄家断的副牌门数);0 = 旧行为           // 1 = 抽样世界里「光领过副牌 A 的那家」没有这门第二张 A(aceReads,拒绝采样);0 = 旧行为
   beatChoice: 0,              // 1 = 本墩推演里压牌那一叉不再一律「最便宜那张」,按 beatChoiceW 在压得过的牌里取前 3 张加权(beatMix);0 = 旧行为
   beatChoiceW: [2.0856,0.7688,0.1243,-1.8395,-1.3597,-0.4993,-2.3843,3.9895,0,-0.2528,-1.4187,-1.0832,1.7261],   // test/beatchoice-data.js --fit(自对弈 1200 副 7949 个样本,两折对数损失 均匀 1.525 → 0.888)              // 1 = 抽样世界把亮主亮出来的牌(全部亮主记录)钉在亮的那家手里(declKnown);0 = 旧行为(信念服务不用亮主信息)
   /* test/lead-data.js --fit:8 类 × 11 个手牌特征(leadHandFeat),条件 logit(只在手里有的类之间归一)。
@@ -5536,15 +5537,20 @@ function makeBelief(view, plays, M){
   const L=plays&&plays.length&&plays[0].seat!==view.seat&&plays[0].cards.length===1?plays[0].seat:-1;
   const LM=L>=0&&AIP.leadInfer?(view.humanSeat===L&&AIP.leadModelHuman?AIP.leadModelHuman:AIP.leadModelAI):null;
   const FE=AIP.followInfer?followEvents(view,plays,trump):null;
+  /* 庄家扣底做断门(declVoidBoost,11-09,产品方):庄家拿底后会把短门埋掉 —— 自对弈「只有我断门」的局面里庄家实际断门系统性高于抽样估计
+   * (这门在外 ≤ 6 张 实 56% / 估 49%;我方庄家 7~10 张 实 24~30% / 估 9~13%;test/void-odds.js)。抽样把底牌当随机发的,看不到这一点。
+   * 世界按「庄家断几门副牌」加权:权重 = exp(β × 断门数),再按权重重抽(池子 3 × M)。0 = 旧行为。 */
+  const DV=AIP.declVoidBoost&&view.declSeat!==undefined&&view.declSeat!==view.seat?view.declSeat:-1;
   const LE=AIP.leadInferHist?leadEvents(view,trump):null;
-  const pool=Math.max(LM?MM*AIP.leadInfer:MM,FE&&FE.length?MM*AIP.followInfer:MM,LE&&LE.length?MM*AIP.leadInferHist:MM);
+  const pool=Math.max(LM?MM*AIP.leadInfer:MM,FE&&FE.length?MM*AIP.followInfer:MM,LE&&LE.length?MM*AIP.leadInferHist:MM,DV>=0?MM*3:MM);
   const AR=AIP.beliefAceRead?aceReads(view,trump):[];
   const okAce=w=>AR.every(r=>!(w.hands[r.seat]||[]).some(c=>c.suit===r.suit&&c.rank===14));
   if(!AR.length){ for(let i=0;i<pool;i++){ const w=sampleWorld(ctx,rand); if(w) worlds.push(w); } }   // 旧行为:失败的那次也算一轮
   else for(let i=0,tries=0;i<pool&&tries<pool*4;tries++){ const w=sampleWorld(ctx,rand); if(!w) continue; if(!okAce(w)) continue; worlds.push(w); i++; }
-  if((LM||(FE&&FE.length)||(LE&&LE.length))&&worlds.length>MM){
+  if((LM||(FE&&FE.length)||(LE&&LE.length)||DV>=0)&&worlds.length>MM){
     const lc=LM?plays[0].cards[0]:null, y=LM?leadClass8(lc,trump):0, dt=L%2===view.declSeat%2;
-    const wt=worlds.map(w=>(LM?leadLik(LM,w.hands[L].concat([lc]),trump,dt,y):1)*(FE&&FE.length?followLik(FE,w,trump,view.humanSeat):1)*(LE&&LE.length?leadHistLik(LE,w,trump,view.humanSeat):1));
+    const wt=worlds.map(w=>(LM?leadLik(LM,w.hands[L].concat([lc]),trump,dt,y):1)*(FE&&FE.length?followLik(FE,w,trump,view.humanSeat):1)*(LE&&LE.length?leadHistLik(LE,w,trump,view.humanSeat):1)
+      *(DV>=0?Math.exp(AIP.declVoidBoost*['S','H','D','C'].filter(su=>su!==trump.suit&&!(w.hands[DV]||[]).some(c=>effSuit(c,trump)===su)).length):1));
     const tot=wt.reduce((a,b)=>a+b,0); if(!(tot>0)) return {worlds:worlds.slice(0,MM),mem,seats,trump};
     const out=[]; let u=rand()*tot/MM, acc=0, j=0;
     for(let i=0;i<MM;i++){ const t=u+i*tot/MM; while(j<worlds.length-1&&acc+wt[j]<t){ acc+=wt[j]; j++; } out.push(worlds[j]); }
