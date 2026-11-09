@@ -260,7 +260,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `pwCenter` | `0.6` | (见上方注释)pointWeight 的居中常数(ai-progress 第四节第 12 项 H,产品方 11-07):手定的 0.6、注释「以典型局面为 1」,没有测量依据; | `pointWeight` |
 | `tiaoWhenBad` | `2` | (v0.7.58 测试版默认 2)1 = 中盘首选打分 < tiaoWhenBadThr 时改领最小的不带分小主(第 12 项 F);2 = 只有庄家这么做;3 = 庄家方(庄家 + 帮家);0 = 旧行为 | `aiChooseLead` |
 | `tiaoWhenBadThr` | `0` | — | `aiChooseLead` |
-| `followFix` | `7` | (v0.7.60 测试版默认 7)跟牌快修(位开关):1 = 没把握时不送副牌分、2 = 断门有主就毙、4 = 位 2 只在垫上去本队拿下 < followFixP 时;0 = 旧行为 | `aiChooseFollow` |
+| `followFix` | `15` | (v0.7.61 测试版默认 15;v0.7.60 是 7)跟牌快修(位开关):1 = 没把握时不送副牌分、2 = 断门有主就毙、4 = 位 2 只在垫上去本队拿下 < followFixP 时、8 = 位 1 替上去的牌不能是 A、不能是同门更大的;0 = 旧行为 | `aiChooseFollow` |
 | `followFixMargin` | `8` | 位 2:首选不带分时,毙的分差在这之内才改 | `aiChooseFollow` |
 | `followFixP` | `0.4` | 位 1:本队拿下的估计低于这个才算「没把握」 | `aiChooseFollow` |
 
