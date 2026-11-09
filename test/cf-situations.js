@@ -12,6 +12,7 @@
  *   F  第 2 家贴分   第 2 家跟本门、AI 出了分牌    规则:改出最小不带分的
  *   G  领分牌       AI 领出带分的牌               规则:启发式里最好的不带分领出
  *   K  守底时花大牌  庄家方、底里 ≥10 分、手里 ≥4 张、AI 在 ≤5 分的墩上出王 / 主级牌(对)   规则:改出最便宜的合法牌
+ *   Q  同 P,第 2 家,按产品方的分类(真实手牌):A 没人断门·队友握最大 / B 只有队友断门 / C 队友和三手都断 / D 其他,再按估计分档
  *   T  钓主(第 12 项 F) 中盘、手里有不带分的小主、AI 没领小主   规则:改领最小的那张小主(按角色 / 主张数 / AI 首选分正负分层)
  *   L  末家不吃分   我坐末家、对手暂大、台面 ≥10 分、AI 没吃                                 规则:最省的吃法
  */
@@ -73,7 +74,14 @@ for(let seed=S0+1;seed<=S0+N;seed++){
             const np=legal.filter(y=>E.cardPoints(y)===0).sort((a,b)=>E.ordIdx(a,T)-E.ordIdx(b,T));
             if(np.length){ const X=E.followCtx(view,plays), pw=E.pTeamWin(X,cards,false);
               const bin=pw<0.2?'<0.2':pw<0.4?'0.2~0.4':pw<0.5?'0.4~0.5':pw<0.6?'0.5~0.6':pw<0.7?'0.6~0.7':'≥0.7';
-              tests.push(['P',`估拿下 ${bin}·${E.cardPoints(cards[0])>=10?'10分':'5分'}·${!haveSuit?'断门垫':'跟本门'}`,'改出最小的不带分',[np[0]]]); } }
+              tests.push(['P',`估拿下 ${bin}·${E.cardPoints(cards[0])>=10?'10分':'5分'}·${!haveSuit?'断门垫':'跟本门'}`,'改出最小的不带分',[np[0]]]);
+              // 产品方的分类(按真实手牌):A 没人断门·队友握这门最大(比当前最大和三手都大);B 只有队友断门(有主);C 队友和三手都断门;D 其他
+              if(i===1){ const m3=(seat+1)%4, m4=(seat+3)%4, mt=(seat+2)%4===m4?m4:(seat+2)%4;
+                const inS=q=>hands[q].filter(y=>E.effSuit(y,T)===lead.suit), hasTr=q=>hands[q].some(y=>E.effSuit(y,T)==='T');
+                const v3=!inS(m3).length, v4=!inS(m4).length, top=q=>inS(q).reduce((a,y)=>Math.max(a,E.ordIdx(y,T)),-1);
+                const curTop=E.classify(plays.find(pp=>pp.seat===cur.seat).cards,T).top;
+                const cls=!v3&&!v4&&top(m4)>curTop&&top(m4)>top(m3)?'A 队友握最大':(v4&&hasTr(m4)&&!v3)?'B 只有队友断':(v4&&v3)?'C 队友和三手都断':'D 其他';
+                tests.push(['Q',`${cls}·估拿下 ${pw<0.4?'<0.4':pw<0.7?'0.4~0.7':'≥0.7'}`,'改出最小的不带分',[np[0]]]); } } }
           // R 毙牌选哪张
           if((i===1||i===2)&&lead.suit!=='T'&&!haveSuit&&oppBehind.length){
             const trs=legal.filter(y=>E.effSuit(y,T)==='T').sort((a,b)=>E.ordIdx(a,T)-E.ordIdx(b,T));
