@@ -7634,6 +7634,8 @@ const HUMAN=0;
 const seatAbbr=i=>{const nm=SEAT_NAME[i];return /^[A-Za-z]/.test(nm)?nm.slice(0,1)+' ':nm.slice(0,1);};
 const typeName=t=>({single:'单张',pair:'对子',tractor:T('tractor'),throw:T('throwP')}[t]);
 const rankName=r=>r===14?T('rankA'):r===13?T('rankK'):r===12?T('rankQ'):r===11?T('rankJ'):String(r);
+// 级数显示一律用标准写法(2~10 / J Q K A),不跟术语切换走 —— 沪语版的「老K / 皮蛋 / J钩」在级数那一格的字体里很难看
+const levelName=r=>r>=14?'A':r===13?'K':r===12?'Q':r===11?'J':String(r);
 // logMode:对局记录页签里的三种看法 —— 事件流 / 每墩出牌 / 按花色归堆。
 // 原来「对局记录」和「出牌历史」是两个页签,内容有一半是重的(都在列每墩谁出了什么),
 // 合成一个页签、三个视图,右栏少一个按钮,也不用来回切着找同一件事。
@@ -9007,7 +9009,7 @@ function endRound(){
   const humanDecl=declTeam===HUMAN%2;
   const humanWon=sc.defendersWin!==humanDecl;
   /* 新界面:局终面板按设计系统重排 —— 得分徽章 + 一句结论 + 底牌 + 六六复盘 + 两队级数 + 操作 */
-  const lvName=x=>rankName(Math.min(x,14));
+  const lvName=levelName;
   const upLine=realUp?`,${T('levelUp')} ${realUp} 级${realUp>1?`(${T('tiaoji')}!)`:''}`:'';
   let html=`<div class="res-head"><div class="res-badge${humanWon?'':' lose'}"><span class="n">${sc.total}</span><span class="u">分</span></div>`+
     `<div class="res-title${humanWon?'':' lose'}">${humanWon?'你们赢了':'这局输了'}</div>`+
@@ -9469,7 +9471,7 @@ function render(){
     `<span>庄家:<b>${G.declSeat>=0?SEAT_NAME[G.declSeat]:'抢亮中'}</b></span>`+
     `<span>${T('defenders')}得分:<b>${G.defPoints}</b></span>`+
     `<span>你的队伍:<b>${G.declSeat<0?'—':(G.declSeat%2===0?T('declarers'):T('defenders'))}</b></span>`+
-    `<span>级数 你们:<b>${rankName(Math.min(M.levels[0],14))}</b> 对方:<b>${rankName(Math.min(M.levels[1],14))}</b></span>`+
+    `<span>级数 你们:<b>${levelName(M.levels[0])}</b> 对方:<b>${levelName(M.levels[1])}</b></span>`+
     `<span>第${M.round+1}局 · 第 <b>${trickNo}</b> 墩</span>`+
     `<button id="btnSet" style="margin-left:auto" onclick="window.__openSet()">⚙ 设置</button>`+
     (phaseHint?`<span class="phaseHint">${phaseHint}</span>`:'');
@@ -9643,7 +9645,7 @@ function renderPanel(){
       html+=`<div class="suitGroup" style="font-size:13px">${past.imported?past.no:`第${past.no}局`}:${SEAT_NAME[past.declSeat]}(${who})坐庄,`+
         `主 ${past.trump.suit?SUIT_SYM[past.trump.suit]:'无主'}${rankName(past.trump.rank)},`+
         `${T('defenders')}得 ${past.defPoints} 分 → ${past.defendersWin?T('defenders')+'上台':'庄家守住'};`+
-        `级数 ${past.levelsBefore.map(x=>rankName(Math.min(x,14))).join('/')} → ${past.levelsAfter.map(x=>rankName(Math.min(x,14))).join('/')}</div>`;
+        `级数 ${past.levelsBefore.map(levelName).join('/')} → ${past.levelsAfter.map(levelName).join('/')}</div>`;
     }
     if(logMode==='event'){
       html+=src.log.map(l=>`<div>· ${l.text}</div>`).join('')||'(尚无记录)';
@@ -10795,6 +10797,7 @@ document.addEventListener('pointermove',function(e){
     moveGhost(e.clientX,e.clientY);
     var inside=inArena(e);
     arena.classList.toggle('drag-over',inside);
+    ghost.hidden=inside;     // 进了牌桌,桌心的「松手出牌」是唯一的提示,被拖的牌不再跟着盖在上面
     arena.classList.toggle('drag-ready',!inside);
   }
 });
