@@ -42,10 +42,13 @@ function tally(S,cat,reason,diff){
 
 /* 新口径:① 候选内的分必须逐字等于 AI 的分(bad);② 候选外的现场打分(兜底)拿候选当考题,
  * 和 AI 分对账(fb / fbBig);③ 推演改判时出第一名,分差不能 ≤0(neg)。 */
-function newCheck(S,ev,fbScore,c,adv,topIsBest){
+/* v0.7.50 起候选分先过 coachCandScore(胜负口径对账:followBeatsCheck 关着时,断门挑出来的「贴分 / 跟小 / 垫牌」
+ * 常常其实毙下了这墩,却按不赢打分)—— 对账的基准换成对账后的分,改过的个数另记(fix)。 */
+function newCheck(S,ev,fbScore,c,adv,topIsBest,ref){
   S.n++;
-  if(Math.abs(ev.mine.score-c.score)>0.5) S.bad++;
-  const d=Math.abs(fbScore-c.score); if(d>0.5) S.fb++; if(d>=6) S.fbBig++;
+  if(ref===undefined) ref=c.score; else if(Math.abs(ref-c.score)>0.5) S.fix=(S.fix||0)+1;
+  if(Math.abs(ev.mine.score-ref)>0.5) S.bad++;
+  const d=Math.abs(fbScore-ref); if(d>0.5) S.fb++; if(d>=6) S.fbBig++;
   if(!topIsBest&&adv.cands[0]&&c.cards===adv.cands[0].cards&&ev.unit==='eg'){ S.negSeen++; if(ev.gap<=0) S.neg++; }
   S.conf[ev.conf]=(S.conf[ev.conf]||0)+1;
 }
@@ -68,7 +71,9 @@ function decisionFollow(view,plays,adv){
     if(!(rep>THR)&&tru>THR) S.flipDown++;
     if(!topIsBest&&same(c.cards,adv.cands[0].cards)){ S.negSeen++; if(rep<=0) S.neg++; }
     if(NEW) newCheck(st.newFollow,E.coachEvalFollow(view,plays,c.cards,adv),
-                     E.coachFollowScoreFull(view,plays,c.cards).score,c,adv,topIsBest);
+                     // v0.7.50 起候选外的出法走 AI 同一条候选流水线(aiChooseFollow 的 extra 参数)
+                     E.aiChooseFollow.length>=3?E.aiChooseFollow(view,plays,c.cards).extraScore:E.coachFollowScoreFull(view,plays,c.cards).score,c,adv,topIsBest,
+                     typeof E.coachCandScore==='function'?E.coachCandScore(view,plays,c):undefined);
   }
 }
 function decisionLead(view,adv){
@@ -152,7 +157,7 @@ console.log(`\n首选被改判(收官推演 / 贴分改判)的跟牌决策:${st.
 if(NEW){
   console.log(`\n== 新口径 coachEval* ==`);
   for(const [nm,S] of [['跟牌',st.newFollow],['领出',st.newLead]]){
-    console.log(`  ${nm}:候选内分数不一致 ${S.bad}/${S.n};兜底打分与 AI 差 >0.5 ${S.fb}(${pct(S.fb,S.n)}),≥6 分 ${S.fbBig}`);
+    console.log(`  ${nm}:候选内分数不一致 ${S.bad}/${S.n};兜底打分与 AI 差 >0.5 ${S.fb}(${pct(S.fb,S.n)}),≥6 分 ${S.fbBig}${S.fix?`;胜负口径改过的候选 ${S.fix}`:""}`);
     console.log(`        推演改判时出第一名:${S.negSeen} 次,分差 ≤0 ${S.neg} 次;把握分布 ${JSON.stringify(S.conf)}`);
   }
 }

@@ -194,6 +194,22 @@ console.log(`\n===== ${path.basename(file)} =====\n`);
     check('2e','第 2 家断门要毙、下家已知也断、队友不断 → 毙到在外主分牌之上(SA),不拿主分牌 / 小主去送',
           `${ns(r.cards)}（${r.reason}）`, ()=>ns(r.cards)==='SA'||!r.cards.some(x=>E.effSuit(x,T)==='T'), 'SA(或者不毙)');
   }
+  /* 2f 第 3 家毙牌、队友暂大、下家已知断门(产品方 2026-10-24「明知下一家断门且有富余主牌,却用太小的主毙,被主分直接拿墩拿分」):
+   * 队友 1 号领 ♥K(另一张 ♥A 在外,不是稳赢),2 号贴 ♥5,台面 15 分;我 3 号 ♥ 已断;下家 0 号前两轮 ♥ 都垫了方块 —— 已知断门。
+   * 最省的毙(S3)会被 0 号拿主分(SK / ST / S5)超毙,分和牌权都走。cf-situations:这类局面高毙每次 +0.21 级(t=4.9)。
+   * 期望:毙到在外非王主之上(手里的 SA 或级牌),或者不毙;不出 S3 / S4。没有 ruffGuardPartner 的版本跳过。 */
+  if('ruffGuardPartner' in E.AIP){
+    const hist=P([[1,'HA'],[2,'H3'],[3,'C4'],[0,'D4'],
+                  [1,'HQ'],[2,'H4'],[3,'C5'],[0,'D5']]);
+    const v={seat:3,trump:T,declSeat:1,history:hist,buriedKnown:[],
+      hand:H(['XS','H2','SA','SQ','S7','S4','S3','C9','C8','C7','C6','CQ','CJ','CT',
+              'D9','D8','D7','D6','DQ','DJ','DT','D3','D3'])};
+    const o=E.AIP.ruffGuardPartner; E.AIP.ruffGuardPartner=1; const eg=E.AIP.egSearch; E.AIP.egSearch=0;
+    let r; try{ r=E.aiChooseFollow(v,[{seat:1,cards:H(['HK'])},{seat:2,cards:H(['H5'])}]); }finally{ E.AIP.ruffGuardPartner=o; E.AIP.egSearch=eg; }
+    const top=r.cards[0];
+    check('2f','第 3 家毙、队友暂大、下家已知断门、台面 15 分 → 毙到在外非王主之上(SA / 级牌)或不毙,不用 S3 / S4 去送',
+          `${ns(r.cards)}（${r.reason}）`, ()=>!(top.suit==='S'&&top.rank<=4), 'SA / H2 / 小王(或不毙)');
+  }
   // 收官阶段（7 张）：AI 有 93% 的钓主发生在这里，而 takeOverScoped 在 end 阶段直接关闭
   const v2={seat:3,trump:T,declSeat:0,history:[],buriedKnown:[],
     hand:H(['SA','SK','C9','C8','H4','H3','D6'])};
