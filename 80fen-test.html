@@ -1488,6 +1488,11 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   followInfer: 0,             // 跟牌推断:池子倍数 k(0 = 旧行为);抽样世界按「他以前本队输着时压没压」的似然重抽(followEvents / followLik)
   followInferT: 1,
   leadInferHist: 0,
+  /* 领小不握大(leadTopRead,11-09,产品方情形 A:「对手领过这门却没出大牌 → 大牌在队友手里」):别人单张领出副牌、领的不是这门当时在外最大的 ——
+   * 抽样世界里他那一刻握着最大的那张,权重乘 q(这一项 = 0 时关)。test/top-odds.js:我闲方第 2 家,这门在外最大的在队友手里 实 55% / 估 31%。
+   * leadTopReadAtk:领出的是闲家时用的 q(null = 同 leadTopRead)。0 = 旧行为。 */
+  leadTopRead: 0,
+  leadTopReadAtk: null,
   /* pointWeight 的居中常数(ai-progress 第四节第 12 项 H,产品方 11-07):手定的 0.6、注释「以典型局面为 1」,没有测量依据;
    * (闲家已得, 剩余分) 网格上高斯包络中位数 0.92、均值 0.80 —— pw 多数时候 > 1,而它只乘本墩 EV、不乘留手和牌权,整体偏向「现在兑现」。0.6 = 旧行为。 */
   pwCenter: 0.6,
@@ -5499,6 +5504,34 @@ function leadEvents(view, T){
     ev.push({s,lc:tr[0].cards[0],after,y:leadClass8(tr[0].cards[0],T),dt:s%2===view.declSeat%2}); });
   return ev;
 }
+/* leadTopRead 的事件:别人(不是我)单张领出副牌、领的那张低于这门当时还没出过的最大点(两副牌,同点算最大)。
+ * 他那一刻的手牌 = 世界里他现在的牌 + 他从那一墩起打出的牌(含领的那张)。 */
+function leadTopEvents(view, plays, T){
+  const hist=(view.history||[]).slice(0,(view.history||[]).length-((plays||[]).length)), ev=[];
+  const tricks=[]; for(let i=0;i<hist.length;i+=4) tricks.push(hist.slice(i,i+4));
+  if(plays&&plays.length) tricks.push(plays);
+  const later={0:[],1:[],2:[],3:[]}; tricks.forEach((tr,t)=>tr.forEach(pl=>later[pl.seat].push({t,cards:pl.cards})));
+  const gone={};   // 这一墩之前已出的牌:pairKey → 张数
+  const full=makeDeck().slice(0,54);
+  tricks.forEach((tr,t)=>{
+    const L=tr[0];
+    if(L&&L.seat!==view.seat&&L.cards.length===1&&effSuit(L.cards[0],T)!=='T'){
+      const su=effSuit(L.cards[0],T); let top=-1;
+      for(const c of full){ if(effSuit(c,T)!==su) continue; if((gone[pairKey(c)]||0)>=2) continue; top=Math.max(top,ordIdx(c,T)); }
+      if(ordIdx(L.cards[0],T)<top){ const after=[]; for(const x of later[L.seat]) if(x.t>=t) after.push(...x.cards);
+        const atk=view.declSeat!==undefined&&L.seat%2!==view.declSeat%2;
+        const q=atk&&AIP.leadTopReadAtk!=null?AIP.leadTopReadAtk:AIP.leadTopRead;
+        if(q<1) ev.push({s:L.seat,su,top,after,q}); } }
+    tr.forEach(pl=>pl.cards.forEach(c=>{ const k=pairKey(c); gone[k]=(gone[k]||0)+1; }));
+  });
+  return ev;
+}
+function leadTopLik(TE, w, T){
+  let L=1;
+  for(const e of TE){ const H=w.hands[e.s]; if(!H) continue;
+    if(H.some(c=>effSuit(c,T)===e.su&&ordIdx(c,T)===e.top)||e.after.some(c=>effSuit(c,T)===e.su&&ordIdx(c,T)===e.top)) L*=e.q; }
+  return L;
+}
 function leadHistLik(LE, w, T, humanSeat){
   let L=1;
   for(const e of LE){ const H=w.hands[e.s]; if(!H) continue;
@@ -5554,15 +5587,17 @@ function makeBelief(view, plays, M){
    * 世界按「庄家断几门副牌」加权:权重 = exp(β × 断门数),再按权重重抽(池子 3 × M)。0 = 旧行为。 */
   const DV=AIP.declVoidBoost&&view.declSeat!==undefined&&view.declSeat!==view.seat?view.declSeat:-1;
   const LE=AIP.leadInferHist?leadEvents(view,trump):null;
-  const pool=Math.max(LM?MM*AIP.leadInfer:MM,FE&&FE.length?MM*AIP.followInfer:MM,LE&&LE.length?MM*AIP.leadInferHist:MM,DV>=0?MM*3:MM);
+  const TE=AIP.leadTopRead?leadTopEvents(view,plays,trump):null;
+  const pool=Math.max(LM?MM*AIP.leadInfer:MM,FE&&FE.length?MM*AIP.followInfer:MM,LE&&LE.length?MM*AIP.leadInferHist:MM,DV>=0?MM*3:MM,TE&&TE.length?MM*3:MM);
   const AR=AIP.beliefAceRead?aceReads(view,trump):[];
   const okAce=w=>AR.every(r=>!(w.hands[r.seat]||[]).some(c=>c.suit===r.suit&&c.rank===14));
   if(!AR.length){ for(let i=0;i<pool;i++){ const w=sampleWorld(ctx,rand); if(w) worlds.push(w); } }   // 旧行为:失败的那次也算一轮
   else for(let i=0,tries=0;i<pool&&tries<pool*4;tries++){ const w=sampleWorld(ctx,rand); if(!w) continue; if(!okAce(w)) continue; worlds.push(w); i++; }
-  if((LM||(FE&&FE.length)||(LE&&LE.length)||DV>=0)&&worlds.length>MM){
+  if((LM||(FE&&FE.length)||(LE&&LE.length)||DV>=0||(TE&&TE.length))&&worlds.length>MM){
     const lc=LM?plays[0].cards[0]:null, y=LM?leadClass8(lc,trump):0, dt=L%2===view.declSeat%2;
     const wt=worlds.map(w=>(LM?leadLik(LM,w.hands[L].concat([lc]),trump,dt,y):1)*(FE&&FE.length?followLik(FE,w,trump,view.humanSeat):1)*(LE&&LE.length?leadHistLik(LE,w,trump,view.humanSeat):1)
-      *(DV>=0?Math.exp(AIP.declVoidBoost*['S','H','D','C'].filter(su=>su!==trump.suit&&!(w.hands[DV]||[]).some(c=>effSuit(c,trump)===su)).length):1));
+      *(DV>=0?Math.exp(AIP.declVoidBoost*['S','H','D','C'].filter(su=>su!==trump.suit&&!(w.hands[DV]||[]).some(c=>effSuit(c,trump)===su)).length):1)
+      *(TE&&TE.length?leadTopLik(TE,w,trump):1));
     const tot=wt.reduce((a,b)=>a+b,0); if(!(tot>0)) return {worlds:worlds.slice(0,MM),mem,seats,trump};
     const out=[]; let u=rand()*tot/MM, acc=0, j=0;
     for(let i=0;i<MM;i++){ const t=u+i*tot/MM; while(j<worlds.length-1&&acc+wt[j]<t){ acc+=wt[j]; j++; } out.push(worlds[j]); }
