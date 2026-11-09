@@ -49,8 +49,14 @@ for(let seed=S0+1;seed<=S0+N;seed++){
             const my=E.cardPoints(x), gain=X.ptsTable+my+E.laterPoints(X,true), loss=X.ptsTable+my+E.laterPoints(X,false);
             const ev0=p0*gain-(1-p0)*loss, t=E.trickEVBelief(X,[x],B), ev1=t?t.ev:null, evY=finishEV(hands,history,plays,leader,seat,[x],T,D,buried);
             let p2=p1, ev2=ev1; if(CMPO){ const sv={}; for(const k in CMPO){ sv[k]=E.AIP[k]; E.AIP[k]=CMPO[k]; }
-              const X2=E.followCtx(view,plays), B2=E.makeBelief(view,plays,E.AIP.beliefM);
-              p2=E.teamWinBelief(X2,[x],B2); const t2=E.trickEVBelief(X2,[x],B2); ev2=t2?t2.ev:null; Object.assign(E.AIP,sv); }
+              const X2=E.followCtx(view,plays);
+              // ORACLE=1:第二列用「真实世界」(别家真实手牌)一个世界 —— 看排对率的天花板是隐藏信息还是推演里的行为模型
+              // PIN=next|last|nextTop|lastTop:只把下家 / 末家的真实手牌(或其中的大牌:王、级牌、各门 A)钉进抽样世界,看哪一家、哪些牌的信息值钱
+              if(process.env.PIN){ const tgt=process.env.PIN.startsWith('next')?(seat+1)%4:(leader+3)%4, top=process.env.PIN.endsWith('Top');
+                const big=c=>c.suit==='X'||c.rank===T.rank||c.rank===14;
+                view._pin=tgt===seat?[]:hands[tgt].filter(c=>!top||big(c)).map(c=>({seat:tgt,suit:c.suit,rank:c.rank})); }
+              const B2=process.env.ORACLE?(()=>{ const hs={}; for(let q=0;q<4;q++) if(q!==seat) hs[q]=hands[q].filter(c=>!plays.some(pp=>pp.seat===q&&pp.cards.includes(c))); return {worlds:[{hands:hs,kitty:[]}],trump:T}; })():E.makeBelief(view,plays,E.AIP.beliefM);
+              p2=E.teamWinBelief(X2,[x],B2); const t2=E.trickEVBelief(X2,[x],B2); ev2=t2?t2.ev:null; Object.assign(E.AIP,sv); delete view._pin; }
             const v3=i===1&&E.makeVoids(history,T)[(seat+1)%4][lead.suit]?1:0;
             R.push({dec:seed*1000+history.length*4+i,p0,p1,ev0,ev1,evY,y:finish(hands,history,plays,leader,seat,[x],T,D,buried),bc:bc?1:0,pos:i+1,ai:x===cards[0]?1:0,pw:X.partnerWinning?1:0,pts:E.countPoints(plays.flatMap(p=>p.cards)),n:hand.length,p2,ev2,v3}); } } }
       cards.forEach(x=>E.removeCard(hand,x)); plays.push({seat,cards}); }
