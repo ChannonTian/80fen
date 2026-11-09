@@ -66,6 +66,14 @@ for(let seed=S0+1;seed<=S0+N;seed++){
           const haveSuit=hand.some(y=>E.effSuit(y,T)===lead.suit);
           const behind=[]; for(let j=i+1;j<4;j++) behind.push((leader+j)%4);
           const oppBehind=behind.filter(s=>!mate(s));
+          // P 没把握还送副牌分(followFix 位 1 的阈值,11-09 产品方):单张领出、对手暂大、AI 出副牌分牌且没压、手里有不带分的合法牌
+          //   → 改出最小的不带分合法牌;按 AI 估的「这手之后本队拿下」分档,找送分不亏的那条线
+          if(cards.length===1&&!mate(cur.seat)&&E.effSuit(cards[0],T)!=='T'&&E.cardPoints(cards[0])>0
+             &&E.currentWinner([...plays,{seat,cards}],T).seat!==seat){
+            const np=legal.filter(y=>E.cardPoints(y)===0).sort((a,b)=>E.ordIdx(a,T)-E.ordIdx(b,T));
+            if(np.length){ const X=E.followCtx(view,plays), pw=E.pTeamWin(X,cards,false);
+              const bin=pw<0.2?'<0.2':pw<0.4?'0.2~0.4':pw<0.5?'0.4~0.5':pw<0.6?'0.5~0.6':pw<0.7?'0.6~0.7':'≥0.7';
+              tests.push(['P',`估拿下 ${bin}·${E.cardPoints(cards[0])>=10?'10分':'5分'}·${!haveSuit?'断门垫':'跟本门'}`,'改出最小的不带分',[np[0]]]); } }
           // R 毙牌选哪张
           if((i===1||i===2)&&lead.suit!=='T'&&!haveSuit&&oppBehind.length){
             const trs=legal.filter(y=>E.effSuit(y,T)==='T').sort((a,b)=>E.ordIdx(a,T)-E.ordIdx(b,T));
