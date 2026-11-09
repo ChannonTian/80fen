@@ -1503,7 +1503,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   pwCenter: 0.6,
   tiaoWhenBad: 2,             // (v0.7.58 测试版默认 2)1 = 中盘首选打分 < tiaoWhenBadThr 时改领最小的不带分小主(第 12 项 F);2 = 只有庄家这么做;3 = 庄家方(庄家 + 帮家);0 = 旧行为
   tiaoWhenBadThr: 0,
-  followFix: 7,               // (v0.7.60 测试版默认 7)跟牌快修(位开关):1 = 没把握时不送副牌分、2 = 断门有主就毙、4 = 位 2 只在垫上去本队拿下 < followFixP 时、8 = 位 1 替上去的牌要比原来的便宜(cheapKey);0 = 旧行为
+  followFix: 7,               // (v0.7.60 测试版默认 7)跟牌快修(位开关):1 = 没把握时不送副牌分、2 = 断门有主就毙、4 = 位 2 只在垫上去本队拿下 < followFixP 时、8 = 位 1 替上去的牌不能是 A、不能是同门更大的;0 = 旧行为
                               // 位 2 不带位 4(一律毙)整局 pool −4.29 分,见 negative-results 二十一
   followFixMargin: 8,         // 位 2:首选不带分时,毙的分差在这之内才改
   followFixP: 0.4,            // 位 1:本队拿下的估计低于这个才算「没把握」
@@ -4433,8 +4433,10 @@ function aiChooseFollow(view, plays, extra){
           best={...ruffs[0],reason:'这门断了 —— 毙下来,不往对手那里垫'}; fixed=true; }
       }
       if(!fixed&&AIP.followFix&1&&effSuit(c,trump)!=='T'&&cPts>0&&!wins(c)&&(AIP.followFate||pTeamWin(X,[c],false)<AIP.followFixP)){
-        // 位 8:替上去的那张要比原来那张「便宜」(cheapKey:分牌加价、控制牌溢价)—— 否则 ♥A K 10 被领 A 压死时会拿 A 去换 10(自测「副门被压死时出10留A+K」)
-        const cheapOK=q=>!(AIP.followFix&8)||cheapKey(q.cards[0],trump)<cheapKey(c,trump);
+        // 位 8:替上去的那张不能是 A、也不能是同门里比原来那张大的 —— 否则 ♥A K 10 被领 A 压死时会拿 A 去换 10(自测「副门被压死时出10留A+K」)。
+        // (先试过 cheapKey 比大小:跨花色比较不可靠,pool −0.21 ±0.21 分 / −0.010 ±0.005 级)
+        const cheapOK=q=>{ if(!(AIP.followFix&8)) return true; const a=q.cards[0];
+          return a.rank!==14&&!(effSuit(a,trump)===effSuit(c,trump)&&ordIdx(a,trump)>ordIdx(c,trump)); };
         const alt=cands.filter(q=>q.cards.length===1&&cardPoints(q.cards[0])===0&&cheapOK(q))[0]
           ||(()=>{ const xs=view.hand.filter(x=>cardPoints(x)===0&&isLegalFollow(view.hand,lead,[x],trump)&&cheapOK({cards:[x]})).sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump));
                    return xs.length?{cards:[xs[0]],cat:'cheap',score:best.score}:null; })();
