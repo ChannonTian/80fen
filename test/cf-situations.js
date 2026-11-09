@@ -13,6 +13,7 @@
  *   G  领分牌       AI 领出带分的牌               规则:启发式里最好的不带分领出
  *   K  守底时花大牌  庄家方、底里 ≥10 分、手里 ≥4 张、AI 在 ≤5 分的墩上出王 / 主级牌(对)   规则:改出最便宜的合法牌
  *   Q  同 P,第 2 家,按产品方的分类(真实手牌):A 没人断门·队友握最大 / B 只有队友断门 / C 队友和三手都断 / D 其他,再按估计分档
+ *   V  同 P,按分牌命运模型(followFate)算的「留着 − 现在贴」期望分档:模型说留的档「不送 − 送」该为正
  *   T  钓主(第 12 项 F) 中盘、手里有不带分的小主、AI 没领小主   规则:改领最小的那张小主(按角色 / 主张数 / AI 首选分正负分层)
  *   L  末家不吃分   我坐末家、对手暂大、台面 ≥10 分、AI 没吃                                 规则:最省的吃法
  */
@@ -81,7 +82,11 @@ for(let seed=S0+1;seed<=S0+N;seed++){
                 const v3=!inS(m3).length, v4=!inS(m4).length, top=q=>inS(q).reduce((a,y)=>Math.max(a,E.ordIdx(y,T)),-1);
                 const curTop=E.classify(plays.find(pp=>pp.seat===cur.seat).cards,T).top;
                 const cls=!v3&&!v4&&top(m4)>curTop&&top(m4)>top(m3)?'A 队友握最大':(v4&&hasTr(m4)&&!v3)?'B 只有队友断':(v4&&v3)?'C 队友和三手都断':'D 其他';
-                tests.push(['Q',`${cls}·估拿下 ${pw<0.4?'<0.4':pw<0.7?'0.4~0.7':'≥0.7'}`,'改出最小的不带分',[np[0]]]); } } }
+                tests.push(['Q',`${cls}·估拿下 ${pw<0.4?'<0.4':pw<0.7?'0.4~0.7':'≥0.7'}`,'改出最小的不带分',[np[0]]]); }
+              // V 分牌命运(followFate,11-09):「留着」的期望 −「现在贴」的期望,按模型的判断分档 —— 模型说留的那几档「不送 − 送」该为正,说贴的该为负
+              if(E.fateP){ const cp=E.cardPoints(cards[0]), B=X._B!==undefined?X._B:(X._B=E.makeBelief(view,plays,E.AIP.beliefM));
+                const d=E.pTeamWin(X,[np[0]],false)*tbl+E.fateP(view,cards[0],B)*cp-pw*(tbl+cp);
+                tests.push(['V',`${d>3?'模型说留 >3':d>0?'模型说留 0~3':d>-3?'模型说贴 0~3':'模型说贴 >3'}·${cp}分`,'改出最小的不带分',[np[0]]]); } } }
           // R 毙牌选哪张
           if((i===1||i===2)&&lead.suit!=='T'&&!haveSuit&&oppBehind.length){
             const trs=legal.filter(y=>E.effSuit(y,T)==='T').sort((a,b)=>E.ordIdx(a,T)-E.ordIdx(b,T));

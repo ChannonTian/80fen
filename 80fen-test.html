@@ -1497,6 +1497,12 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
                               // 位 2 不带位 4(一律毙)整局 pool −4.29 分,见 negative-results 二十一
   followFixMargin: 8,         // 位 2:首选不带分时,毙的分差在这之内才改
   followFixP: 0.4,            // 位 1:本队拿下的估计低于这个才算「没把握」
+  /* 分牌命运(followFate,11-09,产品方:「留着的分牌是在找更高概率得利的机会」—— 单一概率 + 阈值管不住):
+   * 1 = followFix 位 1 不再看 followFixP,改比两个期望:现在贴 = 本队拿下(贴之后)×(台面 + 这张);
+   * 留着 = 本队拿下(出不带分的)× 台面 + fateP(这张最后归本队的概率,test/fit-fate.js 从自对弈拟合)× 这张。留着多出 followFateMargin 分才改。0 = 旧行为。 */
+  followFate: 0,
+  followFateMargin: 0,
+  fateW: null,                // {b, w:[…]},特征顺序同 fateX;null = 用内置拟合值
   throwEval: 1,               // (v0.7.59 测试版默认开)1 = 甩牌在信念世界里按失败概率评估、非全钢板的整门甩牌也进候选(第 12 项 G);0 = 旧行为
   throwFailPen: 10,           // 甩牌失败的额外代价(被拦下、亮了牌型);3 时每局甩 1.28 次、失败 12%,10 时 1.20 次、8%
   trumpTeam: 0,               // 1 = drawTrumpValue 改成按队、在信念世界里数主(第 12 项 A);0 = 旧行为(一家比两家的均匀份额)
@@ -4416,11 +4422,17 @@ function aiChooseFollow(view, plays, extra){
         if(ruffs.length&&(cPts>0||ruffs[0].score>=best.score-AIP.followFixMargin)&&(!(AIP.followFix&4)||pTeamWin(X,[c],false)<AIP.followFixP)){
           best={...ruffs[0],reason:'这门断了 —— 毙下来,不往对手那里垫'}; fixed=true; }
       }
-      if(!fixed&&AIP.followFix&1&&effSuit(c,trump)!=='T'&&cPts>0&&!wins(c)&&pTeamWin(X,[c],false)<AIP.followFixP){
+      if(!fixed&&AIP.followFix&1&&effSuit(c,trump)!=='T'&&cPts>0&&!wins(c)&&(AIP.followFate||pTeamWin(X,[c],false)<AIP.followFixP)){
         const alt=cands.filter(q=>q.cards.length===1&&cardPoints(q.cards[0])===0)[0]
           ||(()=>{ const xs=view.hand.filter(x=>cardPoints(x)===0&&isLegalFollow(view.hand,lead,[x],trump)).sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump));
                    return xs.length?{cards:[xs[0]],cat:'cheap',score:best.score}:null; })();
-        if(alt) best={...alt,reason:'这墩多半是对手的 —— 不带分的先出,分留着'};
+        let keep=!!alt;
+        if(alt&&AIP.followFate){                      // 现在贴 vs 留着:两边都按「本队最后拿到的分」算
+          const B=X._B!==undefined?X._B:(X._B=makeBelief(X.view||view,plays,AIP.beliefM)), tbl=X.ptsTable||0;
+          const evDump=pTeamWin(X,[c],false)*(tbl+cPts), evKeep=pTeamWin(X,alt.cards,false)*tbl+fateP(view,c,B)*cPts;
+          keep=evKeep>evDump+AIP.followFateMargin;
+        }
+        if(keep) best={...alt,reason:'这墩多半是对手的 —— 不带分的先出,分留着'};
       }
     }
     const eg=endgameSearch(view,plays,cands.slice(0,AIP.egMaxCands));
@@ -5730,6 +5742,38 @@ function willMateP(T, plays, s, H, behind, M){
   const w=AIP.willMateW; let z=0; for(let i=0;i<w.length&&i<x.length;i++) z+=w[i]*x[i];
   return {p:1/(1+Math.exp(-z)),card:f.card};
 }
+/* 分牌命运的特征(fateFeat,11-09,test/fate-data.js / fit-fate.js):手里一张没出的副牌分牌 c,
+ * 在抽样世界 B 里看:这门各家断不断、比 c 大的牌在谁手里、我和队友的主牌。只读,不改打法。 */
+function fateFeat(view, c, B){
+  const T=view.trump, s=effSuit(c,T), me=view.seat, mate=(me+2)%4, opps=[(me+1)%4,(me+3)%4];
+  const mem=makeMemory(view), oc=ordIdx(c,T);
+  let unseenS=0, hi=0;
+  for(const k in mem.unseen){ const n=mem.unseen[k]; if(n<=0) continue; const x=keyToCard(k);
+    if(effSuit(x,T)!==s) continue; unseenS+=n; if(ordIdx(x,T)>oc) hi+=n; }
+  const myLen=view.hand.filter(x=>effSuit(x,T)===s).length, myHi=view.hand.filter(x=>effSuit(x,T)===s&&ordIdx(x,T)>oc).length;
+  const myTr=view.hand.filter(x=>effSuit(x,T)==='T').length;
+  let mV=0,oV=0,mHi=0,oHi=0,mVT=0,oVT=0,mTr=0,oTr=0,k=0;
+  for(const w of (B&&B.worlds)||[]){ k++;
+    const H=q=>w.hands[q]||[], vd=q=>!H(q).some(x=>effSuit(x,T)===s), tr=q=>H(q).filter(x=>effSuit(x,T)==='T').length,
+      hh=q=>H(q).some(x=>effSuit(x,T)===s&&ordIdx(x,T)>oc);
+    if(vd(mate)){ mV++; if(tr(mate)) mVT++; }
+    if(opps.some(vd)){ oV++; } if(opps.some(q=>vd(q)&&tr(q))) oVT++;
+    if(hh(mate)) mHi++; if(opps.some(hh)) oHi++;
+    mTr+=tr(mate); oTr+=tr(opps[0])+tr(opps[1]); }
+  k=Math.max(1,k);
+  return {n:view.hand.length,myLen,myHi,myTr,unseenS,hi,
+    pMV:mV/k,pOV:oV/k,pMVT:mVT/k,pOVT:oVT/k,pMHi:mHi/k,pOHi:oHi/k,mTr:mTr/k,oTr:oTr/k};
+}
+const FATE_W0={b:0,w:[]};
+function fateX(f, decl, pts){
+  return [decl,pts===10?1:0,f.n/25,f.myLen/5,Math.min(f.myHi,3)/3,f.myTr/10,f.hi===0?1:0,Math.log(1+f.hi),f.unseenS/10,
+    f.pMV,f.pOV,f.pMVT,f.pOVT,f.pMHi,f.pOHi,f.mTr/10,f.oTr/20,f.pMHi*(1-f.pOHi),(f.hi===0?1:0)*(1-f.pOVT)];
+}
+function fateP(view, c, B){
+  const W=AIP.fateW||FATE_W0, x=fateX(fateFeat(view,c,B),view.declSeat!==undefined&&view.seat%2===view.declSeat%2?1:0,cardPoints(c));
+  let z=W.b; for(let j=0;j<x.length&&j<W.w.length;j++) z+=W.w[j]*x[j];
+  return 1/(1+Math.exp(-z));
+}
 function teamWinBelief(X, cards, B){
   if(!B||!X.lead||X.lead.type!=='single'||cards.length!==1) return null;
   const M=mateCtx(X,cards);
@@ -6655,7 +6699,7 @@ function simulateRound(seed, smartSeats=[0,1,2,3]){
 }
 
 /* 引擎公开面 —— 浏览器 #test 与 node 无头测试共用同一份,避免两边漂移 */
-const ENGINE={RULES,makeDeck,willP,expHoldIn,drawTrumpValue,isBossPlay,willMateFeat,beatChoiceCands,leadClass8,leadHandFeat,leadAvail,leadLik,cardPoints,countPoints,rng,dealRound,
+const ENGINE={RULES,makeDeck,fateFeat,fateP,fateX,willP,expHoldIn,drawTrumpValue,isBossPlay,willMateFeat,beatChoiceCands,leadClass8,leadHandFeat,leadAvail,leadLik,cardPoints,countPoints,rng,dealRound,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
   canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,clampAtGate,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
