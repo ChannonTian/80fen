@@ -342,7 +342,7 @@
 <div id="toast"></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.40</div>
+<div id="versionTag">80分 v0.7.61</div>
 
 <script>
 /* ============================================================
@@ -6287,7 +6287,7 @@ function startRound(seed){
   G={seed,start,firstTaker:first,trumpRank,dealerKnown,
      hands:deal.hands,kittyOrig:deal.kitty,buried:[],
      trump:null,declSeat:dealerKnown?M.dealer:-1,
-     decl:null,rebelHappened:false,
+     decl:null,rebelHappened:false,declHist:[],
      visCount:[0,0,0,0],dealt:0,
      leader:-1,trick:[],trickNo:0,tricks:[],defPoints:0,capturedCards:[],lastWinner:-1,
      lastLeadSize:1,phase:'dealing',selected:new Set(),log:[],awaitNext:false,
@@ -6407,7 +6407,9 @@ function aiDeclThink(seat){
 
 function applyDecl(seat,opt,isReinforce){
   if(!G.dealerKnown) G.trumpRank=rankOf(seat);   // 无庄盘:主牌级数跟着亮主者走
+  const counter=!!G.decl&&!isReinforce;     // 压在别人的亮主上 = 反
   G.decl={seat,suit:opt.suit,strength:opt.strength};
+  G.declHist.push({seat,suit:opt.suit,strength:opt.strength,counter,reinforce:!!isReinforce});
   // 亮出的级数牌/王对立即在桌上可见
   const vis=visHand(seat);
   G.declCards={seat, cards: opt.suit
@@ -6429,6 +6431,7 @@ window.__skipDecl=()=>{
   settleTrump();
 };
 
+const DECL_SHOW_MS=3500;   // 有人反主时,定主后留这么久再进扣底/出牌
 function settleTrump(){
   if(G.phase!=='finalDecl'&&G.phase!=='dealing') return;   // 防「不亮」和到点结算重复触发
   clearTimeout(G.declTimer); G.declTimer=null;
@@ -6442,6 +6445,17 @@ function settleTrump(){
   }else{
     log(G.decl?`定${T('trump')}:${trumpLabel(G.trump)},${SEAT_NAME[G.declSeat]} 坐庄`
               :`无人${T('declare')} → ${T('noTrump')},${SEAT_NAME[G.declSeat]} 坐庄`);
+  }
+  /* 发牌里有人反了主,而你多半没盯着,定主后不要直接跳进扣底/出牌:停一下,明写谁反的、反成什么。托管不停。 */
+  if(!G.auto&&G.declHist.some(e=>e.counter)){
+    const hs=G.declHist, last=hs[hs.length-1]; let prev=null;
+    for(let i=hs.length-2;i>=0;i--) if(hs[i].seat!==last.seat){ prev=hs[i]; break; }
+    const dsc=e=>e.suit?SUIT_SYM[e.suit]+(e.strength===2?'(一对)':''):(e.strength===4?T('bigJoker'):T('smallJoker'))+'对 → '+T('noTrump');
+    const g=G; G.phase='declShow'; render();
+    setMsg(`${SEAT_NAME[last.seat]} ${last.reinforce?T('reinforce'):last.counter?T('counter'):T('declare')} ${dsc(last)}`+
+           (last.counter&&prev?`,压过 ${SEAT_NAME[prev.seat]} 的 ${dsc(prev)}`:''));
+    setTimeout(()=>{ if(G!==g||G.phase!=='declShow') return; lowRebelPhase(); }, DECL_SHOW_MS);
+    return;
   }
   lowRebelPhase();
 }

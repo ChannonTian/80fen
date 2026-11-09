@@ -150,17 +150,17 @@ button{cursor:pointer;touch-action:manipulation}
 .player-label .ava.mug svg{display:block;width:100%;height:100%;clip-path:circle(50%)}
 .player.north .ava.mug{background:var(--teal)}
 .player-label .name{grid-column:2;align-self:end;font:900 14px/1.1 var(--font-heading)}
-.player-label .role{grid-column:2;align-self:start;font:700 10.5px/1.25 var(--font-sans);color:var(--ink-soft)}
+.player-label .role{grid-column:2;align-self:start;font:700 12px/1.25 var(--font-sans);color:var(--ink-soft)}
 .player-label .backs{display:none}
 /* 我:只留一个头像 */
 #game .my-play .player-label{padding:2px!important;column-gap:0}   /* 盖过各骨架里名牌右边的留白 */
 .my-play .player-label .name{display:none}
 .player-label .tags{position:absolute;inset:0;pointer-events:none}
-.player-label .tag{position:absolute;display:grid;place-items:center;height:17px;min-width:17px;padding:0 3px;border-radius:999px;
-  background:var(--ink);color:var(--cream);font:900 10px/1 var(--font-heading);box-shadow:0 0 0 1.5px var(--cream)}
-.player-label .tag.lead{left:-5px;top:-6px;background:var(--card-face);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink),0 0 0 1.5px var(--cream)}
-.player-label .tag.dealer{left:19px;bottom:-6px}
-.player-label .tag.auto{left:-5px;bottom:-6px;background:var(--teal)}
+.player-label .tag{position:absolute;display:grid;place-items:center;height:21px;min-width:21px;padding:0 4px;border-radius:999px;
+  background:var(--ink);color:var(--cream);font:900 13px/1 var(--font-heading);box-shadow:0 0 0 1.5px var(--cream)}
+.player-label .tag.lead{left:-7px;top:-8px;background:var(--card-face);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink),0 0 0 1.5px var(--cream)}
+.player-label .tag.dealer{right:-11px;top:-8px}   /* 右上角:不压住头像,也不盖座位小字 */
+.player-label .tag.auto{left:-7px;bottom:-8px;background:var(--teal)}
 /* 轮到谁:名牌变蜂蜜黄,头像外转一圈 */
 .player.turn .player-label,.my-play.turn .player-label{background:var(--honey)}
 .player.turn .ava::after,.my-play.turn .ava::after{content:'';position:absolute;inset:-5px;border-radius:50%;border:3px solid var(--card-face);
@@ -168,8 +168,7 @@ button{cursor:pointer;touch-action:manipulation}
 @keyframes spin{to{transform:rotate(360deg)}}
 #game.tight .player-label{height:36px;padding-right:10px;column-gap:6px}
 #game.tight .player-label .ava{width:28px;height:28px;font-size:14px}
-#game.tight .player-label .name{font-size:13px}#game.tight .player-label .role{font-size:10px}
-#game.tight .player-label .tag.dealer{left:15px}
+#game.tight .player-label .name{font-size:13px}#game.tight .player-label .role{font-size:11.5px}
 /* 矮横屏:竖排小名牌(头像在上、名字压在头像下沿),占地少,不把中间挤满 */
 #game.m-l .player-label{grid-template-columns:auto;grid-template-rows:auto auto;justify-items:center;height:auto;padding:0;column-gap:0;
   border:0;background:none;box-shadow:none}
@@ -181,14 +180,15 @@ button{cursor:pointer;touch-action:manipulation}
 #game.m-l .player.turn .player-label,#game.m-l .my-play.turn .player-label{background:none}
 #game.m-l .player.turn .player-label .name{background:var(--honey)}
 #game.m-l .my-play .player-label .ava{width:40px;height:40px}
-#game.m-l .player-label .tag.lead{left:calc(50% - 26px);top:-5px}
-#game.m-l .player-label .tag.dealer{left:calc(50% + 9px);top:-5px;bottom:auto}
-#game.m-l .player-label .tag.auto{left:calc(50% - 26px);top:22px;bottom:auto}
+#game.m-l .player-label .tag.lead{left:calc(50% - 30px);top:-6px}
+#game.m-l .player-label .tag.dealer{left:calc(50% + 9px);right:auto;top:-6px;bottom:auto}
+#game.m-l .player-label .tag.auto{left:calc(50% - 30px);top:20px;bottom:auto}
 #game.m-w .player-label{height:46px;padding-right:16px;column-gap:9px}
 #game.m-w .player-label .ava{width:38px;height:38px;font-size:19px}
-#game.m-w .player-label .name{font-size:16px}#game.m-w .player-label .role{font-size:12px}
-#game.m-w .player-label .tag.dealer{left:25px}
-#game.m-w .player-label .tag{height:20px;min-width:20px;font-size:11px}
+#game.m-w .player-label .name{font-size:17px}#game.m-w .player-label .role{font-size:14px}
+#game.m-w .player-label .tag.dealer{right:-14px;top:-10px}
+#game.m-w .player-label .tag.lead{left:-9px;top:-10px}#game.m-w .player-label .tag.auto{left:-9px;bottom:-10px}
+#game.m-w .player-label .tag{height:27px;min-width:27px;padding:0 5px;font-size:17px}
 .played{z-index:3;height:calc(var(--tcw,52px)*1.43);width:0;flex:none}
 .played .card{position:absolute;top:0;left:calc(var(--i,0)*var(--pstep,var(--tstep,18px)));--w:var(--tcw,52px);
   animation:playIn .32s var(--ease-out) both;animation-delay:calc(var(--i,0)*28ms)}
@@ -254,7 +254,7 @@ button{cursor:pointer;touch-action:manipulation}
 .center-toast.err{background:var(--err-tint);color:var(--brick-deep)}
 .center-toast.info{background:var(--cream)}
 .drop-cue{position:absolute;inset:8px;z-index:7;border:3px dashed var(--cream);border-radius:20px;display:none;
-  align-items:flex-start;justify-content:center;padding-top:14px;pointer-events:none;background:rgba(245,237,220,.06)}
+  align-items:center;justify-content:center;pointer-events:none;background:rgba(245,237,220,.06)}
 .drop-cue span{padding:8px 18px;border:2px solid var(--ink);border-radius:999px;background:var(--honey);font:900 16px/1 var(--font-heading);box-shadow:var(--shadow-card)}
 .arena.drag-ready .drop-cue,.arena.drag-over .drop-cue{display:flex}
 .arena.drag-over .drop-cue{background:rgba(245,237,220,.16);border-style:solid}
@@ -386,14 +386,14 @@ html.hasHover #hand .card:hover .face{border-color:var(--teal)}
 .tool .ico{width:24px;height:24px}
 .action-bar .btn{min-height:46px}
 .action-bar .btn.primary{flex:0 1 auto;min-width:88px}
-#game.m-l .tool{width:50px;height:44px;font-size:11px}
+#game.m-l .tool{width:50px;height:44px;font-size:12px}
 #game.m-l .tool svg{width:19px;height:19px}#game.m-l .tool .ico{width:21px;height:21px}
 #game.m-w .tool{width:64px;height:56px;font-size:13px}
 /* 问六六 / 托管 / 悔牌:同一种圆角方块,上图下字(产品方:原来「问六六」是横排药丸、托管是方块,形状不统一)。
    六六头像比线条图标略大一点,看着一样重 */
 .tool.ask .ico{width:24px;height:24px}
 #game.m-w .tool svg{width:24px;height:24px}#game.m-w .tool.ask .ico{width:26px;height:26px}
-@media (max-width:360px){.action-bar{gap:4px!important}.action-bar .btn{padding:0 9px}.tool{width:48px;height:48px;font-size:11px}.action-bar .btn.primary{min-width:70px}}
+@media (max-width:360px){.action-bar{gap:4px!important}.action-bar .btn{padding:0 9px}.tool{width:48px;height:48px;font-size:12px}.action-bar .btn.primary{min-width:70px}}
 .ph-dealing #btnHint,.ph-dealing #btnPlay,.ph-dealing #btnClear,.ph-dealing #dealZone,
 .ph-kitty #btnHint,.ph-kitty #btnPlay,.ph-lowrebel #btnPlay,.ph-lowrebel #btnHint,.ph-lowrebel #btnClear,
 .ph-redealing #btnPlay,.ph-redealing #btnHint,.ph-redealing #btnClear,
@@ -592,7 +592,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 .init-hands summary{cursor:pointer;font:700 14px/1.6 var(--font-sans);color:var(--ink-soft)}
 .ih-row{display:grid;grid-template-columns:3em minmax(0,1fr);gap:6px;margin-top:8px;align-items:baseline}
 .ih-who{font-size:13px;color:var(--ink-soft);white-space:nowrap}
-.ih-who small{margin-left:3px;padding:0 4px;border-radius:6px;background:var(--ink);color:var(--card-face);font:700 10px/1.5 var(--font-sans)}
+.ih-who small{margin-left:3px;padding:0 4px;border-radius:6px;background:var(--ink);color:var(--card-face);font:700 11.5px/1.5 var(--font-sans)}
 .ih-gap{display:inline-block;width:9px}
 .ih-sep{margin-top:8px;border-top:1.5px dashed var(--line)}
 .init-hands .ih-row{grid-template-columns:4.6em minmax(0,1fr)}
@@ -602,9 +602,9 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 .trick-line .tcards,.ih-row .tcards,.suit-row .tcards{display:flex;flex-wrap:wrap;align-items:center;row-gap:3px;min-width:0;font:900 15px/1.5 var(--font-num);letter-spacing:.01em}
 .tplay{display:inline-flex;flex-wrap:wrap;align-items:center;row-gap:3px;margin-right:10px}
 .tplay .who,.chip .who{display:inline-grid;place-items:center;width:17px;height:17px;margin-right:3px;border-radius:50%;flex:none;
-  background:var(--brick);color:var(--card-face);font:900 10px/1 var(--font-heading);font-style:normal}
+  background:var(--brick);color:var(--card-face);font:900 12px/1 var(--font-heading);font-style:normal}
 .tplay .who.s2,.chip .who.s2,.tplay .who.s0{background:var(--teal)}   /* 我和 Kevin 一队,一个颜色 */
-.chip .who{width:20px;height:20px;font-size:11px;margin-right:0}
+.chip .who{width:22px;height:22px;font-size:12px;margin-right:0}
 .tplay:last-child{margin-right:0}
 .tplay.can{cursor:pointer;border-radius:8px;padding:1px 4px;margin-left:-4px;margin-right:6px;-webkit-tap-highlight-color:transparent}
 .tplay.can:hover{background:var(--cream)}
@@ -658,7 +658,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 .coachBox .cSec{font:900 14px/1.4 var(--font-heading);margin-bottom:2px}
 .coachBox .opt{margin-top:6px}
 .coachBox .dim{font-size:13px;color:var(--ink-soft)}
-.coachBox .tag,.cb-more .tag,.cb-text .tag{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;font:800 11px/1.5 var(--font-sans);
+.coachBox .tag,.cb-more .tag,.cb-text .tag{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;font:800 12px/1.5 var(--font-sans);
   background:var(--honey);color:var(--ink);vertical-align:1px}
 .coachBox .tag.ok,.cb-more .tag.ok{background:var(--card-face);box-shadow:inset 0 0 0 1.5px var(--line)}
 .coachBox.warn{background:var(--err-tint);border-color:rgba(168,55,31,.3)}
@@ -8183,7 +8183,7 @@ function startRound(seed){
   G={seed,start,firstTaker:first,trumpRank,dealerKnown,
      hands:deal.hands,kittyOrig:deal.kitty,buried:[],
      trump:null,declSeat:dealerKnown?M.dealer:-1,
-     decl:null,rebelHappened:false,declPend:{},
+     decl:null,rebelHappened:false,declPend:{},declHist:[],
      visCount:[0,0,0,0],dealt:0,
      leader:-1,trick:[],trickNo:0,tricks:[],defPoints:0,capturedCards:[],lastWinner:-1,
      lastLeadSize:1,phase:'dealing',selected:new Set(),log:[],awaitNext:false,
@@ -8341,7 +8341,9 @@ function aiDeclThink(seat,now){
 
 function applyDecl(seat,opt,isReinforce){
   if(!G.dealerKnown) G.trumpRank=rankOf(seat);   // 无庄盘:主牌级数跟着亮主者走
+  const counter=!!G.decl&&!isReinforce;     // 压在别人的亮主上 = 反
   G.decl={seat,suit:opt.suit,strength:opt.strength};
+  G.declHist.push({seat,suit:opt.suit,strength:opt.strength,counter,reinforce:!!isReinforce});
   // 叫牌过程进牌谱:at = 当时发到第几张;你这一家的亮主若是托管替你亮的,标 a
   G.declLog.push({seat,suit:opt.suit,strength:opt.strength,at:G.dealt,
                   ...(isReinforce?{re:1}:{}),...(seat===HUMAN&&G.auto?{a:1}:{})});
@@ -8366,6 +8368,7 @@ window.__skipDecl=()=>{
   settleTrump();
 };
 
+const DECL_SHOW_MS=3500;   // 有人反主时,定主后桌心留这么久再进扣底/出牌
 function settleTrump(){
   if(G.phase!=='finalDecl'&&G.phase!=='dealing') return;   // 防「不亮」和到点结算重复触发
   aiDeclFlush();
@@ -8380,6 +8383,14 @@ function settleTrump(){
   }else{
     log(G.decl?`定${T('trump')}:${trumpLabel(G.trump)},${SEAT_NAME[G.declSeat]} 坐庄`
               :`无人${T('declare')} → ${T('noTrump')},${SEAT_NAME[G.declSeat]} 坐庄`);
+  }
+  /* 发牌里有人反了主,而你多半没盯着(AI 的亮主是排队的,点「不亮」会一口气结掉),
+   * 定主后不要直接跳进扣底/出牌:停一下,桌心写明谁反的、反成什么(表现层 syncCenter 的 declShow 分支)。
+   * 托管不停(托管图的就是快)。 */
+  if(!G.auto&&G.declHist.some(e=>e.counter)){
+    const g=G; G.phase='declShow'; render();
+    setTimeout(()=>{ if(G!==g||G.phase!=='declShow') return; lowRebelPhase(); }, DECL_SHOW_MS);
+    return;
   }
   lowRebelPhase();
 }
@@ -10660,6 +10671,13 @@ function syncCenter(G){
     if(G.declSeat===0){status='扣底';small='选 8 张扣下 · '+G.selected.size+'/8';}
     else{status='等待扣底';small=who(G.declSeat)+' 正在扣底';}
   }else if(ph==='lowrebel'){status='可以造反';small=($('msg').textContent||'').replace(/^你手牌/,'手牌');}
+  else if(ph==='declShow'){
+    var hs=G.declHist||[],last=hs[hs.length-1],prev=null;
+    for(var i=hs.length-2;i>=0;i--)if(hs[i].seat!==last.seat){prev=hs[i];break;}
+    var dsc=function(e){return e.suit?SUIT_SYM[e.suit]+(e.strength===2?'(对)':''):(e.strength===4?'大王对·无主':'小王对·无主');};
+    status=who(last.seat)+(last.reinforce?' 加固':last.counter?' 反主':' 亮主')+' '+dsc(last);
+    small=last.counter&&prev?'压过 '+who(prev.seat)+' 的 '+dsc(prev):'';
+  }
   else if(ph==='redealing'){status='重新发牌';small='';}
   else if(ph==='play'){
     /* 出牌阶段桌心不放东西:轮到谁看名牌,本墩分看顶栏进度条,轮到我看我出牌处的虚线空位 */
