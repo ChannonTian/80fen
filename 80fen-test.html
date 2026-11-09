@@ -5764,7 +5764,8 @@ function fateFeat(view, c, B){
   return {n:view.hand.length,myLen,myHi,myTr,unseenS,hi,
     pMV:mV/k,pOV:oV/k,pMVT:mVT/k,pOVT:oVT/k,pMHi:mHi/k,pOHi:oHi/k,mTr:mTr/k,oTr:oTr/k};
 }
-const FATE_W0={b:0,w:[]};
+// test/fit-fate.js 拟合(11-09,自对弈 1198 副、58597 张留着的副牌分牌;检验集对数损失 0.6588(只看自己手牌)→ 0.6436(加抽样世界),分档校准 ±5 个百分点内)
+const FATE_W0={b:-1.1439,w:[0.7606,0.2576,0.0483,0.6094,-0.0088,-0.0614,-0.0346,0.0173,0.0654,-0.4764,-0.0062,1.0123,-0.496,-0.572,0.465,1.2481,-1.0212,0.2511,0.8485]};
 function fateX(f, decl, pts){
   return [decl,pts===10?1:0,f.n/25,f.myLen/5,Math.min(f.myHi,3)/3,f.myTr/10,f.hi===0?1:0,Math.log(1+f.hi),f.unseenS/10,
     f.pMV,f.pOV,f.pMVT,f.pOVT,f.pMHi,f.pOHi,f.mTr/10,f.oTr/20,f.pMHi*(1-f.pOHi),(f.hi===0?1:0)*(1-f.pOVT)];
