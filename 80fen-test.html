@@ -1519,6 +1519,15 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   ruffFixPts: 0,              // 位 1 另一条:增益 × 台面分 < 这个也垫。0 = 不用(11-10:台面 0 分时会把 97% vs 48% 的毙也改掉 —— 后手还会贴分、毙下来还拿回牌权)
   ruffFixHiP: 0.6,
   ruffFixHiPts: 10,
+  /* flagFix 位 16(11-10 产品方):**压就压到稳住,不然就不争** —— 取代位 1 / 2。第 2 / 3 家单张领出、首选压过当前但本队拿下 < 0.5(多半被后手盖)时:
+   * 在所有压得过当前的牌里取本队拿下最高的那张(差 ≤ 3 个百分点取小的;带分的只在 ≥ 0.8 时算),比「不争」(最小的不带分、不压的牌)高出 ≥ beatHiGain → 出它;
+   * 否则首选比「不争」高不到 ruffFixGain → 不争。3f63ea70 第 5 墩:小毙 ♠2 25%、级牌 ♦8 29%、垫 14% → 级牌毙(逼下家拿王换,也不让他往自己墩里白垫分);
+   * 第 11 墩:♠7 3%、级牌 8%、♠3 3% → ♠3。首选不带分、且(本队拿下 < 0.5 或比不争只多 < ruffFixGain)时才看。
+   * 位 32:位 4 不限「后手明断」—— 收官搜索一律不把不带分的首选改判成本队拿下 < followFixP 的贴分(搜索的续打 AI 本身会打坏,195d460f)。 */
+  beatHiGain: 0.08,
+  beatW: 10,                  // 位 16:多赢下这墩的价值 = (本队拿下之差) × (台面分 + beatW)(后手还会贴分、拿回牌权)
+  beatCost: [20,12,10,1,3],   // 位 16:用来压的牌的代价(分):大王 / 小王 / 主级牌 / 副级牌 / 主 A;其余 0(11-10 产品方:大王非关键分不动;副级牌就是干这个的)
+  beatOutPts: 50,             // 位 16:王 / 主级牌的代价 × clamp(场上还没出的分 / 这个, 0.2, 1)
   /* 分牌命运(followFate,11-09,产品方:「留着的分牌是在找更高概率得利的机会」—— 单一概率 + 阈值管不住):
    * 1 = followFix 位 1 不再看 followFixP,改比两个期望:现在贴 = 本队拿下(贴之后)×(台面 + 这张);
    * 留着 = 本队拿下(出不带分的)× 台面 + fateP(这张最后归本队的概率,test/fit-fate.js 从自对弈拟合)× 这张。留着多出 followFateMargin 分才改。0 = 旧行为。 */
@@ -4464,7 +4473,31 @@ function aiChooseFollow(view, plays, extra){
       }
     }
     /* flagFix 1 / 2:毙小主几乎不增胜算 → 垫;毙小主多半被盖、台面够大 → 用能稳住的那张主(设防) */
-    if((AIP.flagFix&3)&&lead.type==='single'&&lead.suit!=='T'&&best.cards.length===1&&!X.isLast
+    if(AIP.flagFix&16&&lead.type==='single'&&best.cards.length===1&&!X.isLast
+       &&currentWinner([...plays,{seat:view.seat,cards:best.cards}],trump).seat===view.seat){
+      const legal=view.hand.filter(x=>isLegalFollow(view.hand,lead,[x],trump));
+      const beatsC=x=>currentWinner([...plays,{seat:view.seat,cards:[x]}],trump).seat===view.seat;
+      const pB=pTeamWin(X,best.cards,true);
+      const los=legal.filter(x=>!beatsC(x)).sort((a,b)=>(cardPoints(a)-cardPoints(b))||(ordIdx(a,trump)-ordIdx(b,trump)));
+      const lo=los.length?los[0]:null, pL=lo?pTeamWin(X,[lo],false):null;
+      if(cardPoints(best.cards[0])===0&&(pB<0.5||(pL!==null&&pB-pL<AIP.ruffFixGain))){
+        // 这张牌的代价(折成分):王 / 级牌 / 主 A 是牌权和控制,为一墩小分动它们不值;其余 0
+        // 王 / 主级牌的代价随场上余分缩小(外面没分可抢了,留着也没用);副级牌人均 1.5 张,本来就是抢牌权、压牌抢分、给队友贴分机会用的,代价很低
+        const mem=makeMemory(view); let outPts=0; for(const k in mem.unseen) if(mem.unseen[k]>0) outPts+=mem.unseen[k]*cardPoints(keyToCard(k));
+        const fOut=clamp(outPts/AIP.beatOutPts,0.2,1);
+        const cost=x=>x.suit==='X'?(x.rank===16?AIP.beatCost[0]:AIP.beatCost[1])*fOut:x.rank===trump.rank?(x.suit===trump.suit?AIP.beatCost[2]*fOut:AIP.beatCost[3])
+          :(effSuit(x,trump)==='T'&&x.rank===14)?AIP.beatCost[4]:0;
+        const W=(X.ptsTable||0)+AIP.beatW, base=pL===null?0:pL;
+        const his=legal.filter(beatsC).map(x=>({x,p:pTeamWin(X,[x],true)})).filter(o=>cardPoints(o.x)===0||o.p>=0.8)
+          .map(o=>({...o,v:(o.p-base)*W-cost(o.x)})).sort((a,b)=>(b.v-a.v)||(ordIdx(a.x,trump)-ordIdx(b.x,trump)));
+        const hi=his[0];
+        if(hi&&hi.v>0&&hi.p>=pB&&(pL===null||hi.p-pL>=AIP.beatHiGain))
+          best={cards:[hi.x],cat:'beat',score:best.score,reason:hi.p>=0.5?`压就压到稳住(本队拿下 ${Math.round(100*hi.p)}%,原来那张 ${Math.round(100*pB)}%)`:`压一张够分量的,逼后手拿大牌来换(本队拿下 ${Math.round(100*hi.p)}%,不压 ${Math.round(100*base)}%)`};
+        else if(lo&&pB-pL<AIP.ruffFixGain)
+          best={cards:[lo],cat:'cheap',score:best.score,reason:`压也多半被盖(本队拿下 压 ${Math.round(100*pB)}% / 不压 ${Math.round(100*pL)}%)—— 不争,留着`};
+      }
+    }
+    else if((AIP.flagFix&3)&&lead.type==='single'&&lead.suit!=='T'&&best.cards.length===1&&!X.isLast
        &&effSuit(best.cards[0],trump)==='T'&&!view.hand.some(x=>effSuit(x,trump)===lead.suit)
        &&currentWinner([...plays,{seat:view.seat,cards:best.cards}],trump).seat===view.seat){
       const r0=best.cards[0], tbl=X.ptsTable||0, pR=pTeamWin(X,[r0],true);
@@ -4488,7 +4521,7 @@ function aiChooseFollow(view, plays, extra){
       /* flagFix 4:首选不带分时,搜索不能把它改判成「贴分、自己不压、本队拿下 < followFixP」的那手(样本少时搜索会这么改) */
       const oppVoidBehind=()=>{ const vd=makeVoids((view.history||[]).slice(0,(view.history||[]).length-plays.length),trump);
         return (X.remaining||[]).some(q=>q%2!==view.seat%2&&vd[q]&&vd[q][lead.suit]); };
-      if(top&&AIP.flagFix&4&&lead.type==='single'&&top.cards.length===1&&countPoints(best.cards)===0&&cardPoints(top.cards[0])>0&&oppVoidBehind()
+      if(top&&AIP.flagFix&4&&lead.type==='single'&&top.cards.length===1&&countPoints(best.cards)===0&&cardPoints(top.cards[0])>0&&(AIP.flagFix&32||oppVoidBehind())
          &&currentWinner([...plays,{seat:view.seat,cards:top.cards}],trump).seat!==view.seat&&pTeamWin(X,top.cards,false)<AIP.followFixP) top=null;
       if(top){
         const c=cands.find(x=>x.cards===top.cards);
