@@ -1538,6 +1538,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   beatCritF: 0.25,            // 位 16:关键墩里王 / 主级牌的代价再乘这个
   leadFix: 7,                 // 领出标记修正(位开关,11-11):1 = 对子领出时「拿两张不成对的跟 = 剩下的都不比较大那张便宜」进读牌;2 = 两个对手都确定没主时领主扣分;0 = 旧行为
   leadVoidTrumpPen: 20,
+  buryPlan: 0,                // 1 = 埋底先在 8 格里挑断门组合(哪几门断 / 埋到只剩稳赢牌),只有计划里的门拿断门分;0 = 旧行为(逐张贪心)
   kittyGuard: 0,              // 守底 / 抢底(位开关,11-12):1 = 跟牌后期不轻易用掉唯一一张稳吃末墩的牌;2 = 领出同理;4 = 庄家底里有分时中盘领王 / 主级牌扣分;0 = 旧行为
   kgEnd: 4,                   // 「后期」= 手里剩 ≤ 这么多张
   kgLeadW: 1,                 // 位 4 的扣分 = 底分 × 2 × 这个
@@ -2103,6 +2104,22 @@ function aiDiscard(hand, trump, opt){
 
   const rest=hand.slice();
   const picked=[];
+  /* buryPlan(11-12 产品方 ee225ff7「本有机会断两门」):逐张贪心看不见「几门抢同一批格子」——
+   * 17 张主、♠6 / ♣6 / ♥4(各带 A):埋 ♠5 + ♥3 正好 8 格、两门只剩 A;贪心第 1 张在 ♣3 / ♠3 同分里挑了 ♣3,♥ 就凑不齐了。
+   * 先在 n 格里挑断门组合(每门:不断 / 埋到只剩稳赢牌 / 整门断,价值同下面的 share),只有计划里的门拿断门分。 */
+  let plan=null;
+  if(AIP.buryPlan){
+    const g0={}; hand.forEach(c=>{const s=effSuit(c,trump); if(s!=='T') (g0[s]=g0[s]||[]).push(c);});
+    const opts=Object.keys(g0).map(s=>{ const len=g0[s].length, ch=bossChain(g0[s],trump,mem), o=[{s,cost:0,val:0}];
+      o.push({s,cost:len,val:AIP.voidValue*voidDiscount});
+      if(ch>0&&len-ch>0) o.push({s,cost:len-ch,val:AIP.voidChainCredit*AIP.voidValue*voidDiscount});
+      return o; });
+    let bestP={cost:0,val:0,suits:[]};
+    const rec=(i,cost,val,suits)=>{ if(cost>n) return; if(i===opts.length){ if(val>bestP.val+1e-9||(Math.abs(val-bestP.val)<1e-9&&cost<bestP.cost)) bestP={cost,val,suits}; return; }
+      for(const o of opts[i]) rec(i+1,cost+o.cost,val+o.val,o.cost?suits.concat([o.s]):suits); };
+    rec(0,0,0,[]);
+    plan=new Set(bestP.suits);
+  }
   for(let step=0;step<n;step++){
     const groups={};
     rest.forEach(c=>{const s=effSuit(c,trump);(groups[s]=groups[s]||[]).push(c);});
@@ -2110,7 +2127,7 @@ function aiDiscard(hand, trump, opt){
     const remain=n-step;                                // 连这一张在内还要埋几张
     const chains={}, share={};
     for(const s in groups){
-      if(s==='T'){ chains[s]=0; share[s]=0; continue; }
+      if(s==='T'||(plan&&!plan.has(s))){ chains[s]=0; share[s]=0; continue; }
       chains[s]=bossChain(groups[s],trump,mem);
       // 断门是集合性质:整门埋完才兑现。若只在「埋掉最后一张」时给分,
       // 这个台阶对贪心是不可见的 —— 它永远走不到那一步,于是 voidValue 形同虚设。
