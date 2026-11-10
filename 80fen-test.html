@@ -11050,7 +11050,6 @@ document.addEventListener('pointermove',function(e){
     moveGhost(e.clientX,e.clientY);
     var inside=inArena(e);
     arena.classList.toggle('drag-over',inside);
-    ghost.hidden=inside;     // 进了牌桌,桌心的「松手出牌」是唯一的提示,被拖的牌不再跟着盖在上面
     arena.classList.toggle('drag-ready',!inside);
   }
 });
