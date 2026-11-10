@@ -1533,10 +1533,14 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   beatOutPts: 50,             // 位 16:王 / 主级牌的代价 × clamp(场上还没出的分 / 这个, 0.2, 1)
   beatOutMin: 0.5,            // 位 16:王 / 主级牌的代价最少打这个折(11-11:0.2 时后期为 0 分的墩出大王 / 小王)
   beatKittyGuess: 15,         // 位 16:闲家不知道底牌,按这么多分估
+  beatGuard: 1,               // 位 16 / 256 / 1024 的代价加上守底(guardCost)/ 抢末墩(digCost)那一项;0 = 不加
   beatCritExtra: 5,           // 位 16:关键墩判定 —— 这墩的分按台面 + 这个算
   beatCritF: 0.25,            // 位 16:关键墩里王 / 主级牌的代价再乘这个
   leadFix: 7,                 // 领出标记修正(位开关,11-11):1 = 对子领出时「拿两张不成对的跟 = 剩下的都不比较大那张便宜」进读牌;2 = 两个对手都确定没主时领主扣分;0 = 旧行为
   leadVoidTrumpPen: 20,
+  kittyGuard: 0,              // 守底 / 抢底(位开关,11-12):1 = 跟牌后期不轻易用掉唯一一张稳吃末墩的牌;2 = 领出同理;4 = 庄家底里有分时中盘领王 / 主级牌扣分;0 = 旧行为
+  kgEnd: 4,                   // 「后期」= 手里剩 ≤ 这么多张
+  kgLeadW: 1,                 // 位 4 的扣分 = 底分 × 2 × 这个
   /* 分牌命运(followFate,11-09,产品方:「留着的分牌是在找更高概率得利的机会」—— 单一概率 + 阈值管不住):
    * 1 = followFix 位 1 不再看 followFixP,改比两个期望:现在贴 = 本队拿下(贴之后)×(台面 + 这张);
    * 留着 = 本队拿下(出不带分的)× 台面 + fateP(这张最后归本队的概率,test/fit-fate.js 从自对弈拟合)× 这张。留着多出 followFateMargin 分才改。0 = 旧行为。 */
@@ -4106,6 +4110,16 @@ function feedP(X, view, plays, cards){
 // 跟牌决策
 /* extra(v0.7.50,只给教练用):把「你出的这一手」当成一条候选放进同一条流水线 —— 和 AI 自己的候选一起
  * 过 ruff2Plan / feedPlan 这些事后加减分,返回 {extraScore};不跑收官推演、不改 AI 的选择。不传 = 旧行为。 */
+/* 守底 / 抢底(kittyGuard,11-12 产品方 216af392「给守底的 1~3 手做标记,尽量保留到最后」、bbf46a1e 第 11 墩「这里不赌一把底?」):
+ * 手里「稳吃最后一墩」的牌 = 比在外所有主都大的主(王 / 级牌按大小)。只剩一张时它就是守底(庄方)/ 抢底(闲家)的那一手。
+ * 末墩的价值 = 底分 × 2(单张末墩的倍数);庄家知道底分,其余三家按 beatKittyGuess 估。 */
+function lastWinnerInfo(view){
+  const T=view.trump, mem=makeMemory(view);
+  let top=-1; for(const k in mem.unseen){ if(mem.unseen[k]<=0) continue; const u=keyToCard(k); if(effSuit(u,T)==='T') top=Math.max(top,ordIdx(u,T)); }
+  const sure=view.hand.filter(c=>effSuit(c,T)==='T'&&ordIdx(c,T)>top);
+  const kp=view.declSeat===view.seat&&view.buriedKnown&&view.buriedKnown.length?countPoints(view.buriedKnown):AIP.beatKittyGuess;
+  return {sure, V:kp*2};
+}
 /* flagFix 位 16 / 1024 用的「这张牌的代价」和「多赢一墩的价值」(11-10~11 产品方):
  * 王 / 级牌 / 主 A / 副牌 A 是牌权和控制,为一墩小分动它们不值;王 / 主级牌的代价随场上余分(含底牌 × 2)缩小,最少打 beatOutMin 折;
  * 关键墩(闲家已得 + 这墩会跨 40 / 80 / 120 / 160)再 × beatCritF。副级牌人均 1.5 张,本来就是抢牌权、压牌抢分、给队友贴分机会用的,代价很低。
@@ -4119,8 +4133,11 @@ function beatCostCtx(view, plays, X){
   for(let i=0;i+3<h.length;i+=4){ const tr=h.slice(i,i+4); if(view.declSeat!==undefined&&resolveTrick(tr,trump).winner%2!==view.declSeat%2) dp+=countPoints(tr.flatMap(q=>q.cards)); }
   const stake=(X.ptsTable||0)+AIP.beatCritExtra;
   if([40,80,120,160,200].some(T=>dp<T&&dp+stake>=T)) fOut*=AIP.beatCritF;
-  const cost=x=>x.suit==='X'?(x.rank===16?AIP.beatCost[0]:AIP.beatCost[1])*fOut:x.rank===trump.rank?(x.suit===trump.suit?AIP.beatCost[2]*fOut:AIP.beatCost[3])
+  const cost0=x=>x.suit==='X'?(x.rank===16?AIP.beatCost[0]:AIP.beatCost[1])*fOut:x.rank===trump.rank?(x.suit===trump.suit?AIP.beatCost[2]*fOut:AIP.beatCost[3])
     :(effSuit(x,trump)==='T'&&x.rank===14)?AIP.beatCost[4]:(x.rank===14)?AIP.beatCost[5]:effSuit(x,trump)==='T'?(AIP.beatCost[6]||0):0;
+  // 守底 / 抢末墩(11-12 产品方 216af392:「给守底的 1~3 手做标记,尽量留到最后」):庄家的 guardCost、闲家的 digCost 原来在打分的留手项里,
+  // 位 16 改判时绕开了它们 —— 216af392 第 14 墩为 20% 的墩花掉守底的 ♣A。这里把它加回代价。
+  const cost=x=>cost0(x)+(AIP.beatGuard?guardCost(X,[x]):0);
   return {cost, W:(X.ptsTable||0)+AIP.beatW*Math.min(1,(outPts+kitPts)/AIP.beatOutPts)};
 }
 /* flagFix 位 256:「跟分压住、后手还有对手」时 AI 估的本队拿下系统性偏乐观(真人牌谱 402 次:估 0.5~0.8 实 46%、0.8~0.95 实 62%、≥ 0.95 实 95%),
@@ -4569,6 +4586,21 @@ function aiChooseFollow(view, plays, extra){
         if(ds.length){ const pD=pTeamWin(X,[ds[0]],false), g=pR-pD;
           if(g<AIP.ruffFixGain||(AIP.ruffFixPts>0&&g*tbl<AIP.ruffFixPts))
             best={cards:[ds[0]],cat:'cheap',score:best.score,reason:`毙了也不多赢(本队拿下 毙 ${Math.round(100*pR)}% / 垫 ${Math.round(100*pD)}%)—— 主留着,垫一张小的`}; }
+      }
+    }
+    /* kittyGuard 1:后期(剩 ≤ kgEnd 张、还不是最后一墩)首选要用掉手里**唯一**一张稳吃末墩的牌 → 和末墩价值比:
+     * 这墩多拿的分(台面 + 10)×(用它 − 不用它的本队拿下)不够 → 出别的(不带分的优先,垫牌那把尺子)。 */
+    if(AIP.kittyGuard&1&&lead.type==='single'&&best.cards.length===1&&view.hand.length>1&&view.hand.length<=AIP.kgEnd){
+      const LW=lastWinnerInfo(view);
+      if(LW.sure.length===1&&LW.sure[0].id===best.cards[0].id&&LW.V>0){
+        const others=view.hand.filter(x=>x.id!==best.cards[0].id&&isLegalFollow(view.hand,lead,[x],trump));
+        if(others.length){
+          const dvK=discardVal(view.hand,trump);
+          const alt=others.slice().sort((a,b)=>(cardPoints(a)-cardPoints(b))||(dvK(a)-dvK(b)))[0];
+          const pU=pTeamWin(X,best.cards,true), pN=pTeamWin(X,[alt],currentWinner([...plays,{seat:view.seat,cards:[alt]}],trump).seat===view.seat);
+          const gain=(pU-pN)*((X.ptsTable||0)+cardPoints(alt)+10);
+          if(gain<LW.V) best={cards:[alt],cat:'cheap',score:best.score,reason:`这张留着守末墩(底的价值约 ${LW.V} 分)—— 这墩不值得用它`};
+        }
       }
     }
     const eg=endgameSearch(view,plays,cands.slice(0,AIP.egMaxCands));
@@ -6243,6 +6275,16 @@ function aiChooseLead(view){
     const oppNoT=[(view.seat+1)%4,(view.seat+3)%4].every(q=>vd[q]['T']||maxHoldIn(rd,mem,q,'T',T)===0);
     if(oppNoT) for(const c of cands) if(c.cards.every(x=>effSuit(x,T)==='T')){ c.score-=AIP.leadVoidTrumpPen;
       c.reason=countPoints(c.cards)>0?'对手都没主了 —— 这张主稳收,顺手把分收进来(不为吊主)':'对手都没主了 —— 领主吊不出东西,只逼队友跟主'; }
+  }
+  /* kittyGuard 2:后期(2 ≤ 剩 ≤ kgEnd 张)领掉手里唯一一张稳吃末墩的牌 → 扣末墩价值;
+   * kittyGuard 4:庄家底里有分、中盘(剩 > kgEnd 张)领王 / 主级牌 → 扣底分 × 2 × kgLeadW(216af392 第 5 墩:三张王、底 10 分,第 5 墩就领小王)。 */
+  if(AIP.kittyGuard&6){
+    const LW=lastWinnerInfo(view), n=view.hand.length, T=view.trump;
+    for(const c of cands){
+      if(AIP.kittyGuard&2&&n>=2&&n<=AIP.kgEnd&&LW.sure.length===1&&c.cards.some(x=>x.id===LW.sure[0].id)&&c.cards.length<n){ c.score-=LW.V; c.reason='(留着守末墩)'+c.reason; }
+      if(AIP.kittyGuard&4&&n>AIP.kgEnd&&view.declSeat===view.seat&&view.buriedKnown&&countPoints(view.buriedKnown)>0
+         &&c.cards.some(x=>x.suit==='X'||(x.rank===T.rank&&x.suit===T.suit))) c.score-=countPoints(view.buriedKnown)*2*AIP.kgLeadW;
+    }
   }
   cands.sort((a,b)=>b.score-a.score);
   let best=cands[0]||{cards:[view.hand[0]],reason:'兜底',score:0};
