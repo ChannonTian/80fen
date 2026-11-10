@@ -1529,7 +1529,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   beatHiGain: 0.08,
   beatHoldMin: 0.5,           // 位 64 / 128(首选本来不压)时,主动压的那张本队拿下至少这么多才压 —— 不为「逼后手拿大牌」去压一两成胜算的牌(11-11:不限时 pool −2.9 分)
   beatW: 10,                  // 位 16:多赢下这墩的价值 = (本队拿下之差) × (台面分 + beatW)(后手还会贴分、拿回牌权)
-  beatCost: [20,12,10,1,3,6],   // 位 16:用来压的牌的代价(分):大王 / 小王 / 主级牌 / 副级牌 / 主 A / 副牌 A;其余 0(11-10 产品方:大王非关键分不动;副级牌就是干这个的)
+  beatCost: [20,12,10,1,3,6,0],   // 位 16:用来压的牌的代价(分):大王 / 小王 / 主级牌 / 副级牌 / 主 A / 副牌 A / 其余主牌;副牌 0(11-10 产品方:大王非关键分不动;副级牌就是干这个的)
   beatOutPts: 50,             // 位 16:王 / 主级牌的代价 × clamp(场上还没出的分 / 这个, 0.2, 1)
   beatOutMin: 0.5,            // 位 16:王 / 主级牌的代价最少打这个折(11-11:0.2 时后期为 0 分的墩出大王 / 小王)
   beatKittyGuess: 15,         // 位 16:闲家不知道底牌,按这么多分估
@@ -4120,7 +4120,7 @@ function beatCostCtx(view, plays, X){
   const stake=(X.ptsTable||0)+AIP.beatCritExtra;
   if([40,80,120,160,200].some(T=>dp<T&&dp+stake>=T)) fOut*=AIP.beatCritF;
   const cost=x=>x.suit==='X'?(x.rank===16?AIP.beatCost[0]:AIP.beatCost[1])*fOut:x.rank===trump.rank?(x.suit===trump.suit?AIP.beatCost[2]*fOut:AIP.beatCost[3])
-    :(effSuit(x,trump)==='T'&&x.rank===14)?AIP.beatCost[4]:(x.rank===14)?AIP.beatCost[5]:0;
+    :(effSuit(x,trump)==='T'&&x.rank===14)?AIP.beatCost[4]:(x.rank===14)?AIP.beatCost[5]:effSuit(x,trump)==='T'?(AIP.beatCost[6]||0):0;
   return {cost, W:(X.ptsTable||0)+AIP.beatW*Math.min(1,(outPts+kitPts)/AIP.beatOutPts)};
 }
 /* flagFix 位 256:「跟分压住、后手还有对手」时 AI 估的本队拿下系统性偏乐观(真人牌谱 402 次:估 0.5~0.8 实 46%、0.8~0.95 实 62%、≥ 0.95 实 95%),
