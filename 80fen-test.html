@@ -814,7 +814,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.62(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.63(测试版)</div>
 
 
 <script>
@@ -1511,9 +1511,10 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    *   1 = 毙小主几乎不增胜算就垫:断门、首选是毙,「毙」比「垫最小的不带分副牌」本队拿下只多 < ruffFixGain → 改垫
    *       (5f83443a 毙 ♥7 62% vs 垫 60%、打分 23 vs 4;3a4cab2c 毙 ♦6 9% vs 垫 4%;3f63ea70 毙 ♠2 25% vs 14%)
    *   2 = 设防:毙小主本队拿下 < 0.5、台面 ≥ ruffFixHiPts 时,改用能让本队拿下 ≥ ruffFixHiP 的最小一张主(3a4cab2c 小王 61%)
-   *   4 = 收官搜索不把「不带分的首选」改判成本队拿下 < followFixP 的贴分(3a4cab2c 第 12 墩:搜索 20 样本把垫 ♣4 改成贴 ♥K,估 8%)
+   *   4 = 收官搜索不把「不带分的首选」改判成本队拿下 < followFixP 的贴分 —— 只在后手有对手明断这门时(3a4cab2c 第 12 墩:搜索 20 样本把垫 ♣4 改成贴 ♥K,估 8%;
+   *       不收窄时 h2h −0.006 ±0.003 级:搜索的续打 AI 毙得比真人少,只在「后手明断」这种真人几乎必毙的情形下不信它)
    *   8 = followFix 位 1 也管主牌分(3f63ea70 第 16 墩:♠10 / ♠Q 都 2%,贴了 10);替上去的不能是王、级牌、主 A */
-  flagFix: 0,
+  flagFix: 13,                // (v0.7.63 测试版默认 13 = 位 1 + 4 + 8;位 2 设防不加分,不开)
   ruffFixGain: 0.15,
   ruffFixPts: 0,              // 位 1 另一条:增益 × 台面分 < 这个也垫。0 = 不用(11-10:台面 0 分时会把 97% vs 48% 的毙也改掉 —— 后手还会贴分、毙下来还拿回牌权)
   ruffFixHiP: 0.6,
@@ -4485,7 +4486,9 @@ function aiChooseFollow(view, plays, extra){
       const cur=eg.find(o=>o.cards===best.cards);
       let top=egOverride(eg,cur);
       /* flagFix 4:首选不带分时,搜索不能把它改判成「贴分、自己不压、本队拿下 < followFixP」的那手(样本少时搜索会这么改) */
-      if(top&&AIP.flagFix&4&&lead.type==='single'&&top.cards.length===1&&countPoints(best.cards)===0&&cardPoints(top.cards[0])>0
+      const oppVoidBehind=()=>{ const vd=makeVoids((view.history||[]).slice(0,(view.history||[]).length-plays.length),trump);
+        return (X.remaining||[]).some(q=>q%2!==view.seat%2&&vd[q]&&vd[q][lead.suit]); };
+      if(top&&AIP.flagFix&4&&lead.type==='single'&&top.cards.length===1&&countPoints(best.cards)===0&&cardPoints(top.cards[0])>0&&oppVoidBehind()
          &&currentWinner([...plays,{seat:view.seat,cards:top.cards}],trump).seat!==view.seat&&pTeamWin(X,top.cards,false)<AIP.followFixP) top=null;
       if(top){
         const c=cands.find(x=>x.cards===top.cards);

@@ -268,7 +268,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
-| `flagFix` | `0` | (见上方注释)玩家标记快修(flagFix,11-10,产品方 v0.7.58~60 的 14 手标记,test/records-flags.js):位开关,0 = 旧行为。 | `aiChooseFollow` |
+| `flagFix` | `13` | (v0.7.63 测试版默认 13 = 位 1 + 4 + 8;位 2 设防不加分,不开) | `aiChooseFollow` |
 | `ruffFixGain` | `0.15` | — | `aiChooseFollow` |
 | `ruffFixPts` | `0` | 位 1 另一条:增益 × 台面分 < 这个也垫。0 = 不用(11-10:台面 0 分时会把 97% vs 48% 的毙也改掉 —— 后手还会贴分、毙下来还拿回牌权) | `aiChooseFollow` |
 | `ruffFixHiP` | `0.6` | — | `aiChooseFollow` |
