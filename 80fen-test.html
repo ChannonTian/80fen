@@ -150,17 +150,17 @@ button{cursor:pointer;touch-action:manipulation}
 .player-label .ava.mug svg{display:block;width:100%;height:100%;clip-path:circle(50%)}
 .player.north .ava.mug{background:var(--teal)}
 .player-label .name{grid-column:2;align-self:end;font:900 14px/1.1 var(--font-heading)}
-.player-label .role{grid-column:2;align-self:start;font:700 10.5px/1.25 var(--font-sans);color:var(--ink-soft)}
+.player-label .role{grid-column:2;align-self:start;font:700 12px/1.25 var(--font-sans);color:var(--ink-soft)}
 .player-label .backs{display:none}
 /* 我:只留一个头像 */
 #game .my-play .player-label{padding:2px!important;column-gap:0}   /* 盖过各骨架里名牌右边的留白 */
 .my-play .player-label .name{display:none}
 .player-label .tags{position:absolute;inset:0;pointer-events:none}
-.player-label .tag{position:absolute;display:grid;place-items:center;height:17px;min-width:17px;padding:0 3px;border-radius:999px;
-  background:var(--ink);color:var(--cream);font:900 10px/1 var(--font-heading);box-shadow:0 0 0 1.5px var(--cream)}
-.player-label .tag.lead{left:-5px;top:-6px;background:var(--card-face);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink),0 0 0 1.5px var(--cream)}
-.player-label .tag.dealer{left:19px;bottom:-6px}
-.player-label .tag.auto{left:-5px;bottom:-6px;background:var(--teal)}
+.player-label .tag{position:absolute;display:grid;place-items:center;height:21px;min-width:21px;padding:0 4px;border-radius:999px;
+  background:var(--ink);color:var(--cream);font:900 13px/1 var(--font-heading);box-shadow:0 0 0 1.5px var(--cream)}
+.player-label .tag.lead{left:-7px;top:-8px;background:var(--card-face);color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink),0 0 0 1.5px var(--cream)}
+.player-label .tag.dealer{right:-11px;top:-8px}   /* 右上角:不压住头像,也不盖座位小字 */
+.player-label .tag.auto{left:-7px;bottom:-8px;background:var(--teal)}
 /* 轮到谁:名牌变蜂蜜黄,头像外转一圈 */
 .player.turn .player-label,.my-play.turn .player-label{background:var(--honey)}
 .player.turn .ava::after,.my-play.turn .ava::after{content:'';position:absolute;inset:-5px;border-radius:50%;border:3px solid var(--card-face);
@@ -168,8 +168,7 @@ button{cursor:pointer;touch-action:manipulation}
 @keyframes spin{to{transform:rotate(360deg)}}
 #game.tight .player-label{height:36px;padding-right:10px;column-gap:6px}
 #game.tight .player-label .ava{width:28px;height:28px;font-size:14px}
-#game.tight .player-label .name{font-size:13px}#game.tight .player-label .role{font-size:10px}
-#game.tight .player-label .tag.dealer{left:15px}
+#game.tight .player-label .name{font-size:13px}#game.tight .player-label .role{font-size:11.5px}
 /* 矮横屏:竖排小名牌(头像在上、名字压在头像下沿),占地少,不把中间挤满 */
 #game.m-l .player-label{grid-template-columns:auto;grid-template-rows:auto auto;justify-items:center;height:auto;padding:0;column-gap:0;
   border:0;background:none;box-shadow:none}
@@ -181,14 +180,15 @@ button{cursor:pointer;touch-action:manipulation}
 #game.m-l .player.turn .player-label,#game.m-l .my-play.turn .player-label{background:none}
 #game.m-l .player.turn .player-label .name{background:var(--honey)}
 #game.m-l .my-play .player-label .ava{width:40px;height:40px}
-#game.m-l .player-label .tag.lead{left:calc(50% - 26px);top:-5px}
-#game.m-l .player-label .tag.dealer{left:calc(50% + 9px);top:-5px;bottom:auto}
-#game.m-l .player-label .tag.auto{left:calc(50% - 26px);top:22px;bottom:auto}
+#game.m-l .player-label .tag.lead{left:calc(50% - 30px);top:-6px}
+#game.m-l .player-label .tag.dealer{left:calc(50% + 9px);right:auto;top:-6px;bottom:auto}
+#game.m-l .player-label .tag.auto{left:calc(50% - 30px);top:20px;bottom:auto}
 #game.m-w .player-label{height:46px;padding-right:16px;column-gap:9px}
 #game.m-w .player-label .ava{width:38px;height:38px;font-size:19px}
-#game.m-w .player-label .name{font-size:16px}#game.m-w .player-label .role{font-size:12px}
-#game.m-w .player-label .tag.dealer{left:25px}
-#game.m-w .player-label .tag{height:20px;min-width:20px;font-size:11px}
+#game.m-w .player-label .name{font-size:17px}#game.m-w .player-label .role{font-size:14px}
+#game.m-w .player-label .tag.dealer{right:-14px;top:-10px}
+#game.m-w .player-label .tag.lead{left:-9px;top:-10px}#game.m-w .player-label .tag.auto{left:-9px;bottom:-10px}
+#game.m-w .player-label .tag{height:27px;min-width:27px;padding:0 5px;font-size:17px}
 .played{z-index:3;height:calc(var(--tcw,52px)*1.43);width:0;flex:none}
 .played .card{position:absolute;top:0;left:calc(var(--i,0)*var(--pstep,var(--tstep,18px)));--w:var(--tcw,52px);
   animation:playIn .32s var(--ease-out) both;animation-delay:calc(var(--i,0)*28ms)}
@@ -254,8 +254,8 @@ button{cursor:pointer;touch-action:manipulation}
 .center-toast.err{background:var(--err-tint);color:var(--brick-deep)}
 .center-toast.info{background:var(--cream)}
 .drop-cue{position:absolute;inset:8px;z-index:7;border:3px dashed var(--cream);border-radius:20px;display:none;
-  align-items:flex-start;justify-content:center;padding-top:14px;pointer-events:none;background:rgba(245,237,220,.06)}
-.drop-cue span{padding:8px 18px;border:2px solid var(--ink);border-radius:999px;background:var(--honey);font:900 16px/1 var(--font-heading);box-shadow:var(--shadow-card)}
+  align-items:center;justify-content:center;pointer-events:none;background:rgba(245,237,220,.06)}
+.drop-cue span{position:absolute;left:var(--cx,50%);top:var(--cy,50%);transform:translate(-50%,-50%);padding:8px 18px;border:2px solid var(--ink);border-radius:999px;background:var(--honey);font:900 16px/1 var(--font-heading);box-shadow:var(--shadow-card)}
 .arena.drag-ready .drop-cue,.arena.drag-over .drop-cue{display:flex}
 .arena.drag-over .drop-cue{background:rgba(245,237,220,.16);border-style:solid}
 
@@ -386,14 +386,14 @@ html.hasHover #hand .card:hover .face{border-color:var(--teal)}
 .tool .ico{width:24px;height:24px}
 .action-bar .btn{min-height:46px}
 .action-bar .btn.primary{flex:0 1 auto;min-width:88px}
-#game.m-l .tool{width:50px;height:44px;font-size:11px}
+#game.m-l .tool{width:50px;height:44px;font-size:12px}
 #game.m-l .tool svg{width:19px;height:19px}#game.m-l .tool .ico{width:21px;height:21px}
 #game.m-w .tool{width:64px;height:56px;font-size:13px}
 /* 问六六 / 托管 / 悔牌:同一种圆角方块,上图下字(产品方:原来「问六六」是横排药丸、托管是方块,形状不统一)。
    六六头像比线条图标略大一点,看着一样重 */
 .tool.ask .ico{width:24px;height:24px}
 #game.m-w .tool svg{width:24px;height:24px}#game.m-w .tool.ask .ico{width:26px;height:26px}
-@media (max-width:360px){.action-bar{gap:4px!important}.action-bar .btn{padding:0 9px}.tool{width:48px;height:48px;font-size:11px}.action-bar .btn.primary{min-width:70px}}
+@media (max-width:360px){.action-bar{gap:4px!important}.action-bar .btn{padding:0 9px}.tool{width:48px;height:48px;font-size:12px}.action-bar .btn.primary{min-width:70px}}
 .ph-dealing #btnHint,.ph-dealing #btnPlay,.ph-dealing #btnClear,.ph-dealing #dealZone,
 .ph-kitty #btnHint,.ph-kitty #btnPlay,.ph-lowrebel #btnPlay,.ph-lowrebel #btnHint,.ph-lowrebel #btnClear,
 .ph-redealing #btnPlay,.ph-redealing #btnHint,.ph-redealing #btnClear,
@@ -592,7 +592,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 .init-hands summary{cursor:pointer;font:700 14px/1.6 var(--font-sans);color:var(--ink-soft)}
 .ih-row{display:grid;grid-template-columns:3em minmax(0,1fr);gap:6px;margin-top:8px;align-items:baseline}
 .ih-who{font-size:13px;color:var(--ink-soft);white-space:nowrap}
-.ih-who small{margin-left:3px;padding:0 4px;border-radius:6px;background:var(--ink);color:var(--card-face);font:700 10px/1.5 var(--font-sans)}
+.ih-who small{margin-left:3px;padding:0 4px;border-radius:6px;background:var(--ink);color:var(--card-face);font:700 11.5px/1.5 var(--font-sans)}
 .ih-gap{display:inline-block;width:9px}
 .ih-sep{margin-top:8px;border-top:1.5px dashed var(--line)}
 .init-hands .ih-row{grid-template-columns:4.6em minmax(0,1fr)}
@@ -602,9 +602,9 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 .trick-line .tcards,.ih-row .tcards,.suit-row .tcards{display:flex;flex-wrap:wrap;align-items:center;row-gap:3px;min-width:0;font:900 15px/1.5 var(--font-num);letter-spacing:.01em}
 .tplay{display:inline-flex;flex-wrap:wrap;align-items:center;row-gap:3px;margin-right:10px}
 .tplay .who,.chip .who{display:inline-grid;place-items:center;width:17px;height:17px;margin-right:3px;border-radius:50%;flex:none;
-  background:var(--brick);color:var(--card-face);font:900 10px/1 var(--font-heading);font-style:normal}
+  background:var(--brick);color:var(--card-face);font:900 12px/1 var(--font-heading);font-style:normal}
 .tplay .who.s2,.chip .who.s2,.tplay .who.s0{background:var(--teal)}   /* 我和 Kevin 一队,一个颜色 */
-.chip .who{width:20px;height:20px;font-size:11px;margin-right:0}
+.chip .who{width:22px;height:22px;font-size:12px;margin-right:0}
 .tplay:last-child{margin-right:0}
 .tplay.can{cursor:pointer;border-radius:8px;padding:1px 4px;margin-left:-4px;margin-right:6px;-webkit-tap-highlight-color:transparent}
 .tplay.can:hover{background:var(--cream)}
@@ -658,7 +658,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 .coachBox .cSec{font:900 14px/1.4 var(--font-heading);margin-bottom:2px}
 .coachBox .opt{margin-top:6px}
 .coachBox .dim{font-size:13px;color:var(--ink-soft)}
-.coachBox .tag,.cb-more .tag,.cb-text .tag{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;font:800 11px/1.5 var(--font-sans);
+.coachBox .tag,.cb-more .tag,.cb-text .tag{display:inline-block;margin-left:4px;padding:1px 7px;border-radius:999px;font:800 12px/1.5 var(--font-sans);
   background:var(--honey);color:var(--ink);vertical-align:1px}
 .coachBox .tag.ok,.cb-more .tag.ok{background:var(--card-face);box-shadow:inset 0 0 0 1.5px var(--line)}
 .coachBox.warn{background:var(--err-tint);border-color:rgba(168,55,31,.3)}
@@ -814,7 +814,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.64(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.65(测试版)</div>
 
 
 <script>
@@ -7922,6 +7922,8 @@ const HUMAN=0;
 const seatAbbr=i=>{const nm=SEAT_NAME[i];return /^[A-Za-z]/.test(nm)?nm.slice(0,1)+' ':nm.slice(0,1);};
 const typeName=t=>({single:'单张',pair:'对子',tractor:T('tractor'),throw:T('throwP')}[t]);
 const rankName=r=>r===14?T('rankA'):r===13?T('rankK'):r===12?T('rankQ'):r===11?T('rankJ'):String(r);
+// 级数显示一律用标准写法(2~10 / J Q K A),不跟术语切换走 —— 沪语版的「老K / 皮蛋 / J钩」在级数那一格的字体里很难看
+const levelName=r=>r>=14?'A':r===13?'K':r===12?'Q':r===11?'J':String(r);
 // logMode:对局记录页签里的三种看法 —— 事件流 / 每墩出牌 / 按花色归堆。
 // 原来「对局记录」和「出牌历史」是两个页签,内容有一半是重的(都在列每墩谁出了什么),
 // 合成一个页签、三个视图,右栏少一个按钮,也不用来回切着找同一件事。
@@ -7983,6 +7985,7 @@ const S_DEFAULT={
   trickHold:3.0,     // 一墩出完后牌留桌秒数
   manualNext:false,  // true = 手动点击进入下一墩
   declWait:10.0,     // 发完牌后留给你亮主/反主的时间(秒),可点「不亮」提前结束
+  dealPause:0,       // 发牌中你拿到新的可亮牌时暂停发牌、留给你决定的时间(秒);0 = 不暂停(默认关,设置里填秒数开启,如 10)
   autoLast:true,     // 这一手没得选(剩的牌恰好等于本墩要出的张数)时自动出,不用再点一下
   allowUndo:true,   // 悔牌:回到你上一手出牌前的整桌快照,独立于教练严格模式(见 undoLastPlay)
   engineVer:['','','',''],   // 各座位的 AI 引擎版本,'' = 内置最新版(见 eng();座位 0 = 你托管时)
@@ -8056,7 +8059,7 @@ function aiThinkMs(){
 function openSettings(){
   // 托管不在 S 里(它按局生效),但「取消」要能把它一起退回去,否则勾了再点取消它还开着
   const snapshot={S:JSON.parse(JSON.stringify(S)), C:JSON.parse(JSON.stringify(C)), lang, sndOn,
-                  auto:!!(G&&G.auto), chat:chatLevel()};
+                  auto:!!(G&&G.auto), chat:chatLevel(), bgm:bgmLevel()};
   const el=document.getElementById('setContent');
   el.innerHTML=
     `<div class="setHeader"><b>设置<span class="setVer">${(document.getElementById('versionTag')||{}).textContent||''}</span></b>
@@ -8098,10 +8101,15 @@ function openSettings(){
     `<div class="setRow"><label>对手说话</label>
        <select id="stChat"><option value="more">多</option><option value="less">少</option><option value="off">关</option></select></div>`+
     `<div class="setHint">Bob、Kevin、Stuart 收墩、被毙、等你出牌时冒一句</div>`+
+    `<div class="setRow"><label><input type="checkbox" id="stBgm"> 背景音乐</label></div>`+
+    `<div class="setHint">「夜上海」轻爵士,约 2 分钟一轮循环。第一次点屏幕后开始放;手机开着静音键时听不到</div>`+
     `<div class="setSection">节奏</div>`+
     `<div class="setRow"><label>发完牌后${T('declare')}等待(秒)</label>
        <input type="number" id="stDeclWait" min="0" max="60" step="1"></div>`+
     `<div class="setHint">等待期间可随时${T('declare')}/${T('counter')};点「不${T('declare')}」立即结束等待</div>`+
+    `<div class="setRow"><label>发牌中拿到可${T('declare')}的牌时暂停(秒)</label>
+       <input type="number" id="stDealPause" min="0" max="60" step="1"></div>`+
+    `<div class="setHint">发牌时你手里每出现一种新的可${T('declare')}/${T('counter')}/加固选择就暂停发牌,到点或点「不${T('declare')}」后继续;0 = 不暂停。托管时不暂停</div>`+
     `<div class="setRow"><label>AI 出牌思考(秒)</label>
        <input type="number" id="stMin" min="0" max="10" step="0.5"> –
        <input type="number" id="stMax" min="0" max="10" step="0.5"></div>`+
@@ -8191,6 +8199,7 @@ function openSettings(){
     $('stRebel').value=S.fullRebel; $('stMin').value=S.aiThinkMin;
     $('stMax').value=S.aiThinkMax;  $('stHold').value=S.trickHold;
     $('stDeclWait').value=S.declWait;
+    $('stDealPause').value=S.dealPause;
     $('stManual').checked=!!S.manualNext;
     $('stAutoLast').checked=!!S.autoLast;
     // 托管从发牌起就能开,亮主/扣底/低分造反/出牌全部交给 AI
@@ -8202,7 +8211,7 @@ function openSettings(){
       : '(这一局还没开始,或已经结束)';
     $('stHold').disabled=!!S.manualNext;
     $('stHoldHint').textContent=S.manualNext?'(手动模式下由你点「下一墩」决定)':'';
-    $('stLang').value=lang; $('stSnd').checked=sndOn; $('stChat').value=chatLevel();
+    $('stLang').value=lang; $('stSnd').checked=sndOn; $('stChat').value=chatLevel(); $('stBgm').checked=bgmLevel();
     $('cOn').checked=C.on; $('cSens').value=C.gapSens; $('cStrict').checked=C.strict;
     $('cReview').checked=C.review; $('cQuiz').checked=C.quiz; $('cMemShow').checked=C.memShow;
     $('rPts').value=S.rules.pointRebelThreshold;
@@ -8263,6 +8272,7 @@ function openSettings(){
   $('stRebel').onchange=e=>{ S.fullRebel=e.target.value; saveS(); fill(); if(G) render(); };
   num('stMin','aiThinkMin'); num('stMax','aiThinkMax'); num('stHold','trickHold');
   num('stDeclWait','declWait');
+  num('stDealPause','dealPause');
   $('stManual').onchange=e=>{ S.manualNext=e.target.checked; saveS(); fill(); };
   $('stAutoLast').onchange=e=>{ S.autoLast=e.target.checked; saveS(); fill();
     if(G) scheduleHumanAuto(); };          // 可能正轮到你、而这一手恰好没得选
@@ -8272,6 +8282,7 @@ function openSettings(){
   $('stSnd').onchange=e=>{ sndOn=e.target.checked;
     try{ localStorage.setItem(LSP+'snd',sndOn?'on':'off'); }catch(_){ } };
   $('stChat').onchange=e=>setChatLevel(e.target.value);
+  $('stBgm').onchange=e=>setBgm(e.target.checked);
   $('cOn').onchange=e=>{ C.on=e.target.checked; saveC(); if(G) render(); };
   $('cSens').onchange=e=>{ C.gapSens=e.target.value; saveC(); };
   $('cStrict').onchange=e=>{ C.strict=e.target.checked; saveC(); };
@@ -8302,12 +8313,12 @@ function openSettings(){
   $('stReset').onclick=()=>{ S={...S_DEFAULT, gates:[...S_DEFAULT.gates], rules:{...RULE_DEFAULTS},
       engineVer:[...S_DEFAULT.engineVer]};
     if(G&&G.auto) window.__setAuto(false);      // 「恢复默认」也把托管交还
-    setChatLevel('more');
+    setChatLevel('more'); setBgm(true);
     saveS(); applyRules(); fill(); if(G) render(); };
   // 取消:每项改动本来就是即改即存,这里把开菜单那一刻的快照整个套回去(含持久化),
   // 而不是只清内存——不然关掉重开又会看到"取消"前改过的值。
   $('stCancel').onclick=()=>{
-    S=snapshot.S; C=snapshot.C; lang=snapshot.lang; sndOn=snapshot.sndOn; setChatLevel(snapshot.chat);
+    S=snapshot.S; C=snapshot.C; lang=snapshot.lang; sndOn=snapshot.sndOn; setChatLevel(snapshot.chat); setBgm(snapshot.bgm);
     saveS(); saveC(); applyRules();
     if(G&&G.auto!==snapshot.auto) window.__setAuto(snapshot.auto);
     try{
@@ -8330,6 +8341,9 @@ function closeSettings(){ document.getElementById('setOverlay').style.display='n
 // 对手说话(小黄人气泡,表现层画):多 / 少 / 关,存 localStorage['liuliu-chatter'],表现层每次说话前读
 function chatLevel(){ try{ return localStorage.getItem('liuliu-chatter')||'more'; }catch(_){ return 'more'; } }
 function setChatLevel(v){ try{ localStorage.setItem('liuliu-chatter',v); }catch(_){ } if(v==='off'&&window.__hideSays) window.__hideSays(); }
+// 背景音乐(表现层放,window.__bgm):开 / 关,存 localStorage['liuliu-bgm'],默认开
+function bgmLevel(){ return window.__bgm?window.__bgm.on():false; }
+function setBgm(v){ if(window.__bgm) window.__bgm.set(!!v); }
 window.__openSet=openSettings;
 window.__closeSet=closeSettings;
 // 复用设置浮层做通用弹窗(看底牌、看初始手牌)
@@ -8439,7 +8453,8 @@ function newRound(){ startRound(seedBase++); }
 function startRound(seed){
   // 上一盘可能还有在途的定时器(AI 思考 / 收墩 / 亮主倒计时),不清掉会打到新一盘的局面上
   if(G){ clearTimeout(G.aiTimer); clearTimeout(G.holdTimer); clearTimeout(G.declTimer);
-         clearInterval(G.declTick); for(const k in G.declPend||{}) clearTimeout(G.declPend[k].timer); }
+         clearInterval(G.declTick); clearTimeout(G.pauseTimer); clearInterval(G.pauseTick);
+         for(const k in G.declPend||{}) clearTimeout(G.declPend[k].timer); }
   promoteCheckpoint();      // 上一局没打完就开了新局(重打 / 种子 / 重开整场):那一局存成残局
   const carryAuto=autoCarry; autoCarry=false;
   const dealerKnown=M.dealer>=0 && !scrambleNext;   // 完全造反重发 → 本盘按无庄盘抢庄
@@ -8464,7 +8479,7 @@ function startRound(seed){
   G={seed,start,firstTaker:first,trumpRank,dealerKnown,
      hands:deal.hands,kittyOrig:deal.kitty,buried:[],
      trump:null,declSeat:dealerKnown?M.dealer:-1,
-     decl:null,rebelHappened:false,declPend:{},
+     decl:null,rebelHappened:false,declPend:{},declHist:[],
      visCount:[0,0,0,0],dealt:0,
      leader:-1,trick:[],trickNo:0,tricks:[],defPoints:0,capturedCards:[],lastWinner:-1,
      lastLeadSize:1,phase:'dealing',selected:new Set(),log:[],awaitNext:false,
@@ -8516,8 +8531,52 @@ function dealTick(){
   const seat=(G.firstTaker+G.dealt)%4;
   G.visCount[seat]++; G.dealt++;
   if(seat!==HUMAN||G.auto) aiDeclThink(seat);   // 托管:你这一家的抢亮/加固也交给 AI
+  // 你刚拿到一张让你多出一种可亮选择的牌 → 暂停发牌让你想。最后一张不停:发完后本来就有亮主倒计时
+  if(seat===HUMAN&&!G.auto&&G.dealt<100&&maybePauseDeal()) return;
   if(G.dealt%4===0||G.dealt>=100) render();
   setTimeout(dealTick,120);   // 100张 × 120ms ≈ 12秒发完
+}
+
+/* 发牌暂停:AI 亮主太快,人还没看清手里有什么就被抢了。
+ * 你手里每出现一种「此刻能亮/反/加固」的新选择(按 花色+强度 / 王对 / 加固 记),
+ * 就停下发牌给你 S.dealPause 秒;到点、点「不亮」或做了亮主动作都会继续。
+ * 同一种选择只问一次(问过就算,不论你亮不亮)。暂停期间没人发牌,所以 AI 也不会在这时抢。 */
+function humanDeclKeys(){
+  const vis=visHand(HUMAN), ks=[];
+  if(canReinforce2(G.decl,HUMAN,vis,rankOf(HUMAN),G.rebelHappened)) ks.push('re');
+  const jp=jokerPairOf(vis);
+  if(jp&&canOverride(G.decl,jp,HUMAN)) ks.push('J'+jp.strength);
+  for(const o of declOptions(vis,rankOf(HUMAN))) if(canOverride(G.decl,o,HUMAN)) ks.push(o.suit+o.strength);
+  return ks;
+}
+function maybePauseDeal(){
+  const total=secs(S.dealPause,S_DEFAULT.dealPause);
+  if(total<=0) return false;
+  const ks=humanDeclKeys(), seen=G.declOffered||(G.declOffered=new Set());
+  if(!ks.some(k=>!seen.has(k))) return false;
+  ks.forEach(k=>seen.add(k));
+  G.dealPause={deadline:Date.now()+total};
+  // 排着的 AI 亮主也一起冻住 —— 否则你正想着,它按自己的计时抢先亮了,暂停就白停了
+  for(const k in G.declPend){ const p=G.declPend[k]; clearTimeout(p.timer); p.left=Math.max(0,p.due-Date.now()); }
+  const paint=()=>{
+    if(!G||!G.dealPause) return;
+    const left=Math.max(0,Math.ceil((G.dealPause.deadline-Date.now())/1000));
+    setMsg(`发牌暂停 —— 你有可${T('declare')}的牌,${left} 秒内决定;点「不${T('declareV')}」继续发牌`);
+  };
+  paint();
+  clearInterval(G.pauseTick); G.pauseTick=setInterval(paint,250);
+  clearTimeout(G.pauseTimer); G.pauseTimer=setTimeout(resumeDeal,total);
+  render();
+  return true;
+}
+function resumeDeal(){
+  if(!G||!G.dealPause) return;
+  clearTimeout(G.pauseTimer); clearInterval(G.pauseTick);
+  G.dealPause=null;
+  for(const k in G.declPend){ const p=G.declPend[k]; p.due=Date.now()+(p.left||0); aiDeclArm(+k); }
+  setMsg('发牌中…可随时'+T('declare')+'/'+T('counter'));
+  render();
+  setTimeout(dealTick,120);
 }
 
 /* AI 亮主的反应时间(11-04,产品方):AI 看到牌的同一刻就亮,人要等界面刷出牌、认牌、点按钮 —— 抢开局亮主人几乎永远落后。
@@ -8530,8 +8589,12 @@ function aiDeclDelayMs(){
 }
 function aiDeclQueue(seat){
   if(seat===HUMAN&&G.auto){ aiDeclThink(seat,true); return; }
-  const g=G, due=Date.now()+aiDeclDelayMs();
-  G.declPend[seat]={due,timer:setTimeout(()=>{ if(G===g) aiDeclFire(seat); },due-Date.now())};
+  G.declPend[seat]={due:Date.now()+aiDeclDelayMs()};
+  aiDeclArm(seat);
+}
+function aiDeclArm(seat){      // (重新)按 due 起定时器;发牌暂停恢复时也走这里
+  const g=G, p=G.declPend[seat];
+  p.timer=setTimeout(()=>{ if(G===g) aiDeclFire(seat); },Math.max(0,p.due-Date.now()));
 }
 function aiDeclFire(seat){
   const p=G.declPend[seat]; if(!p) return;
@@ -8574,7 +8637,9 @@ function aiDeclThink(seat,now){
 
 function applyDecl(seat,opt,isReinforce){
   if(!G.dealerKnown) G.trumpRank=rankOf(seat);   // 无庄盘:主牌级数跟着亮主者走
+  const counter=!!G.decl&&!isReinforce;     // 压在别人的亮主上 = 反
   G.decl={seat,suit:opt.suit,strength:opt.strength};
+  G.declHist.push({seat,suit:opt.suit,strength:opt.strength,counter,reinforce:!!isReinforce});
   // 叫牌过程进牌谱:at = 当时发到第几张;你这一家的亮主若是托管替你亮的,标 a
   G.declLog.push({seat,suit:opt.suit,strength:opt.strength,at:G.dealt,
                   ...(isReinforce?{re:1}:{}),...(seat===HUMAN&&G.auto?{a:1}:{})});
@@ -8593,11 +8658,13 @@ function applyDecl(seat,opt,isReinforce){
 // 发牌结束:定主(庄定盘庄家不变;无庄盘最终亮主者坐庄拿底)
 // 「不亮」:放弃剩余等待时间,立刻定主
 window.__skipDecl=()=>{
+  if(G&&G.dealPause){ resumeDeal(); return; }     // 发牌暂停中的「不亮」= 继续发牌
   if(!G||G.phase!=='finalDecl') return;
   clearTimeout(G.declTimer); G.declTimer=null;
   settleTrump();
 };
 
+const DECL_SHOW_MS=3500;   // 有人反主时,定主后桌心留这么久再进扣底/出牌
 function settleTrump(){
   if(G.phase!=='finalDecl'&&G.phase!=='dealing') return;   // 防「不亮」和到点结算重复触发
   aiDeclFlush();
@@ -8612,6 +8679,14 @@ function settleTrump(){
   }else{
     log(G.decl?`定${T('trump')}:${trumpLabel(G.trump)},${SEAT_NAME[G.declSeat]} 坐庄`
               :`无人${T('declare')} → ${T('noTrump')},${SEAT_NAME[G.declSeat]} 坐庄`);
+  }
+  /* 发牌里有人反了主,而你多半没盯着(AI 的亮主是排队的,点「不亮」会一口气结掉),
+   * 定主后不要直接跳进扣底/出牌:停一下,桌心写明谁反的、反成什么(表现层 syncCenter 的 declShow 分支)。
+   * 托管不停(托管图的就是快)。 */
+  if(!G.auto&&G.declHist.some(e=>e.counter)){
+    const g=G; G.phase='declShow'; render();
+    setTimeout(()=>{ if(G!==g||G.phase!=='declShow') return; lowRebelPhase(); }, DECL_SHOW_MS);
+    return;
   }
   lowRebelPhase();
 }
@@ -8803,7 +8878,8 @@ window.__setAuto=on=>{
   render();
   if(G.auto){
     // 托管从哪个阶段打开,就从那个阶段起接手:每个阶段的收尾都是「等你点一下」,得替你点
-    if(G.phase==='finalDecl') window.__skipDecl();
+    if(G.dealPause) resumeDeal();
+    else if(G.phase==='finalDecl') window.__skipDecl();
     else if(G.phase==='lowrebel') aiLowRebel();
     else if(G.phase==='kitty'){
       G.selected=new Set(eng(HUMAN).aiDiscard(G.hands[HUMAN],G.trump).map(c=>c.id));
@@ -9246,7 +9322,7 @@ function endRound(){
   const humanDecl=declTeam===HUMAN%2;
   const humanWon=sc.defendersWin!==humanDecl;
   /* 新界面:局终面板按设计系统重排 —— 得分徽章 + 一句结论 + 底牌 + 六六复盘 + 两队级数 + 操作 */
-  const lvName=x=>rankName(Math.min(x,14));
+  const lvName=levelName;
   const upLine=realUp?`,${T('levelUp')} ${realUp} 级${realUp>1?`(${T('tiaoji')}!)`:''}`:'';
   let html=`<div class="res-head"><div class="res-badge${humanWon?'':' lose'}"><span class="n">${sc.total}</span><span class="u">分</span></div>`+
     `<div class="res-title${humanWon?'':' lose'}">${humanWon?'你们赢了':'这局输了'}</div>`+
@@ -9708,7 +9784,7 @@ function render(){
     `<span>庄家:<b>${G.declSeat>=0?SEAT_NAME[G.declSeat]:'抢亮中'}</b></span>`+
     `<span>${T('defenders')}得分:<b>${G.defPoints}</b></span>`+
     `<span>你的队伍:<b>${G.declSeat<0?'—':(G.declSeat%2===0?T('declarers'):T('defenders'))}</b></span>`+
-    `<span>级数 你们:<b>${rankName(Math.min(M.levels[0],14))}</b> 对方:<b>${rankName(Math.min(M.levels[1],14))}</b></span>`+
+    `<span>级数 你们:<b>${levelName(M.levels[0])}</b> 对方:<b>${levelName(M.levels[1])}</b></span>`+
     `<span>第${M.round+1}局 · 第 <b>${trickNo}</b> 墩</span>`+
     `<button id="btnSet" style="margin-left:auto" onclick="window.__openSet()">⚙ 设置</button>`+
     (phaseHint?`<span class="phaseHint">${phaseHint}</span>`:'');
@@ -9793,6 +9869,7 @@ function render(){
     bind=()=>strip.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{
       if(b.dataset.a==='re') applyDecl(HUMAN,{suit:G.decl.suit,strength:2},true);
       else applyDecl(HUMAN,{suit:b.dataset.s||null,strength:+b.dataset.st},false);
+      resumeDeal();     // 发牌暂停中亮了就继续发牌(没暂停时是空操作)
     });
   }else if(G.phase==='lowrebel'){
     stripHTML=`<button id="lr1">${rebelName()}</button><button class="minor" id="lr0">不${T('counter')}</button>`;
@@ -9831,7 +9908,7 @@ function render(){
   document.getElementById('btnBury').hidden=(G.phase!=='kitty');
   document.getElementById('btnKitty').hidden=!canSeeKitty;
   // 不亮:只在「发完牌、最后机会」这一刻出现,固定占 dealerZone 最左边那个位置
-  document.getElementById('btnSkipDecl').hidden=(G.phase!=='finalDecl');
+  document.getElementById('btnSkipDecl').hidden=!(G.phase==='finalDecl'||G.dealPause);
   document.getElementById('btnSkipDecl').textContent='不'+T('declareV');
   document.getElementById('btnHint').disabled=auto||!(C.on&&myTurn);
   // 只在发牌/亮主阶段给发牌区留两行高度,其余时候把这块高度还给牌桌
@@ -9881,7 +9958,7 @@ function renderPanel(){
       html+=`<div class="suitGroup" style="font-size:13px">${past.imported?past.no:`第${past.no}局`}:${SEAT_NAME[past.declSeat]}(${who})坐庄,`+
         `主 ${past.trump.suit?SUIT_SYM[past.trump.suit]:'无主'}${rankName(past.trump.rank)},`+
         `${T('defenders')}得 ${past.defPoints} 分 → ${past.defendersWin?T('defenders')+'上台':'庄家守住'};`+
-        `级数 ${past.levelsBefore.map(x=>rankName(Math.min(x,14))).join('/')} → ${past.levelsAfter.map(x=>rankName(Math.min(x,14))).join('/')}</div>`;
+        `级数 ${past.levelsBefore.map(levelName).join('/')} → ${past.levelsAfter.map(levelName).join('/')}</div>`;
     }
     if(logMode==='event'){
       html+=src.log.map(l=>`<div>· ${l.text}</div>`).join('')||'(尚无记录)';
@@ -10393,9 +10470,14 @@ function layout(){
   L.ready=true;
   if(mode!==L.mode){game.classList.remove('m-p','m-l','m-w');document.body.classList.remove('m-p','m-l','m-w');L.mode=mode;}
   game.classList.add('m-'+mode);document.body.classList.add('m-'+mode);
-  if(typing()&&L.hand)return;
+  /* 输入框拿着焦点(设置里的数字框、记录里写标记理由、教练输入)时,手机软键盘会把视口压矮 ——
+     这时不能按新尺寸重排,否则手牌缩成一团。但产品这时照样会 render()、把手牌元素整个重建,
+     新元素没有位置就全叠在最左边(只看到一张)。所以只冻结尺寸:手牌仍按「打字前最后一次的尺寸」
+     重新落位,桌面、顶栏那一半(layoutTable)等输入完再排。 */
+  var frozen=typing()&&!!L.hand&&L.frozenW>0;
   var SA=safeArea();
-  var W=game.clientWidth-SA.l-SA.r,H=window.innerHeight;
+  var W=frozen?L.frozenW:game.clientWidth-SA.l-SA.r,H=frozen?L.frozenH:window.innerHeight;
+  if(!frozen){L.frozenW=W;L.frozenH=H;}
   var G=g();
   var cards=Array.prototype.slice.call(hand.children);
   var handW=W;
@@ -10423,6 +10505,7 @@ function layout(){
   $('handWheel').classList.toggle('is-off',!(plan&&plan.overflow));
   if(!(plan&&plan.overflow))L.progress=0;
   positionHand();
+  if(frozen)return;
   layoutTable();
   if((L.balN||0)<4&&TB.ready&&TB.tcw<0.9*L.idleCw&&L.idleCw>cfg.minCw){
     /* 手牌每窄 1px,省下的高度分给三行桌面牌:f = 手牌高度系数 / 3;名牌换行等因素估不准,最多再试几次。
@@ -10909,6 +10992,13 @@ function syncCenter(G){
     if(G.declSeat===0){status='扣底';small='选 8 张扣下 · '+G.selected.size+'/8';}
     else{status='等待扣底';small=who(G.declSeat)+' 正在扣底';}
   }else if(ph==='lowrebel'){status='可以造反';small=($('msg').textContent||'').replace(/^你手牌/,'手牌');}
+  else if(ph==='declShow'){
+    var hs=G.declHist||[],last=hs[hs.length-1],prev=null;
+    for(var i=hs.length-2;i>=0;i--)if(hs[i].seat!==last.seat){prev=hs[i];break;}
+    var dsc=function(e){return e.suit?SUIT_SYM[e.suit]+(e.strength===2?'(对)':''):(e.strength===4?'大王对·无主':'小王对·无主');};
+    status=who(last.seat)+(last.reinforce?' 加固':last.counter?' 反主':' 亮主')+' '+dsc(last);
+    small=last.counter&&prev?'压过 '+who(prev.seat)+' 的 '+dsc(prev):'';
+  }
   else if(ph==='redealing'){status='重新发牌';small='';}
   else if(ph==='play'){
     /* 出牌阶段桌心不放东西:轮到谁看名牌,本墩分看顶栏进度条,轮到我看我出牌处的虚线空位 */
@@ -11060,7 +11150,28 @@ function draggedSet(G0){
   /* 产品每次 render 都重建手牌元素,按 id 现找 */
   return G0.ids.map(function(id){return hand.querySelector('.card[data-id="'+id+'"]');}).filter(Boolean);
 }
+/* 「松手出牌」提示放哪:默认桌心,但桌心在有的窗口比例下正好压着对家(或上下家)出的牌 ——
+   开始拖的时候把桌上所有牌、名牌、桌心提示的矩形量一遍,从桌心往外找第一块放得下提示的空地。
+   整桌都挤满(极矮的窗口)就取压到的面积最小的那一处。 */
+function placeDropCue(){
+  var span=$('dropCue').firstElementChild,ar=arena.getBoundingClientRect();
+  var cw=(span.offsetWidth||110)+12,ch=(span.offsetHeight||36)+12;
+  var obs=[];
+  Array.prototype.forEach.call(arena.querySelectorAll('.played .card,.player-label,.winner-label,#turnSlot:not([hidden]),#trickSummary:not([hidden])'),function(e){
+    var q=e.getBoundingClientRect();if(q.width&&q.height)obs.push(q);});
+  function hit(x,y){var l=ar.left+x-cw/2,r=l+cw,t=ar.top+y-ch/2,b=t+ch,a=0;
+    obs.forEach(function(q){var ox=Math.min(r,q.right)-Math.max(l,q.left),oy=Math.min(b,q.bottom)-Math.max(t,q.top);if(ox>0&&oy>0)a+=ox*oy;});return a;}
+  var cx=ar.width/2,cy=ar.height/2,best=null,bestA=1e18,bestD=0,pts=[];
+  for(var y=ch/2+8;y<=ar.height-ch/2-8;y+=10)for(var x=cw/2+8;x<=ar.width-cw/2-8;x+=10)pts.push([x,y,Math.hypot(x-cx,(y-cy)*1.6)]);
+  pts.sort(function(a,b){return a[2]-b[2];});
+  for(var i=0;i<pts.length;i++){var a=hit(pts[i][0],pts[i][1]);
+    if(a<bestA-0.5){bestA=a;best=pts[i];}
+    if(a===0)break;}
+  if(!best)best=[cx,cy];
+  arena.style.setProperty('--cx',Math.round(best[0])+'px');arena.style.setProperty('--cy',Math.round(best[1])+'px');
+}
 function buildGhost(){
+  placeDropCue();
   var set=draggedSet(gest);
   ghost.innerHTML=set.slice(0,6).map(function(c){
     var x=c.cloneNode(true);x.removeAttribute('style');x.classList.remove('sel','hintc');return x.outerHTML;
@@ -11697,6 +11808,45 @@ function placeSay(el,seat){
 }
 function hideSays(){for(var k in CH.bubbles)CH.bubbles[k].classList.remove('show');}
 window.__hideSays=hideSays;   /* 设置里把「对手说话」关掉时,桌上正挂着的气泡一起收 */
+
+/* =====================================================================
+   背景音乐(v0.7.64):「夜上海」轻爵士,audio/bgm-night-shanghai.mp3(生成脚本 audio/make_bgm.py)
+   - 设置 → 显示与音效 →「背景音乐」,存 localStorage['liuliu-bgm'](on / off),默认开
+   - 浏览器不让网页自己出声:第一次点屏幕 / 按键时才开始(那时才下载,约 2MB);切到后台暂停,回来接着放
+   - 用 Web Audio 按采样位置循环 [1 秒, 1 秒 + 循环长度]:文件前后各垫了 1 秒首尾相接的音乐,
+     mp3 编码在头尾补的那点静音落在垫的里面,不管浏览器解码时裁没裁掉,循环窗口里都是同一段,接缝听不出来
+   ===================================================================== */
+var BGM_KEY='liuliu-bgm',BGM_URL='audio/bgm-night-shanghai.mp3',BGM_LOOP=5522086/44100,BGM_VOL=0.5;
+var BG={ctx:null,gain:null,src:null,loading:null};
+function bgmOn(){try{return localStorage.getItem(BGM_KEY)!=='off';}catch(_){return true;}}
+function bgmFade(v,sec){var t=BG.ctx.currentTime,g=BG.gain.gain;g.cancelScheduledValues(t);g.setValueAtTime(g.value,t);g.linearRampToValueAtTime(v,t+sec);}
+function bgmStart(){
+  if(!bgmOn()||document.hidden)return;
+  var AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
+  if(!BG.ctx){BG.ctx=new AC();BG.gain=BG.ctx.createGain();BG.gain.gain.value=0;BG.gain.connect(BG.ctx.destination);}
+  if(BG.ctx.state==='suspended')BG.ctx.resume();
+  if(BG.src||BG.loading)return;
+  BG.loading=(BG.buf?Promise.resolve(BG.buf):fetch(BGM_URL).then(function(r){if(!r.ok)throw new Error(r.status);return r.arrayBuffer();})
+    .then(function(a){return new Promise(function(res,rej){BG.ctx.decodeAudioData(a,res,rej);});}))   /* 关了再开:用已经解好的 */
+    .then(function(buf){
+      BG.loading=null;BG.buf=buf;if(BG.src||!bgmOn())return;
+      var s=BG.ctx.createBufferSource();s.buffer=buf;s.loop=true;s.loopStart=1;s.loopEnd=Math.min(buf.duration,1+BGM_LOOP);
+      s.connect(BG.gain);s.start(0,1);BG.src=s;bgmFade(BGM_VOL,2.5);   /* 慢慢进来 */
+    })
+    .catch(function(){BG.loading=null;});   /* 下载不了、解不了码就算了,不影响打牌 */
+}
+function bgmStop(){
+  if(!BG.src)return;
+  var s=BG.src;BG.src=null;bgmFade(0,0.5);
+  setTimeout(function(){try{s.stop();}catch(_){}},600);
+}
+['pointerup','touchend','keydown'].forEach(function(ev){document.addEventListener(ev,bgmStart,true);});
+document.addEventListener('visibilitychange',function(){
+  if(!BG.ctx)return;
+  if(document.hidden)BG.ctx.suspend();else if(bgmOn())BG.ctx.resume();
+});
+window.__bgm={on:bgmOn,set:function(v){try{localStorage.setItem(BGM_KEY,v?'on':'off');}catch(_){}if(v)bgmStart();else bgmStop();},
+  state:function(){return {ctx:BG.ctx&&BG.ctx.state,playing:!!BG.src,loop:BG.src?[BG.src.loopStart,BG.src.loopEnd]:null,dur:BG.buf?BG.buf.duration:0};}};
 window.__say=function(seat,key){return say(seat,key||'idle');};   /* 体检脚本用:让某一家马上说一句 */
 /* 一墩四家出完(收墩戳刚出来):看这墩发生了什么,挑一个人说一句 */
 function chatterTrick(G,res){

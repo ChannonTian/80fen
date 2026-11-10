@@ -342,7 +342,7 @@
 <div id="toast"></div>
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
-<div id="versionTag">80分 v0.7.35</div>
+<div id="versionTag">80分 v0.7.64</div>
 
 <script>
 /* ============================================================
@@ -5778,6 +5778,8 @@ const HUMAN=0;
 const seatAbbr=i=>{const nm=SEAT_NAME[i];return /^[A-Za-z]/.test(nm)?nm.slice(0,1)+' ':nm.slice(0,1);};
 const typeName=t=>({single:'单张',pair:'对子',tractor:T('tractor'),throw:T('throwP')}[t]);
 const rankName=r=>r===14?T('rankA'):r===13?T('rankK'):r===12?T('rankQ'):r===11?T('rankJ'):String(r);
+// 级数显示一律用标准写法(2~10 / J Q K A),不跟术语切换走 —— 沪语版的「老K / 皮蛋 / J钩」在级数那一格的字体里很难看
+const levelName=r=>r>=14?'A':r===13?'K':r===12?'Q':r===11?'J':String(r);
 // logMode:对局记录页签里的三种看法 —— 事件流 / 每墩出牌 / 按花色归堆。
 // 原来「对局记录」和「出牌历史」是两个页签,内容有一半是重的(都在列每墩谁出了什么),
 // 合成一个页签、三个视图,右栏少一个按钮,也不用来回切着找同一件事。
@@ -5839,6 +5841,7 @@ const S_DEFAULT={
   trickHold:3.0,     // 一墩出完后牌留桌秒数
   manualNext:false,  // true = 手动点击进入下一墩
   declWait:10.0,     // 发完牌后留给你亮主/反主的时间(秒),可点「不亮」提前结束
+  dealPause:0,       // 发牌中你拿到新的可亮牌时暂停发牌、留给你决定的时间(秒);0 = 不暂停(默认关,设置里填秒数开启,如 10)
   autoLast:true,     // 这一手没得选(剩的牌恰好等于本墩要出的张数)时自动出,不用再点一下
   allowUndo:true,   // 悔牌:回到你上一手出牌前的整桌快照,独立于教练严格模式(见 undoLastPlay)
   engineVer:['','','',''],   // 各座位的 AI 引擎版本,'' = 内置最新版(见 eng();座位 0 = 你托管时)
@@ -5955,6 +5958,9 @@ function openSettings(){
     `<div class="setRow"><label>发完牌后${T('declare')}等待(秒)</label>
        <input type="number" id="stDeclWait" min="0" max="60" step="1"></div>`+
     `<div class="setHint">等待期间可随时${T('declare')}/${T('counter')};点「不${T('declare')}」立即结束等待</div>`+
+    `<div class="setRow"><label>发牌中拿到可${T('declare')}的牌时暂停(秒)</label>
+       <input type="number" id="stDealPause" min="0" max="60" step="1"></div>`+
+    `<div class="setHint">发牌时你手里每出现一种新的可${T('declare')}/${T('counter')}/加固选择就暂停发牌,到点或点「不${T('declare')}」后继续;0 = 不暂停。托管时不暂停</div>`+
     `<div class="setRow"><label>AI 出牌思考(秒)</label>
        <input type="number" id="stMin" min="0" max="10" step="0.5"> –
        <input type="number" id="stMax" min="0" max="10" step="0.5"></div>`+
@@ -6029,6 +6035,7 @@ function openSettings(){
     $('stRebel').value=S.fullRebel; $('stMin').value=S.aiThinkMin;
     $('stMax').value=S.aiThinkMax;  $('stHold').value=S.trickHold;
     $('stDeclWait').value=S.declWait;
+    $('stDealPause').value=S.dealPause;
     $('stManual').checked=!!S.manualNext;
     $('stAutoLast').checked=!!S.autoLast;
     // 托管从发牌起就能开,亮主/扣底/低分造反/出牌全部交给 AI
@@ -6101,6 +6108,7 @@ function openSettings(){
   $('stRebel').onchange=e=>{ S.fullRebel=e.target.value; saveS(); fill(); if(G) render(); };
   num('stMin','aiThinkMin'); num('stMax','aiThinkMax'); num('stHold','trickHold');
   num('stDeclWait','declWait');
+  num('stDealPause','dealPause');
   $('stManual').onchange=e=>{ S.manualNext=e.target.checked; saveS(); fill(); };
   $('stAutoLast').onchange=e=>{ S.autoLast=e.target.checked; saveS(); fill();
     if(G) scheduleHumanAuto(); };          // 可能正轮到你、而这一手恰好没得选
@@ -6257,7 +6265,7 @@ function newRound(){ startRound(seedBase++); }
 function startRound(seed){
   // 上一盘可能还有在途的定时器(AI 思考 / 收墩 / 亮主倒计时),不清掉会打到新一盘的局面上
   if(G){ clearTimeout(G.aiTimer); clearTimeout(G.holdTimer); clearTimeout(G.declTimer);
-         clearInterval(G.declTick); }
+         clearInterval(G.declTick); clearTimeout(G.pauseTimer); clearInterval(G.pauseTick); }
   const carryAuto=autoCarry; autoCarry=false;
   const dealerKnown=M.dealer>=0 && !scrambleNext;   // 完全造反重发 → 本盘按无庄盘抢庄
   // 开局那一刻的整场状态,和 seed 一起才能完整复现这一局(见 seedCode / __redoRound)
@@ -6281,7 +6289,7 @@ function startRound(seed){
   G={seed,start,firstTaker:first,trumpRank,dealerKnown,
      hands:deal.hands,kittyOrig:deal.kitty,buried:[],
      trump:null,declSeat:dealerKnown?M.dealer:-1,
-     decl:null,rebelHappened:false,
+     decl:null,rebelHappened:false,declHist:[],
      visCount:[0,0,0,0],dealt:0,
      leader:-1,trick:[],trickNo:0,tricks:[],defPoints:0,capturedCards:[],lastWinner:-1,
      lastLeadSize:1,phase:'dealing',selected:new Set(),log:[],awaitNext:false,
@@ -6328,8 +6336,49 @@ function dealTick(){
   const seat=(G.firstTaker+G.dealt)%4;
   G.visCount[seat]++; G.dealt++;
   if(seat!==HUMAN||G.auto) aiDeclThink(seat);   // 托管:你这一家的抢亮/加固也交给 AI
+  // 你刚拿到一张让你多出一种可亮选择的牌 → 暂停发牌让你想。最后一张不停:发完后本来就有亮主倒计时
+  if(seat===HUMAN&&!G.auto&&G.dealt<100&&maybePauseDeal()) return;
   if(G.dealt%4===0||G.dealt>=100) render();
   setTimeout(dealTick,120);   // 100张 × 120ms ≈ 12秒发完
+}
+
+/* 发牌暂停:AI 亮主太快,人还没看清手里有什么就被抢了。
+ * 你手里每出现一种「此刻能亮/反/加固」的新选择(按 花色+强度 / 王对 / 加固 记),
+ * 就停下发牌给你 S.dealPause 秒;到点、点「不亮」或做了亮主动作都会继续。
+ * 同一种选择只问一次(问过就算,不论你亮不亮)。暂停期间没人发牌,所以 AI 也不会在这时抢。 */
+function humanDeclKeys(){
+  const vis=visHand(HUMAN), ks=[];
+  if(canReinforce2(G.decl,HUMAN,vis,rankOf(HUMAN),G.rebelHappened)) ks.push('re');
+  const jp=jokerPairOf(vis);
+  if(jp&&canOverride(G.decl,jp,HUMAN)) ks.push('J'+jp.strength);
+  for(const o of declOptions(vis,rankOf(HUMAN))) if(canOverride(G.decl,o,HUMAN)) ks.push(o.suit+o.strength);
+  return ks;
+}
+function maybePauseDeal(){
+  const total=secs(S.dealPause,S_DEFAULT.dealPause);
+  if(total<=0) return false;
+  const ks=humanDeclKeys(), seen=G.declOffered||(G.declOffered=new Set());
+  if(!ks.some(k=>!seen.has(k))) return false;
+  ks.forEach(k=>seen.add(k));
+  G.dealPause={deadline:Date.now()+total};
+  const paint=()=>{
+    if(!G||!G.dealPause) return;
+    const left=Math.max(0,Math.ceil((G.dealPause.deadline-Date.now())/1000));
+    setMsg(`发牌暂停 —— 你有可${T('declare')}的牌,${left} 秒内决定;点「不${T('declareV')}」继续发牌`);
+  };
+  paint();
+  clearInterval(G.pauseTick); G.pauseTick=setInterval(paint,250);
+  clearTimeout(G.pauseTimer); G.pauseTimer=setTimeout(resumeDeal,total);
+  render();
+  return true;
+}
+function resumeDeal(){
+  if(!G||!G.dealPause) return;
+  clearTimeout(G.pauseTimer); clearInterval(G.pauseTick);
+  G.dealPause=null;
+  setMsg('发牌中…可随时'+T('declare')+'/'+T('counter'));
+  render();
+  setTimeout(dealTick,120);
 }
 
 // AI 抢亮决策(基于已见手牌)—— 打分与门槛在 AI 层的 aiDeclDecide,这里只负责取上下文与执行
@@ -6360,7 +6409,9 @@ function aiDeclThink(seat){
 
 function applyDecl(seat,opt,isReinforce){
   if(!G.dealerKnown) G.trumpRank=rankOf(seat);   // 无庄盘:主牌级数跟着亮主者走
+  const counter=!!G.decl&&!isReinforce;     // 压在别人的亮主上 = 反
   G.decl={seat,suit:opt.suit,strength:opt.strength};
+  G.declHist.push({seat,suit:opt.suit,strength:opt.strength,counter,reinforce:!!isReinforce});
   // 亮出的级数牌/王对立即在桌上可见
   const vis=visHand(seat);
   G.declCards={seat, cards: opt.suit
@@ -6376,11 +6427,13 @@ function applyDecl(seat,opt,isReinforce){
 // 发牌结束:定主(庄定盘庄家不变;无庄盘最终亮主者坐庄拿底)
 // 「不亮」:放弃剩余等待时间,立刻定主
 window.__skipDecl=()=>{
+  if(G&&G.dealPause){ resumeDeal(); return; }     // 发牌暂停中的「不亮」= 继续发牌
   if(!G||G.phase!=='finalDecl') return;
   clearTimeout(G.declTimer); G.declTimer=null;
   settleTrump();
 };
 
+const DECL_SHOW_MS=3500;   // 有人反主时,定主后留这么久再进扣底/出牌
 function settleTrump(){
   if(G.phase!=='finalDecl'&&G.phase!=='dealing') return;   // 防「不亮」和到点结算重复触发
   clearTimeout(G.declTimer); G.declTimer=null;
@@ -6394,6 +6447,17 @@ function settleTrump(){
   }else{
     log(G.decl?`定${T('trump')}:${trumpLabel(G.trump)},${SEAT_NAME[G.declSeat]} 坐庄`
               :`无人${T('declare')} → ${T('noTrump')},${SEAT_NAME[G.declSeat]} 坐庄`);
+  }
+  /* 发牌里有人反了主,而你多半没盯着,定主后不要直接跳进扣底/出牌:停一下,明写谁反的、反成什么。托管不停。 */
+  if(!G.auto&&G.declHist.some(e=>e.counter)){
+    const hs=G.declHist, last=hs[hs.length-1]; let prev=null;
+    for(let i=hs.length-2;i>=0;i--) if(hs[i].seat!==last.seat){ prev=hs[i]; break; }
+    const dsc=e=>e.suit?SUIT_SYM[e.suit]+(e.strength===2?'(一对)':''):(e.strength===4?T('bigJoker'):T('smallJoker'))+'对 → '+T('noTrump');
+    const g=G; G.phase='declShow'; render();
+    setMsg(`${SEAT_NAME[last.seat]} ${last.reinforce?T('reinforce'):last.counter?T('counter'):T('declare')} ${dsc(last)}`+
+           (last.counter&&prev?`,压过 ${SEAT_NAME[prev.seat]} 的 ${dsc(prev)}`:''));
+    setTimeout(()=>{ if(G!==g||G.phase!=='declShow') return; lowRebelPhase(); }, DECL_SHOW_MS);
+    return;
   }
   lowRebelPhase();
 }
@@ -6578,7 +6642,8 @@ window.__setAuto=on=>{
   render();
   if(G.auto){
     // 托管从哪个阶段打开,就从那个阶段起接手:每个阶段的收尾都是「等你点一下」,得替你点
-    if(G.phase==='finalDecl') window.__skipDecl();
+    if(G.dealPause) resumeDeal();
+    else if(G.phase==='finalDecl') window.__skipDecl();
     else if(G.phase==='lowrebel') aiLowRebel();
     else if(G.phase==='kitty'){
       G.selected=new Set(eng(HUMAN).aiDiscard(G.hands[HUMAN],G.trump).map(c=>c.id));
@@ -6827,7 +6892,7 @@ function endRound(){
     html+=`<div style="margin-top:10px;font-size:20px;color:var(--gold)">${weWon?'你们打过 A,整场胜利!':'对方打过 A,整场告负'}</div>`;
     html+=`<div style="margin-top:14px"><button onclick="window.__newMatch()">重开整场</button> <button class="minor" onclick="window.__review()">复盘本局</button> <button class="minor" onclick="window.__copyRecord()">复制牌谱</button></div>`;
   }else{
-    html+=`<div style="margin-top:6px;font-size:14px">级数 —— 你们:打${rankName(Math.min(M.levels[0],14))} / 对方:打${rankName(Math.min(M.levels[1],14))}</div>`;
+    html+=`<div style="margin-top:6px;font-size:14px">级数 —— 你们:打${levelName(M.levels[0])} / 对方:打${levelName(M.levels[1])}</div>`;
     html+=`<div style="font-size:14px">下一局 ${SEAT_NAME[M.dealer]} 坐庄,打${rankName(M.levels[M.dealer%2])}</div>`;
     html+=`<div style="margin-top:14px"><button onclick="window.__next()">下一局</button> <button class="minor" onclick="window.__review()">复盘本局</button> <button class="minor" onclick="window.__copyRecord()">复制牌谱</button></div>`;
   }
@@ -7046,7 +7111,7 @@ function render(){
     `<span>庄家:<b>${G.declSeat>=0?SEAT_NAME[G.declSeat]:'抢亮中'}</b></span>`+
     `<span>${T('defenders')}得分:<b>${G.defPoints}</b></span>`+
     `<span>你的队伍:<b>${G.declSeat<0?'—':(G.declSeat%2===0?T('declarers'):T('defenders'))}</b></span>`+
-    `<span>级数 你们:<b>${rankName(Math.min(M.levels[0],14))}</b> 对方:<b>${rankName(Math.min(M.levels[1],14))}</b></span>`+
+    `<span>级数 你们:<b>${levelName(M.levels[0])}</b> 对方:<b>${levelName(M.levels[1])}</b></span>`+
     `<span>第${M.round+1}局 · 第 <b>${trickNo}</b> 墩</span>`+
     `<button id="btnSet" style="margin-left:auto" onclick="window.__openSet()">⚙ 设置</button>`+
     (phaseHint?`<span class="phaseHint">${phaseHint}</span>`:'');
@@ -7124,6 +7189,7 @@ function render(){
     bind=()=>strip.querySelectorAll('button[data-a]').forEach(b=>b.onclick=()=>{
       if(b.dataset.a==='re') applyDecl(HUMAN,{suit:G.decl.suit,strength:2},true);
       else applyDecl(HUMAN,{suit:b.dataset.s||null,strength:+b.dataset.st},false);
+      resumeDeal();     // 发牌暂停中亮了就继续发牌(没暂停时是空操作)
     });
   }else if(G.phase==='lowrebel'){
     stripHTML=`<button id="lr1">${rebelName()}</button><button class="minor" id="lr0">不${T('counter')}</button>`;
@@ -7162,7 +7228,7 @@ function render(){
   document.getElementById('btnBury').hidden=(G.phase!=='kitty');
   document.getElementById('btnKitty').hidden=!canSeeKitty;
   // 不亮:只在「发完牌、最后机会」这一刻出现,固定占 dealerZone 最左边那个位置
-  document.getElementById('btnSkipDecl').hidden=(G.phase!=='finalDecl');
+  document.getElementById('btnSkipDecl').hidden=!(G.phase==='finalDecl'||G.dealPause);
   document.getElementById('btnSkipDecl').textContent='不'+T('declareV');
   document.getElementById('btnHint').disabled=auto||!(C.on&&myTurn);
   // 只在发牌/亮主阶段给发牌区留两行高度,其余时候把这块高度还给牌桌
@@ -7209,7 +7275,7 @@ function renderPanel(){
       html+=`<div class="suitGroup" style="font-size:13px">${past.imported?past.no:`第${past.no}局`}:${SEAT_NAME[past.declSeat]}(${who})坐庄,`+
         `主 ${past.trump.suit?SUIT_SYM[past.trump.suit]:'无主'}${rankName(past.trump.rank)},`+
         `${T('defenders')}得 ${past.defPoints} 分 → ${past.defendersWin?T('defenders')+'上台':'庄家守住'};`+
-        `级数 ${past.levelsBefore.map(x=>rankName(Math.min(x,14))).join('/')} → ${past.levelsAfter.map(x=>rankName(Math.min(x,14))).join('/')}</div>`;
+        `级数 ${past.levelsBefore.map(levelName).join('/')} → ${past.levelsAfter.map(levelName).join('/')}</div>`;
     }
     if(logMode==='event'){
       html+=src.log.map(l=>`<div>· ${l.text}</div>`).join('')||'(尚无记录)';
