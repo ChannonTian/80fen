@@ -1514,7 +1514,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    *   4 = 收官搜索不把「不带分的首选」改判成本队拿下 < followFixP 的贴分 —— 只在后手有对手明断这门时(3a4cab2c 第 12 墩:搜索 20 样本把垫 ♣4 改成贴 ♥K,估 8%;
    *       不收窄时 h2h −0.006 ±0.003 级:搜索的续打 AI 毙得比真人少,只在「后手明断」这种真人几乎必毙的情形下不信它)
    *   8 = followFix 位 1 也管主牌分(3f63ea70 第 16 墩:♠10 / ♠Q 都 2%,贴了 10);替上去的不能是王、级牌、主 A */
-  flagFix: 252,               // (v0.7.64 测试版默认 252 = 4 + 8 + 16 + 32 + 64 + 128;v0.7.63 是 13。位 16 取代位 1 / 2)
+  flagFix: 1852,              // (测试版默认 1852 = 4 + 8 + 16 + 32 + 256 + 512 + 1024;v0.7.63 是 13。位 16 取代位 1 / 2;位 64 / 128 pool −1~−2 分,不开)
   ruffFixGain: 0.15,
   ruffFixPts: 0,              // 位 1 另一条:增益 × 台面分 < 这个也垫。0 = 不用(11-10:台面 0 分时会把 97% vs 48% 的毙也改掉 —— 后手还会贴分、毙下来还拿回牌权)
   ruffFixHiP: 0.6,
@@ -1529,13 +1529,13 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   beatHiGain: 0.08,
   beatHoldMin: 0.5,           // 位 64 / 128(首选本来不压)时,主动压的那张本队拿下至少这么多才压 —— 不为「逼后手拿大牌」去压一两成胜算的牌(11-11:不限时 pool −2.9 分)
   beatW: 10,                  // 位 16:多赢下这墩的价值 = (本队拿下之差) × (台面分 + beatW)(后手还会贴分、拿回牌权)
-  beatCost: [20,12,10,1,3,6,0],   // 位 16:用来压的牌的代价(分):大王 / 小王 / 主级牌 / 副级牌 / 主 A / 副牌 A / 其余主牌;副牌 0(11-10 产品方:大王非关键分不动;副级牌就是干这个的)
+  beatCost: [20,12,10,1,3,6,3],   // 位 16:用来压的牌的代价(分):大王 / 小王 / 主级牌 / 副级牌 / 主 A / 副牌 A / 其余主牌;副牌 0(11-10 产品方:大王非关键分不动;副级牌就是干这个的)
   beatOutPts: 50,             // 位 16:王 / 主级牌的代价 × clamp(场上还没出的分 / 这个, 0.2, 1)
   beatOutMin: 0.5,            // 位 16:王 / 主级牌的代价最少打这个折(11-11:0.2 时后期为 0 分的墩出大王 / 小王)
   beatKittyGuess: 15,         // 位 16:闲家不知道底牌,按这么多分估
   beatCritExtra: 5,           // 位 16:关键墩判定 —— 这墩的分按台面 + 这个算
   beatCritF: 0.25,            // 位 16:关键墩里王 / 主级牌的代价再乘这个
-  leadFix: 0,                 // 领出标记修正(位开关,11-11):1 = 对子领出时「拿两张不成对的跟 = 剩下的都不比较大那张便宜」进读牌;2 = 两个对手都确定没主时领主扣分;0 = 旧行为
+  leadFix: 7,                 // 领出标记修正(位开关,11-11):1 = 对子领出时「拿两张不成对的跟 = 剩下的都不比较大那张便宜」进读牌;2 = 两个对手都确定没主时领主扣分;0 = 旧行为
   leadVoidTrumpPen: 20,
   /* 分牌命运(followFate,11-09,产品方:「留着的分牌是在找更高概率得利的机会」—— 单一概率 + 阈值管不住):
    * 1 = followFix 位 1 不再看 followFixP,改比两个期望:现在贴 = 本队拿下(贴之后)×(台面 + 这张);
@@ -4530,7 +4530,9 @@ function aiChooseFollow(view, plays, extra){
       if(BC.cost(c0)>tbl){
         const cheaper=view.hand.filter(x=>isLegalFollow(view.hand,lead,[x],trump)&&currentWinner([...plays,{seat:view.seat,cards:[x]}],trump).seat===view.seat&&BC.cost(x)<=tbl)
           .sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump));
-        const lo=view.hand.filter(x=>isLegalFollow(view.hand,lead,[x],trump)&&cardPoints(x)===0).sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump))[0];
+        const dvL=discardVal(view.hand,trump);   // 垫牌那把尺子(跨花色可比;不垫主、不拆对、造缺)
+        const lo=view.hand.filter(x=>isLegalFollow(view.hand,lead,[x],trump)&&cardPoints(x)===0&&currentWinner([...plays,{seat:view.seat,cards:[x]}],trump).seat!==view.seat)
+          .sort((a,b)=>dvL(a)-dvL(b))[0];
         if(cheaper.length) best={cards:[cheaper[0]],cat:'beat',score:best.score,reason:'最后一手,用够用的那张吃'};
         else if(lo) best={cards:[lo],cat:'cheap',score:best.score,reason:`这墩只有 ${tbl} 分,不值得动${c0.suit==='X'?'王':'这张大牌'} —— 留着抢后面(和底牌)`};
       }
