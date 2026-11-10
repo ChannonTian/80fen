@@ -814,7 +814,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.61(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.64(测试版)</div>
 
 <script>
 /* ============================================================
@@ -1450,6 +1450,10 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * 要对上得降到 0.45。主牌 0 张、A 0 张两项两边完全一致。分数上没差别(见上),
    * 但别把这一格当成一个已经标定死的常数。 */
   egKittyPtW: 0.6,            // 分牌进底牌的相对权重(1 = 和闲牌一样容易被埋)
+  /* 底牌按点数加权(egKittyRankW,11-09):AI 庄家实际埋牌比例(1500 副,副牌):3 76% · 4 72% · 5 47% · 6 60% · 7 51% · 8 42% · 9 33% · 10 18% · J 23% · Q 20% · K 10% · A 0。
+   * 旧模型只分「分牌 0.6 / 其他 1」—— Q 和 3 一样容易进底,于是 A 出完之后这门在外最大的 K / Q 被抽进底牌 44~66%(实 15~25%,test/top-odds.js SEATS=1)。
+   * 数组按点数下标给相对权重;null = 旧行为。 */
+  egKittyRankW: null,
   /* 收官抽样:把亮主者亮出的那几张(级牌 / 王对)钉在他手里 —— 硬信息,不是推断
    * (需要 view 带 curDecl / decl,界面、裁判、ai-h2h 都给了)。三批 × 700 种子:
    * +0.29 ±0.19 / −0.07 ±0.17 / −0.05 ±0.17,合并 +0.05 ±0.10,只改变 16% 的种子 ——
@@ -1487,15 +1491,48 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   followInfer: 0,             // 跟牌推断:池子倍数 k(0 = 旧行为);抽样世界按「他以前本队输着时压没压」的似然重抽(followEvents / followLik)
   followInferT: 1,
   leadInferHist: 0,
+  /* 领小不握大(leadTopRead,11-09,产品方情形 A:「对手领过这门却没出大牌 → 大牌在队友手里」):别人单张领出副牌、领的不是这门当时在外最大的 ——
+   * 抽样世界里他那一刻握着最大的那张,权重乘 q(这一项 = 0 时关)。test/top-odds.js:我闲方第 2 家,这门在外最大的在队友手里 实 55% / 估 31%。
+   * leadTopReadAtk:领出的是闲家时用的 q(null = 同 leadTopRead)。0 = 旧行为。 */
+  leadTopRead: 0,
+  leadTopReadAtk: null,
+  beliefNoReads: 0,           // 1 = makeBelief 抽样不用「他会先出最便宜 / 贴最大的分」两条软读牌上界(硬断门照用;11-09 查大牌估低用);0 = 旧行为
   /* pointWeight 的居中常数(ai-progress 第四节第 12 项 H,产品方 11-07):手定的 0.6、注释「以典型局面为 1」,没有测量依据;
    * (闲家已得, 剩余分) 网格上高斯包络中位数 0.92、均值 0.80 —— pw 多数时候 > 1,而它只乘本墩 EV、不乘留手和牌权,整体偏向「现在兑现」。0.6 = 旧行为。 */
   pwCenter: 0.6,
   tiaoWhenBad: 2,             // (v0.7.58 测试版默认 2)1 = 中盘首选打分 < tiaoWhenBadThr 时改领最小的不带分小主(第 12 项 F);2 = 只有庄家这么做;3 = 庄家方(庄家 + 帮家);0 = 旧行为
   tiaoWhenBadThr: 0,
-  followFix: 7,               // (v0.7.60 测试版默认 7)跟牌快修(位开关):1 = 没把握时不送副牌分、2 = 断门有主就毙、4 = 位 2 只在垫上去本队拿下 < followFixP 时;0 = 旧行为
+  followFix: 15,              // (v0.7.61 测试版默认 15;v0.7.60 是 7)跟牌快修(位开关):1 = 没把握时不送副牌分、2 = 断门有主就毙、4 = 位 2 只在垫上去本队拿下 < followFixP 时、8 = 位 1 替上去的牌不能是 A、不能是同门更大的;0 = 旧行为
                               // 位 2 不带位 4(一律毙)整局 pool −4.29 分,见 negative-results 二十一
   followFixMargin: 8,         // 位 2:首选不带分时,毙的分差在这之内才改
   followFixP: 0.4,            // 位 1:本队拿下的估计低于这个才算「没把握」
+  /* 玩家标记快修(flagFix,11-10,产品方 v0.7.58~60 的 14 手标记,test/records-flags.js):位开关,0 = 旧行为。
+   *   1 = 毙小主几乎不增胜算就垫:断门、首选是毙,「毙」比「垫最小的不带分副牌」本队拿下只多 < ruffFixGain → 改垫
+   *       (5f83443a 毙 ♥7 62% vs 垫 60%、打分 23 vs 4;3a4cab2c 毙 ♦6 9% vs 垫 4%;3f63ea70 毙 ♠2 25% vs 14%)
+   *   2 = 设防:毙小主本队拿下 < 0.5、台面 ≥ ruffFixHiPts 时,改用能让本队拿下 ≥ ruffFixHiP 的最小一张主(3a4cab2c 小王 61%)
+   *   4 = 收官搜索不把「不带分的首选」改判成本队拿下 < followFixP 的贴分 —— 只在后手有对手明断这门时(3a4cab2c 第 12 墩:搜索 20 样本把垫 ♣4 改成贴 ♥K,估 8%;
+   *       不收窄时 h2h −0.006 ±0.003 级:搜索的续打 AI 毙得比真人少,只在「后手明断」这种真人几乎必毙的情形下不信它)
+   *   8 = followFix 位 1 也管主牌分(3f63ea70 第 16 墩:♠10 / ♠Q 都 2%,贴了 10);替上去的不能是王、级牌、主 A */
+  flagFix: 13,                // (v0.7.63 测试版默认 13 = 位 1 + 4 + 8;位 2 设防不加分,不开)
+  ruffFixGain: 0.15,
+  ruffFixPts: 0,              // 位 1 另一条:增益 × 台面分 < 这个也垫。0 = 不用(11-10:台面 0 分时会把 97% vs 48% 的毙也改掉 —— 后手还会贴分、毙下来还拿回牌权)
+  ruffFixHiP: 0.6,
+  ruffFixHiPts: 10,
+  /* flagFix 位 16(11-10 产品方):**压就压到稳住,不然就不争** —— 取代位 1 / 2。第 2 / 3 家单张领出、首选压过当前但本队拿下 < 0.5(多半被后手盖)时:
+   * 在所有压得过当前的牌里取本队拿下最高的那张(差 ≤ 3 个百分点取小的;带分的只在 ≥ 0.8 时算),比「不争」(最小的不带分、不压的牌)高出 ≥ beatHiGain → 出它;
+   * 否则首选比「不争」高不到 ruffFixGain → 不争。3f63ea70 第 5 墩:小毙 ♠2 25%、级牌 ♦8 29%、垫 14% → 级牌毙(逼下家拿王换,也不让他往自己墩里白垫分);
+   * 第 11 墩:♠7 3%、级牌 8%、♠3 3% → ♠3。首选不带分、且(本队拿下 < 0.5 或比不争只多 < ruffFixGain)时才看。
+   * 位 32:位 4 不限「后手明断」—— 收官搜索一律不把不带分的首选改判成本队拿下 < followFixP 的贴分(搜索的续打 AI 本身会打坏,195d460f)。 */
+  beatHiGain: 0.08,
+  beatW: 10,                  // 位 16:多赢下这墩的价值 = (本队拿下之差) × (台面分 + beatW)(后手还会贴分、拿回牌权)
+  beatCost: [20,12,10,1,3],   // 位 16:用来压的牌的代价(分):大王 / 小王 / 主级牌 / 副级牌 / 主 A;其余 0(11-10 产品方:大王非关键分不动;副级牌就是干这个的)
+  beatOutPts: 50,             // 位 16:王 / 主级牌的代价 × clamp(场上还没出的分 / 这个, 0.2, 1)
+  /* 分牌命运(followFate,11-09,产品方:「留着的分牌是在找更高概率得利的机会」—— 单一概率 + 阈值管不住):
+   * 1 = followFix 位 1 不再看 followFixP,改比两个期望:现在贴 = 本队拿下(贴之后)×(台面 + 这张);
+   * 留着 = 本队拿下(出不带分的)× 台面 + fateP(这张最后归本队的概率,test/fit-fate.js 从自对弈拟合)× 这张。留着多出 followFateMargin 分才改。0 = 旧行为。 */
+  followFate: 0,
+  followFateMargin: 0,
+  fateW: null,                // {b, w:[…]},特征顺序同 fateX;null = 用内置拟合值
   throwEval: 1,               // (v0.7.59 测试版默认开)1 = 甩牌在信念世界里按失败概率评估、非全钢板的整门甩牌也进候选(第 12 项 G);0 = 旧行为
   throwFailPen: 10,           // 甩牌失败的额外代价(被拦下、亮了牌型);3 时每局甩 1.28 次、失败 12%,10 时 1.20 次、8%
   trumpTeam: 0,               // 1 = drawTrumpValue 改成按队、在信念世界里数主(第 12 项 A);0 = 旧行为(一家比两家的均匀份额)
@@ -1503,7 +1540,8 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   trumpTeamScale: 1,          // 缩放:0.56 = 波动压回旧式的大小(sd 4.11 → 2.29)
   _leadCapture: null,         // 只给量具用:{} 时 scoreLeadEV / scoreLeadPlay 把打分分项写进 .last(test/lead-rank.js CAPTURE=1)           // 过去所有单张领出也进似然(池子倍数 k,0 = 旧行为;leadEvents / leadHistLik)            // 似然的指数(<1 = 打折,防止少数世界独大)
   beliefDecl: 0,
-  beliefAceRead: 0,           // 1 = 抽样世界里「光领过副牌 A 的那家」没有这门第二张 A(aceReads,拒绝采样);0 = 旧行为
+  beliefAceRead: 0,
+  declVoidBoost: 0,           // 庄家扣底做断门的先验 β:抽样世界权重 × exp(β × 庄家断的副牌门数);0 = 旧行为           // 1 = 抽样世界里「光领过副牌 A 的那家」没有这门第二张 A(aceReads,拒绝采样);0 = 旧行为
   beatChoice: 0,              // 1 = 本墩推演里压牌那一叉不再一律「最便宜那张」,按 beatChoiceW 在压得过的牌里取前 3 张加权(beatMix);0 = 旧行为
   beatChoiceW: [2.0856,0.7688,0.1243,-1.8395,-1.3597,-0.4993,-2.3843,3.9895,0,-0.2528,-1.4187,-1.0832,1.7261],   // test/beatchoice-data.js --fit(自对弈 1200 副 7949 个样本,两折对数损失 均匀 1.525 → 0.888)              // 1 = 抽样世界把亮主亮出来的牌(全部亮主记录)钉在亮的那家手里(declKnown);0 = 旧行为(信念服务不用亮主信息)
   /* test/lead-data.js --fit:8 类 × 11 个手牌特征(leadHandFeat),条件 logit(只在手里有的类之间归一)。
@@ -4373,11 +4411,11 @@ function aiChooseFollow(view, plays, extra){
         if(currentWinner([...plays,{seat:view.seat,cards:c.cards}],trump).seat===view.seat) continue;
         const p=feedP(X,view,plays,c.cards);
         const cap=p<AIP.feedLo?0:p<AIP.feedHi?5:99;
-        if(pts>cap) c.score-=AIP.feedPen;
+        if(pts>cap){ c.score-=AIP.feedPen; c.steer=(c.steer||0)+AIP.feedPen; }   // steer:引导罚分,教练评你出的牌时加回去
       }
     }
   }
-  if(extraC) return {extraScore:extraC.score,extraCat:extraC.cat};
+  if(extraC) return {extraScore:extraC.score,extraCat:extraC.cat,extraSteer:extraC.steer||0};
   cands.sort((a,b)=>b.score-a.score);
   const ctx={partnerWinning:X.partnerWinning,isLast:X.isLast,ptsTable:X.ptsTable,
              curSeat:X.cur.seat,curBoss:X.curBoss,leadSuit:lead.suit,phase:X.phase};
@@ -4414,17 +4452,76 @@ function aiChooseFollow(view, plays, extra){
         if(ruffs.length&&(cPts>0||ruffs[0].score>=best.score-AIP.followFixMargin)&&(!(AIP.followFix&4)||pTeamWin(X,[c],false)<AIP.followFixP)){
           best={...ruffs[0],reason:'这门断了 —— 毙下来,不往对手那里垫'}; fixed=true; }
       }
-      if(!fixed&&AIP.followFix&1&&effSuit(c,trump)!=='T'&&cPts>0&&!wins(c)&&pTeamWin(X,[c],false)<AIP.followFixP){
-        const alt=cands.filter(q=>q.cards.length===1&&cardPoints(q.cards[0])===0)[0]
-          ||(()=>{ const xs=view.hand.filter(x=>cardPoints(x)===0&&isLegalFollow(view.hand,lead,[x],trump)).sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump));
+      if(!fixed&&AIP.followFix&1&&(effSuit(c,trump)!=='T'||AIP.flagFix&8)&&cPts>0&&!wins(c)&&(AIP.followFate||pTeamWin(X,[c],false)<AIP.followFixP)){
+        // 位 8:替上去的那张不能是 A、也不能是同门里比原来那张大的 —— 否则 ♥A K 10 被领 A 压死时会拿 A 去换 10(自测「副门被压死时出10留A+K」)。
+        // (先试过 cheapKey 比大小:跨花色比较不可靠,pool −0.21 ±0.21 分 / −0.010 ±0.005 级)
+        const cheapOK=q=>{ const a=q.cards[0];
+          if(effSuit(c,trump)==='T') return a.suit!=='X'&&a.rank!==trump.rank&&a.rank!==14;   // 主牌分(flagFix 8):别拿王 / 级牌 / 主 A 去换
+          if(!(AIP.followFix&8)) return true;
+          return a.rank!==14&&!(effSuit(a,trump)===effSuit(c,trump)&&ordIdx(a,trump)>ordIdx(c,trump)); };
+        const alt=cands.filter(q=>q.cards.length===1&&cardPoints(q.cards[0])===0&&cheapOK(q))[0]
+          ||(()=>{ const xs=view.hand.filter(x=>cardPoints(x)===0&&isLegalFollow(view.hand,lead,[x],trump)&&cheapOK({cards:[x]})).sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump));
                    return xs.length?{cards:[xs[0]],cat:'cheap',score:best.score}:null; })();
-        if(alt) best={...alt,reason:'这墩多半是对手的 —— 不带分的先出,分留着'};
+        let keep=!!alt;
+        if(alt&&AIP.followFate){                      // 现在贴 vs 留着:两边都按「本队最后拿到的分」算
+          const B=X._B!==undefined?X._B:(X._B=makeBelief(X.view||view,plays,AIP.beliefM)), tbl=X.ptsTable||0;
+          const evDump=pTeamWin(X,[c],false)*(tbl+cPts), evKeep=pTeamWin(X,alt.cards,false)*tbl+fateP(view,c,B)*cPts;
+          keep=evKeep>evDump+AIP.followFateMargin;
+        }
+        if(keep) best={...alt,reason:'这墩多半是对手的 —— 不带分的先出,分留着'};
+      }
+    }
+    /* flagFix 1 / 2:毙小主几乎不增胜算 → 垫;毙小主多半被盖、台面够大 → 用能稳住的那张主(设防) */
+    if(AIP.flagFix&16&&lead.type==='single'&&best.cards.length===1&&!X.isLast
+       &&currentWinner([...plays,{seat:view.seat,cards:best.cards}],trump).seat===view.seat){
+      const legal=view.hand.filter(x=>isLegalFollow(view.hand,lead,[x],trump));
+      const beatsC=x=>currentWinner([...plays,{seat:view.seat,cards:[x]}],trump).seat===view.seat;
+      const pB=pTeamWin(X,best.cards,true);
+      const los=legal.filter(x=>!beatsC(x)).sort((a,b)=>(cardPoints(a)-cardPoints(b))||(ordIdx(a,trump)-ordIdx(b,trump)));
+      const lo=los.length?los[0]:null, pL=lo?pTeamWin(X,[lo],false):null;
+      if(cardPoints(best.cards[0])===0&&(pB<0.5||(pL!==null&&pB-pL<AIP.ruffFixGain))){
+        // 这张牌的代价(折成分):王 / 级牌 / 主 A 是牌权和控制,为一墩小分动它们不值;其余 0
+        // 王 / 主级牌的代价随场上余分缩小(外面没分可抢了,留着也没用);副级牌人均 1.5 张,本来就是抢牌权、压牌抢分、给队友贴分机会用的,代价很低
+        const mem=makeMemory(view); let outPts=0; for(const k in mem.unseen) if(mem.unseen[k]>0) outPts+=mem.unseen[k]*cardPoints(keyToCard(k));
+        const fOut=clamp(outPts/AIP.beatOutPts,0.2,1);
+        const cost=x=>x.suit==='X'?(x.rank===16?AIP.beatCost[0]:AIP.beatCost[1])*fOut:x.rank===trump.rank?(x.suit===trump.suit?AIP.beatCost[2]*fOut:AIP.beatCost[3])
+          :(effSuit(x,trump)==='T'&&x.rank===14)?AIP.beatCost[4]:0;
+        const W=(X.ptsTable||0)+AIP.beatW, base=pL===null?0:pL;
+        const his=legal.filter(beatsC).map(x=>({x,p:pTeamWin(X,[x],true)})).filter(o=>cardPoints(o.x)===0||o.p>=0.8)
+          .map(o=>({...o,v:(o.p-base)*W-cost(o.x)})).sort((a,b)=>(b.v-a.v)||(ordIdx(a.x,trump)-ordIdx(b.x,trump)));
+        const hi=his[0];
+        if(hi&&hi.v>0&&hi.p>=pB&&(pL===null||hi.p-pL>=AIP.beatHiGain))
+          best={cards:[hi.x],cat:'beat',score:best.score,reason:hi.p>=0.5?`压就压到稳住(本队拿下 ${Math.round(100*hi.p)}%,原来那张 ${Math.round(100*pB)}%)`:`压一张够分量的,逼后手拿大牌来换(本队拿下 ${Math.round(100*hi.p)}%,不压 ${Math.round(100*base)}%)`};
+        else if(lo&&pB-pL<AIP.ruffFixGain)
+          best={cards:[lo],cat:'cheap',score:best.score,reason:`压也多半被盖(本队拿下 压 ${Math.round(100*pB)}% / 不压 ${Math.round(100*pL)}%)—— 不争,留着`};
+      }
+    }
+    else if((AIP.flagFix&3)&&lead.type==='single'&&lead.suit!=='T'&&best.cards.length===1&&!X.isLast
+       &&effSuit(best.cards[0],trump)==='T'&&!view.hand.some(x=>effSuit(x,trump)===lead.suit)
+       &&currentWinner([...plays,{seat:view.seat,cards:best.cards}],trump).seat===view.seat){
+      const r0=best.cards[0], tbl=X.ptsTable||0, pR=pTeamWin(X,[r0],true);
+      let done=false;
+      if(AIP.flagFix&2&&pR<0.5&&tbl>=AIP.ruffFixHiPts){
+        const hi=view.hand.filter(x=>effSuit(x,trump)==='T'&&ordIdx(x,trump)>ordIdx(r0,trump)).sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump))
+          .find(x=>pTeamWin(X,[x],true)>=AIP.ruffFixHiP);
+        if(hi){ best={cards:[hi],cat:'ruff',score:best.score,reason:'后手会盖毙 —— 毙就毙到稳住为止'}; done=true; }
+      }
+      if(!done&&AIP.flagFix&1&&cardPoints(r0)===0){   // 毙的那张带分 = 往本队墩里贴主分,不动
+        const ds=view.hand.filter(x=>effSuit(x,trump)!=='T'&&cardPoints(x)===0).sort((a,b)=>ordIdx(a,trump)-ordIdx(b,trump));
+        if(ds.length){ const pD=pTeamWin(X,[ds[0]],false), g=pR-pD;
+          if(g<AIP.ruffFixGain||(AIP.ruffFixPts>0&&g*tbl<AIP.ruffFixPts))
+            best={cards:[ds[0]],cat:'cheap',score:best.score,reason:`毙了也不多赢(本队拿下 毙 ${Math.round(100*pR)}% / 垫 ${Math.round(100*pD)}%)—— 主留着,垫一张小的`}; }
       }
     }
     const eg=endgameSearch(view,plays,cands.slice(0,AIP.egMaxCands));
     if(eg){
       const cur=eg.find(o=>o.cards===best.cards);
-      const top=egOverride(eg,cur);
+      let top=egOverride(eg,cur);
+      /* flagFix 4:首选不带分时,搜索不能把它改判成「贴分、自己不压、本队拿下 < followFixP」的那手(样本少时搜索会这么改) */
+      const oppVoidBehind=()=>{ const vd=makeVoids((view.history||[]).slice(0,(view.history||[]).length-plays.length),trump);
+        return (X.remaining||[]).some(q=>q%2!==view.seat%2&&vd[q]&&vd[q][lead.suit]); };
+      if(top&&AIP.flagFix&4&&lead.type==='single'&&top.cards.length===1&&countPoints(best.cards)===0&&cardPoints(top.cards[0])>0&&(AIP.flagFix&32||oppVoidBehind())
+         &&currentWinner([...plays,{seat:view.seat,cards:top.cards}],trump).seat!==view.seat&&pTeamWin(X,top.cards,false)<AIP.followFixP) top=null;
       if(top){
         const c=cands.find(x=>x.cards===top.cards);
         if(c) best={...c,reason:'收官推演:'+c.reason+`(${eg.samples}样本,净升 ${top.u.toFixed(2)} 级)`};
@@ -5262,7 +5359,7 @@ function sampleWorld(ctx, rand){
      * 这里就按它抽:先从「非主、非 A」的牌里挑底牌,分牌降权,再把其余的牌分给三家。 */
     if(AIP.egKittyModel&&kittySize>0){
       const elig=pool.filter(c=>effSuit(c,trump)!=='T'&&c.rank!==14);
-      const w=c=>cardPoints(c)?AIP.egKittyPtW:1;
+      const w=c=>AIP.egKittyRankW?(AIP.egKittyRankW[c.rank]!==undefined?AIP.egKittyRankW[c.rank]:0.76):cardPoints(c)?AIP.egKittyPtW:1;
       const rest=new Set();
       while(kitty.length<kittySize&&elig.length){
         let tot=0; for(const c of elig) if(!rest.has(c.id)) tot+=w(c);
@@ -5485,6 +5582,36 @@ function leadEvents(view, T){
     ev.push({s,lc:tr[0].cards[0],after,y:leadClass8(tr[0].cards[0],T),dt:s%2===view.declSeat%2}); });
   return ev;
 }
+/* leadTopRead 的事件:别人(不是我)单张领出副牌、领的那张不高于这门当时还没出过的最大点(两副牌;领的就是最大点时,看他有没有同点的另一张)。
+ * 他那一刻的手牌 = 世界里他现在的牌 + 他从那一墩起打出的牌(含领的那张)。 */
+function leadTopEvents(view, plays, T){
+  const hist=(view.history||[]).slice(0,(view.history||[]).length-((plays||[]).length)), ev=[];
+  const tricks=[]; for(let i=0;i<hist.length;i+=4) tricks.push(hist.slice(i,i+4));
+  if(plays&&plays.length) tricks.push(plays);
+  const later={0:[],1:[],2:[],3:[]}; tricks.forEach((tr,t)=>tr.forEach(pl=>later[pl.seat].push({t,cards:pl.cards})));
+  const gone={};   // 这一墩之前已出的牌:pairKey → 张数
+  const full=makeDeck().slice(0,54);
+  tricks.forEach((tr,t)=>{
+    const L=tr[0];
+    if(L&&L.seat!==view.seat&&L.cards.length===1&&effSuit(L.cards[0],T)!=='T'){
+      const su=effSuit(L.cards[0],T); let top=-1;
+      for(const c of full){ if(effSuit(c,T)!==su) continue; if((gone[pairKey(c)]||0)>=2) continue; top=Math.max(top,ordIdx(c,T)); }
+      // 领的就是最大点(单张):他手里没有同点的另一张 —— 有一对会领对子
+      if(ordIdx(L.cards[0],T)<=top){ const after=[]; for(const x of later[L.seat]) if(x.t>=t) after.push(...x.cards);
+        const atk=view.declSeat!==undefined&&L.seat%2!==view.declSeat%2;
+        const q=atk&&AIP.leadTopReadAtk!=null?AIP.leadTopReadAtk:AIP.leadTopRead;
+        if(q<1) ev.push({s:L.seat,su,top,after,q,self:ordIdx(L.cards[0],T)===top?1:0}); } }
+    tr.forEach(pl=>pl.cards.forEach(c=>{ const k=pairKey(c); gone[k]=(gone[k]||0)+1; }));
+  });
+  return ev;
+}
+function leadTopLik(TE, w, T){
+  let L=1;
+  for(const e of TE){ const H=w.hands[e.s]; if(!H) continue;
+    const k=H.filter(c=>effSuit(c,T)===e.su&&ordIdx(c,T)===e.top).length+e.after.filter(c=>effSuit(c,T)===e.su&&ordIdx(c,T)===e.top).length-e.self;
+    if(k>0) L*=e.q; }
+  return L;
+}
 function leadHistLik(LE, w, T, humanSeat){
   let L=1;
   for(const e of LE){ const H=w.hands[e.s]; if(!H) continue;
@@ -5526,7 +5653,7 @@ function makeBelief(view, plays, M){
     for(let j=1;j<plays.length;j++) if(plays[j].cards.some(c=>effSuit(c,trump)!==lead.suit)) voids[plays[j].seat][lead.suit]=true; }
   const reads=makeReads(hist,trump);
   const capMemo={};   // 上界只取决于(座, 门),一次决策里不变 —— 抽样时每张牌每家都要问一遍,记下来
-  const capOf=(s,su)=>{ const k=s+su; return capMemo[k]!==undefined?capMemo[k]:(capMemo[k]=maxHoldIn(reads,mem,s,su,trump)); };
+  const capOf=AIP.beliefNoReads?(()=>99):(s,su)=>{ const k=s+su; return capMemo[k]!==undefined?capMemo[k]:(capMemo[k]=maxHoldIn(reads,mem,s,su,trump)); };
   const known=(AIP.beliefDecl?declKnown(view,plays,seats):[]).concat(view._pin||[]);   // _pin:只给量具用(test/calib-teamwin.js PIN=),把某家的部分真实手牌钉住
   const ctx={unseen,sizes,seats,voids,trump,kittySize,capOf,known,pVoidOf:null};
   const rand=rng(hist.length*7919+view.seat*31+n*17+7);
@@ -5535,15 +5662,22 @@ function makeBelief(view, plays, M){
   const L=plays&&plays.length&&plays[0].seat!==view.seat&&plays[0].cards.length===1?plays[0].seat:-1;
   const LM=L>=0&&AIP.leadInfer?(view.humanSeat===L&&AIP.leadModelHuman?AIP.leadModelHuman:AIP.leadModelAI):null;
   const FE=AIP.followInfer?followEvents(view,plays,trump):null;
+  /* 庄家扣底做断门(declVoidBoost,11-09,产品方):庄家拿底后会把短门埋掉 —— 自对弈「只有我断门」的局面里庄家实际断门系统性高于抽样估计
+   * (这门在外 ≤ 6 张 实 56% / 估 49%;我方庄家 7~10 张 实 24~30% / 估 9~13%;test/void-odds.js)。抽样把底牌当随机发的,看不到这一点。
+   * 世界按「庄家断几门副牌」加权:权重 = exp(β × 断门数),再按权重重抽(池子 3 × M)。0 = 旧行为。 */
+  const DV=AIP.declVoidBoost&&view.declSeat!==undefined&&view.declSeat!==view.seat?view.declSeat:-1;
   const LE=AIP.leadInferHist?leadEvents(view,trump):null;
-  const pool=Math.max(LM?MM*AIP.leadInfer:MM,FE&&FE.length?MM*AIP.followInfer:MM,LE&&LE.length?MM*AIP.leadInferHist:MM);
+  const TE=AIP.leadTopRead?leadTopEvents(view,plays,trump):null;
+  const pool=Math.max(LM?MM*AIP.leadInfer:MM,FE&&FE.length?MM*AIP.followInfer:MM,LE&&LE.length?MM*AIP.leadInferHist:MM,DV>=0?MM*3:MM,TE&&TE.length?MM*3:MM);
   const AR=AIP.beliefAceRead?aceReads(view,trump):[];
   const okAce=w=>AR.every(r=>!(w.hands[r.seat]||[]).some(c=>c.suit===r.suit&&c.rank===14));
   if(!AR.length){ for(let i=0;i<pool;i++){ const w=sampleWorld(ctx,rand); if(w) worlds.push(w); } }   // 旧行为:失败的那次也算一轮
   else for(let i=0,tries=0;i<pool&&tries<pool*4;tries++){ const w=sampleWorld(ctx,rand); if(!w) continue; if(!okAce(w)) continue; worlds.push(w); i++; }
-  if((LM||(FE&&FE.length)||(LE&&LE.length))&&worlds.length>MM){
+  if((LM||(FE&&FE.length)||(LE&&LE.length)||DV>=0||(TE&&TE.length))&&worlds.length>MM){
     const lc=LM?plays[0].cards[0]:null, y=LM?leadClass8(lc,trump):0, dt=L%2===view.declSeat%2;
-    const wt=worlds.map(w=>(LM?leadLik(LM,w.hands[L].concat([lc]),trump,dt,y):1)*(FE&&FE.length?followLik(FE,w,trump,view.humanSeat):1)*(LE&&LE.length?leadHistLik(LE,w,trump,view.humanSeat):1));
+    const wt=worlds.map(w=>(LM?leadLik(LM,w.hands[L].concat([lc]),trump,dt,y):1)*(FE&&FE.length?followLik(FE,w,trump,view.humanSeat):1)*(LE&&LE.length?leadHistLik(LE,w,trump,view.humanSeat):1)
+      *(DV>=0?Math.exp(AIP.declVoidBoost*['S','H','D','C'].filter(su=>su!==trump.suit&&!(w.hands[DV]||[]).some(c=>effSuit(c,trump)===su)).length):1)
+      *(TE&&TE.length?leadTopLik(TE,w,trump):1));
     const tot=wt.reduce((a,b)=>a+b,0); if(!(tot>0)) return {worlds:worlds.slice(0,MM),mem,seats,trump};
     const out=[]; let u=rand()*tot/MM, acc=0, j=0;
     for(let i=0;i<MM;i++){ const t=u+i*tot/MM; while(j<worlds.length-1&&acc+wt[j]<t){ acc+=wt[j]; j++; } out.push(worlds[j]); }
@@ -5722,6 +5856,39 @@ function willMateP(T, plays, s, H, behind, M){
     f.vB,f.vB*f.curSide,f.vBT,f.curLead,f.n<=12?1:0,f.mateBehind];
   const w=AIP.willMateW; let z=0; for(let i=0;i<w.length&&i<x.length;i++) z+=w[i]*x[i];
   return {p:1/(1+Math.exp(-z)),card:f.card};
+}
+/* 分牌命运的特征(fateFeat,11-09,test/fate-data.js / fit-fate.js):手里一张没出的副牌分牌 c,
+ * 在抽样世界 B 里看:这门各家断不断、比 c 大的牌在谁手里、我和队友的主牌。只读,不改打法。 */
+function fateFeat(view, c, B){
+  const T=view.trump, s=effSuit(c,T), me=view.seat, mate=(me+2)%4, opps=[(me+1)%4,(me+3)%4];
+  const mem=makeMemory(view), oc=ordIdx(c,T);
+  let unseenS=0, hi=0;
+  for(const k in mem.unseen){ const n=mem.unseen[k]; if(n<=0) continue; const x=keyToCard(k);
+    if(effSuit(x,T)!==s) continue; unseenS+=n; if(ordIdx(x,T)>oc) hi+=n; }
+  const myLen=view.hand.filter(x=>effSuit(x,T)===s).length, myHi=view.hand.filter(x=>effSuit(x,T)===s&&ordIdx(x,T)>oc).length;
+  const myTr=view.hand.filter(x=>effSuit(x,T)==='T').length;
+  let mV=0,oV=0,mHi=0,oHi=0,mVT=0,oVT=0,mTr=0,oTr=0,k=0;
+  for(const w of (B&&B.worlds)||[]){ k++;
+    const H=q=>w.hands[q]||[], vd=q=>!H(q).some(x=>effSuit(x,T)===s), tr=q=>H(q).filter(x=>effSuit(x,T)==='T').length,
+      hh=q=>H(q).some(x=>effSuit(x,T)===s&&ordIdx(x,T)>oc);
+    if(vd(mate)){ mV++; if(tr(mate)) mVT++; }
+    if(opps.some(vd)){ oV++; } if(opps.some(q=>vd(q)&&tr(q))) oVT++;
+    if(hh(mate)) mHi++; if(opps.some(hh)) oHi++;
+    mTr+=tr(mate); oTr+=tr(opps[0])+tr(opps[1]); }
+  k=Math.max(1,k);
+  return {n:view.hand.length,myLen,myHi,myTr,unseenS,hi,
+    pMV:mV/k,pOV:oV/k,pMVT:mVT/k,pOVT:oVT/k,pMHi:mHi/k,pOHi:oHi/k,mTr:mTr/k,oTr:oTr/k};
+}
+// test/fit-fate.js 拟合(11-09,自对弈 1198 副、58597 张留着的副牌分牌;检验集对数损失 0.6588(只看自己手牌)→ 0.6436(加抽样世界),分档校准 ±5 个百分点内)
+const FATE_W0={b:-1.1439,w:[0.7606,0.2576,0.0483,0.6094,-0.0088,-0.0614,-0.0346,0.0173,0.0654,-0.4764,-0.0062,1.0123,-0.496,-0.572,0.465,1.2481,-1.0212,0.2511,0.8485]};
+function fateX(f, decl, pts){
+  return [decl,pts===10?1:0,f.n/25,f.myLen/5,Math.min(f.myHi,3)/3,f.myTr/10,f.hi===0?1:0,Math.log(1+f.hi),f.unseenS/10,
+    f.pMV,f.pOV,f.pMVT,f.pOVT,f.pMHi,f.pOHi,f.mTr/10,f.oTr/20,f.pMHi*(1-f.pOHi),(f.hi===0?1:0)*(1-f.pOVT)];
+}
+function fateP(view, c, B){
+  const W=AIP.fateW||FATE_W0, x=fateX(fateFeat(view,c,B),view.declSeat!==undefined&&view.seat%2===view.declSeat%2?1:0,cardPoints(c));
+  let z=W.b; for(let j=0;j<x.length&&j<W.w.length;j++) z+=W.w[j]*x[j];
+  return 1/(1+Math.exp(-z));
 }
 function teamWinBelief(X, cards, B){
   if(!B||!X.lead||X.lead.type!=='single'||cards.length!==1) return null;
@@ -6065,7 +6232,12 @@ function coachScoreLead(view, cards){
  * 「把握」= 首选领先第二名多少(同一单位)。分差小于噪声、或者命中已知短板(跨阶梯线,§7 第一行 /
  * 场景 H1 仍是 todo)时,教练不该用讲规则的语气说它。 */
 const COACH_EG_PTS=40;          // 一级 = 40 分(阶梯 0/40/80/120/160)
-const COACH_LEAD_SCALE=4;       // 领出含牌权战略值,量纲约为跟牌 4 倍(原 LEAD_GAP_SCALE,从界面搬进来)
+/* 领出打分折成「亏多少分」的除数。原来是 4(「领出含牌权战略值,量纲约为跟牌 4 倍」,没量过)。
+ * v0.7.62 量了(test/lead-rank.js K=14 DUMP,854 个中盘领出,候选各自真 AI 续打到局终):旧口径报「约亏 12~20 分」的,
+ * 实际首选平均只多得 2.2 ±0.6 分(0.085 级)、首选更好的只有 56%;报 20~30 分的实际 4.0 ±1.3 分(55%);3~12 分的 1.5~2.2 分(52~53%)。
+ * 领出打分差在 30 以内几乎就是噪声(和 AI 线量的领出排对率 52% 一致),报成失误是在冤枉人 —— 除数改 12,
+ * 中档门槛 12 分要打分差 ≥ 144 才报(旧 48)。跟牌侧(183 个局面)大致对得上,不动。 */
+const COACH_LEAD_SCALE=12;
 const COACH_CONF={high:12, mid:4};
 const coachSame=(a,b)=>a.length===b.length&&a.every(x=>b.some(y=>y.id===x.id));
 
@@ -6177,19 +6349,56 @@ function coachConf(margin, ladder){
 
 /* 首选、把握、替代方案(问教练用;也是 coachEval* 的底子)。
  * alts:其余候选,delta = 比首选少多少分(同一单位,已按领出 / 推演折算)。 */
+/* 推演分差的把握下限(v0.7.62,玩家标记:「♠8 对 ♠7 约亏 53 分」「出对子约亏 33 分」这类,推演样本少、两手其实分不出)。
+ * AI 自己用推演改判要过配对显著性(egOverride:均差 > egZ × 标准误);教练报「你亏了」也用同一个门槛:
+ * 返回 (均差 ∓ egZ × 标准误) 截到 0,单位折成分 —— 分不出就是 0。a = 首选,b = 另一手,{u, v}。 */
+function coachEgDelta(a, b){
+  if(!a||!b) return null;
+  const n=a.v?a.v.length:0;
+  if(!(AIP.egZ>0)||n<2||!b.v||b.v.length!==n) return (a.u-b.u)*COACH_EG_PTS;
+  let m=0; for(let i=0;i<n;i++) m+=a.v[i]-b.v[i]; m/=n;
+  let ss=0; for(let i=0;i<n;i++){ const d=a.v[i]-b.v[i]-m; ss+=d*d; }
+  const se=Math.sqrt(ss/(n-1)/n);
+  return (m>0?Math.max(0,m-AIP.egZ*se):Math.min(0,m+AIP.egZ*se))*COACH_EG_PTS;
+}
+/* 甩牌在抽样世界里甩不甩得成(v0.7.62,玩家标记 8cceb73f「甩不出啊」):和 scoreLeadCore 的 throwEval 同一个判法 ——
+ * 有别家压得住任何一组就失败,只出被压住的最小一组。返回 {pOk, forced(最常见的被迫出的那组), pForced} 或 null。
+ * 收官推演把候选原样当领出、不判甩牌失败(ai-progress 第 13 项 ①),所以教练对甩牌不用推演的分差。 */
+function coachThrowOdds(view, cards){
+  const t=view.trump, cl=classify(cards,t);
+  if(!cl||cl.type!=='throw') return null;
+  const B=makeBelief(view,[],AIP.beliefM);
+  if(!B||!B.worlds.length) return null;
+  const others=[0,1,2,3].filter(p=>p!==view.seat), opps=others.filter(p=>p%2!==view.seat%2), sz=c=>c.cards.length;
+  let ok=0, ruff=0; const cnt={};
+  for(const w of B.worlds){
+    const inS=p=>(w.hands[p]||[]).filter(c=>effSuit(c,t)===cl.suit);
+    const beaten=cl.comps.filter(comp=>others.some(p=>canBeatComp(inS(p),comp,t)));
+    if(!beaten.length){ ok++;
+      // 甩成了也可能被对手整手毙掉(他断这门、主够多)—— 和 throwEval 同一口径
+      if(cl.suit!=='T'&&opps.some(p=>!inS(p).length&&(w.hands[p]||[]).filter(c=>effSuit(c,t)==='T').length>=cards.length)) ruff++;
+      continue; }
+    const low=beaten.reduce((a,c)=>sz(c)!==sz(a)?(sz(c)<sz(a)?c:a):(c.top<a.top?c:a));
+    const k=low.cards.map(c=>c.id).sort().join(); (cnt[k]=cnt[k]||{n:0,cards:low.cards}).n++;
+  }
+  const top=Object.values(cnt).sort((a,b)=>b.n-a.n)[0];
+  const n=B.worlds.length;
+  return {pOk:ok/n,pRuff:ruff/n,forced:top?top.cards:null,pForced:top?top.n/n:0};
+}
+const coachIsThrow=(cards,t)=>{ const cl=classify(cards,t); return !!cl&&cl.type==='throw'; };
 function coachJudgeFollow(view, plays, adv){
   adv=adv||aiChooseFollow(view,plays);
   const cands=adv.cands||[];
   const eg=adv.eg;
   let alts, unit='pts';
-  const uOf=cs=>{ if(!eg) return null; const o=eg.find(o=>coachSame(o.cards,cs)); return o?o.u:null; };
-  const uBest=uOf(adv.cards);
+  const oOf=cs=>{ if(!eg) return null; return eg.find(o=>coachSame(o.cards,cs))||null; };
+  const oBest=oOf(adv.cards);
   const bestScore=coachCandScore(view,plays,adv);
-  if(uBest!=null){
+  if(oBest){
     unit='eg';
     alts=eg.filter(o=>!coachSame(o.cards,adv.cards)).map(o=>{
       const c=cands.find(x=>coachSame(x.cards,o.cards));
-      return {cards:o.cards,reason:c?c.reason:'',delta:(uBest-o.u)*COACH_EG_PTS};
+      return {cards:o.cards,reason:c?c.reason:'',delta:coachEgDelta(oBest,o)};
     });
   }else{
     alts=cands.filter(c=>!coachSame(c.cards,adv.cards)).map(c=>({cards:c.cards,reason:c.reason,delta:bestScore-coachCandScore(view,plays,c)}));
@@ -6201,27 +6410,29 @@ function coachJudgeFollow(view, plays, adv){
   if(rule) margin=0;
   const ladder=coachLadder(view,plays,adv);
   const feedDoubt=coachFeedDoubt(view,plays,adv);
-  return {adv,alts,margin,conf:coachConf(margin,ladder||feedDoubt),ladder,feedDoubt,unit,rule,bestScore};
+  return {adv,alts,margin,conf:coachConf(margin,ladder||feedDoubt),ladder,feedDoubt,unit,rule,bestScore,oBest};
 }
 function coachJudgeLead(view, adv){
   adv=adv||aiChooseLead(view);
   const all=adv.all||adv.cands||[];
-  const eg=adv.eg;
+  const t=view.trump;
+  // 推演不判甩牌失败:首选是甩牌就整张表按打分(throwEval 已按失败概率算过);别的候选里的甩牌也按打分折算
+  const eg=adv.eg&&!coachIsThrow(adv.cards,t)?adv.eg:null;
   let alts, unit='pts';
-  const uOf=cs=>{ if(!eg) return null; const o=eg.find(o=>coachSame(o.cards,cs)); return o?o.u:null; };
-  const uBest=uOf(adv.cards);
-  if(uBest!=null){
+  const oBest=eg?eg.find(o=>coachSame(o.cards,adv.cards))||null:null;
+  if(oBest){
     unit='eg';
     alts=eg.filter(o=>!coachSame(o.cards,adv.cards)).map(o=>{
       const c=all.find(x=>coachSame(x.cards,o.cards));
-      return {cards:o.cards,reason:c?c.reason:'',delta:(uBest-o.u)*COACH_EG_PTS};
+      const delta=coachIsThrow(o.cards,t)&&c?(adv.score-c.score)/COACH_LEAD_SCALE:coachEgDelta(oBest,o);
+      return {cards:o.cards,reason:c?c.reason:'',delta};
     });
   }else{
     alts=all.filter(c=>!coachSame(c.cards,adv.cards)).map(c=>({cards:c.cards,reason:c.reason,delta:(adv.score-c.score)/COACH_LEAD_SCALE}));
   }
   alts.sort((a,b)=>a.delta-b.delta);
   const margin=alts.length?alts[0].delta:Infinity;
-  return {adv,alts,margin,conf:coachConf(margin,null),ladder:null,unit,rule:false};
+  return {adv,alts,margin,conf:coachConf(margin,null),ladder:null,unit,rule:false,oBest};
 }
 
 /* 你出的这一手:gap = 比首选少多少分(≤0 不算失误),单位已统一成「分」。 */
@@ -6231,8 +6442,10 @@ function coachEvalFollow(view, plays, cards, adv){
   const hit=(adv.cands||[]).find(c=>coachSame(c.cards,cards));
   // 候选外的出法:放进 AI 同一条候选流水线打分(含 ruff2Plan / feedPlan 的事后加减分),而不是只算 scorePlay
   let mine;
-  if(hit) mine={score:coachCandScore(view,plays,hit),cat:hit.cat,reason:hit.reason};
-  else{ const r=aiChooseFollow(view,plays,cards); mine={score:r.extraScore,cat:r.extraCat,reason:null}; }
+  /* AI 的引导罚分(feedPlan 的 feedPen 40:「超档贴分扣到一定不选」)是拿来定 AI 选哪手的,不是这手真实亏多少(v0.7.62,
+   * 玩家标记 7a5c2290「拆拖拉机和丢 5 分比,丢五分不亏」—— 教练报「约亏 44 分」,其中 40 分就是它)。评你出的牌时加回去。 */
+  if(hit) mine={score:coachCandScore(view,plays,hit)+(hit.steer||0),cat:hit.cat,reason:hit.reason,steer:hit.steer||0};
+  else{ const r=aiChooseFollow(view,plays,cards); mine={score:r.extraScore+(r.extraSteer||0),cat:r.extraCat,reason:null,steer:r.extraSteer||0}; }
   let gap;
   if(coachSame(adv.cards,cards)) gap=0;
   else if(J.unit==='eg'){
@@ -6241,7 +6454,7 @@ function coachEvalFollow(view, plays, cards, adv){
     else{
       // 候选之外的出法:和首选放进同一次推演(同一批抽样世界)再比一次
       const r=endgameSearch(view,plays,[{cards:adv.cards},{cards}]);
-      gap=r?(r[0].u-r[1].u)*COACH_EG_PTS:J.bestScore-mine.score;
+      gap=r?coachEgDelta(r[0],r[1]):J.bestScore-mine.score;
     }
   }else gap=J.bestScore-mine.score;
   if(J.rule) gap=Math.max(0,gap);
@@ -6255,15 +6468,21 @@ function coachEvalLead(view, cards, adv){
   const mine=hit?{score:hit.score,reason:hit.reason}:coachLeadScoreFull(view,cards,adv);
   let gap;
   if(coachSame(adv.cards,cards)) gap=0;
-  else if(J.unit==='eg'){
+  else if(J.unit==='eg'&&!coachIsThrow(cards,view.trump)){
     const a=J.alts.find(x=>coachSame(x.cards,cards));
     if(a) gap=a.delta;
     else{
       const r=endgameSearch(view,null,[{cards:adv.cards},{cards}]);
-      gap=r?(r[0].u-r[1].u)*COACH_EG_PTS:(adv.score-mine.score)/COACH_LEAD_SCALE;
+      gap=r?coachEgDelta(r[0],r[1]):(adv.score-mine.score)/COACH_LEAD_SCALE;
     }
   }else gap=(adv.score-mine.score)/COACH_LEAD_SCALE;
-  return {...J,gap,inCands:!!hit,mine};
+  // 首选是多半甩不成的甩牌,而你出的正是甩不成时被迫出的那一组:实际是同一手
+  let throwOdds=null;
+  if(gap>0&&coachIsThrow(adv.cards,view.trump)){
+    throwOdds=coachThrowOdds(view,adv.cards);
+    if(throwOdds&&throwOdds.pOk<0.5&&throwOdds.forced&&coachSame(throwOdds.forced,cards)) gap=0;
+  }
+  return {...J,gap,inCands:!!hit,mine,throwOdds};
 }
 
 /* ============================================================
@@ -6527,6 +6746,8 @@ function coachLeadReason(view, cards, f, r, tier){
   else if(/压不住场,吊不出对手的大主/.test(r)){ r='小主压不住场,多半把牌权交出去'; risky=true; }
   else if(/下策/.test(r)){ r='探路,把牌权交出去'; risky=true; }
   else if(/^甩牌有风险/.test(r)){ r='甩牌,有被拦下的风险'; risky=true; }
+  // throwEval 的「约 X% 会被拦下」把「甩成了但被毙」也算在里面 —— 说成「拿不下这墩」(v0.7.62;拆开的数在建议单末尾那句)
+  else if(/^甩牌:约 \d+% 会被拦下/.test(r)){ r=r.replace(/会被拦下/,'拿不下这墩'); risky=true; }
   // 「压得住」是 AI 的把握(p>0.6),不是硬事实 —— 事实那句还挂着「别家还有 1 张比它大」
   if(/^压得住/.test(r)&&f.boss===false) r=r.replace(/^压得住/,'多半压得住');
   if(/对手多半断这门|对手可能缺门来毙/.test(r)&&f.suit!=='T'){
@@ -6544,8 +6765,9 @@ function coachLeadReason(view, cards, f, r, tier){
     const suitCards=view.hand.filter(c=>effSuit(c,t)===cl.suit);
     if(/小牌探路/.test(r)&&(!coachSmall(cards[0],t)||suitCards.length>1&&!suitCards.some(c=>ordIdx(c,t)>cl.top)))
       r=r.replace('小牌探路','探路');
-    if(/队友的断门/.test(r)&&!f.partnerVoid) r=r.replace('主打队友的断门','队友多半断这门');
   }
+  // 不只单张:v0.7.62 起领出侧的「并列 / 也可以」变多,对子也会挂这条标签
+  if(/队友的断门/.test(r)&&!f.partnerVoid) r=r.replace('主打队友的断门','队友多半断这门');
   // 当选的是一手有风险的:把「为什么还选它」说出来(AI 的估算里,其他领法更亏)
   if(risky&&tier==='best') r+=',但其他领法更亏';
   return r;
@@ -6648,13 +6870,13 @@ function simulateRound(seed, smartSeats=[0,1,2,3]){
 }
 
 /* 引擎公开面 —— 浏览器 #test 与 node 无头测试共用同一份,避免两边漂移 */
-const ENGINE={RULES,makeDeck,willP,expHoldIn,drawTrumpValue,isBossPlay,willMateFeat,beatChoiceCands,leadClass8,leadHandFeat,leadAvail,leadLik,cardPoints,countPoints,rng,dealRound,
+const ENGINE={RULES,makeDeck,fateFeat,fateP,fateX,willP,expHoldIn,drawTrumpValue,isBossPlay,willMateFeat,beatChoiceCands,leadClass8,leadHandFeat,leadAvail,leadLik,cardPoints,countPoints,rng,dealRound,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
   canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,clampAtGate,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
   makeMemory,maxUnseenIdx,unseenPairAbove,pPairAbove,pBeaterIn,keyToCard,isBossPlay,buildFollow,currentWinner,minWinFollow,ruffGuardFollow,oppSpendCeil,
   aiChooseFollow,aiChooseLead,coachScoreFollow,coachScoreLead,
-  coachJudgeFollow,coachJudgeLead,coachEvalFollow,coachEvalLead,coachLadder,coachCandScore,coachFeedDoubt,coachFeedOK,coachFollowScoreFull,coachLeadScoreFull,COACH_EG_PTS,COACH_LEAD_SCALE,makeVoids,followCtx,leadCtx,scoreLeadPlay,
+  coachJudgeFollow,coachJudgeLead,coachEvalFollow,coachEvalLead,coachLadder,coachCandScore,coachFeedDoubt,coachFeedOK,coachEgDelta,coachThrowOdds,coachFollowScoreFull,coachLeadScoreFull,COACH_EG_PTS,COACH_LEAD_SCALE,makeVoids,followCtx,leadCtx,scoreLeadPlay,
   AIP,globalIdx,easeEnds,bossChain,pWinLastTrick,faceValue,voidProb,
   scoreDeclOption,declThreshold,aiDeclDecide,projectLen,trumpCountUnder,sideQuality,pPairOverride,
   phaseOf,futureValue,pTeamWin,laterPoints,scorePlay,unseenPointsIn,leadPointsEV,pSurvive,unseenBeats,roundScore,pointWeight,ruffThrow,SCORE_LADDER,makeReads,maxHoldIn,makeVoidProb,cheapKey,dumpKey,kittyPointsEst,tempoValue,
@@ -8615,10 +8837,23 @@ function humanPlay(){
       if(!chk.ok){
         log(`${T('throwP')}失败!被迫只出最小的一组(不罚分)`);
         setMsg(T('throwP')+'失败,只出最小的一组');
-        if(C.on) coachSay(G.tricks.length+1,
+        if(C.on){
+          /* v0.7.62:甩失败以前只念规则,没有打法上的话(第 12 项 G 的教练那半)。补:出牌前按记牌能估到的失败概率,
+           * 和我会怎么出。不计入失误(结果已经是规则定的那一组;该不该甩,看的是出牌前的概率)。 */
+          const v0=viewFor(HUMAN), odds=coachThrowOdds(v0,sel);
+          let more='';
+          if(odds){
+            const pf=Math.round(100*(1-odds.pOk));
+            more=pf>=50?`出牌前按记牌就能估到:这手约 <b>${pf}%</b> 甩不成。`
+                       :`出牌前按记牌估,这手约 ${pf}% 甩不成 —— 这次是赌输了。`;
+            const best=coachJudgeLead(v0).adv.cards;
+            if(!coachSame(best,sel)&&!coachSame(best,chk.forced)) more+=`我会出 <b>${desc(best)}</b>。`;
+          }
+          coachSay(G.tricks.length+1,
           `${T('throwP')}没成:你想一次出 ${desc(sel)},但别家有压得住其中一组的牌,`+
-          `按规则只出了最小的那一组 <b>${desc(chk.forced)}</b>。<br><span class="dim">`+
+          `按规则只出了最小的那一组 <b>${desc(chk.forced)}</b>。${more?'<br>'+more:''}<br><span class="dim">`+
           `${T('throwP')}要每一组在别家都压不住才成立 —— 出之前看一眼记牌表里那门「别家还剩」的最大牌。</span>`,'warn');
+        }
         G.selected.clear(); recordUndoPoint(); playCards(HUMAN,chk.forced,'h',meta); return;
       }
       log(T('throwP')+'成功');
@@ -8664,7 +8899,7 @@ function humanPlay(){
            !confirm(`教练:更好的是 ${desc(best.cards)} —— ${bestSay}\n仍要出这手吗?`)){ G.coachNotes.pop(); return; }
         sndOops();
         coachSay(no,`⚠️ 你出 ${desc(sel)},更好的是 <b>${desc(best.cards)}</b> —— ${bestSay}`+
-          `<div class="dim">按我的估算,比建议的那手约亏 ${Math.round(ev.gap)} 分${ev.unit==='eg'?'(收官按推演折算)':''}</div>`,'warn');
+          `<div class="dim">按我的估算,比建议的那手约亏 ${Math.round(ev.gap)} 分${ev.unit==='eg'?'(收官按推演折算,只算推演有把握的那部分)':''}</div>`,'warn');
       }
       log(`教练(第${no}墩):你出 ${desc(sel)},建议 ${desc(best.cards)} — ${bestSay}${doubt?'(存疑)':''}`);
     }
@@ -8830,6 +9065,12 @@ function suggestHTML(view,plays,J){
       `<div class="dim">${o.say}${ft?`。${ft}`:''}</div></div>`;
   }).join('');
   if(opts.length===1&&J.alts.length&&!J.feedDoubt) h+=`<div class="dim">其他出法我都不推荐。</div>`;
+  // v0.7.62:首选是甩牌 —— 说清按记牌估的成功率、甩不成会出哪一组(以前直接把「约 100% 会被拦下」的甩牌当首选推荐)
+  if(!plays||!plays.length){ const o=coachThrowOdds(view,J.adv.cards);
+    if(o&&o.pOk-o.pRuff<0.8){ const fail=1-o.pOk;
+      h+=`<div class="dim" style="margin-top:4px">⚠️ 这手${T('throwP')}按记牌估:`+
+        (fail<0.05?'甩得成(别家这门压不住)':`约 ${Math.round(100*fail)}% 甩不成`+(o.forced?`(拦下就只出 <b>${desc(o.forced)}</b>)`:''))+
+        (o.pRuff>=0.05?`${fail<0.05?',但':',甩成了也'}有约 ${Math.round(100*o.pRuff)}% 被对手毙掉`:'')+`。</div>`; } }
   if(J.ladder) h+=`<div class="dim" style="margin-top:4px">⚠️ ${ladderLine(J.ladder)}。「抢不抢过线」是我已知的短板,这类局面你的判断可能比我准。</div>`;
   if(J.feedDoubt) h+=`<div class="dim" style="margin-top:4px">${J.feedDoubt.known?`⚠️ ${feedDoubtLine(view,J.feedDoubt)}。`:''}`+
     `先把分给后面的队友是我算着稍好的一手,但这类局面我实测过:${view.hand.some(c=>effSuit(c,view.trump)===classify(plays[0].cards,view.trump).suit)?'跟小的不贴分、或者自己压下来':'不贴分、或者自己用小主毙下来'},整局只差两三分 —— 这几手你出哪手我都不算错。</div>`;
