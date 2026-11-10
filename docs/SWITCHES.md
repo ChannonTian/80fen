@@ -283,11 +283,16 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `beatW` | `10` | 位 16:多赢下这墩的价值 = (本队拿下之差) × (台面分 + beatW)(后手还会贴分、拿回牌权) | `beatCostCtx` |
 | `beatOutPts` | `50` | 位 16:王 / 主级牌的代价 × clamp(场上还没出的分 / 这个, 0.2, 1) | `beatCostCtx` |
 | `beatOutMin` | `0.5` | 位 16:王 / 主级牌的代价最少打这个折(11-11:0.2 时后期为 0 分的墩出大王 / 小王) | `beatCostCtx` |
-| `beatKittyGuess` | `15` | 位 16:闲家不知道底牌,按这么多分估 | `beatCostCtx` |
+| `beatKittyGuess` | `15` | 位 16:闲家不知道底牌,按这么多分估 | `lastWinnerInfo` `beatCostCtx` |
+| `beatGuard` | `1` | 位 16 / 256 / 1024 的代价加上守底(guardCost)/ 抢末墩(digCost)那一项;0 = 不加 | `beatCostCtx` |
 | `beatCritExtra` | `5` | 位 16:关键墩判定 —— 这墩的分按台面 + 这个算 | `beatCostCtx` |
 | `beatCritF` | `0.25` | 位 16:关键墩里王 / 主级牌的代价再乘这个 | `beatCostCtx` |
 | `leadFix` | `7` | 领出标记修正(位开关,11-11):1 = 对子领出时「拿两张不成对的跟 = 剩下的都不比较大那张便宜」进读牌;2 = 两个对手都确定没主时领主扣分;0 = 旧行为 | `makeReads` `aiChooseLead` |
 | `leadVoidTrumpPen` | `20` | — | `aiChooseLead` |
+| `buryPlan` | `0` | 1 = 埋底先在 8 格里挑断门组合(哪几门断 / 埋到只剩稳赢牌),只有计划里的门拿断门分;0 = 旧行为(逐张贪心) | `aiDiscard` |
+| `kittyGuard` | `7` | (v0.7.66 测试版默认 7)守底 / 抢底(位开关,11-12):1 = 跟牌后期不轻易用掉唯一一张稳吃末墩的牌;2 = 领出同理;4 = 庄家底里有分时中盘领王 / 主级牌扣分;0 = 旧行为 | `aiChooseFollow` `aiChooseLead` |
+| `kgEnd` | `4` | 「后期」= 手里剩 ≤ 这么多张 | `aiChooseFollow` `aiChooseLead` |
+| `kgLeadW` | `1` | 位 4 的扣分 = 底分 × 2 × 这个 | `aiChooseLead` |
 
 ### 分牌命运(followFate,11-09,产品方:「留着的分牌是在找更高概率得利的机会」—— 单一概率 + 阈值管不住):
 
