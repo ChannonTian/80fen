@@ -814,7 +814,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.63(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.64(测试版)</div>
 
 
 <script>
@@ -1506,7 +1506,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   followFix: 15,              // (v0.7.61 测试版默认 15;v0.7.60 是 7)跟牌快修(位开关):1 = 没把握时不送副牌分、2 = 断门有主就毙、4 = 位 2 只在垫上去本队拿下 < followFixP 时、8 = 位 1 替上去的牌不能是 A、不能是同门更大的;0 = 旧行为
                               // 位 2 不带位 4(一律毙)整局 pool −4.29 分,见 negative-results 二十一
   followFixMargin: 8,         // 位 2:首选不带分时,毙的分差在这之内才改
-  followFixP: 0.4,            // 位 1:本队拿下的估计低于这个才算「没把握」
+  followFixP: 0.7,            // 位 1:本队拿下的估计低于这个才算「没把握」(v0.7.64 0.4 → 0.7,产品方:人均 6 张分牌、送一张少一张,贴分要有高把握)
   /* 玩家标记快修(flagFix,11-10,产品方 v0.7.58~60 的 14 手标记,test/records-flags.js):位开关,0 = 旧行为。
    *   1 = 毙小主几乎不增胜算就垫:断门、首选是毙,「毙」比「垫最小的不带分副牌」本队拿下只多 < ruffFixGain → 改垫
    *       (5f83443a 毙 ♥7 62% vs 垫 60%、打分 23 vs 4;3a4cab2c 毙 ♦6 9% vs 垫 4%;3f63ea70 毙 ♠2 25% vs 14%)
@@ -1514,7 +1514,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    *   4 = 收官搜索不把「不带分的首选」改判成本队拿下 < followFixP 的贴分 —— 只在后手有对手明断这门时(3a4cab2c 第 12 墩:搜索 20 样本把垫 ♣4 改成贴 ♥K,估 8%;
    *       不收窄时 h2h −0.006 ±0.003 级:搜索的续打 AI 毙得比真人少,只在「后手明断」这种真人几乎必毙的情形下不信它)
    *   8 = followFix 位 1 也管主牌分(3f63ea70 第 16 墩:♠10 / ♠Q 都 2%,贴了 10);替上去的不能是王、级牌、主 A */
-  flagFix: 13,                // (v0.7.63 测试版默认 13 = 位 1 + 4 + 8;位 2 设防不加分,不开)
+  flagFix: 252,               // (v0.7.64 测试版默认 252 = 4 + 8 + 16 + 32 + 64 + 128;v0.7.63 是 13。位 16 取代位 1 / 2)
   ruffFixGain: 0.15,
   ruffFixPts: 0,              // 位 1 另一条:增益 × 台面分 < 这个也垫。0 = 不用(11-10:台面 0 分时会把 97% vs 48% 的毙也改掉 —— 后手还会贴分、毙下来还拿回牌权)
   ruffFixHiP: 0.6,
@@ -1524,11 +1524,14 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * 否则首选比「不争」高不到 ruffFixGain → 不争。3f63ea70 第 5 墩:小毙 ♠2 25%、级牌 ♦8 29%、垫 14% → 级牌毙(逼下家拿王换,也不让他往自己墩里白垫分);
    * 第 11 墩:♠7 3%、级牌 8%、♠3 3% → ♠3。首选不带分、且(本队拿下 < 0.5 或比不争只多 < ruffFixGain)时才看。
    * 位 64:首选不压、对手暂大时也看一遍(6ee7a8cb 第 6 墩:北垫 ♦3 32%,副级牌 ♠2 / ♥2 毙 54% —— 副级牌不在这时候用,后面多半撞死)。
+   * 位 128:队友暂大、但后手多半盖过时也看一遍(f7820d76 第 10 墩:队友 ♦Q,末家 Kevin 非断即 K,垫 ♣6 8%、副级牌毙 21%)。
    * 位 32:位 4 不限「后手明断」—— 收官搜索一律不把不带分的首选改判成本队拿下 < followFixP 的贴分(搜索的续打 AI 本身会打坏,195d460f)。 */
   beatHiGain: 0.08,
   beatW: 10,                  // 位 16:多赢下这墩的价值 = (本队拿下之差) × (台面分 + beatW)(后手还会贴分、拿回牌权)
-  beatCost: [20,12,10,1,3],   // 位 16:用来压的牌的代价(分):大王 / 小王 / 主级牌 / 副级牌 / 主 A;其余 0(11-10 产品方:大王非关键分不动;副级牌就是干这个的)
+  beatCost: [20,12,10,1,3,6],   // 位 16:用来压的牌的代价(分):大王 / 小王 / 主级牌 / 副级牌 / 主 A / 副牌 A;其余 0(11-10 产品方:大王非关键分不动;副级牌就是干这个的)
   beatOutPts: 50,             // 位 16:王 / 主级牌的代价 × clamp(场上还没出的分 / 这个, 0.2, 1)
+  beatCritExtra: 5,           // 位 16:关键墩判定 —— 这墩的分按台面 + 这个算
+  beatCritF: 0.25,            // 位 16:关键墩里王 / 主级牌的代价再乘这个
   /* 分牌命运(followFate,11-09,产品方:「留着的分牌是在找更高概率得利的机会」—— 单一概率 + 阈值管不住):
    * 1 = followFix 位 1 不再看 followFixP,改比两个期望:现在贴 = 本队拿下(贴之后)×(台面 + 这张);
    * 留着 = 本队拿下(出不带分的)× 台面 + fateP(这张最后归本队的概率,test/fit-fate.js 从自对弈拟合)× 这张。留着多出 followFateMargin 分才改。0 = 旧行为。 */
@@ -4475,7 +4478,7 @@ function aiChooseFollow(view, plays, extra){
     }
     /* flagFix 1 / 2:毙小主几乎不增胜算 → 垫;毙小主多半被盖、台面够大 → 用能稳住的那张主(设防) */
     const bestBeats=best.cards.length===1&&currentWinner([...plays,{seat:view.seat,cards:best.cards}],trump).seat===view.seat;
-    if(AIP.flagFix&16&&lead.type==='single'&&best.cards.length===1&&!X.isLast&&(bestBeats||(AIP.flagFix&64&&!X.partnerWinning))){
+    if(AIP.flagFix&16&&lead.type==='single'&&best.cards.length===1&&!X.isLast&&(bestBeats||(AIP.flagFix&64&&!X.partnerWinning)||(AIP.flagFix&128&&X.partnerWinning))){
       const legal=view.hand.filter(x=>isLegalFollow(view.hand,lead,[x],trump));
       const beatsC=x=>currentWinner([...plays,{seat:view.seat,cards:[x]}],trump).seat===view.seat;
       const pB=pTeamWin(X,best.cards,bestBeats);
@@ -4485,9 +4488,14 @@ function aiChooseFollow(view, plays, extra){
         // 这张牌的代价(折成分):王 / 级牌 / 主 A 是牌权和控制,为一墩小分动它们不值;其余 0
         // 王 / 主级牌的代价随场上余分缩小(外面没分可抢了,留着也没用);副级牌人均 1.5 张,本来就是抢牌权、压牌抢分、给队友贴分机会用的,代价很低
         const mem=makeMemory(view); let outPts=0; for(const k in mem.unseen) if(mem.unseen[k]>0) outPts+=mem.unseen[k]*cardPoints(keyToCard(k));
-        const fOut=clamp(outPts/AIP.beatOutPts,0.2,1);
+        let fOut=clamp(outPts/AIP.beatOutPts,0.2,1);
+        // 关键墩(11-10 产品方:「这一手是我升级与否的 10 分之差」):闲家已得 + 这墩的分会跨过 40 / 80 / 120 / 160 的台阶 → 王 / 主级牌该出就出
+        { const h=(view.history||[]).slice(0,(view.history||[]).length-plays.length); let dp=0;
+          for(let i=0;i+3<h.length;i+=4){ const tr=h.slice(i,i+4); if(view.declSeat!==undefined&&resolveTrick(tr,trump).winner%2!==view.declSeat%2) dp+=countPoints(tr.flatMap(q=>q.cards)); }
+          const stake=(X.ptsTable||0)+AIP.beatCritExtra;
+          if([40,80,120,160,200].some(T=>dp<T&&dp+stake>=T)) fOut*=AIP.beatCritF; }
         const cost=x=>x.suit==='X'?(x.rank===16?AIP.beatCost[0]:AIP.beatCost[1])*fOut:x.rank===trump.rank?(x.suit===trump.suit?AIP.beatCost[2]*fOut:AIP.beatCost[3])
-          :(effSuit(x,trump)==='T'&&x.rank===14)?AIP.beatCost[4]:0;
+          :(effSuit(x,trump)==='T'&&x.rank===14)?AIP.beatCost[4]:(x.rank===14)?AIP.beatCost[5]:0;   // 副牌 A:留着是将来稳收的一墩
         const W=(X.ptsTable||0)+AIP.beatW, base=pL===null?0:pL;
         const his=legal.filter(beatsC).map(x=>({x,p:pTeamWin(X,[x],true)})).filter(o=>cardPoints(o.x)===0||o.p>=0.8)
           .map(o=>({...o,v:(o.p-base)*W-cost(o.x)})).sort((a,b)=>(b.v-a.v)||(ordIdx(a.x,trump)-ordIdx(b.x,trump)));
@@ -7413,9 +7421,9 @@ function runTests(E){
                       C('C',4),C('C',6),C('C',7),C('C',9),C('S',7),C('S',8)]};
     const ch=E.aiChooseFollow(view,plays);
     ok('第三家盖住在外最大的分牌(打A不打J)', ch.cards.length===1&&ch.cards[0].rank===14);
-    E.AIP.blockWin=0;
+    const ff=E.AIP.flagFix; E.AIP.blockWin=0; E.AIP.flagFix=0;   // 消融只看 blockWin;flagFix 位 16「压就压到稳住」本身也会把 J 升成 A
     const off=E.aiChooseFollow(view,plays);
-    E.AIP.blockWin=1;
+    E.AIP.blockWin=1; E.AIP.flagFix=ff;
     ok('关掉 blockWin 就退回最省的吃法', off.cards[0].rank===11);
   }
   // 反过来:我是第二家、队友坐末手 —— 托底的是队友,我不该烧掉 A
