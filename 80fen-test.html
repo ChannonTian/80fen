@@ -1523,6 +1523,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * 在所有压得过当前的牌里取本队拿下最高的那张(差 ≤ 3 个百分点取小的;带分的只在 ≥ 0.8 时算),比「不争」(最小的不带分、不压的牌)高出 ≥ beatHiGain → 出它;
    * 否则首选比「不争」高不到 ruffFixGain → 不争。3f63ea70 第 5 墩:小毙 ♠2 25%、级牌 ♦8 29%、垫 14% → 级牌毙(逼下家拿王换,也不让他往自己墩里白垫分);
    * 第 11 墩:♠7 3%、级牌 8%、♠3 3% → ♠3。首选不带分、且(本队拿下 < 0.5 或比不争只多 < ruffFixGain)时才看。
+   * 位 64:首选不压、对手暂大时也看一遍(6ee7a8cb 第 6 墩:北垫 ♦3 32%,副级牌 ♠2 / ♥2 毙 54% —— 副级牌不在这时候用,后面多半撞死)。
    * 位 32:位 4 不限「后手明断」—— 收官搜索一律不把不带分的首选改判成本队拿下 < followFixP 的贴分(搜索的续打 AI 本身会打坏,195d460f)。 */
   beatHiGain: 0.08,
   beatW: 10,                  // 位 16:多赢下这墩的价值 = (本队拿下之差) × (台面分 + beatW)(后手还会贴分、拿回牌权)
@@ -4473,14 +4474,14 @@ function aiChooseFollow(view, plays, extra){
       }
     }
     /* flagFix 1 / 2:毙小主几乎不增胜算 → 垫;毙小主多半被盖、台面够大 → 用能稳住的那张主(设防) */
-    if(AIP.flagFix&16&&lead.type==='single'&&best.cards.length===1&&!X.isLast
-       &&currentWinner([...plays,{seat:view.seat,cards:best.cards}],trump).seat===view.seat){
+    const bestBeats=best.cards.length===1&&currentWinner([...plays,{seat:view.seat,cards:best.cards}],trump).seat===view.seat;
+    if(AIP.flagFix&16&&lead.type==='single'&&best.cards.length===1&&!X.isLast&&(bestBeats||(AIP.flagFix&64&&!X.partnerWinning))){
       const legal=view.hand.filter(x=>isLegalFollow(view.hand,lead,[x],trump));
       const beatsC=x=>currentWinner([...plays,{seat:view.seat,cards:[x]}],trump).seat===view.seat;
-      const pB=pTeamWin(X,best.cards,true);
-      const los=legal.filter(x=>!beatsC(x)).sort((a,b)=>(cardPoints(a)-cardPoints(b))||(ordIdx(a,trump)-ordIdx(b,trump)));
-      const lo=los.length?los[0]:null, pL=lo?pTeamWin(X,[lo],false):null;
-      if(cardPoints(best.cards[0])===0&&(pB<0.5||(pL!==null&&pB-pL<AIP.ruffFixGain))){
+      const pB=pTeamWin(X,best.cards,bestBeats);
+      const los=bestBeats?legal.filter(x=>!beatsC(x)).sort((a,b)=>(cardPoints(a)-cardPoints(b))||(ordIdx(a,trump)-ordIdx(b,trump))):[best.cards[0]];
+      const lo=los.length?los[0]:null, pL=lo?(bestBeats?pTeamWin(X,[lo],false):pB):null;
+      if(!bestBeats||(cardPoints(best.cards[0])===0&&(pB<0.5||(pL!==null&&pB-pL<AIP.ruffFixGain)))){
         // 这张牌的代价(折成分):王 / 级牌 / 主 A 是牌权和控制,为一墩小分动它们不值;其余 0
         // 王 / 主级牌的代价随场上余分缩小(外面没分可抢了,留着也没用);副级牌人均 1.5 张,本来就是抢牌权、压牌抢分、给队友贴分机会用的,代价很低
         const mem=makeMemory(view); let outPts=0; for(const k in mem.unseen) if(mem.unseen[k]>0) outPts+=mem.unseen[k]*cardPoints(keyToCard(k));
@@ -4493,7 +4494,7 @@ function aiChooseFollow(view, plays, extra){
         const hi=his[0];
         if(hi&&hi.v>0&&hi.p>=pB&&(pL===null||hi.p-pL>=AIP.beatHiGain))
           best={cards:[hi.x],cat:'beat',score:best.score,reason:hi.p>=0.5?`压就压到稳住(本队拿下 ${Math.round(100*hi.p)}%,原来那张 ${Math.round(100*pB)}%)`:`压一张够分量的,逼后手拿大牌来换(本队拿下 ${Math.round(100*hi.p)}%,不压 ${Math.round(100*base)}%)`};
-        else if(lo&&pB-pL<AIP.ruffFixGain)
+        else if(bestBeats&&lo&&pB-pL<AIP.ruffFixGain)
           best={cards:[lo],cat:'cheap',score:best.score,reason:`压也多半被盖(本队拿下 压 ${Math.round(100*pB)}% / 不压 ${Math.round(100*pL)}%)—— 不争,留着`};
       }
     }
