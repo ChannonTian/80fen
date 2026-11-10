@@ -814,7 +814,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.65(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.66(测试版)</div>
 
 
 <script>
@@ -8101,8 +8101,8 @@ function openSettings(){
     `<div class="setRow"><label>对手说话</label>
        <select id="stChat"><option value="more">多</option><option value="less">少</option><option value="off">关</option></select></div>`+
     `<div class="setHint">Bob、Kevin、Stuart 收墩、被毙、等你出牌时冒一句</div>`+
-    `<div class="setRow"><label><input type="checkbox" id="stBgm"> 背景音乐</label></div>`+
-    `<div class="setHint">「夜上海」轻爵士,约 2 分钟一轮循环。第一次点屏幕后开始放;手机开着静音键时听不到</div>`+
+    `<div class="setRow"><label><input type="checkbox" id="stBgm"> 背景音乐</label><button class="btn" id="stBgmNext" type="button">换一首</button></div>`+
+    `<div class="setHint"><b id="stBgmNow"></b>五首老上海轻爵士轮流放(${bgmTitles()}),每首 1.5–3 分钟。第一次点屏幕后开始放;手机开着静音键时听不到</div>`+
     `<div class="setSection">节奏</div>`+
     `<div class="setRow"><label>发完牌后${T('declare')}等待(秒)</label>
        <input type="number" id="stDeclWait" min="0" max="60" step="1"></div>`+
@@ -8211,7 +8211,7 @@ function openSettings(){
       : '(这一局还没开始,或已经结束)';
     $('stHold').disabled=!!S.manualNext;
     $('stHoldHint').textContent=S.manualNext?'(手动模式下由你点「下一墩」决定)':'';
-    $('stLang').value=lang; $('stSnd').checked=sndOn; $('stChat').value=chatLevel(); $('stBgm').checked=bgmLevel();
+    $('stLang').value=lang; $('stSnd').checked=sndOn; $('stChat').value=chatLevel(); $('stBgm').checked=bgmLevel(); bgmNowShow();
     $('cOn').checked=C.on; $('cSens').value=C.gapSens; $('cStrict').checked=C.strict;
     $('cReview').checked=C.review; $('cQuiz').checked=C.quiz; $('cMemShow').checked=C.memShow;
     $('rPts').value=S.rules.pointRebelThreshold;
@@ -8282,7 +8282,8 @@ function openSettings(){
   $('stSnd').onchange=e=>{ sndOn=e.target.checked;
     try{ localStorage.setItem(LSP+'snd',sndOn?'on':'off'); }catch(_){ } };
   $('stChat').onchange=e=>setChatLevel(e.target.value);
-  $('stBgm').onchange=e=>setBgm(e.target.checked);
+  $('stBgm').onchange=e=>{setBgm(e.target.checked);bgmNowShow();};
+  $('stBgmNext').onclick=()=>{if(!bgmLevel()){setBgm(true);$('stBgm').checked=true;}if(window.__bgm)window.__bgm.next();bgmNowShow();};
   $('cOn').onchange=e=>{ C.on=e.target.checked; saveC(); if(G) render(); };
   $('cSens').onchange=e=>{ C.gapSens=e.target.value; saveC(); };
   $('cStrict').onchange=e=>{ C.strict=e.target.checked; saveC(); };
@@ -8344,6 +8345,8 @@ function setChatLevel(v){ try{ localStorage.setItem('liuliu-chatter',v); }catch(
 // 背景音乐(表现层放,window.__bgm):开 / 关,存 localStorage['liuliu-bgm'],默认开
 function bgmLevel(){ return window.__bgm?window.__bgm.on():false; }
 function setBgm(v){ if(window.__bgm) window.__bgm.set(!!v); }
+function bgmTitles(){ return window.__bgm&&window.__bgm.list?window.__bgm.list.join(' / '):'夜上海'; }
+function bgmNowShow(){ const el=document.getElementById('stBgmNow'); if(el) el.textContent=window.__bgm&&bgmLevel()?'正在放「'+window.__bgm.now()+'」。':''; }
 window.__openSet=openSettings;
 window.__closeSet=closeSettings;
 // 复用设置浮层做通用弹窗(看底牌、看初始手牌)
@@ -11810,35 +11813,71 @@ function hideSays(){for(var k in CH.bubbles)CH.bubbles[k].classList.remove('show
 window.__hideSays=hideSays;   /* 设置里把「对手说话」关掉时,桌上正挂着的气泡一起收 */
 
 /* =====================================================================
-   背景音乐(v0.7.64):「夜上海」轻爵士,audio/bgm-night-shanghai.mp3(生成脚本 audio/make_bgm.py)
-   - 设置 → 显示与音效 →「背景音乐」,存 localStorage['liuliu-bgm'](on / off),默认开
-   - 浏览器不让网页自己出声:第一次点屏幕 / 按键时才开始(那时才下载,约 2MB);切到后台暂停,回来接着放
-   - 用 Web Audio 按采样位置循环 [1 秒, 1 秒 + 循环长度]:文件前后各垫了 1 秒首尾相接的音乐,
-     mp3 编码在头尾补的那点静音落在垫的里面,不管浏览器解码时裁没裁掉,循环窗口里都是同一段,接缝听不出来
+   背景音乐(v0.7.64 起;v0.7.65 起五首播放列表):老上海轻爵士,文件在 audio/(生成脚本 audio/make_bgm.py、audio/make_playlist.py)
+   - 设置 → 显示与音效 →「背景音乐」,存 localStorage['liuliu-bgm'](on / off),默认开;「换一首」跳到下一首
+   - 浏览器不让网页自己出声:第一次点屏幕 / 按键时才开始(那时才下载当前这首,约 1.5–2.6MB);切到后台暂停,回来接着放
+   - 每次打开从随机一首开始,按顺序一首接一首:每首放完一轮 [1 秒, 1 秒 + 循环长度](文件前后各垫 1 秒,见 make_bgm.py),
+     最后 3 秒淡出,停一下再淡入下一首。同一时间只留一首解好的音频(一首解开约 40–60MB,两首同时留着手机吃不消);
+     下一首的 mp3 在当前这首放到一半时先下载好,换歌时只差解码那一下
+   - 只有一首能放(其余下载失败)时就单曲循环
    ===================================================================== */
-var BGM_KEY='liuliu-bgm',BGM_URL='audio/bgm-night-shanghai.mp3',BGM_LOOP=5522086/44100,BGM_VOL=0.5;
-var BG={ctx:null,gain:null,src:null,loading:null};
+var BGM_KEY='liuliu-bgm',BGM_VOL=0.5,BGM_FADE_OUT=3,BGM_GAP=0.6;
+var BGM_LIST=[   /* loop:循环长度(采样数,44.1kHz),和生成脚本打印的一致 */
+  {url:'audio/bgm-night-shanghai.mp3',loop:5522086,title:'夜上海'},
+  {url:'audio/bgm-wutong.mp3',loop:4704000,title:'梧桐树下'},
+  {url:'audio/bgm-longtang.mp3',loop:7257599,title:'弄堂午后'},
+  {url:'audio/bgm-neon.mp3',loop:4097032,title:'霓虹电车'},
+  {url:'audio/bgm-yexiao.mp3',loop:6350400,title:'夜宵收摊'}];
+var BG={ctx:null,gain:null,src:null,loading:null,i:Math.floor(Math.random()*BGM_LIST.length),buf:null,bufI:-1,bytes:{},timer:0,bad:{}};
 function bgmOn(){try{return localStorage.getItem(BGM_KEY)!=='off';}catch(_){return true;}}
 function bgmFade(v,sec){var t=BG.ctx.currentTime,g=BG.gain.gain;g.cancelScheduledValues(t);g.setValueAtTime(g.value,t);g.linearRampToValueAtTime(v,t+sec);}
+function bgmFetch(i){   /* 只下载(压缩的 mp3 留着不占多少内存),不解码 */
+  if(!BG.bytes[i])BG.bytes[i]=fetch(BGM_LIST[i].url).then(function(r){if(!r.ok)throw new Error(r.status);return r.arrayBuffer();});
+  return BG.bytes[i];
+}
+function bgmNextI(i){
+  for(var k=1;k<=BGM_LIST.length;k++){var j=(i+k)%BGM_LIST.length;if(!BG.bad[j])return j;}
+  return i;
+}
 function bgmStart(){
   if(!bgmOn()||document.hidden)return;
   var AC=window.AudioContext||window.webkitAudioContext;if(!AC)return;
   if(!BG.ctx){BG.ctx=new AC();BG.gain=BG.ctx.createGain();BG.gain.gain.value=0;BG.gain.connect(BG.ctx.destination);}
   if(BG.ctx.state==='suspended')BG.ctx.resume();
   if(BG.src||BG.loading)return;
-  BG.loading=(BG.buf?Promise.resolve(BG.buf):fetch(BGM_URL).then(function(r){if(!r.ok)throw new Error(r.status);return r.arrayBuffer();})
-    .then(function(a){return new Promise(function(res,rej){BG.ctx.decodeAudioData(a,res,rej);});}))   /* 关了再开:用已经解好的 */
+  var i=BG.i;
+  if(BG.bufI!==i)BG.buf=null;   /* 先放掉上一首解好的,再解这一首 */
+  BG.loading=(BG.buf?Promise.resolve(BG.buf):bgmFetch(i)
+    .then(function(a){delete BG.bytes[i];return new Promise(function(res,rej){BG.ctx.decodeAudioData(a,res,rej);});}))
     .then(function(buf){
-      BG.loading=null;BG.buf=buf;if(BG.src||!bgmOn())return;
-      var s=BG.ctx.createBufferSource();s.buffer=buf;s.loop=true;s.loopStart=1;s.loopEnd=Math.min(buf.duration,1+BGM_LOOP);
-      s.connect(BG.gain);s.start(0,1);BG.src=s;bgmFade(BGM_VOL,2.5);   /* 慢慢进来 */
+      BG.loading=null;BG.buf=buf;BG.bufI=i;if(BG.src||!bgmOn()||BG.i!==i)return void(BG.i!==i&&bgmStart());
+      var len=Math.min(buf.duration-1,BGM_LIST[i].loop/44100);
+      var s=BG.ctx.createBufferSource();s.buffer=buf;s.connect(BG.gain);
+      var t0=BG.ctx.currentTime;s.start(t0,1,len);BG.src=s;bgmFade(BGM_VOL,2.5);   /* 慢慢进来 */
+      var g=BG.gain.gain;g.setValueAtTime(BGM_VOL,t0+len-BGM_FADE_OUT);g.linearRampToValueAtTime(0,t0+len);   /* 最后 3 秒淡出 */
+      s.onended=function(){
+        if(BG.src!==s)return;   /* 关掉 / 换一首时 stop() 也会走到这里 */
+        BG.src=null;BG.i=bgmNextI(i);
+        clearTimeout(BG.timer);BG.timer=setTimeout(bgmStart,BGM_GAP*1000);
+      };
+      var nx=bgmNextI(i);if(nx!==i)setTimeout(function(){if(BG.src===s)bgmFetch(nx).catch(function(){BG.bad[nx]=1;delete BG.bytes[nx];});},len*500);
     })
-    .catch(function(){BG.loading=null;});   /* 下载不了、解不了码就算了,不影响打牌 */
+    .catch(function(){   /* 这首下载不了、解不了码:换下一首试;全都不行就算了,不影响打牌 */
+      BG.loading=null;BG.bad[i]=1;delete BG.bytes[i];
+      var nx=bgmNextI(i);if(nx!==i&&!BG.bad[nx]){BG.i=nx;bgmStart();}
+    });
 }
 function bgmStop(){
+  clearTimeout(BG.timer);
   if(!BG.src)return;
   var s=BG.src;BG.src=null;bgmFade(0,0.5);
   setTimeout(function(){try{s.stop();}catch(_){}},600);
+}
+function bgmSkip(){   /* 换一首:当前这首 0.8 秒淡出,接着放下一首 */
+  BG.i=bgmNextI(BG.i);
+  if(!bgmOn())return;
+  if(BG.src){var s=BG.src;BG.src=null;bgmFade(0,0.8);setTimeout(function(){try{s.stop();}catch(_){}bgmStart();},850);}
+  else if(!BG.loading)bgmStart();
 }
 ['pointerup','touchend','keydown'].forEach(function(ev){document.addEventListener(ev,bgmStart,true);});
 document.addEventListener('visibilitychange',function(){
@@ -11846,7 +11885,9 @@ document.addEventListener('visibilitychange',function(){
   if(document.hidden)BG.ctx.suspend();else if(bgmOn())BG.ctx.resume();
 });
 window.__bgm={on:bgmOn,set:function(v){try{localStorage.setItem(BGM_KEY,v?'on':'off');}catch(_){}if(v)bgmStart();else bgmStop();},
-  state:function(){return {ctx:BG.ctx&&BG.ctx.state,playing:!!BG.src,loop:BG.src?[BG.src.loopStart,BG.src.loopEnd]:null,dur:BG.buf?BG.buf.duration:0};}};
+  next:bgmSkip,list:BGM_LIST.map(function(t){return t.title;}),
+  now:function(){return BGM_LIST[BG.i].title;},
+  state:function(){return {ctx:BG.ctx&&BG.ctx.state,playing:!!BG.src,i:BG.i,title:BGM_LIST[BG.i].title,bufI:BG.bufI,dur:BG.buf?BG.buf.duration:0,gain:BG.gain?BG.gain.gain.value:0};}};
 window.__say=function(seat,key){return say(seat,key||'idle');};   /* 体检脚本用:让某一家马上说一句 */
 /* 一墩四家出完(收墩戳刚出来):看这墩发生了什么,挑一个人说一句 */
 function chatterTrick(G,res){
