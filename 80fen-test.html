@@ -1530,6 +1530,8 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   beatW: 10,                  // 位 16:多赢下这墩的价值 = (本队拿下之差) × (台面分 + beatW)(后手还会贴分、拿回牌权)
   beatCost: [20,12,10,1,3,6],   // 位 16:用来压的牌的代价(分):大王 / 小王 / 主级牌 / 副级牌 / 主 A / 副牌 A;其余 0(11-10 产品方:大王非关键分不动;副级牌就是干这个的)
   beatOutPts: 50,             // 位 16:王 / 主级牌的代价 × clamp(场上还没出的分 / 这个, 0.2, 1)
+  beatOutMin: 0.5,            // 位 16:王 / 主级牌的代价最少打这个折(11-11:0.2 时后期为 0 分的墩出大王 / 小王)
+  beatKittyGuess: 15,         // 位 16:闲家不知道底牌,按这么多分估
   beatCritExtra: 5,           // 位 16:关键墩判定 —— 这墩的分按台面 + 这个算
   beatCritF: 0.25,            // 位 16:关键墩里王 / 主级牌的代价再乘这个
   leadFix: 0,                 // 领出标记修正(位开关,11-11):1 = 对子领出时「拿两张不成对的跟 = 剩下的都不比较大那张便宜」进读牌;2 = 两个对手都确定没主时领主扣分;0 = 旧行为
@@ -4496,7 +4498,9 @@ function aiChooseFollow(view, plays, extra){
         // 这张牌的代价(折成分):王 / 级牌 / 主 A 是牌权和控制,为一墩小分动它们不值;其余 0
         // 王 / 主级牌的代价随场上余分缩小(外面没分可抢了,留着也没用);副级牌人均 1.5 张,本来就是抢牌权、压牌抢分、给队友贴分机会用的,代价很低
         const mem=makeMemory(view); let outPts=0; for(const k in mem.unseen) if(mem.unseen[k]>0) outPts+=mem.unseen[k]*cardPoints(keyToCard(k));
-        let fOut=clamp(outPts/AIP.beatOutPts,0.2,1);
+        // 余分里算上底牌:王 / 主级牌后期最要紧的是守最后一墩(底牌翻倍)—— 庄方知道底牌,闲家按 beatKittyGuess 估
+        const kitPts=(view.buriedKnown&&view.buriedKnown.length?countPoints(view.buriedKnown):AIP.beatKittyGuess)*2;
+        let fOut=clamp((outPts+kitPts)/AIP.beatOutPts,AIP.beatOutMin,1);
         // 关键墩(11-10 产品方:「这一手是我升级与否的 10 分之差」):闲家已得 + 这墩的分会跨过 40 / 80 / 120 / 160 的台阶 → 王 / 主级牌该出就出
         { const h=(view.history||[]).slice(0,(view.history||[]).length-plays.length); let dp=0;
           for(let i=0;i+3<h.length;i+=4){ const tr=h.slice(i,i+4); if(view.declSeat!==undefined&&resolveTrick(tr,trump).winner%2!==view.declSeat%2) dp+=countPoints(tr.flatMap(q=>q.cards)); }
@@ -4504,7 +4508,8 @@ function aiChooseFollow(view, plays, extra){
           if([40,80,120,160,200].some(T=>dp<T&&dp+stake>=T)) fOut*=AIP.beatCritF; }
         const cost=x=>x.suit==='X'?(x.rank===16?AIP.beatCost[0]:AIP.beatCost[1])*fOut:x.rank===trump.rank?(x.suit===trump.suit?AIP.beatCost[2]*fOut:AIP.beatCost[3])
           :(effSuit(x,trump)==='T'&&x.rank===14)?AIP.beatCost[4]:(x.rank===14)?AIP.beatCost[5]:0;   // 副牌 A:留着是将来稳收的一墩
-        const W=(X.ptsTable||0)+AIP.beatW, base=pL===null?0:pL;
+        // 多赢这墩的价值:台面 + 后手还会贴的分 / 拿回牌权的收益 —— 后者随场上余分(含底牌)缩,没分了就只剩台面
+        const W=(X.ptsTable||0)+AIP.beatW*Math.min(1,(outPts+kitPts)/AIP.beatOutPts), base=pL===null?0:pL;
         const his=legal.filter(beatsC).map(x=>({x,p:pTeamWin(X,[x],true)})).filter(o=>cardPoints(o.x)===0||o.p>=0.8)
           .map(o=>({...o,v:(o.p-base)*W-cost(o.x)})).sort((a,b)=>(b.v-a.v)||(ordIdx(a.x,trump)-ordIdx(b.x,trump)));
         const hi=his[0];
