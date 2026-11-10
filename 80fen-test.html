@@ -255,7 +255,7 @@ button{cursor:pointer;touch-action:manipulation}
 .center-toast.info{background:var(--cream)}
 .drop-cue{position:absolute;inset:8px;z-index:7;border:3px dashed var(--cream);border-radius:20px;display:none;
   align-items:center;justify-content:center;pointer-events:none;background:rgba(245,237,220,.06)}
-.drop-cue span{padding:8px 18px;border:2px solid var(--ink);border-radius:999px;background:var(--honey);font:900 16px/1 var(--font-heading);box-shadow:var(--shadow-card)}
+.drop-cue span{position:absolute;left:var(--cx,50%);top:var(--cy,50%);transform:translate(-50%,-50%);padding:8px 18px;border:2px solid var(--ink);border-radius:999px;background:var(--honey);font:900 16px/1 var(--font-heading);box-shadow:var(--shadow-card)}
 .arena.drag-ready .drop-cue,.arena.drag-over .drop-cue{display:flex}
 .arena.drag-over .drop-cue{background:rgba(245,237,220,.16);border-style:solid}
 
@@ -10157,9 +10157,14 @@ function layout(){
   L.ready=true;
   if(mode!==L.mode){game.classList.remove('m-p','m-l','m-w');document.body.classList.remove('m-p','m-l','m-w');L.mode=mode;}
   game.classList.add('m-'+mode);document.body.classList.add('m-'+mode);
-  if(typing()&&L.hand)return;
+  /* 输入框拿着焦点(设置里的数字框、记录里写标记理由、教练输入)时,手机软键盘会把视口压矮 ——
+     这时不能按新尺寸重排,否则手牌缩成一团。但产品这时照样会 render()、把手牌元素整个重建,
+     新元素没有位置就全叠在最左边(只看到一张)。所以只冻结尺寸:手牌仍按「打字前最后一次的尺寸」
+     重新落位,桌面、顶栏那一半(layoutTable)等输入完再排。 */
+  var frozen=typing()&&!!L.hand&&L.frozenW>0;
   var SA=safeArea();
-  var W=game.clientWidth-SA.l-SA.r,H=window.innerHeight;
+  var W=frozen?L.frozenW:game.clientWidth-SA.l-SA.r,H=frozen?L.frozenH:window.innerHeight;
+  if(!frozen){L.frozenW=W;L.frozenH=H;}
   var G=g();
   var cards=Array.prototype.slice.call(hand.children);
   var handW=W;
@@ -10187,6 +10192,7 @@ function layout(){
   $('handWheel').classList.toggle('is-off',!(plan&&plan.overflow));
   if(!(plan&&plan.overflow))L.progress=0;
   positionHand();
+  if(frozen)return;
   layoutTable();
   if((L.balN||0)<4&&TB.ready&&TB.tcw<0.9*L.idleCw&&L.idleCw>cfg.minCw){
     /* 手牌每窄 1px,省下的高度分给三行桌面牌:f = 手牌高度系数 / 3;名牌换行等因素估不准,最多再试几次。
@@ -10832,7 +10838,28 @@ function draggedSet(G0){
   /* 产品每次 render 都重建手牌元素,按 id 现找 */
   return G0.ids.map(function(id){return hand.querySelector('.card[data-id="'+id+'"]');}).filter(Boolean);
 }
+/* 「松手出牌」提示放哪:默认桌心,但桌心在有的窗口比例下正好压着对家(或上下家)出的牌 ——
+   开始拖的时候把桌上所有牌、名牌、桌心提示的矩形量一遍,从桌心往外找第一块放得下提示的空地。
+   整桌都挤满(极矮的窗口)就取压到的面积最小的那一处。 */
+function placeDropCue(){
+  var span=$('dropCue').firstElementChild,ar=arena.getBoundingClientRect();
+  var cw=(span.offsetWidth||110)+12,ch=(span.offsetHeight||36)+12;
+  var obs=[];
+  Array.prototype.forEach.call(arena.querySelectorAll('.played .card,.player-label,.winner-label,#turnSlot:not([hidden]),#trickSummary:not([hidden])'),function(e){
+    var q=e.getBoundingClientRect();if(q.width&&q.height)obs.push(q);});
+  function hit(x,y){var l=ar.left+x-cw/2,r=l+cw,t=ar.top+y-ch/2,b=t+ch,a=0;
+    obs.forEach(function(q){var ox=Math.min(r,q.right)-Math.max(l,q.left),oy=Math.min(b,q.bottom)-Math.max(t,q.top);if(ox>0&&oy>0)a+=ox*oy;});return a;}
+  var cx=ar.width/2,cy=ar.height/2,best=null,bestA=1e18,bestD=0,pts=[];
+  for(var y=ch/2+8;y<=ar.height-ch/2-8;y+=10)for(var x=cw/2+8;x<=ar.width-cw/2-8;x+=10)pts.push([x,y,Math.hypot(x-cx,(y-cy)*1.6)]);
+  pts.sort(function(a,b){return a[2]-b[2];});
+  for(var i=0;i<pts.length;i++){var a=hit(pts[i][0],pts[i][1]);
+    if(a<bestA-0.5){bestA=a;best=pts[i];}
+    if(a===0)break;}
+  if(!best)best=[cx,cy];
+  arena.style.setProperty('--cx',Math.round(best[0])+'px');arena.style.setProperty('--cy',Math.round(best[1])+'px');
+}
 function buildGhost(){
+  placeDropCue();
   var set=draggedSet(gest);
   ghost.innerHTML=set.slice(0,6).map(function(c){
     var x=c.cloneNode(true);x.removeAttribute('style');x.classList.remove('sel','hintc');return x.outerHTML;
