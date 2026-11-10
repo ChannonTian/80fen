@@ -262,17 +262,32 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `tiaoWhenBadThr` | `0` | — | `aiChooseLead` |
 | `followFix` | `15` | (v0.7.61 测试版默认 15;v0.7.60 是 7)跟牌快修(位开关):1 = 没把握时不送副牌分、2 = 断门有主就毙、4 = 位 2 只在垫上去本队拿下 < followFixP 时、8 = 位 1 替上去的牌不能是 A、不能是同门更大的;0 = 旧行为 | `aiChooseFollow` |
 | `followFixMargin` | `8` | 位 2:首选不带分时,毙的分差在这之内才改 | `aiChooseFollow` |
-| `followFixP` | `0.4` | 位 1:本队拿下的估计低于这个才算「没把握」 | `aiChooseFollow` |
+| `followFixP` | `0.7` | 位 1:本队拿下的估计低于这个才算「没把握」(v0.7.64 0.4 → 0.7,产品方:人均 6 张分牌、送一张少一张,贴分要有高把握) | `aiChooseFollow` |
 
 ### 玩家标记快修(flagFix,11-10,产品方 v0.7.58~60 的 14 手标记,test/records-flags.js):位开关,0 = 旧行为。
 
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
-| `flagFix` | `13` | (v0.7.63 测试版默认 13 = 位 1 + 4 + 8;位 2 设防不加分,不开) | `aiChooseFollow` |
+| `flagFix` | `1852` | (测试版默认 1852 = 4 + 8 + 16 + 32 + 256 + 512 + 1024;v0.7.63 是 13。位 16 取代位 1 / 2;位 64 / 128 pool −1~−2 分,不开) | `isBossPlay` `aiChooseFollow` |
 | `ruffFixGain` | `0.15` | — | `aiChooseFollow` |
 | `ruffFixPts` | `0` | 位 1 另一条:增益 × 台面分 < 这个也垫。0 = 不用(11-10:台面 0 分时会把 97% vs 48% 的毙也改掉 —— 后手还会贴分、毙下来还拿回牌权) | `aiChooseFollow` |
 | `ruffFixHiP` | `0.6` | — | `aiChooseFollow` |
 | `ruffFixHiPts` | `10` | — | `aiChooseFollow` |
+
+### flagFix 位 16(11-10 产品方):**压就压到稳住,不然就不争** —— 取代位 1 / 2。第 2 / 3 家单张领出、首选压过当前但本队拿下 < 0.5(多半被后手盖)时:
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `beatHiGain` | `0.08` | (见上方注释)flagFix 位 16(11-10 产品方):**压就压到稳住,不然就不争** —— 取代位 1 / 2。 | `aiChooseFollow` |
+| `beatHoldMin` | `0.5` | 位 64 / 128(首选本来不压)时,主动压的那张本队拿下至少这么多才压 —— 不为「逼后手拿大牌」去压一两成胜算的牌(11-11:不限时 pool −2.9 分) | `aiChooseFollow` |
+| `beatW` | `10` | 位 16:多赢下这墩的价值 = (本队拿下之差) × (台面分 + beatW)(后手还会贴分、拿回牌权) | `beatCostCtx` |
+| `beatOutPts` | `50` | 位 16:王 / 主级牌的代价 × clamp(场上还没出的分 / 这个, 0.2, 1) | `beatCostCtx` |
+| `beatOutMin` | `0.5` | 位 16:王 / 主级牌的代价最少打这个折(11-11:0.2 时后期为 0 分的墩出大王 / 小王) | `beatCostCtx` |
+| `beatKittyGuess` | `15` | 位 16:闲家不知道底牌,按这么多分估 | `beatCostCtx` |
+| `beatCritExtra` | `5` | 位 16:关键墩判定 —— 这墩的分按台面 + 这个算 | `beatCostCtx` |
+| `beatCritF` | `0.25` | 位 16:关键墩里王 / 主级牌的代价再乘这个 | `beatCostCtx` |
+| `leadFix` | `7` | 领出标记修正(位开关,11-11):1 = 对子领出时「拿两张不成对的跟 = 剩下的都不比较大那张便宜」进读牌;2 = 两个对手都确定没主时领主扣分;0 = 旧行为 | `makeReads` `aiChooseLead` |
+| `leadVoidTrumpPen` | `20` | — | `aiChooseLead` |
 
 ### 分牌命运(followFate,11-09,产品方:「留着的分牌是在找更高概率得利的机会」—— 单一概率 + 阈值管不住):
 
