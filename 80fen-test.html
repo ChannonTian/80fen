@@ -1532,6 +1532,8 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   beatOutPts: 50,             // 位 16:王 / 主级牌的代价 × clamp(场上还没出的分 / 这个, 0.2, 1)
   beatCritExtra: 5,           // 位 16:关键墩判定 —— 这墩的分按台面 + 这个算
   beatCritF: 0.25,            // 位 16:关键墩里王 / 主级牌的代价再乘这个
+  leadFix: 0,                 // 领出标记修正(位开关,11-11):1 = 对子领出时「拿两张不成对的跟 = 剩下的都不比较大那张便宜」进读牌;2 = 两个对手都确定没主时领主扣分;0 = 旧行为
+  leadVoidTrumpPen: 20,
   /* 分牌命运(followFate,11-09,产品方:「留着的分牌是在找更高概率得利的机会」—— 单一概率 + 阈值管不住):
    * 1 = followFix 位 1 不再看 followFixP,改比两个期望:现在贴 = 本队拿下(贴之后)×(台面 + 这张);
    * 留着 = 本队拿下(出不带分的)× 台面 + fateP(这张最后归本队的概率,test/fit-fate.js 从自对弈拟合)× 这张。留着多出 followFateMargin 分才改。0 = 旧行为。 */
@@ -2439,6 +2441,12 @@ function makeReads(history, trump){
       const p=trick[j], cl=classify(p.cards,trump);
       if(p.cards.some(c=>effSuit(c,trump)!==lead.suit)){
         hard[p.seat][lead.suit]=true;                 // 没跟本门 = 硬缺门
+      }else if(AIP.leadFix&1&&lead.type==='pair'&&p.cards.length===2&&!(cl&&cl.type==='pair')&&p.cards.every(c=>effSuit(c,trump)===lead.suit)){
+        /* leadFix 1(11-11,产品方 ee225ff7 第 6 墩):对子领出、他拿两张不成对的同门牌跟 —— 没有对子可出时,两张单张由他挑,
+         * 理智的人挑最便宜的两张 → 他剩下的这门牌都不比较大那张便宜。西跟 ♥2 + 大王、东跟 ♠2 + 大王 → 两家都没主了。 */
+        const partnerWinning=bestSeat%2===p.seat%2;
+        if(!partnerWinning){ const k=Math.max(...p.cards.map(c=>cheapKey(c,trump))), cur=fCheap[p.seat][lead.suit];
+          fCheap[p.seat][lead.suit]=cur!==undefined?Math.max(cur,k):k; }
       }else if(lead.cards.length===1){
         // 只在领出单张时采信:多张牌的跟法受「有对必对/拖拉机必跟」的义务约束,
         // 他出什么未必是他想出什么,这条演绎会失真。
@@ -6188,6 +6196,14 @@ function aiChooseLead(view){
    * 闲家领王比最好的非王领出 −0.107 ±0.036 级 / −3.0 分;庄家 −0.04(不显著)、帮家 +0.10(不显著)。只罚闲家。 */
   if(AIP.jokerLeadDef&&view.seat%2!==view.declSeat%2&&view.hand.length>AIP.jokerLeadDefMin)
     for(const c of cands) if(c.cards.length===1&&c.cards[0].suit==='X') c.score-=AIP.jokerLeadDef;
+  /* leadFix 2(11-11,产品方 ee225ff7 第 7 墩):两个对手都确定没主了(硬断门,或读牌上界为 0)—— 领主吊不出对手任何东西,
+   * 对手也不会往上贴分,只会逼队友跟主(队友被迫拿小王跟)。领主的候选一律扣 leadVoidTrumpPen。 */
+  if(AIP.leadFix&2&&view.hand.some(c=>effSuit(c,view.trump)!=='T')){
+    const T=view.trump, vd=makeVoids(view.history||[],T), rd=makeReads(view.history||[],T), mem=makeMemory(view);
+    const oppNoT=[(view.seat+1)%4,(view.seat+3)%4].every(q=>vd[q]['T']||maxHoldIn(rd,mem,q,'T',T)===0);
+    if(oppNoT) for(const c of cands) if(c.cards.every(x=>effSuit(x,T)==='T')){ c.score-=AIP.leadVoidTrumpPen;
+      c.reason=countPoints(c.cards)>0?'对手都没主了 —— 这张主稳收,顺手把分收进来(不为吊主)':'对手都没主了 —— 领主吊不出东西,只逼队友跟主'; }
+  }
   cands.sort((a,b)=>b.score-a.score);
   let best=cands[0]||{cards:[view.hand[0]],reason:'兜底',score:0};
   /* 没有好领法时钓主(tiaoWhenBad,ai-progress 第四节第 12 项 F,11-07):中盘、首选打分 < tiaoWhenBadThr、手里有不带分的小主(不是王 / 级牌 / 主 A)
