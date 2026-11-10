@@ -814,7 +814,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.61(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.62(测试版)</div>
 
 
 <script>
@@ -4402,11 +4402,11 @@ function aiChooseFollow(view, plays, extra){
         if(currentWinner([...plays,{seat:view.seat,cards:c.cards}],trump).seat===view.seat) continue;
         const p=feedP(X,view,plays,c.cards);
         const cap=p<AIP.feedLo?0:p<AIP.feedHi?5:99;
-        if(pts>cap) c.score-=AIP.feedPen;
+        if(pts>cap){ c.score-=AIP.feedPen; c.steer=(c.steer||0)+AIP.feedPen; }   // steer:引导罚分,教练评你出的牌时加回去
       }
     }
   }
-  if(extraC) return {extraScore:extraC.score,extraCat:extraC.cat};
+  if(extraC) return {extraScore:extraC.score,extraCat:extraC.cat,extraSteer:extraC.steer||0};
   cands.sort((a,b)=>b.score-a.score);
   const ctx={partnerWinning:X.partnerWinning,isLast:X.isLast,ptsTable:X.ptsTable,
              curSeat:X.cur.seat,curBoss:X.curBoss,leadSuit:lead.suit,phase:X.phase};
@@ -6197,7 +6197,12 @@ function coachScoreLead(view, cards){
  * 「把握」= 首选领先第二名多少(同一单位)。分差小于噪声、或者命中已知短板(跨阶梯线,§7 第一行 /
  * 场景 H1 仍是 todo)时,教练不该用讲规则的语气说它。 */
 const COACH_EG_PTS=40;          // 一级 = 40 分(阶梯 0/40/80/120/160)
-const COACH_LEAD_SCALE=4;       // 领出含牌权战略值,量纲约为跟牌 4 倍(原 LEAD_GAP_SCALE,从界面搬进来)
+/* 领出打分折成「亏多少分」的除数。原来是 4(「领出含牌权战略值,量纲约为跟牌 4 倍」,没量过)。
+ * v0.7.62 量了(test/lead-rank.js K=14 DUMP,854 个中盘领出,候选各自真 AI 续打到局终):旧口径报「约亏 12~20 分」的,
+ * 实际首选平均只多得 2.2 ±0.6 分(0.085 级)、首选更好的只有 56%;报 20~30 分的实际 4.0 ±1.3 分(55%);3~12 分的 1.5~2.2 分(52~53%)。
+ * 领出打分差在 30 以内几乎就是噪声(和 AI 线量的领出排对率 52% 一致),报成失误是在冤枉人 —— 除数改 12,
+ * 中档门槛 12 分要打分差 ≥ 144 才报(旧 48)。跟牌侧(183 个局面)大致对得上,不动。 */
+const COACH_LEAD_SCALE=12;
 const COACH_CONF={high:12, mid:4};
 const coachSame=(a,b)=>a.length===b.length&&a.every(x=>b.some(y=>y.id===x.id));
 
@@ -6309,19 +6314,56 @@ function coachConf(margin, ladder){
 
 /* 首选、把握、替代方案(问教练用;也是 coachEval* 的底子)。
  * alts:其余候选,delta = 比首选少多少分(同一单位,已按领出 / 推演折算)。 */
+/* 推演分差的把握下限(v0.7.62,玩家标记:「♠8 对 ♠7 约亏 53 分」「出对子约亏 33 分」这类,推演样本少、两手其实分不出)。
+ * AI 自己用推演改判要过配对显著性(egOverride:均差 > egZ × 标准误);教练报「你亏了」也用同一个门槛:
+ * 返回 (均差 ∓ egZ × 标准误) 截到 0,单位折成分 —— 分不出就是 0。a = 首选,b = 另一手,{u, v}。 */
+function coachEgDelta(a, b){
+  if(!a||!b) return null;
+  const n=a.v?a.v.length:0;
+  if(!(AIP.egZ>0)||n<2||!b.v||b.v.length!==n) return (a.u-b.u)*COACH_EG_PTS;
+  let m=0; for(let i=0;i<n;i++) m+=a.v[i]-b.v[i]; m/=n;
+  let ss=0; for(let i=0;i<n;i++){ const d=a.v[i]-b.v[i]-m; ss+=d*d; }
+  const se=Math.sqrt(ss/(n-1)/n);
+  return (m>0?Math.max(0,m-AIP.egZ*se):Math.min(0,m+AIP.egZ*se))*COACH_EG_PTS;
+}
+/* 甩牌在抽样世界里甩不甩得成(v0.7.62,玩家标记 8cceb73f「甩不出啊」):和 scoreLeadCore 的 throwEval 同一个判法 ——
+ * 有别家压得住任何一组就失败,只出被压住的最小一组。返回 {pOk, forced(最常见的被迫出的那组), pForced} 或 null。
+ * 收官推演把候选原样当领出、不判甩牌失败(ai-progress 第 13 项 ①),所以教练对甩牌不用推演的分差。 */
+function coachThrowOdds(view, cards){
+  const t=view.trump, cl=classify(cards,t);
+  if(!cl||cl.type!=='throw') return null;
+  const B=makeBelief(view,[],AIP.beliefM);
+  if(!B||!B.worlds.length) return null;
+  const others=[0,1,2,3].filter(p=>p!==view.seat), opps=others.filter(p=>p%2!==view.seat%2), sz=c=>c.cards.length;
+  let ok=0, ruff=0; const cnt={};
+  for(const w of B.worlds){
+    const inS=p=>(w.hands[p]||[]).filter(c=>effSuit(c,t)===cl.suit);
+    const beaten=cl.comps.filter(comp=>others.some(p=>canBeatComp(inS(p),comp,t)));
+    if(!beaten.length){ ok++;
+      // 甩成了也可能被对手整手毙掉(他断这门、主够多)—— 和 throwEval 同一口径
+      if(cl.suit!=='T'&&opps.some(p=>!inS(p).length&&(w.hands[p]||[]).filter(c=>effSuit(c,t)==='T').length>=cards.length)) ruff++;
+      continue; }
+    const low=beaten.reduce((a,c)=>sz(c)!==sz(a)?(sz(c)<sz(a)?c:a):(c.top<a.top?c:a));
+    const k=low.cards.map(c=>c.id).sort().join(); (cnt[k]=cnt[k]||{n:0,cards:low.cards}).n++;
+  }
+  const top=Object.values(cnt).sort((a,b)=>b.n-a.n)[0];
+  const n=B.worlds.length;
+  return {pOk:ok/n,pRuff:ruff/n,forced:top?top.cards:null,pForced:top?top.n/n:0};
+}
+const coachIsThrow=(cards,t)=>{ const cl=classify(cards,t); return !!cl&&cl.type==='throw'; };
 function coachJudgeFollow(view, plays, adv){
   adv=adv||aiChooseFollow(view,plays);
   const cands=adv.cands||[];
   const eg=adv.eg;
   let alts, unit='pts';
-  const uOf=cs=>{ if(!eg) return null; const o=eg.find(o=>coachSame(o.cards,cs)); return o?o.u:null; };
-  const uBest=uOf(adv.cards);
+  const oOf=cs=>{ if(!eg) return null; return eg.find(o=>coachSame(o.cards,cs))||null; };
+  const oBest=oOf(adv.cards);
   const bestScore=coachCandScore(view,plays,adv);
-  if(uBest!=null){
+  if(oBest){
     unit='eg';
     alts=eg.filter(o=>!coachSame(o.cards,adv.cards)).map(o=>{
       const c=cands.find(x=>coachSame(x.cards,o.cards));
-      return {cards:o.cards,reason:c?c.reason:'',delta:(uBest-o.u)*COACH_EG_PTS};
+      return {cards:o.cards,reason:c?c.reason:'',delta:coachEgDelta(oBest,o)};
     });
   }else{
     alts=cands.filter(c=>!coachSame(c.cards,adv.cards)).map(c=>({cards:c.cards,reason:c.reason,delta:bestScore-coachCandScore(view,plays,c)}));
@@ -6333,27 +6375,29 @@ function coachJudgeFollow(view, plays, adv){
   if(rule) margin=0;
   const ladder=coachLadder(view,plays,adv);
   const feedDoubt=coachFeedDoubt(view,plays,adv);
-  return {adv,alts,margin,conf:coachConf(margin,ladder||feedDoubt),ladder,feedDoubt,unit,rule,bestScore};
+  return {adv,alts,margin,conf:coachConf(margin,ladder||feedDoubt),ladder,feedDoubt,unit,rule,bestScore,oBest};
 }
 function coachJudgeLead(view, adv){
   adv=adv||aiChooseLead(view);
   const all=adv.all||adv.cands||[];
-  const eg=adv.eg;
+  const t=view.trump;
+  // 推演不判甩牌失败:首选是甩牌就整张表按打分(throwEval 已按失败概率算过);别的候选里的甩牌也按打分折算
+  const eg=adv.eg&&!coachIsThrow(adv.cards,t)?adv.eg:null;
   let alts, unit='pts';
-  const uOf=cs=>{ if(!eg) return null; const o=eg.find(o=>coachSame(o.cards,cs)); return o?o.u:null; };
-  const uBest=uOf(adv.cards);
-  if(uBest!=null){
+  const oBest=eg?eg.find(o=>coachSame(o.cards,adv.cards))||null:null;
+  if(oBest){
     unit='eg';
     alts=eg.filter(o=>!coachSame(o.cards,adv.cards)).map(o=>{
       const c=all.find(x=>coachSame(x.cards,o.cards));
-      return {cards:o.cards,reason:c?c.reason:'',delta:(uBest-o.u)*COACH_EG_PTS};
+      const delta=coachIsThrow(o.cards,t)&&c?(adv.score-c.score)/COACH_LEAD_SCALE:coachEgDelta(oBest,o);
+      return {cards:o.cards,reason:c?c.reason:'',delta};
     });
   }else{
     alts=all.filter(c=>!coachSame(c.cards,adv.cards)).map(c=>({cards:c.cards,reason:c.reason,delta:(adv.score-c.score)/COACH_LEAD_SCALE}));
   }
   alts.sort((a,b)=>a.delta-b.delta);
   const margin=alts.length?alts[0].delta:Infinity;
-  return {adv,alts,margin,conf:coachConf(margin,null),ladder:null,unit,rule:false};
+  return {adv,alts,margin,conf:coachConf(margin,null),ladder:null,unit,rule:false,oBest};
 }
 
 /* 你出的这一手:gap = 比首选少多少分(≤0 不算失误),单位已统一成「分」。 */
@@ -6363,8 +6407,10 @@ function coachEvalFollow(view, plays, cards, adv){
   const hit=(adv.cands||[]).find(c=>coachSame(c.cards,cards));
   // 候选外的出法:放进 AI 同一条候选流水线打分(含 ruff2Plan / feedPlan 的事后加减分),而不是只算 scorePlay
   let mine;
-  if(hit) mine={score:coachCandScore(view,plays,hit),cat:hit.cat,reason:hit.reason};
-  else{ const r=aiChooseFollow(view,plays,cards); mine={score:r.extraScore,cat:r.extraCat,reason:null}; }
+  /* AI 的引导罚分(feedPlan 的 feedPen 40:「超档贴分扣到一定不选」)是拿来定 AI 选哪手的,不是这手真实亏多少(v0.7.62,
+   * 玩家标记 7a5c2290「拆拖拉机和丢 5 分比,丢五分不亏」—— 教练报「约亏 44 分」,其中 40 分就是它)。评你出的牌时加回去。 */
+  if(hit) mine={score:coachCandScore(view,plays,hit)+(hit.steer||0),cat:hit.cat,reason:hit.reason,steer:hit.steer||0};
+  else{ const r=aiChooseFollow(view,plays,cards); mine={score:r.extraScore+(r.extraSteer||0),cat:r.extraCat,reason:null,steer:r.extraSteer||0}; }
   let gap;
   if(coachSame(adv.cards,cards)) gap=0;
   else if(J.unit==='eg'){
@@ -6373,7 +6419,7 @@ function coachEvalFollow(view, plays, cards, adv){
     else{
       // 候选之外的出法:和首选放进同一次推演(同一批抽样世界)再比一次
       const r=endgameSearch(view,plays,[{cards:adv.cards},{cards}]);
-      gap=r?(r[0].u-r[1].u)*COACH_EG_PTS:J.bestScore-mine.score;
+      gap=r?coachEgDelta(r[0],r[1]):J.bestScore-mine.score;
     }
   }else gap=J.bestScore-mine.score;
   if(J.rule) gap=Math.max(0,gap);
@@ -6387,15 +6433,21 @@ function coachEvalLead(view, cards, adv){
   const mine=hit?{score:hit.score,reason:hit.reason}:coachLeadScoreFull(view,cards,adv);
   let gap;
   if(coachSame(adv.cards,cards)) gap=0;
-  else if(J.unit==='eg'){
+  else if(J.unit==='eg'&&!coachIsThrow(cards,view.trump)){
     const a=J.alts.find(x=>coachSame(x.cards,cards));
     if(a) gap=a.delta;
     else{
       const r=endgameSearch(view,null,[{cards:adv.cards},{cards}]);
-      gap=r?(r[0].u-r[1].u)*COACH_EG_PTS:(adv.score-mine.score)/COACH_LEAD_SCALE;
+      gap=r?coachEgDelta(r[0],r[1]):(adv.score-mine.score)/COACH_LEAD_SCALE;
     }
   }else gap=(adv.score-mine.score)/COACH_LEAD_SCALE;
-  return {...J,gap,inCands:!!hit,mine};
+  // 首选是多半甩不成的甩牌,而你出的正是甩不成时被迫出的那一组:实际是同一手
+  let throwOdds=null;
+  if(gap>0&&coachIsThrow(adv.cards,view.trump)){
+    throwOdds=coachThrowOdds(view,adv.cards);
+    if(throwOdds&&throwOdds.pOk<0.5&&throwOdds.forced&&coachSame(throwOdds.forced,cards)) gap=0;
+  }
+  return {...J,gap,inCands:!!hit,mine,throwOdds};
 }
 
 /* ============================================================
@@ -6659,6 +6711,8 @@ function coachLeadReason(view, cards, f, r, tier){
   else if(/压不住场,吊不出对手的大主/.test(r)){ r='小主压不住场,多半把牌权交出去'; risky=true; }
   else if(/下策/.test(r)){ r='探路,把牌权交出去'; risky=true; }
   else if(/^甩牌有风险/.test(r)){ r='甩牌,有被拦下的风险'; risky=true; }
+  // throwEval 的「约 X% 会被拦下」把「甩成了但被毙」也算在里面 —— 说成「拿不下这墩」(v0.7.62;拆开的数在建议单末尾那句)
+  else if(/^甩牌:约 \d+% 会被拦下/.test(r)){ r=r.replace(/会被拦下/,'拿不下这墩'); risky=true; }
   // 「压得住」是 AI 的把握(p>0.6),不是硬事实 —— 事实那句还挂着「别家还有 1 张比它大」
   if(/^压得住/.test(r)&&f.boss===false) r=r.replace(/^压得住/,'多半压得住');
   if(/对手多半断这门|对手可能缺门来毙/.test(r)&&f.suit!=='T'){
@@ -6676,8 +6730,9 @@ function coachLeadReason(view, cards, f, r, tier){
     const suitCards=view.hand.filter(c=>effSuit(c,t)===cl.suit);
     if(/小牌探路/.test(r)&&(!coachSmall(cards[0],t)||suitCards.length>1&&!suitCards.some(c=>ordIdx(c,t)>cl.top)))
       r=r.replace('小牌探路','探路');
-    if(/队友的断门/.test(r)&&!f.partnerVoid) r=r.replace('主打队友的断门','队友多半断这门');
   }
+  // 不只单张:v0.7.62 起领出侧的「并列 / 也可以」变多,对子也会挂这条标签
+  if(/队友的断门/.test(r)&&!f.partnerVoid) r=r.replace('主打队友的断门','队友多半断这门');
   // 当选的是一手有风险的:把「为什么还选它」说出来(AI 的估算里,其他领法更亏)
   if(risky&&tier==='best') r+=',但其他领法更亏';
   return r;
@@ -6786,7 +6841,7 @@ const ENGINE={RULES,makeDeck,fateFeat,fateP,fateX,willP,expHoldIn,drawTrumpValue
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
   makeMemory,maxUnseenIdx,unseenPairAbove,pPairAbove,pBeaterIn,keyToCard,isBossPlay,buildFollow,currentWinner,minWinFollow,ruffGuardFollow,oppSpendCeil,
   aiChooseFollow,aiChooseLead,coachScoreFollow,coachScoreLead,
-  coachJudgeFollow,coachJudgeLead,coachEvalFollow,coachEvalLead,coachLadder,coachCandScore,coachFeedDoubt,coachFeedOK,coachFollowScoreFull,coachLeadScoreFull,COACH_EG_PTS,COACH_LEAD_SCALE,makeVoids,followCtx,leadCtx,scoreLeadPlay,
+  coachJudgeFollow,coachJudgeLead,coachEvalFollow,coachEvalLead,coachLadder,coachCandScore,coachFeedDoubt,coachFeedOK,coachEgDelta,coachThrowOdds,coachFollowScoreFull,coachLeadScoreFull,COACH_EG_PTS,COACH_LEAD_SCALE,makeVoids,followCtx,leadCtx,scoreLeadPlay,
   AIP,globalIdx,easeEnds,bossChain,pWinLastTrick,faceValue,voidProb,
   scoreDeclOption,declThreshold,aiDeclDecide,projectLen,trumpCountUnder,sideQuality,pPairOverride,
   phaseOf,futureValue,pTeamWin,laterPoints,scorePlay,unseenPointsIn,leadPointsEV,pSurvive,unseenBeats,roundScore,pointWeight,ruffThrow,SCORE_LADDER,makeReads,maxHoldIn,makeVoidProb,cheapKey,dumpKey,kittyPointsEst,tempoValue,
@@ -8677,10 +8732,23 @@ function humanPlay(){
       if(!chk.ok){
         log(`${T('throwP')}失败!被迫只出最小的一组(不罚分)`);
         setMsg(T('throwP')+'失败,只出最小的一组');
-        if(C.on) coachSay(G.tricks.length+1,
+        if(C.on){
+          /* v0.7.62:甩失败以前只念规则,没有打法上的话(第 12 项 G 的教练那半)。补:出牌前按记牌能估到的失败概率,
+           * 和我会怎么出。不计入失误(结果已经是规则定的那一组;该不该甩,看的是出牌前的概率)。 */
+          const v0=viewFor(HUMAN), odds=coachThrowOdds(v0,sel);
+          let more='';
+          if(odds){
+            const pf=Math.round(100*(1-odds.pOk));
+            more=pf>=50?`出牌前按记牌就能估到:这手约 <b>${pf}%</b> 甩不成。`
+                       :`出牌前按记牌估,这手约 ${pf}% 甩不成 —— 这次是赌输了。`;
+            const best=coachJudgeLead(v0).adv.cards;
+            if(!coachSame(best,sel)&&!coachSame(best,chk.forced)) more+=`我会出 <b>${desc(best)}</b>。`;
+          }
+          coachSay(G.tricks.length+1,
           `${T('throwP')}没成:你想一次出 ${desc(sel)},但别家有压得住其中一组的牌,`+
-          `按规则只出了最小的那一组 <b>${desc(chk.forced)}</b>。<br><span class="dim">`+
+          `按规则只出了最小的那一组 <b>${desc(chk.forced)}</b>。${more?'<br>'+more:''}<br><span class="dim">`+
           `${T('throwP')}要每一组在别家都压不住才成立 —— 出之前看一眼记牌表里那门「别家还剩」的最大牌。</span>`,'warn');
+        }
         G.selected.clear(); recordUndoPoint(); playCards(HUMAN,chk.forced,'h',meta); return;
       }
       log(T('throwP')+'成功');
@@ -8726,7 +8794,7 @@ function humanPlay(){
            !confirm(`教练:更好的是 ${desc(best.cards)} —— ${bestSay}\n仍要出这手吗?`)){ G.coachNotes.pop(); return; }
         sndOops();
         coachSay(no,`⚠️ 你出 ${desc(sel)},更好的是 <b>${desc(best.cards)}</b> —— ${bestSay}`+
-          `<div class="dim">按我的估算,比建议的那手约亏 ${Math.round(ev.gap)} 分${ev.unit==='eg'?'(收官按推演折算)':''}</div>`,'warn');
+          `<div class="dim">按我的估算,比建议的那手约亏 ${Math.round(ev.gap)} 分${ev.unit==='eg'?'(收官按推演折算,只算推演有把握的那部分)':''}</div>`,'warn');
       }
       log(`教练(第${no}墩):你出 ${desc(sel)},建议 ${desc(best.cards)} — ${bestSay}${doubt?'(存疑)':''}`);
     }
@@ -8892,6 +8960,12 @@ function suggestHTML(view,plays,J){
       `<div class="dim">${o.say}${ft?`。${ft}`:''}</div></div>`;
   }).join('');
   if(opts.length===1&&J.alts.length&&!J.feedDoubt) h+=`<div class="dim">其他出法我都不推荐。</div>`;
+  // v0.7.62:首选是甩牌 —— 说清按记牌估的成功率、甩不成会出哪一组(以前直接把「约 100% 会被拦下」的甩牌当首选推荐)
+  if(!plays||!plays.length){ const o=coachThrowOdds(view,J.adv.cards);
+    if(o&&o.pOk-o.pRuff<0.8){ const fail=1-o.pOk;
+      h+=`<div class="dim" style="margin-top:4px">⚠️ 这手${T('throwP')}按记牌估:`+
+        (fail<0.05?'甩得成(别家这门压不住)':`约 ${Math.round(100*fail)}% 甩不成`+(o.forced?`(拦下就只出 <b>${desc(o.forced)}</b>)`:''))+
+        (o.pRuff>=0.05?`${fail<0.05?',但':',甩成了也'}有约 ${Math.round(100*o.pRuff)}% 被对手毙掉`:'')+`。</div>`; } }
   if(J.ladder) h+=`<div class="dim" style="margin-top:4px">⚠️ ${ladderLine(J.ladder)}。「抢不抢过线」是我已知的短板,这类局面你的判断可能比我准。</div>`;
   if(J.feedDoubt) h+=`<div class="dim" style="margin-top:4px">${J.feedDoubt.known?`⚠️ ${feedDoubtLine(view,J.feedDoubt)}。`:''}`+
     `先把分给后面的队友是我算着稍好的一手,但这类局面我实测过:${view.hand.some(c=>effSuit(c,view.trump)===classify(plays[0].cards,view.trump).suit)?'跟小的不贴分、或者自己压下来':'不贴分、或者自己用小主毙下来'},整局只差两三分 —— 这几手你出哪手我都不算错。</div>`;

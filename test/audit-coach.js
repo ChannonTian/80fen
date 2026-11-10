@@ -72,8 +72,9 @@ function decisionFollow(view,plays,adv){
     if(!topIsBest&&same(c.cards,adv.cands[0].cards)){ S.negSeen++; if(rep<=0) S.neg++; }
     if(NEW) newCheck(st.newFollow,E.coachEvalFollow(view,plays,c.cards,adv),
                      // v0.7.50 起候选外的出法走 AI 同一条候选流水线(aiChooseFollow 的 extra 参数)
-                     E.aiChooseFollow.length>=3?E.aiChooseFollow(view,plays,c.cards).extraScore:E.coachFollowScoreFull(view,plays,c.cards).score,c,adv,topIsBest,
-                     typeof E.coachCandScore==='function'?E.coachCandScore(view,plays,c):undefined);
+                     E.aiChooseFollow.length>=3?(r=>r.extraScore+(r.extraSteer||0))(E.aiChooseFollow(view,plays,c.cards)):E.coachFollowScoreFull(view,plays,c.cards).score,c,adv,topIsBest,
+                     // v0.7.62 起「你出的这手」加回 AI 的引导罚分(c.steer,feedPen 那种),对账基准跟着加
+                     typeof E.coachCandScore==='function'?E.coachCandScore(view,plays,c)+(c.steer||0):undefined);
   }
 }
 function decisionLead(view,adv){

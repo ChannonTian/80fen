@@ -228,7 +228,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `egRolloutAI` | `0` | (见上方注释)推演用真正的 AI 打完(而不是 rolloutLead / rolloutFollow 那套便宜策略)。 | `endgameSearch` |
 | `willW` | `null` | 后手对手「拿得出」时真会压 / 毙的意愿模型(test/fit-will.js);null = pSurviveBelief 用旧意愿常数 | `pSurviveBelief` `survB` |
 | `beliefSurv` | `20` | (v0.7.44 测试版默认 20 = 4+16;v0.7.42 起是 4)位开关:1 = 跟牌压牌候选、2 = 队友暂大的确定性、4 = 整个 pTeamWin 换成逐世界走完本墩(teamWinBelief)、8 = 领出单张的 leadWinP 也换、16 = 跟牌打分的期望分 ev 也换成逐世界走完本墩(trickEVBelief,含放分模型 dumpExp) —— 改用抽样信念 + 拟合意愿(见 survB);0 = 旧行为 | `pTeamWin` `followCtx` `scorePlay` `leadWinP` |
-| `beliefM` | `30` | 信念服务每次抽几个世界(30 与 60 一样准,5 ms) | `pTeamWin` `scorePlay` `aiChooseFollow` `drawTrumpValue` `leadWinBelief` `scoreLeadCore` `makeBelief` `survB` |
+| `beliefM` | `30` | 信念服务每次抽几个世界(30 与 60 一样准,5 ms) | `pTeamWin` `scorePlay` `aiChooseFollow` `drawTrumpValue` `leadWinBelief` `scoreLeadCore` `makeBelief` `survB` `coachThrowOdds` |
 
 ### 本墩推演(teamWinBelief / trickEVBelief)里「本队暂大 → 跟小」写死了:第 2 家把分垫给后面的队友时,第 3 家看着他队友那张小牌暂大就永远不毙
 
@@ -264,6 +264,16 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `followFixMargin` | `8` | 位 2:首选不带分时,毙的分差在这之内才改 | `aiChooseFollow` |
 | `followFixP` | `0.4` | 位 1:本队拿下的估计低于这个才算「没把握」 | `aiChooseFollow` |
 
+### 玩家标记快修(flagFix,11-10,产品方 v0.7.58~60 的 14 手标记,test/records-flags.js):位开关,0 = 旧行为。
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `flagFix` | `0` | (见上方注释)玩家标记快修(flagFix,11-10,产品方 v0.7.58~60 的 14 手标记,test/records-flags.js):位开关,0 = 旧行为。 | `aiChooseFollow` |
+| `ruffFixGain` | `0.15` | — | `aiChooseFollow` |
+| `ruffFixPts` | `0` | 位 1 另一条:增益 × 台面分 < 这个也垫。0 = 不用(11-10:台面 0 分时会把 97% vs 48% 的毙也改掉 —— 后手还会贴分、毙下来还拿回牌权) | `aiChooseFollow` |
+| `ruffFixHiP` | `0.6` | — | `aiChooseFollow` |
+| `ruffFixHiPts` | `10` | — | `aiChooseFollow` |
+
 ### 分牌命运(followFate,11-09,产品方:「留着的分牌是在找更高概率得利的机会」—— 单一概率 + 阈值管不住):
 
 | 参数 | 默认 | 说明 | 读取于 |
@@ -288,7 +298,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `egRollKeepJoker` | `0` | (见上方注释)推演策略里的领出把「钢板先收」用在王上 —— 谁拿牌权谁先出王,于是搜索以为对手的王早早就没了、末墩安全。 | `rolloutLead` |
 | `jokerLeadDef` | `25` | (v0.7.40 测试版默认开)闲家手里多于 jokerLeadDefMin 张时,单领王的候选扣这么多分(0 = 旧行为),见 aiChooseLead | `aiChooseLead` |
 | `jokerLeadDefMin` | `8` | — | `aiChooseLead` |
-| `egZ` | `2` | (v0.7.40 测试版默认开)ai-h2h +0.95 ±0.31 分/局、ai-pool +0.024 ±0.019 级/局,见 records-report-2026-10-14 | `egOverride` |
+| `egZ` | `2` | (v0.7.40 测试版默认开)ai-h2h +0.95 ±0.31 分/局、ai-pool +0.024 ±0.019 级/局,见 records-report-2026-10-14 | `egOverride` `coachEgDelta` |
 
 ### 阶梯是阶跃的 —— 台阶内部要有梯度,搜索才不是瞎的。
 
