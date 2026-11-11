@@ -454,6 +454,11 @@ function agreeRecord(r){
     return {id:r.id,decs};
   }finally{ restore(); }
 }
+/* 被 require(如 human-fit-data.js)时只导出局面还原工具,不跑主程序 */
+if(require.main!==module&&!process.env.SEATSWAP_WORKER){
+  module.exports={loadSrc,blockOf,verify,stateOf,stateAt,mkView,applyRules,getCur,code,sortKey,mkCard,humanShare,EXTRA_ENG,HTML};
+  return;
+}
 /* ---------------- 工人进程 ---------------- */
 if(process.env.SEATSWAP_WORKER){
   const selftest=process.env.SEATSWAP_WORKER==='self';
