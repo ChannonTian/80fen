@@ -30,6 +30,7 @@ const ROOT=path.join(__dirname,'..');
 const argv=process.argv.slice(2);
 const opt=(k,d)=>{ const a=argv.find(x=>x.startsWith('--'+k+'=')); return a?a.slice(k.length+3):d; };
 const HTML=path.join(ROOT,'80fen-test.html');
+const NEWMODE=argv.includes('--new');   // --attrib --new:人位的对照引擎是 OVN 覆盖后的当前版(另三家仍是记录版本)
 const NEWONLY=argv.includes('--newonly');   // 只跑 fidelity + SWAP-NEW(变体对变体时用,省 4 次续打)
 const CACHE=opt('cache',path.join(os.tmpdir(),'80fen-seat-swap-cache'));
 
@@ -161,14 +162,15 @@ function mkView(r,seat,st,plays){
 }
 /* 和界面一样的出牌调度:引擎给牌,不合法就换成 genFollow / checkThrow 的兜底 */
 function decide(eng, r, st, seat, plays){
+  decide.reason=undefined;
   const R=getCur(), hand=st.hands[seat], view=mkView(r,seat,st,plays);
   let cards;
   if(!plays.length){
-    cards=eng.aiChooseLead(view).cards;
+    const rl=eng.aiChooseLead(view); cards=rl.cards; decide.reason=rl.reason;
     const chk=R.checkThrow(st.hands,seat,cards,r.trump); if(!chk.ok) cards=chk.forced;
   }else{
     const lead=R.classify(plays[0].cards,r.trump);
-    cards=eng.aiChooseFollow(view,plays).cards;
+    const rf=eng.aiChooseFollow(view,plays); cards=rf.cards; decide.reason=rf.reason;
     if(!R.isLegalFollow(hand,lead,cards,r.trump)) cards=R.genFollow(hand,lead,r.trump,R.rng(1));
   }
   return cards.map(c=>hand.find(x=>x.id===c.id)||c);
@@ -347,6 +349,37 @@ function feats(r, st, partial, cards){
   return f;
 }
 const rolePos=(r)=>r.human===r.declSeat?'庄家':r.human%2===r.declSeat%2?'庄家的对家':'闲家';
+/* --attrib --new 的跟牌细分:(a) 座位 × 当前谁暂大 × 缺不缺门;(b) 人相对引擎做了什么(互斥,按优先级:赢墩不同 → 毙 / 垫不同 → 同类里比大小 → 比分 → 垫牌换门) */
+function followCell(r,st,partial,hum,eng,reason){
+  const R=getCur(), T=r.trump, H=r.human, hand=st.hands[H], es=c=>R.effSuit(c,T), oi=c=>R.ordIdx(c,T);
+  const lead=R.classify(partial[0].cards,T), pos=partial.length;   // 1=第2家 2=第3家 3=第4家
+  const cw=R.currentWinner(partial,T).seat, partnerWin=cw%2===H%2;
+  const void_=!hand.some(c=>es(c)===lead.suit);
+  const seatN=['','第2家','第3家','第4家'][pos];
+  const state=pos===1?'对手领出':(partnerWin?'队友暂大':'对手暂大');
+  const a=seatN+'·'+state+'·'+(void_?'缺门':'有门');
+  const info=cs=>{ const top=cs.reduce((x,c)=>oi(c)>oi(x)?c:x,cs[0]);
+    const allT=cs.every(c=>es(c)==='T');
+    const kind=void_?((lead.suit!=='T'&&allT)?'毙':'垫'):'跟门';
+    const win=R.currentWinner([...partial,{seat:H,cards:cs}],T).seat===H;
+    const suits=[...new Set(cs.map(es))];
+    const len=suits.length===1?hand.filter(c=>es(c)===suits[0]).length:0;
+    return {top:oi(top),pts:R.countPoints(cs),kind,win,suit:suits.length===1?suits[0]:'混',len,key:suits.join()};};
+  const h=info(hum), e=info(eng);
+  let b;
+  if(h.win!==e.win) b=h.win?'人赢墩·引擎不赢':'引擎赢墩·人不赢';
+  else if(h.kind!==e.kind) b=h.kind==='毙'?'人毙·引擎垫':(h.kind==='垫'?'人垫·引擎毙':'其他');
+  else if(h.kind==='垫'){
+    if(h.suit!==e.suit){ b='垫·换门·'+(h.len<e.len?'人垫更短门':h.len>e.len?'人垫更长门':'两门同长')+((h.pts>0||e.pts>0)?'·含分牌':'');
+    }else if(h.top!==e.top) b='垫·同门·人垫'+(h.top>e.top?'更大':'更小');
+    else b=h.pts!==e.pts?'垫·同门·人垫'+(h.pts>e.pts?'更多分':'更少分'):'垫·同门·其他';
+  }else{
+    const nm=h.kind==='毙'?'毙':'跟门';
+    if(h.top!==e.top) b=nm+'·同位·人出更'+(h.top>e.top?'大':'小')+(h.pts!==e.pts?'('+(h.pts>e.pts?'多喂分':'少喂分')+')':'');
+    else b=h.pts!==e.pts?nm+'·同位·人'+(h.pts>e.pts?'多喂分':'少喂分'):nm+'·同位·其他';
+  }
+  return {a,b,hp:h.pts-e.pts,reason:reason||''};
+}
 function attribRecord(r, byTag, selftest){
   const t0=Date.now(), R=getCur();
   const tag=selftest?'SELF':tagOf(r.version);
@@ -358,29 +391,31 @@ function attribRecord(r, byTag, selftest){
   try{
     let best=null;
     for(const c of cands){ if(cands.length===1){ best={c}; break; } const f=fidelity(getE(c.hash),r); if(!best||f.m>best.f.m) best={c,f}; }
-    const V=getE(best.c.hash), T=r.tricks.length, H=r.human;
+    const Vr=getE(best.c.hash), T=r.tricks.length, H=r.human;
+    const N=NEWMODE?getNew():Vr, V=N, engOf=sd=>(NEWMODE&&sd!==H)?Vr:N;
     const posOf=k=>r.tricks[k].plays.findIndex(p=>p.seat===H);
     const sa=stateOf(r,T), actual=result(r,sa.defPts,sa.buried,sa.lastWinner,sa.lastLeadSize);
-    let a0=stateAt(r,0,posOf(0)); const W0=finish(r,a0.st,a0.partial,()=>V);
+    let a0=stateAt(r,0,posOf(0)); const W0=finish(r,a0.st,a0.partial,engOf);
     let base=W0; const decs=[]; let nSame=0;
     const sh=humanShare(r);
     for(let k=0;k<T;k++){
       const pn=posOf(k), hp=r.tricks[k].plays[pn];
       const {st,partial}=stateAt(r,k,pn);
       const left=st.hands[H].length;
-      const aiCards=decide(V,r,st,H,partial);
+      const aiCards=decide(N,r,st,H,partial); const aiReason=decide.reason;
       const hum=[]; { const pool=st.hands[H].slice(); for(const x of hp.cards){ const j=pool.findIndex(y=>code(y)===x); hum.push(pool.splice(j,1)[0]); } }
       const same=sortKey(aiCards.map(code))===sortKey(hp.cards);
       const by=hp.by==='a'?'auto':hp.by==='f'?'forced':hp.hint?'hint':'h';
       const d={k,pos:pn,left,same,by,u:hp.u?1:0};
+      if(NEWMODE&&pn>0){ const hm=[]; { const pool=st.hands[H].slice(); for(const x of hp.cards){ const j=pool.findIndex(y=>code(y)===x); hm.push(pool.splice(j,1)[0]); } } d.xa=followCell(r,st,partial,hm,aiCards,aiReason); }
       if(same){ nSame++; decs.push(d); continue; }
-      const W1=(k+1<T)?(()=>{ const z=stateAt(r,k+1,posOf(k+1)); return finish(r,z.st,z.partial,()=>V); })():actual;
+      const W1=(k+1<T)?(()=>{ const z=stateAt(r,k+1,posOf(k+1)); return finish(r,z.st,z.partial,engOf); })():actual;
       d.m={pts:W1.pts-base.pts,lv:W1.lv-base.lv}; base=W1;
       d.hum=hum.map(code); d.ai=aiCards.map(code);
       d.hf=feats(r,st,partial,hum); d.af=feats(r,st,partial,aiCards);
       d.hand=cnames(st.hands[H].slice().sort((a,b)=>R.ordIdx(b,r.trump)-R.ordIdx(a,r.trump)));
       d.table=partial.map(p=>['南','东','北','西'][p.seat]+':'+cnames(p.cards)).join(' ');
-      d.humS=cnames(hum); d.aiS=cnames(aiCards);
+      d.humS=cnames(hum); d.aiS=cnames(aiCards); d.aiReason=aiReason||'';
       decs.push(d);
     }
     return {id:r.id,tag,engine:best.c.hash,T,actual,W0,resid:{pts:actual.pts-base.pts,lv:actual.lv-base.lv},
