@@ -558,7 +558,7 @@ async function main(){
   const results=new Map(), wall0=Date.now();
   await new Promise(done=>{
     let next=0, alive=0;
-    const spawn=()=>{ const w=fork(__filename,argv.filter(a=>a.startsWith('--cache=')),{env:{...process.env,SEATSWAP_WORKER:selftest?'self':'1'}}); alive++;
+    const spawn=()=>{ const w=fork(__filename,argv.filter(a=>a.startsWith('--cache=')||a==='--new'||a==='--newonly'),{env:{...process.env,SEATSWAP_WORKER:selftest?'self':'1'}}); alive++;
       const feed=()=>{ if(next<recs.length){ w.send({r:recs[next++],attrib:ATTRIB,agree:AGREE}); } else { w.send({stop:1}); } };
       w.on('message',m=>{ if(m.ready){ feed(); return; } if(m.res){ results.set(m.res.id,m.res);
         if(results.size%10===0) process.stderr.write(`  ${results.size}/${recs.length}  ${((Date.now()-wall0)/1000).toFixed(0)}s\n`); feed(); } });
