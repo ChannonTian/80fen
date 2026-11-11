@@ -1573,6 +1573,13 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   /* 阶梯是阶跃的 —— 台阶内部要有梯度,搜索才不是瞎的。
    * 一级台阶 40 分,0.008×40 = 0.32 级:阶梯仍然主导,但同一级里分多的胜出。 */
   egPointsEps: 0.008,
+  /* ai2 价值网络(M1,2026-11-11):手牌多于 egMaxCards 时,收官搜索不再放弃,而是对抽样世界里的每个候选
+   * 用「全明牌价值网络 V(落子后的局面)→ 终局闲家总分分布」算 u,再取世界平均(见 ai2/README.md)。
+   * 需要先 setVnet({probs:sv=>Float32Array(41)}) 注册模型(Node 测试用 VNET=权重文件;网页里暂无模型,开了也不生效)。
+   * 0 = 关(旧行为,逐位相同)。 */
+  vnet: 0,
+  vnetSamples: 30,            // 每次决策抽几个世界
+  vnetMaxCands: 4,            // 只评分最高的前几个候选
   bossSize: 8,                // 每多一张的加成(对子/拖拉机更难被压)
   leadTrumpPenalty: 26,       // 未到收官时领出主牌钢板的折扣
   drawTrumpUnit: 6,           // 钓主:我方每比对手多一张主牌值多少分
@@ -6114,11 +6121,15 @@ function rolloutAI(st){
   return {defPoints,lastWinner,lastLeadSize};
 }
 
+let VNET_MODEL=null;       // {probs(sv)→41 类概率};由测试脚本 / 以后的网页加载器注册
+function setVnet(m){ VNET_MODEL=m||null; }
 function endgameSearch(view, plays, cands){
   if(!AIP.egSearch||EG_IN_ROLLOUT) return null;
   const trump=view.trump;
   const n=view.hand.length;
-  if(n<1||n>AIP.egMaxCards) return null;
+  const useV=!!(AIP.vnet&&VNET_MODEL&&n>AIP.egMaxCards);
+  if(n<1||(n>AIP.egMaxCards&&!useV)) return null;
+  if(useV) cands=cands.slice(0,AIP.vnetMaxCands);
   if(view.declSeat===undefined||view.declSeat<0) return null;
   if(cands.length<2||cands.length>AIP.egMaxCands) return null;   // 只有一个候选,没什么可搜的
   const mem=makeMemory(view);
@@ -6156,13 +6167,18 @@ function endgameSearch(view, plays, cands){
   const myTeam=view.seat%2, declTeam=view.declSeat%2;
   const rs=roundScore(view);
   const worlds=[];
-  const nSamp=AIP.egSamplesBy>0&&n>5?Math.max(AIP.egMinSamples,AIP.egSamples-AIP.egSamplesBy*(n-5)):AIP.egSamples;
+  const nSamp=useV?AIP.vnetSamples:AIP.egSamplesBy>0&&n>5?Math.max(AIP.egMinSamples,AIP.egSamples-AIP.egSamplesBy*(n-5)):AIP.egSamples;
   for(let i=0;i<nSamp;i++){
     const w=sampleWorld(ctx,rand);
     if(w) worlds.push(w);
   }
   if(worlds.length<AIP.egMinSamples) return null;
   const out=cands.map(c=>({cards:c.cards,u:0,v:[]}));
+  let utilBin=null;
+  if(useV){   // 终局闲家总分 5b → 本队净升几级(同一把 scoreRound / levelUtility,最后一箱记 200)
+    utilBin=new Float64Array(41);
+    for(let b=0;b<41;b++) utilBin[b]=levelUtility(scoreRound({defPoints:5*b,kitty:[],defWonLastTrick:false,lastLeadSize:1}),myTeam,declTeam);
+  }
   for(const w of worlds){
     const kitty=view.buriedKnown&&view.buriedKnown.length?view.buriedKnown:w.kitty;
     for(const o of out){
@@ -6181,6 +6197,12 @@ function endgameSearch(view, plays, cands){
                                lastLeadSize:p2[0].cards.length});
           const u=levelUtility(sc,myTeam,declTeam); o.u+=u; o.v.push(u); continue;
         }
+      }
+      if(useV){
+        const pr=VNET_MODEL.probs({hands,kitty,plays:pl,leader,defPoints,trump,declSeat:view.declSeat,
+                                   curWinner:pl.length?currentWinner(pl,trump).seat:-1});
+        let u=0; for(let b=0;b<41;b++) u+=pr[b]*utilBin[b];
+        o.u+=u; o.v.push(u); continue;
       }
       if(AIP.egExact&&n<=AIP.egExact){
         const u=egSolve({hands,plays:pl,leader,defPoints,trump,declSeat:view.declSeat,kitty,rootTeam:myTeam},-1e9,1e9);
@@ -7007,7 +7029,7 @@ const ENGINE={RULES,makeDeck,fateFeat,fateP,fateX,willP,expHoldIn,drawTrumpValue
   phaseOf,futureValue,pTeamWin,laterPoints,scorePlay,unseenPointsIn,leadPointsEV,pSurvive,unseenBeats,roundScore,pointWeight,ruffThrow,SCORE_LADDER,makeReads,maxHoldIn,makeVoidProb,cheapKey,dumpKey,kittyPointsEst,tempoValue,
   bossUnits,feedRuffValue,reserveHold,reserveUnit,guardFeat,guardP,
   makeHoldRange,partnerAceRead,tiaoWangValue,
-  endgameSearch,egOverride,sampleWorld,makeBelief,pSurviveBelief,teamWinBelief,leadWinBelief,leadWinP,trickEVBelief,dumpExp,rolloutToEnd,rolloutLead,rolloutFollow,levelUtility,trumpLeadPrior};
+  endgameSearch,setVnet,egOverride,sampleWorld,makeBelief,pSurviveBelief,teamWinBelief,leadWinBelief,leadWinP,trickEVBelief,dumpExp,rolloutToEnd,rolloutLead,rolloutFollow,levelUtility,trumpLeadPrior};
 if(typeof module!=='undefined') module.exports=ENGINE;
 </script>
 
