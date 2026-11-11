@@ -73,6 +73,15 @@ def mae_by_bucket(ix, pred):
         m = (cl >= lo) & (cl <= hi); out[nm] = {'n': int(m.sum()), 'mae': float(np.abs(pred[m] - S[m]).mean())}
     out['all'] = {'n': len(ix), 'mae': float(np.abs(pred - S).mean())}; return out
 
+# ---- 存权重:fp16 base64 ----
+def save_weights(path_json):
+    def b64(t): return base64.b64encode(t.detach().cpu().numpy().astype('<f2').tobytes()).decode()
+    W = {'format': 'vnet-v1', 'dim_bin': NBIN, 'nd': ND, 'nbins': NB, 'hid': hid,
+         'emb': b64(net.emb.weight), 'dense_w': b64(net.dense.weight), 'b0': b64(net.dense.bias),
+         'layers': [{'w': b64(f.weight), 'b': b64(f.bias), 'out': f.out_features, 'in': f.in_features} for f in net.fcs],
+         'head_w': b64(net.head.weight), 'head_b': b64(net.head.bias), 'centers': [float(c) for c in centers.tolist()]}
+    json.dump(W, open(path_json, 'w'))
+os.makedirs(a.out, exist_ok=True)
 t0 = time.time(); step = 0; run = 0.0; best_ce = 1e9; best_step = 0; best_sd = None
 while step < a.steps:
     perm = np.random.permutation(tr)
@@ -83,7 +92,7 @@ while step < a.steps:
         if step % 500 == 0: print(f'step {step} loss {run:.4f} {time.time()-t0:.0f}s', flush=True)
         if step % a.eval_every == 0 or step == a.steps:
             ce, _ = evaluate(va[::2]); print(f'  val CE {ce:.4f}', flush=True)
-            if ce < best_ce: best_ce = ce; best_step = step; best_sd = {k: v.clone() for k, v in net.state_dict().items()}
+            if ce < best_ce: best_ce = ce; best_step = step; best_sd = {k: v.clone() for k, v in net.state_dict().items()}; save_weights(f'{a.out}/vnet-{a.tag}.json')
         if step >= a.steps: break
 train_sec = time.time() - t0
 net.load_state_dict(best_sd); print('best val step', best_step, best_ce)
@@ -112,13 +121,6 @@ with torch.no_grad():
 res['base_b_linear_mae'] = mae_by_bucket(ho, torch.cat(pl).clamp(0, 200).numpy())
 print(json.dumps(res, ensure_ascii=False, indent=1))
 
-# ---- 存权重:fp16 base64 ----
-os.makedirs(a.out, exist_ok=True)
-def b64(t): return base64.b64encode(t.detach().cpu().numpy().astype('<f2').tobytes()).decode()
-W = {'format': 'vnet-v1', 'dim_bin': NBIN, 'nd': ND, 'nbins': NB, 'hid': hid,
-     'emb': b64(net.emb.weight), 'dense_w': b64(net.dense.weight), 'b0': b64(net.dense.bias),
-     'layers': [{'w': b64(f.weight), 'b': b64(f.bias), 'out': f.out_features, 'in': f.in_features} for f in net.fcs],
-     'head_w': b64(net.head.weight), 'head_b': b64(net.head.bias), 'centers': [float(c) for c in centers.tolist()]}
-json.dump(W, open(f'{a.out}/vnet-{a.tag}.json', 'w'))
 json.dump(res, open(f'{a.out}/vnet-{a.tag}.metrics.json', 'w'), ensure_ascii=False, indent=1)
+save_weights(f'{a.out}/vnet-{a.tag}.json')
 print('saved', f'{a.out}/vnet-{a.tag}.json', os.path.getsize(f'{a.out}/vnet-{a.tag}.json') / 1e6, 'MB')
