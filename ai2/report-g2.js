@@ -10,7 +10,7 @@ const R=[]; for(const f of files) for(const l of fs.readFileSync(f,'utf8').split
 const BK=[['25-19',19,25],['18-13',13,18],['12-7',7,12],['6-1',1,6]];
 const bucket=r=>{ for(const [n,lo,hi] of BK) if(r.nh>=lo&&r.nh<=hi) return n; return '?'; };
 const PRED={
-  h:  {u:r=>r.sd-r.sb, p:r=>r.sd-r.sb},
+  h:  {u:r=>r.sb==null?NaN:r.sd-r.sb, p:r=>r.sb==null?NaN:r.sd-r.sb},
   vt: {u:r=>r.vtD-r.vtB, p:r=>r.vtpD-r.vtpB},
   vw: {u:r=>r.vwD-r.vwB, p:r=>r.vwpD-r.vwpB},
 };

@@ -325,6 +325,14 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
 | `egPointsEps` | `0.008` | (见上方注释)阶梯是阶跃的 —— 台阶内部要有梯度,搜索才不是瞎的。 | `levelUtility` |
+
+### ai2 价值网络(M1,2026-11-11):手牌多于 egMaxCards 时,收官搜索不再放弃,而是对抽样世界里的每个候选
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `vnet` | `0` | (见上方注释)ai2 价值网络(M1,2026-11-11):手牌多于 egMaxCards 时,收官搜索不再放弃,而是对抽样世界里的每个候选 | `endgameSearch` |
+| `vnetSamples` | `30` | 每次决策抽几个世界 | `endgameSearch` |
+| `vnetMaxCands` | `4` | 只评分最高的前几个候选 | `endgameSearch` |
 | `bossSize` | `8` | 每多一张的加成(对子/拖拉机更难被压) | `scoreLeadCore` |
 | `leadTrumpPenalty` | `26` | 未到收官时领出主牌钢板的折扣 | `scoreLeadCore` |
 | `drawTrumpUnit` | `6` | 钓主:我方每比对手多一张主牌值多少分 | `drawTrumpValue` |
