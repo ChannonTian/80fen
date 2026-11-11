@@ -649,6 +649,57 @@ function report(recs,results,excl,wall,selftest){
 
 
 /* ---------------- --attrib 报告 ---------------- */
+/* ---- --attrib --new:跟牌细分(互斥格子,逐行重算合计) ---- */
+const CELLSTAT={};
+function followNew(name,G,hd,diff,ld,fo,other,stat){
+  const sum=(xs,f)=>xs.reduce((a,d)=>a+d.m[f],0);
+  console.log(`\n  ==== [--new] 逐行重算的分项合计(by=h 且与引擎不同;对 ${G} 局) ====`);
+  const otherDiff=other.filter(d=>!d.same);
+  console.log(`     领出 ${(sum(ld,'pts')/G).toFixed(2)} 分 ${(sum(ld,'lv')/G).toFixed(3)} 级 (n=${ld.length});跟牌 ${(sum(fo,'pts')/G).toFixed(2)} 分 ${(sum(fo,'lv')/G).toFixed(3)} 级 (n=${fo.length});`+
+    `合计 ${((sum(ld,'pts')+sum(fo,'pts'))/G).toFixed(2)} 分 ${((sum(ld,'lv')+sum(fo,'lv'))/G).toFixed(3)} 级;非 by=h 的不同手(托管 / 照提示)m 之和 ${(sum(otherDiff,'pts')/G).toFixed(2)} 分 (n=${otherDiff.length})`);
+  // 4. 一致率,按 (a) 格
+  const hf=hd.filter(d=>d.xa);
+  const A={}; for(const d of hf){ (A[d.xa.a]=A[d.xa.a]||[]).push(d); }
+  console.log('\n  -- 4. 人 = 新引擎 的一致率,按 (a) 格(座位·谁暂大·缺不缺门;by=h 的跟牌)');
+  for(const k of Object.keys(A).sort()){ const a=A[k]; console.log('     '+k.padEnd(24-[...k].filter(c=>c.charCodeAt(0)>255).length*0)+` n=${String(a.length).padStart(4)}  一致 ${(100*a.filter(d=>d.same).length/a.length).toFixed(1)}%`); }
+  console.log(`     (跟牌合计 n=${hf.length}, 一致 ${(100*hf.filter(d=>d.same).length/hf.length).toFixed(1)}%)`);
+  // 3(a)(b):格 × 行为,按贡献排序
+  const fd=diff.filter(d=>d.xa);
+  const cellRows=(title,labelFn)=>{
+    const g={}; for(const d of fd){ (g[labelFn(d)]=g[labelFn(d)]||[]).push(d); }
+    console.log(`\n  -- ${title}   (合计 n=${fd.length}, ${(sum(fd,'pts')/G).toFixed(2)} 分/局, ${(sum(fd,'lv')/G).toFixed(3)} 级/局;★ = |t|≥2 且 n≥30)`);
+    console.log('  '+'格'.padEnd(52)+'n'.padStart(5)+'  分/手±SE (t)'.padEnd(22)+'分/局'.padStart(7)+'  级/手±SE'.padEnd(16)+'级/局'.padStart(8));
+    const out=[];
+    for(const k of Object.keys(g).sort((x,y)=>sum(g[y],'pts')-sum(g[x],'pts'))){ const a=g[k], sp=stat(a.map(d=>d.m.pts)), sl=stat(a.map(d=>d.m.lv));
+      const t=sp.se>0?sp.m/sp.se:0, star=(Math.abs(t)>=2&&a.length>=30)?'★':' ';
+      out.push({k,a,t});
+      console.log(' '+star+k.padEnd(52-[...k].filter(c=>c.charCodeAt(0)>255).length*0)+String(a.length).padStart(5)+`  ${sp.m.toFixed(1)}±${sp.se.toFixed(1)} (${t.toFixed(1)})`.padEnd(22)+(sum(a,'pts')/G).toFixed(2).padStart(7)+`  ${sl.m.toFixed(2)}±${sl.se.toFixed(2)}`.padEnd(16)+(sum(a,'lv')/G).toFixed(3).padStart(8)); }
+    return out;
+  };
+  cellRows('3(a). 格:座位 · 谁暂大 · 缺不缺门(合计应等于跟牌合计)',d=>d.xa.a);
+  cellRows('3(b). 人相对引擎做了什么(跨 (a) 格合并)',d=>d.xa.b);
+  const fine=cellRows('3(a)×(b). 全部互斥格',d=>d.xa.a+' | '+d.xa.b);
+  CELLSTAT[name]=fine;
+  // 边际:喂分多少(不互斥,只看)
+  const mg={}; for(const d of fd){ const k=d.xa.hp>0?'人多喂分':d.xa.hp<0?'人少喂分':'喂分一样'; (mg[k]=mg[k]||[]).push(d); }
+  console.log('\n  -- 边际(不互斥):人比引擎多 / 少喂的牌面分');
+  for(const k of Object.keys(mg)){ const a=mg[k], sp=stat(a.map(d=>d.m.pts)); console.log(`     ${k.padEnd(10)} n=${String(a.length).padStart(4)}  ${sp.m.toFixed(1)}±${sp.se.toFixed(1)}  ${(sum(a,'pts')/G).toFixed(2)} 分/局`); }
+}
+function writeExamples(gs,recs){
+  const fine=CELLSTAT['(a) 全部局']; if(!fine) return;
+  const G=gs.length, sumP=a=>a.reduce((x,d)=>x+d.m.pts,0);
+  const top=fine.filter(c=>Math.abs(c.t)>=2).sort((x,y)=>sumP(y.a)-sumP(x.a)).slice(0,3);
+  const SN=['南','东','北','西'], tn=t=>t.suit?SUITSYM[t.suit]+t.rank:'无主'+t.rank;
+  let txt='';
+  for(const c of top){
+    txt+=`\n\n######## 格:${c.k}   n=${c.a.length}  ${(sumP(c.a)/G).toFixed(2)} 分/局  t=${c.t.toFixed(1)}(全部局;12 例按 局 id 排序后等距抽取,不挑 m)\n`;
+    const ar=c.a.slice().sort((x,y)=>(x.g.id+String(x.k).padStart(3,'0')).localeCompare(y.g.id+String(y.k).padStart(3,'0')));
+    const step=Math.max(1,Math.floor(ar.length/12));
+    for(let i=0,n=0;i<ar.length&&n<12;i+=step,n++){ const d=ar[i], g=d.g;
+      txt+=`\n[${n+1}] 局 ${g.id.slice(0,8)} 第 ${d.k+1} 墩  主 ${tn(g.trump)}  人是${g.role}  剩 ${d.left} 张  ${['领出','第2家','第3家','第4家'][d.pos]}\n    手牌: ${d.hand}\n    台面: ${d.table}\n    人出: ${d.humS}   引擎出: ${d.aiS}   引擎的理由: ${d.aiReason||'(无)'}\n    m = ${d.m.pts>=0?'+':''}${d.m.pts} 分 / ${d.m.lv>=0?'+':''}${d.m.lv} 级\n`; }
+  }
+  const f=opt('examples'); if(f){ fs.writeFileSync(f,txt); console.log('\n示例已写 '+f); } else console.log(txt);
+}
 function reportAttrib(recs,results,excl,wall,selftest){
   const AUTO=+opt('autoshare',0.2);
   const games=[]; const errs={};
@@ -660,9 +711,9 @@ function reportAttrib(recs,results,excl,wall,selftest){
   const bad=games.filter(g=>g.resid.pts!==0||g.resid.lv!==0);
   let sumM={pts:0,lv:0}, gapTot={pts:0,lv:0};
   for(const g of games){ for(const d of g.decs) if(d.m){ sumM.pts+=d.m.pts; sumM.lv+=d.m.lv; } gapTot.pts+=g.actual.pts-g.W0.pts; gapTot.lv+=g.actual.lv-g.W0.lv; }
-  console.log(`\n==== 恒等式 Σm(t) = ACTUAL − SWAP-SAME ====\n  逐局链尾 = ACTUAL 的局: ${games.length-bad.length}/${games.length}`+
+  console.log(`\n==== 恒等式 Σm(t) = ACTUAL − ${NEWMODE?'SWAP-NEW(OVN)':'SWAP-SAME'} ====\n  逐局链尾 = ACTUAL 的局: ${games.length-bad.length}/${games.length}`+
     `${bad.length?`  ✗ 有 ${bad.length} 局对不上(残差之和 ${bad.reduce((a,g)=>a+g.resid.pts,0)} 分 / ${bad.reduce((a,g)=>a+g.resid.lv,0).toFixed(2)} 级)`:'  ✓'}`+
-    `\n  全体 Σm/局: ${(sumM.pts/games.length).toFixed(2)} 分, ${(sumM.lv/games.length).toFixed(3)} 级;  ACTUAL−SWAP-SAME/局: ${(gapTot.pts/games.length).toFixed(2)} 分, ${(gapTot.lv/games.length).toFixed(3)} 级`);
+    `\n  全体 Σm/局: ${(sumM.pts/games.length).toFixed(2)} 分, ${(sumM.lv/games.length).toFixed(3)} 级;  ACTUAL−${NEWMODE?'SWAP-NEW':'SWAP-SAME'}/局: ${(gapTot.pts/games.length).toFixed(2)} 分, ${(gapTot.lv/games.length).toFixed(3)} 级`);
   const sets=[['(a) 全部局',games],['(b) 无悔棋且托管+照提示 ≤'+AUTO*100+'%',games.filter(g=>g.undos===0&&g.share<=AUTO)]];
   const bucket=l=>l>=19?'25-19':l>=13?'18-13':l>=7?'12-7':'6-1';
   const BK=['25-19','18-13','12-7','6-1'];
@@ -672,6 +723,7 @@ function reportAttrib(recs,results,excl,wall,selftest){
     console.log(`\n  -- ${title}`);
     console.log('  '+'类别'.padEnd(34)+'n'.padStart(5)+'  均值分±SE'.padEnd(16)+'贡献分/局'.padStart(10)+'  均值级±SE'.padEnd(18)+'贡献级/局'.padStart(10));
     const keys=Object.keys(g); if(order) keys.sort((a,b)=>order.indexOf(a)-order.indexOf(b)); else keys.sort((a,b)=>Math.abs(g[b].reduce((x,d)=>x+d.m.pts,0))-Math.abs(g[a].reduce((x,d)=>x+d.m.pts,0)));
+    { const all=keys.flatMap(k=>g[k]); console.log('  '+'合计(逐行重算)'.padEnd(30)+String(all.length).padStart(5)+''.padEnd(16)+(all.reduce((x,d)=>x+d.m.pts,0)/G).toFixed(2).padStart(10)+''.padEnd(18)+(all.reduce((x,d)=>x+d.m.lv,0)/G).toFixed(3).padStart(10)); }
     for(const k of keys){ const a=g[k], sp=stat(a.map(d=>d.m.pts)), sl=stat(a.map(d=>d.m.lv));
       const sump=a.reduce((x,d)=>x+d.m.pts,0)/G, suml=a.reduce((x,d)=>x+d.m.lv,0)/G;
       console.log('  '+String(k).padEnd(34-[...String(k)].filter(c=>c.charCodeAt(0)>255).length)+String(a.length).padStart(5)+`  ${sp.m.toFixed(1)}±${sp.se.toFixed(1)}`.padEnd(16)+sump.toFixed(2).padStart(10)+`  ${sl.m.toFixed(2)}±${sl.se.toFixed(2)}`.padEnd(18)+suml.toFixed(3).padStart(10)); }
@@ -708,7 +760,9 @@ function reportAttrib(recs,results,excl,wall,selftest){
     rows('3d. 跟牌:出完后牌桌上暂时最大是自己吗',fo,d=>'人'+(d.hf.win?'暂赢':'不赢')+' / AI'+(d.af.win?'暂赢':'不赢'),G);
     rows('3e. 跟牌:都跟本门时出的牌(人相对 AI)',fo.filter(d=>d.hf.ledTop!==undefined&&d.af.ledTop!==undefined),d=>d.hf.ledTop>d.af.ledTop?'人出更大':d.hf.ledTop<d.af.ledTop?'人出更小':'同大小',G);
     rows('3f. 跟牌(单张):拆对(人/AI)',fo.filter(d=>d.hf.single&&d.af.single),d=>'人'+(d.hf.brk?'拆对':'不拆')+' / AI'+(d.af.brk?'拆对':'不拆'),G);
+    if(NEWMODE) followNew(name,G,hd,diff,ld,fo,other,stat);
   }
+  if(NEWMODE) writeExamples(sets[0][1],recs);
   // 示例
   const clean=sets[1][1];
   const ex=[]; for(const g of clean) for(const d of g.decs) if(d.m&&d.by==='h') ex.push({...d,g});
