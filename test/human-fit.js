@@ -160,7 +160,9 @@ const SETS={
   B:(kind)=>engineOnly(byKind[kind]),
 };
 const SETNAME={A:'A 全枚举(候选 = 引擎候选 ∪ 真人所出 ∪ 系统枚举;只含做了枚举的决策)',B:'B 只在引擎自己的候选表上排序(真人那手在表里的决策)'};
-for(const setId of ['A','B']) for(const kind of ['lead','follow']){
+const SETSRUN=(opt('sets','AB')).split('');
+const NOANALYSIS=argv.includes('--exportonly');
+for(const setId of (NOANALYSIS?[]:SETSRUN)) for(const kind of ['lead','follow']){
   const ds=SETS[setId](kind); const K=feats[kind]; const iSplit=K.indexOf('splits'); const kk=kind+setId;
   console.log(`\n################ [${SETNAME[setId]}] ${kind==='lead'?'领出':'跟牌'}:${ds.length} 个决策(候选数≥2),${new Set(ds.map(d=>d.g)).size} 局 ################`);
   const uni=-mean(ds.map(d=>-Math.log(d.n)));
@@ -267,6 +269,25 @@ for(const setId of ['A','B']) for(const kind of ['lead','follow']){
       }
     }
   }
+}
+/* ---- --export=文件:set B 上拟合三套权重(全部局 / 偶数 fold / 奇数 fold),修正量用原始特征单位(θ_k/sd_k ÷ θ_s/sd_s),写给 human-fit-embed.js ----
+ * hfSet 1 = 用偶数 fold 的局训练(给奇数 fold 的局用);hfSet 2 = 用奇数 fold 训练(给偶数 fold 的局用)。 */
+if(opt('export')){
+  const EX={};
+  for(const kind of ['lead','follow']){
+    const ds=SETS.B(kind), K=feats[kind];
+    const fitW=(sub,label)=>{
+      const lam=chooseLam(sub,1,1,d=>d.fold); const m=fitModel(sub,1,1,lam);
+      const bs=m.th[0]/m.st.sd[0];
+      const c=Array.from(m.th).slice(1).map((t,j)=>m.st.sd[j+1]>0?(t/m.st.sd[j+1])/bs:0);
+      console.log(`  [export] ${kind} ${label}: ${sub.length} 决策,${new Set(sub.map(d=>d.g)).size} 局,λ_L2=${lam},θ_s(标准化)=${m.th[0].toFixed(3)}`);
+      return {c,lam,n:sub.length};
+    };
+    const all=fitW(ds,'全部'), h1=fitW(ds.filter(d=>d.fold%2===0),'偶数 fold'), h2=fitW(ds.filter(d=>d.fold%2===1),'奇数 fold');
+    EX[kind]={names:K,sets:[all.c,h1.c,h2.c],lam:[all.lam,h1.lam,h2.lam],n:[all.n,h1.n,h2.n]};
+  }
+  fs.writeFileSync(opt('export'),JSON.stringify(EX,null,1));
+  console.log('已写 '+opt('export'));
 }
 console.log(`\n总用时 ${((Date.now()-t0)/1000).toFixed(0)} s`);
 if(opt('out')) fs.writeFileSync(opt('out'),JSON.stringify(OUT,null,1));

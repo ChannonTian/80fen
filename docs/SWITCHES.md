@@ -560,6 +560,14 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `pairKeep` | `0` | (见上方注释)单张跟牌时不拆手上的对子(pairKeep / pairKeepCands,**默认 0,还在量**)。 | `pairUnit` `pairKeepCost` `aiChooseFollow` |
 | `pairKeepCands` | `0` | 0 / 1:给拆对子的单张候选补不拆的替身 | `aiChooseFollow` |
 
+### 真人出牌拟合的修正(test/human-fit*.js,**默认 0,还在量**)。引擎候选表里的每个候选 score += λ × Σ c_k·x_k,
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `hfFollow` | `0` | 跟牌修正的整体强度 λ(0 = 关) | `pairKeepAlt` `aiChooseFollow` |
+| `hfLead` | `0` | 领出修正的整体强度 λ(0 = 关) | `aiChooseLead` |
+| `hfSet` | `0` | 权重集:0 = 全部局拟合;1 / 2 = 按局 fold 奇偶各拟合一半(交叉拟合的人机基准用) | `hfCorr` |
+
 ### 毙牌保留价的权重(见 ruffReserve)。**默认 0 —— 第一步,还在量。**
 
 | 参数 | 默认 | 说明 | 读取于 |

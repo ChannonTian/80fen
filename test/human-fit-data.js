@@ -25,14 +25,6 @@ const {isTestGame}=require('./records-filter.js');
 const argv=process.argv.slice(2);
 const opt=(k,d)=>{ const a=argv.find(x=>x.startsWith('--'+k+'=')); return a?a.slice(k.length+3):d; };
 
-const LEAD_F=['ty_pair','ty_tr','ty_th','trLen','isT','boss','pts','ownLen10','shortest','longest','partnerVoid','oppVoid','joker','level','splits','nBeat10','nOut10','added'];
-const FOLLOW_F=['beats','beats_pW','beats_s3','beats_s4','ru','di','ru_pW','di_pW','pts_pW','pts_oW','boss','nBeat10','nOut10','remLen10','voidMade',
-  'splits','splits_pW','splitTract','splitBoss','splitOut10','isT','isJoker','isLevel','added'];
-const GROUPS=['st1','st2','decl','dpart'];
-const LEAD_INT=['ty_pair','isT','pts','splits'], FOLLOW_INT=['splits','pts','beats'];
-for(const f of LEAD_INT) for(const g of GROUPS) LEAD_F.push(f+'*'+g);
-for(const f of FOLLOW_INT) for(const g of GROUPS) FOLLOW_F.push(f+'*'+g);
-
 let E=null, E2=null, CTX2=null;
 const vm=require('vm');
 function engine(){
@@ -57,80 +49,8 @@ function engine(){
 }
 const cs=cards=>cards.map(M.code).sort().join(',');
 
-/* 局面工具(一个决策算一次) */
-function ctxOf(view){
-  const T=view.trump, eff=c=>E.effSuit(c,T), oi=c=>E.ordIdx(c,T);
-  const mem=E.makeMemory(view), voids=E.makeVoids(view.history||[],T);
-  const unseen=[]; for(const k in mem.unseen){ const n=mem.unseen[k]; if(n>0){ const c=E.keyToCard(k); unseen.push({c,n,su:eff(c),o:oi(c)}); } }
-  const hand=view.hand, hcnt={}; for(const c of hand){ const k=c.suit+':'+c.rank; hcnt[k]=(hcnt[k]||0)+1; }
-  const suitN={}; for(const c of hand){ const s=eff(c); suitN[s]=(suitN[s]||0)+1; }
-  return {T,eff,oi,mem,voids,unseen,hand,hcnt,suitN,
-    nBeat:c=>{ const s=eff(c), o=oi(c); let n=0; for(const u of unseen) if(u.su===s&&u.o>o) n+=u.n; return n; },
-    nOut:s=>{ let n=0; for(const u of unseen) if(u.su===s) n+=u.n; return n; },
-    higherPair:c=>{ const s=eff(c), o=oi(c); return unseen.some(u=>u.su===s&&u.o>o&&u.n>=2); },
-    inTractor:c=>{ const s=eff(c); return E.decompose(hand.filter(x=>eff(x)===s),T).some(m=>m.type==='tractor'&&m.cards.some(x=>x.id===c.id)); }};
-}
-/* 候选是否拆了手里的对子;返回被拆的那一对里最大的那张(没有拆 = null) */
-function splitCard(C,K){
-  const per={}; for(const c of C){ const k=c.suit+':'+c.rank; per[k]=(per[k]||0)+1; }
-  let best=null;
-  for(const c of C){ const k=c.suit+':'+c.rank; if((K.hcnt[k]||0)>=2&&per[k]===1&&(!best||K.oi(c)>K.oi(best))) best=c; }
-  return best;
-}
 const stageOf=left=>left>=19?'st1':left>=13?'st2':'st3';
 function roleOf(r){ const H=r.human, D=r.declSeat; return H===D?'decl':H%2===D%2?'dpart':'def'; }
-function inter(vec,names,base,stage,role){
-  for(const f of names){ const v=base[f]||0;
-    vec.push(stage==='st1'?v:0, stage==='st2'?v:0, role==='decl'?v:0, role==='dpart'?v:0); }
-}
-
-function followFeats(view,plays,C,K,lead,stage,role,added){
-  const T=K.T, H=view.seat, eff=K.eff;
-  const pos=plays.length;   // 1,2,3
-  const cw=E.currentWinner(plays,T).seat, pW=cw%2===H%2?1:0;
-  const beats=E.currentWinner([...plays,{seat:H,cards:C}],T).seat===H?1:0;
-  const fs=C.every(c=>eff(c)===lead.suit), ru=!fs&&lead.suit!=='T'&&C.every(c=>eff(c)==='T');
-  const di=!fs&&!ru;
-  const pts=E.countPoints(C)/10;
-  const prim=fs?lead.suit:eff(C.reduce((a,c)=>K.oi(c)>K.oi(a)?c:a,C[0]));
-  const inP=C.filter(c=>eff(c)===prim);
-  const top=inP.reduce((a,c)=>K.oi(c)>K.oi(a)?c:a,inP[0]);
-  const nb=K.nBeat(top), multi=C.length>=2;
-  const boss=multi?!K.higherPair(top):nb===0;
-  const handN=K.suitN[prim]||0, remLen=handN-inP.length;
-  const sp=splitCard(C,K);
-  const b={beats,beats_pW:beats*pW,beats_s3:beats*(pos===2?1:0),beats_s4:beats*(pos===3?1:0),ru:+ru,di:+di,ru_pW:+ru*pW,di_pW:+di*pW,
-    pts_pW:pts*pW,pts_oW:pts*(1-pW),boss:+boss,nBeat10:Math.min(nb,30)/10,nOut10:K.nOut(prim)/10,remLen10:remLen/10,voidMade:+(handN>0&&remLen===0),
-    splits:+!!sp,splits_pW:sp?pW:0,splitTract:sp&&K.inTractor(sp)?1:0,splitBoss:sp&&!K.higherPair(sp)?1:0,splitOut10:sp?K.nOut(eff(sp))/10:0,
-    isT:+(prim==='T'),isJoker:+C.some(c=>c.suit==='X'),isLevel:+C.some(c=>c.suit!=='X'&&c.rank===T.rank),added:added?1:0,pts,
-    };
-  const vec=FOLLOW_F.slice(0,24).map(f=>b[f]);
-  inter(vec,FOLLOW_INT,b,stage,role);
-  return vec;
-}
-function leadFeats(view,C,K,stage,role,added){
-  const T=K.T, eff=K.eff, H=view.seat;
-  const cl=E.classify(C,T)||{type:'throw'};
-  const s=eff(C[0]), top=C.reduce((a,c)=>K.oi(c)>K.oi(a)?c:a,C[0]);
-  const multi=C.length>=2;
-  const nb=K.nBeat(top);
-  const boss=cl.type==='single'?nb===0:(cl.type==='pair'||cl.type==='tractor')?!K.higherPair(top):false;
-  const sides=Object.keys(K.suitN).filter(x=>x!=='T');
-  const lens=sides.map(x=>K.suitN[x]);
-  const own=K.suitN[s]||0, mn=Math.min(...lens), mx=Math.max(...lens);
-  const side=s!=='T'&&sides.length>=2;
-  const partner=(H+2)%4, opps=[(H+1)%4,(H+3)%4];
-  const sp=splitCard(C,K);
-  const pts=E.countPoints(C)/10;
-  const b={ty_pair:+(cl.type==='pair'),ty_tr:+(cl.type==='tractor'),ty_th:+(cl.type==='throw'),trLen:cl.type==='tractor'?cl.len:0,
-    isT:+(s==='T'),boss:+boss,pts,ownLen10:own/10,shortest:side&&own===mn&&lens.filter(x=>x===mn).length===1?1:0,
-    longest:side&&own===mx&&lens.filter(x=>x===mx).length===1?1:0,partnerVoid:+!!(K.voids[partner]&&K.voids[partner][s]),
-    oppVoid:+opps.some(o=>K.voids[o]&&K.voids[o][s]),joker:+C.some(c=>c.suit==='X'),level:+C.some(c=>c.suit!=='X'&&c.rank===T.rank),
-    splits:+!!sp,nBeat10:Math.min(nb,30)/10,nOut10:K.nOut(s)/10,added:added?1:0};
-  const vec=LEAD_F.slice(0,18).map(f=>b[f]);
-  inter(vec,LEAD_INT,b,stage,role);
-  return vec;
-}
 
 /* 领出的系统枚举:单张(每个不同的牌)、对子、拖拉机及其子拖拉机 */
 function leadEnum(view){
@@ -207,8 +127,8 @@ function decisionOf(r,k,pn,hp,cov){
   const engPick=res.cards?cs(res.cards):null;
   let ei=cands.findIndex(c=>cs(c.cards)===engPick);
   if(ei<0){ let b=-1e18; cands.forEach((c,i)=>{ if(c.inEng&&c.score>b){ b=c.score; ei=i; } }); }
-  const K=ctxOf(view);
-  const X=cands.map(c=>isLead?leadFeats(view,c.cards,K,stage,role,!c.inEng):followFeats(view,partial,c.cards,K,lead,stage,role,!c.inEng));
+  const K=E.hfCtx(view);   // 特征由引擎里的 hfLeadFeats / hfFollowFeats 算(唯一一份)
+  const X=cands.map(c=>isLead?E.hfLeadFeats(view,c.cards,K):E.hfFollowFeats(view,partial,c.cards,K,lead));
   const ci=cands.findIndex(c=>cs(c.cards)===humKey);
   stat.sizes.push(cands.length); stat.added+=cands.filter(c=>!c.inEng).length;
   return {g:r.id.slice(0,8),p:String(r.pid||'?').slice(0,6),v:(String(r.version).match(/v\d+\.\d+\.\d+/)||['?'])[0],
@@ -276,7 +196,7 @@ if(process.env.HFD_WORKER){
         else if(k==='errors') cov.errors=(cov.errors||0)+v; else cov.lastErr=v; }
     }
     fs.writeFileSync(path.join(outDir,'decisions.jsonl'),lines.join('\n')+'\n');
-    fs.writeFileSync(path.join(outDir,'features.json'),JSON.stringify({lead:LEAD_F,follow:FOLLOW_F}));
+    fs.writeFileSync(path.join(outDir,'features.json'),JSON.stringify({lead:engine().HF_LEAD_F,follow:engine().HF_FOLLOW_F}));
     const q=(a,p)=>{ const s=a.slice().sort((x,y)=>x-y); return s.length?s[Math.min(s.length-1,Math.floor(p*s.length))]:0; };
     console.log(`\n==== 覆盖率(by=h 的决策;不含托管 / 照提示 / 没得选)====`);
     const names={lead:'领出',follow1:'单张领出的跟牌',followN:'多张领出的跟牌'};
