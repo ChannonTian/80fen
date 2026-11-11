@@ -199,6 +199,15 @@ function applyRules(r){
   }
   return ()=>{ for(const [E,o] of saved) Object.assign(E.RULES,o); };
 }
+/* 人手里还剩 ≤k 张时的第一个墩边界(一墩可能出多张,墩数不等于张数) */
+function cutFor(r,k){
+  let left=r.initialHands[r.human].length;
+  for(let t=0;t<=r.tricks.length;t++){
+    if(left<=k) return t;
+    if(t<r.tricks.length) left-=r.tricks[t].plays.find(p=>p.seat===r.human).cards.length;
+  }
+  return r.tricks.length;
+}
 function fidelity(eng, r){
   // 记录里每个 AI 座位的决策,在记录当时的真实局面上让引擎重选
   let n=0,m=0,nl=0,ml=0; const st=stateOf(r,0);
@@ -244,7 +253,7 @@ function processRecord(r, byTag, selftest){
     out.actual=result(r,sa.defPts,sa.buried,sa.lastWinner,sa.lastLeadSize);
     out.same=playOut(r,stateOf(r,0),()=>V);
     out.new=playOut(r,stateOf(r,0),s=>s===r.human?R:V);
-    for(const k of [18,12,6]) out['p'+k]=playOut(r,stateOf(r,25-k),()=>V);
+    for(const k of [18,12,6]) out['p'+k]=playOut(r,stateOf(r,cutFor(r,k)),()=>V);
     out.ms=Date.now()-t0;
     return out;
   }finally{ restore(); }
