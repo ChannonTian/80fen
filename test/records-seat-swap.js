@@ -30,6 +30,7 @@ const ROOT=path.join(__dirname,'..');
 const argv=process.argv.slice(2);
 const opt=(k,d)=>{ const a=argv.find(x=>x.startsWith('--'+k+'=')); return a?a.slice(k.length+3):d; };
 const HTML=path.join(ROOT,'80fen-test.html');
+const NEWONLY=argv.includes('--newonly');   // 只跑 fidelity + SWAP-NEW(变体对变体时用,省 4 次续打)
 const CACHE=opt('cache',path.join(os.tmpdir(),'80fen-seat-swap-cache'));
 
 /* ---------------- 引擎装载 ---------------- */
@@ -62,6 +63,16 @@ const ENG={};   // hash → engine
 function engineByHash(h){ return ENG[h]||(ENG[h]=loadSrc(fs.readFileSync(path.join(CACHE,h+'.js'),'utf8'))); }
 let CUR=null;
 function getCur(){ return CUR||(CUR=loadSrc(blockOf(fs.readFileSync(HTML,'utf8')))); }
+/* OVN='{"pairKeep":8}':只覆盖 SWAP-NEW 里坐人位的那一版(记录版本的另三家不动)。
+ * 不设 OVN 时 getNew()===getCur(),行为和以前逐位相同。 */
+const OVN=process.env.OVN?JSON.parse(process.env.OVN):null;
+let NEWE=null;
+function getNew(){
+  if(!OVN) return getCur();
+  if(!NEWE){ NEWE=loadSrc(blockOf(fs.readFileSync(HTML,'utf8'))); Object.assign(NEWE.AIP,OVN); }
+  return NEWE;
+}
+const EXTRA_ENG=[];   // --agree 里按配置装的引擎,也要套本局规则
 const tagOf=v=>((String(v).match(/v\d+\.\d+\.\d+/)||[])[0]||'?');
 
 /* ---------------- 牌谱校验(照搬 records-check.js 的 verify,规则一致) ---------------- */
@@ -193,7 +204,7 @@ function result(r, defPoints, buried, lastWinner, lastLeadSize){
 /* ---------------- 单局全部变体 ---------------- */
 function applyRules(r){
   const saved=[];
-  for(const E of [getCur(),...Object.values(ENG)]){
+  for(const E of [getCur(),...(OVN?[getNew()]:[]),...EXTRA_ENG,...Object.values(ENG)]){
     const o={}; for(const k of ['strictTractorFollow','partialTractorFollow']) if(E.RULES&&k in E.RULES&&k in (r.rules||{})){ o[k]=E.RULES[k]; E.RULES[k]=r.rules[k]; }
     saved.push([E,o]);
   }
@@ -251,9 +262,9 @@ function processRecord(r, byTag, selftest){
     const out={id:r.id,tag,engine:best.c.hash,ncand:cands.length,fid:best.f};
     const sa=stateOf(r,r.tricks.length);
     out.actual=result(r,sa.defPts,sa.buried,sa.lastWinner,sa.lastLeadSize);
-    out.same=playOut(r,stateOf(r,0),()=>V);
-    out.new=playOut(r,stateOf(r,0),s=>s===r.human?R:V);
-    for(const k of [18,12,6]) out['p'+k]=playOut(r,stateOf(r,cutFor(r,k)),()=>V);
+    if(!NEWONLY) out.same=playOut(r,stateOf(r,0),()=>V);
+    out.new=playOut(r,stateOf(r,0),s=>s===r.human?getNew():V);
+    if(!NEWONLY) for(const k of [18,12,6]) out['p'+k]=playOut(r,stateOf(r,cutFor(r,k)),()=>V);
     out.ms=Date.now()-t0;
     return out;
   }finally{ restore(); }
@@ -377,13 +388,44 @@ function attribRecord(r, byTag, selftest){
   }finally{ restore(); }
 }
 
+/* ================= --agree:当前引擎(按配置覆盖 AIP)在真人每个自己出的手上,选的牌和真人一样的比例 =================
+ * AGREECFG='[{},{"pairKeepCands":1},{"pairKeep":8,"pairKeepCands":1}]'(第 0 项当基线)。不续打,只比这一手。 */
+const AG=[];
+function agreeRecord(r){
+  const cfgs=JSON.parse(process.env.AGREECFG||'[{}]');
+  if(!AG.length) for(const c of cfgs){ const E=loadSrc(blockOf(fs.readFileSync(HTML,'utf8'))); Object.assign(E.AIP,c); AG.push(E); EXTRA_ENG.push(E); }
+  const restore=applyRules(r), H=r.human, T=r.tricks.length, decs=[];
+  try{
+    for(let k=0;k<T;k++){
+      const pn=r.tricks[k].plays.findIndex(p=>p.seat===H), hp=r.tricks[k].plays[pn];
+      const by=hp.by==='a'?'auto':hp.by==='f'?'forced':hp.hint?'hint':'h';
+      if(by!=='h') continue;
+      const {st,partial}=stateAt(r,k,pn);
+      const view=mkView(r,H,st,partial), hand=st.hands[H];
+      const hum=sortKey(hp.cards), follow=partial.length>0;
+      const lead=follow?AG[0].classify(partial[0].cards,r.trump):null;
+      const single=!!(follow&&lead.type==='single'&&hp.cards.length===1);
+      const d={k,left:hand.length,follow,single,hum:null,ch:[],sp:[],spAlt:[]};
+      if(single){ const hc=hand.find(c=>code(c)===hp.cards[0]); d.humSplit=!!(hc&&AG[0].pairSplitCard(hand,[hc])); }
+      for(const E of AG){
+        const cards=decide(E,r,st,H,partial);
+        d.ch.push(sortKey(cards.map(code))===hum);
+        let sp=false, sa=false;
+        if(single&&cards.length===1&&E.pairSplitCard(hand,cards)){ sp=true; sa=!!E.pairKeepAlt(view,partial,cards[0]); }
+        d.sp.push(sp); d.spAlt.push(sa);
+      }
+      decs.push(d);
+    }
+    return {id:r.id,decs};
+  }finally{ restore(); }
+}
 /* ---------------- 工人进程 ---------------- */
 if(process.env.SEATSWAP_WORKER){
   const selftest=process.env.SEATSWAP_WORKER==='self';
   const byTag=selftest?{}:buildIndex();
   process.on('message',m=>{
     if(m.stop) process.exit(0);
-    let out; try{ out=m.attrib?attribRecord(m.r,byTag,selftest):processRecord(m.r,byTag,selftest); }catch(e){ out={id:m.r.id,err:'引擎出错:'+(e.stack||e.message).split('\n').slice(0,2).join(' | ')}; }
+    let out; try{ out=m.agree?agreeRecord(m.r):m.attrib?attribRecord(m.r,byTag,selftest):processRecord(m.r,byTag,selftest); }catch(e){ out={id:m.r.id,err:'引擎出错:'+(e.stack||e.message).split('\n').slice(0,2).join(' | ')}; }
     process.send({res:out});
   });
   process.send({ready:1});
@@ -398,7 +440,48 @@ function pairStat(xs){
 }
 const f2=(x,d=2)=>(x>=0?'+':'')+x.toFixed(d);
 function fmt(s,d){ return s.n?`${f2(s.mean,d)} ±${s.se.toFixed(d)} t=${Number.isFinite(s.t)?s.t.toFixed(1):'inf'}`:'—'; }
-const VARS=[['SWAP-SAME','same'],['SWAP-NEW','new'],['PHASE-18','p18'],['PHASE-12','p12'],['PHASE-6','p6']];
+function reportAgree(recs,results){
+  const cfgs=JSON.parse(process.env.AGREECFG||'[{}]');
+  const all=[]; let games=0;
+  for(const r of recs){ const o=results.get(r.id); if(!o||o.err) continue; games++; all.push(...o.decs); }
+  const pc=(xs,i)=>xs.length?(100*xs.filter(d=>d.ch[i]).length/xs.length).toFixed(1)+'%':'—';
+  const sets=[['全部 by=h 决策',all],['其中跟牌',all.filter(d=>d.follow)],['其中单张领出的跟牌',all.filter(d=>d.single)],
+    ['基线拆对子的单张跟牌',all.filter(d=>d.single&&d.sp[0])],
+    ['  其中真人没拆(AI 拆 / 人保)',all.filter(d=>d.single&&d.sp[0]&&!d.humSplit)],
+    ['  其中真人也拆',all.filter(d=>d.single&&d.sp[0]&&d.humSplit)]];
+  console.log(`\n==== 当前引擎选牌 = 真人所出的比例(${games} 局)====`);
+  console.log('  '.padEnd(34)+'n'.padStart(6)+cfgs.map((c,i)=>(i?JSON.stringify(c):'基线').padStart(i?34:8)).join(''));
+  for(const [nm,xs] of sets) console.log(('  '+nm).padEnd(34)+String(xs.length).padStart(6)+cfgs.map((_,i)=>pc(xs,i).padStart(i?34:8)).join(''));
+  console.log('\n  相对基线的翻转(配置对、基线错 / 基线对、配置错),全部 by=h 决策:');
+  for(let i=1;i<cfgs.length;i++){
+    const up=all.filter(d=>d.ch[i]&&!d.ch[0]).length, dn=all.filter(d=>!d.ch[i]&&d.ch[0]).length;
+    const sub=all.filter(d=>d.single&&d.sp[0]&&!d.humSplit);
+    console.log(`  ${JSON.stringify(cfgs[i]).padEnd(40)} 对→${up} / 错→${dn};  在「AI 拆 / 人保」${sub.length} 处里翻对 ${sub.filter(d=>d.ch[i]&&!d.ch[0]).length}`);
+  }
+  console.log('\n  引擎在这些局面上拆对子(单张领出的跟牌)的次数 / 局 —— 括号内:手上有同位不拆替身的:');
+  const sf=all.filter(d=>d.single);
+  cfgs.forEach((c,i)=>console.log(`  ${(i?JSON.stringify(c):'基线').padEnd(44)} 拆 ${(sf.filter(d=>d.sp[i]).length/games).toFixed(3)} /局  (有替身 ${(sf.filter(d=>d.spAlt[i]).length/games).toFixed(3)} /局);真人拆 ${(sf.filter(d=>d.humSplit).length/games).toFixed(3)} /局`));
+}
+/* ---------------- --cmp=a.json,b.json:两次 --out 的 SWAP-NEW 逐局配对 ---------------- */
+function cmpMain(){
+  const [fa,fb]=opt('cmp').split(',');
+  const A=JSON.parse(fs.readFileSync(fa,'utf8')), B=JSON.parse(fs.readFileSync(fb,'utf8'));
+  const bm=new Map(B.games.map(g=>[g.id,g]));
+  const rows=A.games.filter(g=>g.keptFid&&bm.has(g.id)&&bm.get(g.id).keptFid).map(g=>({a:g,b:bm.get(g.id)}));
+  const AUTO=+opt('autoshare',0.2);
+  const show=(title,rr)=>{
+    console.log(`\n${title}  (n=${rr.length})`);
+    for(const [met,d,label] of [['lv',3,'级/局'],['pts',2,'分/局']]){
+      const newA=rr.map(x=>x.a.new[met]), newB=rr.map(x=>x.b.new[met]);
+      const act=rr.map(x=>x.a.actual[met]);
+      console.log(`  ${label}: AI(基线) ${f2(pairStat(newA).mean,d)}  AI(变体) ${f2(pairStat(newB).mean,d)}   变体−基线(配对) ${fmt(pairStat(rr.map((x,i)=>newB[i]-newA[i])),d)}`);
+      console.log(`        HUMAN−AI: 基线 ${fmt(pairStat(rr.map((x,i)=>act[i]-newA[i])),d)}   变体 ${fmt(pairStat(rr.map((x,i)=>act[i]-newB[i])),d)}`);
+    }
+  };
+  show('==== 全部 ====',rows);
+  show(`==== 剔除托管+照提示 > ${AUTO*100}% ====`,rows.filter(x=>x.a.share<=AUTO));
+}
+const VARS=[['SWAP-SAME','same'],['SWAP-NEW','new'],['PHASE-18','p18'],['PHASE-12','p12'],['PHASE-6','p6']].filter(v=>!NEWONLY||v[1]==='new');
 function table(rows, title){
   console.log(`\n${title}  (n=${rows.length})`);
   console.log('  HUMAN−AI        '+VARS.map(v=>v[0].padStart(26)).join(''));
@@ -408,7 +491,8 @@ function table(rows, title){
 
 /* ---------------- 主程序 ---------------- */
 async function main(){
-  const selftest=argv.includes('--selftest'); const ATTRIB=argv.includes('--attrib');
+  if(opt('cmp')) return cmpMain();
+  const selftest=argv.includes('--selftest'); const ATTRIB=argv.includes('--attrib'), AGREE=argv.includes('--agree');
   const R=getCur();
   const {isTestGame}=require('./records-filter.js');
   const files=argv.filter(a=>!a.startsWith('--'));
@@ -440,14 +524,15 @@ async function main(){
   await new Promise(done=>{
     let next=0, alive=0;
     const spawn=()=>{ const w=fork(__filename,argv.filter(a=>a.startsWith('--cache=')),{env:{...process.env,SEATSWAP_WORKER:selftest?'self':'1'}}); alive++;
-      const feed=()=>{ if(next<recs.length){ w.send({r:recs[next++],attrib:ATTRIB}); } else { w.send({stop:1}); } };
+      const feed=()=>{ if(next<recs.length){ w.send({r:recs[next++],attrib:ATTRIB,agree:AGREE}); } else { w.send({stop:1}); } };
       w.on('message',m=>{ if(m.ready){ feed(); return; } if(m.res){ results.set(m.res.id,m.res);
         if(results.size%10===0) process.stderr.write(`  ${results.size}/${recs.length}  ${((Date.now()-wall0)/1000).toFixed(0)}s\n`); feed(); } });
       w.on('exit',()=>{ if(--alive===0) done(); }); };
     for(let i=0;i<Math.min(NW,recs.length);i++) spawn();
     if(!recs.length) done();
   });
-  if(ATTRIB) reportAttrib(recs,results,excl,(Date.now()-wall0)/1000,selftest);
+  if(AGREE) reportAgree(recs,results);
+  else if(ATTRIB) reportAttrib(recs,results,excl,(Date.now()-wall0)/1000,selftest);
   else report(recs,results,excl,(Date.now()-wall0)/1000,selftest);
 }
 
@@ -503,7 +588,7 @@ function report(recs,results,excl,wall,selftest){
   groups('按玩家',w=>w.pid);
   groups('按真人身份',w=>w.role);
   groups('按记录版本段',w=>{ const mnr=+w.tag.split('.')[2]; return mnr<=40?'v0.7.38-40':mnr<=52?'v0.7.45-52':mnr<=60?'v0.7.53-60':'v0.7.61+'; });
-  for(const [k,label] of [['same','SWAP-SAME'],['new','SWAP-NEW']]){
+  for(const [k,label] of [['same','SWAP-SAME'],['new','SWAP-NEW']].filter(v=>VARS.some(x=>x[1]===v[0]))){
     const byP={}; for(const w of clean) (byP[w.pid]=byP[w.pid]||[]).push(w.lv[k]);
     const ps=Object.values(byP).filter(a=>a.length>=5).map(a=>m(a));
     if(ps.length>1) console.log(`\n玩家聚类(≥5 局的玩家 ${ps.length} 位,各玩家均值的均值) ${label} 级/局: ${fmt(pairStat(ps),3)}`);

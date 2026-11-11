@@ -1830,6 +1830,14 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * ⚠️ 闸门是从这批数据里挑出来的,所以验收必须换全新种子,见 CHANGELOG。 */
   pairHoldMaxTricks: 3,       // 已打过的墩数超过它就不给
   pairHoldMinPairs: 3,        // 手上副花对子少于它就不给
+  /* 单张跟牌时不拆手上的对子(pairKeep / pairKeepCands,**默认 0,还在量**)。
+   * 真人牌谱 226 局的逐手归因(test/records-seat-swap.js --attrib):AI 常拆自己的对子出最小那张,真人几乎不拆(真人保 / AI 拆 140 次,真人拆 / AI 保 12 次)。
+   * pairKeep:领出是单张时,跟牌候选恰好出了手上某个对子里的一张(同花同点,主牌对子 / 王对也算)→ 扣这么多分(打分器的单位);
+   *   那个对子是拖拉机的一部分 ×1.5,分牌对子不另算(被拆的那张自己的分已在 scorePlay 里计过一次)。
+   * pairKeepCands:1 = 给每个「拆对子的单张候选」补一个不拆的同位替身(同花同输赢、毙牌要压得住且不低于原候选、
+   *   垫牌按 discardVal 最省;对手暂大时不比原候选多送分),见 pairKeepAlt。0 = 不补。 */
+  pairKeep: 0,
+  pairKeepCands: 0,                // 0 / 1:给拆对子的单张候选补不拆的替身
   /* 毙牌保留价的权重(见 ruffReserve)。**默认 0 —— 第一步,还在量。**
    * 毙的代价 = ruffReserveW × max(0, reserve − 本墩台面分)。 */
   ruffReserveW: 0,
@@ -3894,6 +3902,41 @@ function pairUnit(X){
   return X._pu=best;
 }
 
+/* pairKeep / pairKeepCands(见 AIP.pairKeep):单张候选是不是恰好拆了手上的一个对子 */
+function pairSplitCard(hand,cards){
+  if(cards.length!==1) return false;
+  const k=pairKey(cards[0]);
+  return hand.filter(x=>pairKey(x)===k).length>=2;
+}
+function pairInTractor(hand,c,trump){
+  const su=effSuit(c,trump);
+  return decompose(hand.filter(x=>effSuit(x,trump)===su),trump)
+    .some(m=>m.type==='tractor'&&m.cards.some(x=>x.id===c.id));
+}
+function pairKeepCost(hand,c,trump){
+  return AIP.pairKeep*(pairInTractor(hand,c,trump)?1.5:1);
+}
+/* 拆对子那张 c 的「同位不拆替身」:没成对的合法牌里,同样输赢、同样主 / 副类;
+ * 赢墩的(压 / 毙)要不低于 c(c 本来就是最省的压法,或被 ruffGuard 抬过);对手暂大时不比 c 多送分;
+ * 取最省的 —— 在领出门里按牌序,断门垫牌按 discardVal。没有就返回 null。 */
+function pairKeepAlt(view,plays,c){
+  const hand=view.hand, trump=view.trump, seat=view.seat;
+  const lead=classify(plays[0].cards,trump);
+  if(!lead||lead.type!=='single'||!pairSplitCard(hand,[c])) return null;
+  const wins=x=>currentWinner([...plays,{seat,cards:[x]}],trump).seat===seat;
+  const cw=currentWinner(plays,trump), oppWin=cw.seat%2!==seat%2;
+  const cWin=wins(c), cT=effSuit(c,trump)==='T', cp=cardPoints(c);
+  const cnt={}; for(const x of hand){ const k=pairKey(x); cnt[k]=(cnt[k]||0)+1; }
+  const pool=hand.filter(x=>x.id!==c.id&&cnt[pairKey(x)]===1
+    &&isLegalFollow(hand,lead,[x],trump)&&wins(x)===cWin&&(effSuit(x,trump)==='T')===cT
+    &&(!oppWin||cardPoints(x)<=cp)&&(!cWin||ordIdx(x,trump)>=ordIdx(c,trump)));
+  if(!pool.length) return null;
+  const follow=hand.some(x=>effSuit(x,trump)===lead.suit);
+  const dv=discardVal(hand,trump);
+  const key=x=>follow?ordIdx(x,trump):dv(x);
+  return pool.sort((a,b)=>key(a)-key(b))[0];
+}
+
 /* 毙牌的**保留价** —— §7 那条「给资源定保留价,而不是给这一墩定价」的第一步。
  * **默认关**(`ruffReserveW: 0`)。
  *
@@ -4428,6 +4471,14 @@ function aiChooseFollow(view, plays, extra){
     discPts===0&&!discTrump ? '垫废牌,不送分也不拆主'
     : discTrump ? '没有废牌可垫,只能拆一张主'
     : '躲不掉,垫掉手上最轻的分牌');
+  /* pairKeepCands:给拆对子的单张候选补不拆的替身(见 pairKeepAlt) */
+  if(AIP.pairKeepCands&&lead.type==='single'){
+    for(const c of cands.slice()){
+      if(c.cards.length!==1) continue;
+      const alt=pairKeepAlt(view,plays,c.cards[0]);
+      if(alt) push([alt],c.cat,currentWinner([...plays,{seat:view.seat,cards:[alt]}],trump).seat===view.seat,'不拆手上的对子');
+    }
+  }
   let extraC=null;
   if(extra){
     const q=coachFollowPen(X,view,plays,extra);
@@ -4494,6 +4545,10 @@ function aiChooseFollow(view, plays, extra){
         if(pts>cap){ c.score-=AIP.feedPen; c.steer=(c.steer||0)+AIP.feedPen; }   // steer:引导罚分,教练评你出的牌时加回去
       }
     }
+  }
+  if(AIP.pairKeep&&lead.type==='single'){
+    for(const c of cands.concat(extraC?[extraC]:[]))
+      if(pairSplitCard(view.hand,c.cards)) c.score-=pairKeepCost(view.hand,c.cards[0],trump);
   }
   if(extraC) return {extraScore:extraC.score,extraCat:extraC.cat,extraSteer:extraC.steer||0};
   cands.sort((a,b)=>b.score-a.score);
@@ -7017,7 +7072,7 @@ function simulateRound(seed, smartSeats=[0,1,2,3]){
 }
 
 /* 引擎公开面 —— 浏览器 #test 与 node 无头测试共用同一份,避免两边漂移 */
-const ENGINE={RULES,makeDeck,fateFeat,fateP,fateX,willP,expHoldIn,drawTrumpValue,isBossPlay,willMateFeat,beatChoiceCands,leadClass8,leadHandFeat,leadAvail,leadLik,cardPoints,countPoints,rng,dealRound,
+const ENGINE={RULES,makeDeck,fateFeat,fateP,fateX,willP,expHoldIn,drawTrumpValue,isBossPlay,willMateFeat,beatChoiceCands,leadClass8,leadHandFeat,leadAvail,leadLik,cardPoints,countPoints,rng,dealRound,pairKeepAlt,pairSplitCard,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
   canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,clampAtGate,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,

@@ -553,6 +553,13 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `pairHoldMaxTricks` | `3` | 已打过的墩数超过它就不给 | `futureValue` |
 | `pairHoldMinPairs` | `3` | 手上副花对子少于它就不给 | `futureValue` |
 
+### 单张跟牌时不拆手上的对子(pairKeep / pairKeepCands,**默认 0,还在量**)。
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `pairKeep` | `0` | (见上方注释)单张跟牌时不拆手上的对子(pairKeep / pairKeepCands,**默认 0,还在量**)。 | `pairUnit` `pairKeepCost` `aiChooseFollow` |
+| `pairKeepCands` | `0` | 0 / 1:给拆对子的单张候选补不拆的替身 | `aiChooseFollow` |
+
 ### 毙牌保留价的权重(见 ruffReserve)。**默认 0 —— 第一步,还在量。**
 
 | 参数 | 默认 | 说明 | 读取于 |
