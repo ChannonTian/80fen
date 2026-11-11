@@ -73,6 +73,13 @@ function getNew(){
   if(!NEWE){ NEWE=loadSrc(blockOf(fs.readFileSync(HTML,'utf8'))); Object.assign(NEWE.AIP,OVN); }
   return NEWE;
 }
+/* 交叉拟合:OVN 里开了 hfFollow / hfLead 时,每局用「没见过这一局」的那套权重 ——
+ * fold = md5(局 id) 前 8 位 mod 5(与 human-fit-data.js 同);偶数 fold 的局用 hfSet=2(奇数 fold 训练),奇数 fold 的局用 hfSet=1。 */
+function crossfitSet(r){
+  if(!OVN||!(OVN.hfFollow||OVN.hfLead)||OVN.hfSet!==undefined) return;
+  const fold=parseInt(crypto.createHash('md5').update(r.id).digest('hex').slice(0,8),16)%5;
+  getNew().AIP.hfSet=fold%2===0?2:1;
+}
 const EXTRA_ENG=[];   // --agree 里按配置装的引擎,也要套本局规则
 const tagOf=v=>((String(v).match(/v\d+\.\d+\.\d+/)||[])[0]||'?');
 
@@ -253,7 +260,7 @@ function processRecord(r, byTag, selftest){
   if(!cands.length) return {id:r.id,err:'无对应版本的引擎('+tag+')'};
   const getE=h=>h==='__cur__'?R:engineByHash(h);
   cands.forEach(c=>getE(c.hash));          // 先把候选全装好,再套本局规则
-  const restore=applyRules(r);
+  const restore=applyRules(r); crossfitSet(r);
   try{
     let best=null;
     for(const c of cands){
@@ -387,7 +394,7 @@ function attribRecord(r, byTag, selftest){
   if(!cands.length) return {id:r.id,err:'无对应版本的引擎('+tag+')'};
   const getE=h=>h==='__cur__'?R:engineByHash(h);
   cands.forEach(c=>getE(c.hash));
-  const restore=applyRules(r);
+  const restore=applyRules(r); crossfitSet(r);
   try{
     let best=null;
     for(const c of cands){ if(cands.length===1){ best={c}; break; } const f=fidelity(getE(c.hash),r); if(!best||f.m>best.f.m) best={c,f}; }
