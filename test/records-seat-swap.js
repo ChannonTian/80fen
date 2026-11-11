@@ -259,13 +259,131 @@ function processRecord(r, byTag, selftest){
   }finally{ restore(); }
 }
 
+
+/* ================= --attrib:逐手归因(伸缩和) =================
+ * W(t) = 照记录原样放到人的第 t 手(不含)之前,从人的第 t 手起四家全由记录版本 AI 接着打到底的结果。
+ * W(0)=SWAP-SAME,W(T)=ACTUAL。m(t)=W(t+1)−W(t):人这一手 vs AI 在同一局面的选择(之后都由同一个 AI 接着打)。
+ * 人和 AI 选的牌一样时 m(t)=0,不用推演;只有不一样的才跑一次续打。
+ * 恒等式 Σm = ACTUAL − SWAP-SAME 是正确性检查(链头 W0 是独立算的,链尾要等于独立重放的 ACTUAL)。 */
+function stateAt(r,k,pn){
+  const st=stateOf(r,k), partial=[];
+  if(k<r.tricks.length){
+    const t=r.tricks[k];
+    for(let i=0;i<pn;i++){ const p=t.plays[i], cards=[];
+      for(const x of p.cards){ const j=st.hands[p.seat].findIndex(y=>code(y)===x); cards.push(st.hands[p.seat].splice(j,1)[0]); }
+      partial.push({seat:p.seat,cards}); }
+  }
+  return {st,partial};
+}
+function finish(r, st, partial, engOf){
+  const R=getCur(), T=r.trump, D=r.declSeat;
+  let defPts=st.defPts, lastWinner=st.lastWinner, lastLeadSize=st.lastLeadSize;
+  let plays=partial.slice(), leader=partial.length?partial[0].seat:st.leader;
+  while(plays.length||st.hands.some(h=>h.length)){
+    for(let i=plays.length;i<4;i++){
+      const seat=(leader+i)%4, cards=decide(engOf(seat),r,st,seat,plays);
+      cards.forEach(c=>R.removeCard(st.hands[seat],c)); plays.push({seat,cards});
+    }
+    st.history.push(...plays);
+    const res=R.resolveTrick(plays,T);
+    if(res.winner%2!==D%2) defPts+=res.points;
+    leader=lastWinner=res.winner; lastLeadSize=plays[0].cards.length; plays=[];
+  }
+  return result(r,defPts,st.buried,lastWinner,lastLeadSize);
+}
+const SUITSYM={S:'♠',H:'♥',D:'♦',C:'♣'};
+const cname=c=>c.suit==='X'?(c.rank===16?'大王':'小王'):SUITSYM[c.suit]+({14:'A',13:'K',12:'Q',11:'J'}[c.rank]||c.rank);
+const cnames=cs=>cs.map(cname).join(' ');
+function feats(r, st, partial, cards){
+  const R=getCur(), T=r.trump, H=r.human, hand=st.hands[H], f={pts:R.countPoints(cards)};
+  const voids=R.makeVoids(st.history,T);
+  const es=c=>R.effSuit(c,T), oi=c=>R.ordIdx(c,T);
+  const top=cards.reduce((a,c)=>oi(c)>oi(a)?c:a,cards[0]);
+  // 手里同牌(花色+点数)有几张 → 拆对
+  const cnt=(c)=>hand.filter(y=>y.suit===c.suit&&y.rank===c.rank).length;
+  if(!partial.length){
+    const cl=R.classify(cards,T); f.lead=true;
+    let cls;
+    if(!cl) cls='?';
+    else if(cl.type==='throw') cls='甩牌';
+    else if(cl.suit==='T') cls=cl.type==='single'?'主单张':'主对/拖拉机';
+    else if(cl.type==='single'){
+      const pool=[]; for(let s=0;s<4;s++) if(s!==H) pool.push(...st.hands[s]);
+      if(r.declSeat!==H) pool.push(...st.buried);
+      const boss=!pool.some(y=>es(y)===cl.suit&&oi(y)>oi(cards[0]));
+      cls=boss?'边门单张·最大(boss)':(R.cardPoints(cards[0])?'边门单张·分牌':'边门单张·非分');
+    }else cls=cl.type==='pair'?'边门对子':'边门拖拉机';
+    f.cls=cls; f.suit=cl?cl.suit:null;
+    f.bigJ=cards.some(c=>c.suit==='X'&&c.rank===16); f.smallJ=cards.some(c=>c.suit==='X'&&c.rank===15);
+    const partner=(H+2)%4, opps=[(H+1)%4,(H+3)%4];
+    f.partnerVoid=!!(f.suit&&voids[partner][f.suit]); f.oppVoid=!!(f.suit&&opps.some(o=>voids[o][f.suit]));
+    const lens={}; for(const c of hand){ const e=es(c); if(e!=='T') lens[e]=(lens[e]||0)+1; }
+    const ks=Object.keys(lens);
+    if(ks.length>=2&&f.suit&&f.suit!=='T'){ const v=ks.map(k=>lens[k]); f.shortest=lens[f.suit]===Math.min(...v)&&v.filter(x=>x===Math.min(...v)).length===1; f.longest=lens[f.suit]===Math.max(...v)&&v.filter(x=>x===Math.max(...v)).length===1; }
+    else{ f.shortest=false; f.longest=false; }
+  }else{
+    const lead=R.classify(partial[0].cards,T); f.lead=false; f.ledSuit=lead.suit;
+    const void_=!hand.some(c=>es(c)===lead.suit);
+    f.void=void_;
+    const allT=cards.every(c=>es(c)==='T');
+    f.kind=void_?((lead.suit!=='T'&&allT)?'毙':'垫'):'跟门';
+    if(f.kind==='毙') f.trumpTop=oi(top);
+    f.win=R.currentWinner([...partial,{seat:H,cards}],T).seat===H;
+    if(!void_&&cards.every(c=>es(c)===lead.suit)) f.ledTop=oi(top);
+    f.single=cards.length===1;
+    f.brk=cards.length===1&&cnt(cards[0])>=2&&lead.type==='single';
+  }
+  return f;
+}
+const rolePos=(r)=>r.human===r.declSeat?'庄家':r.human%2===r.declSeat%2?'庄家的对家':'闲家';
+function attribRecord(r, byTag, selftest){
+  const t0=Date.now(), R=getCur();
+  const tag=selftest?'SELF':tagOf(r.version);
+  const cands=selftest?[{hash:'__cur__'}]:(byTag[tag]||[]);
+  if(!cands.length) return {id:r.id,err:'无对应版本的引擎('+tag+')'};
+  const getE=h=>h==='__cur__'?R:engineByHash(h);
+  cands.forEach(c=>getE(c.hash));
+  const restore=applyRules(r);
+  try{
+    let best=null;
+    for(const c of cands){ if(cands.length===1){ best={c}; break; } const f=fidelity(getE(c.hash),r); if(!best||f.m>best.f.m) best={c,f}; }
+    const V=getE(best.c.hash), T=r.tricks.length, H=r.human;
+    const posOf=k=>r.tricks[k].plays.findIndex(p=>p.seat===H);
+    const sa=stateOf(r,T), actual=result(r,sa.defPts,sa.buried,sa.lastWinner,sa.lastLeadSize);
+    let a0=stateAt(r,0,posOf(0)); const W0=finish(r,a0.st,a0.partial,()=>V);
+    let base=W0; const decs=[]; let nSame=0;
+    const sh=humanShare(r);
+    for(let k=0;k<T;k++){
+      const pn=posOf(k), hp=r.tricks[k].plays[pn];
+      const {st,partial}=stateAt(r,k,pn);
+      const left=st.hands[H].length;
+      const aiCards=decide(V,r,st,H,partial);
+      const hum=[]; { const pool=st.hands[H].slice(); for(const x of hp.cards){ const j=pool.findIndex(y=>code(y)===x); hum.push(pool.splice(j,1)[0]); } }
+      const same=sortKey(aiCards.map(code))===sortKey(hp.cards);
+      const by=hp.by==='a'?'auto':hp.by==='f'?'forced':hp.hint?'hint':'h';
+      const d={k,pos:pn,left,same,by,u:hp.u?1:0};
+      if(same){ nSame++; decs.push(d); continue; }
+      const W1=(k+1<T)?(()=>{ const z=stateAt(r,k+1,posOf(k+1)); return finish(r,z.st,z.partial,()=>V); })():actual;
+      d.m={pts:W1.pts-base.pts,lv:W1.lv-base.lv}; base=W1;
+      d.hum=hum.map(code); d.ai=aiCards.map(code);
+      d.hf=feats(r,st,partial,hum); d.af=feats(r,st,partial,aiCards);
+      d.hand=cnames(st.hands[H].slice().sort((a,b)=>R.ordIdx(b,r.trump)-R.ordIdx(a,r.trump)));
+      d.table=partial.map(p=>['南','东','北','西'][p.seat]+':'+cnames(p.cards)).join(' ');
+      d.humS=cnames(hum); d.aiS=cnames(aiCards);
+      decs.push(d);
+    }
+    return {id:r.id,tag,engine:best.c.hash,T,actual,W0,resid:{pts:actual.pts-base.pts,lv:actual.lv-base.lv},
+      undos:r.undos||0,share:sh.share,role:rolePos(r),trump:r.trump,declSeat:r.declSeat,decs,nSame,ms:Date.now()-t0};
+  }finally{ restore(); }
+}
+
 /* ---------------- 工人进程 ---------------- */
 if(process.env.SEATSWAP_WORKER){
   const selftest=process.env.SEATSWAP_WORKER==='self';
   const byTag=selftest?{}:buildIndex();
   process.on('message',m=>{
     if(m.stop) process.exit(0);
-    let out; try{ out=processRecord(m.r,byTag,selftest); }catch(e){ out={id:m.r.id,err:'引擎出错:'+(e.stack||e.message).split('\n').slice(0,2).join(' | ')}; }
+    let out; try{ out=m.attrib?attribRecord(m.r,byTag,selftest):processRecord(m.r,byTag,selftest); }catch(e){ out={id:m.r.id,err:'引擎出错:'+(e.stack||e.message).split('\n').slice(0,2).join(' | ')}; }
     process.send({res:out});
   });
   process.send({ready:1});
@@ -290,13 +408,13 @@ function table(rows, title){
 
 /* ---------------- 主程序 ---------------- */
 async function main(){
-  const selftest=argv.includes('--selftest');
+  const selftest=argv.includes('--selftest'); const ATTRIB=argv.includes('--attrib');
   const R=getCur();
   const {isTestGame}=require('./records-filter.js');
   const files=argv.filter(a=>!a.startsWith('--'));
   const excl={}; const bump=(k)=>excl[k]=(excl[k]||0)+1;
   let recs=[];
-  if(selftest){ recs=selfRecords(+opt('n',6)); }
+  if(selftest){ recs=selfRecords(+opt('n',6),argv.includes('--perturb')); }
   else{
     if(!files.length){ console.log('用法:node test/records-seat-swap.js <牌谱.jsonl>... [--out=x.json] | --selftest'); process.exit(1); }
     const seen=new Map();
@@ -322,14 +440,15 @@ async function main(){
   await new Promise(done=>{
     let next=0, alive=0;
     const spawn=()=>{ const w=fork(__filename,argv.filter(a=>a.startsWith('--cache=')),{env:{...process.env,SEATSWAP_WORKER:selftest?'self':'1'}}); alive++;
-      const feed=()=>{ if(next<recs.length){ w.send({r:recs[next++]}); } else { w.send({stop:1}); } };
+      const feed=()=>{ if(next<recs.length){ w.send({r:recs[next++],attrib:ATTRIB}); } else { w.send({stop:1}); } };
       w.on('message',m=>{ if(m.ready){ feed(); return; } if(m.res){ results.set(m.res.id,m.res);
         if(results.size%10===0) process.stderr.write(`  ${results.size}/${recs.length}  ${((Date.now()-wall0)/1000).toFixed(0)}s\n`); feed(); } });
       w.on('exit',()=>{ if(--alive===0) done(); }); };
     for(let i=0;i<Math.min(NW,recs.length);i++) spawn();
     if(!recs.length) done();
   });
-  report(recs,results,excl,(Date.now()-wall0)/1000,selftest);
+  if(ATTRIB) reportAttrib(recs,results,excl,(Date.now()-wall0)/1000,selftest);
+  else report(recs,results,excl,(Date.now()-wall0)/1000,selftest);
 }
 
 function report(recs,results,excl,wall,selftest){
@@ -408,8 +527,89 @@ function report(recs,results,excl,wall,selftest){
   }
 }
 
+
+/* ---------------- --attrib 报告 ---------------- */
+function reportAttrib(recs,results,excl,wall,selftest){
+  const AUTO=+opt('autoshare',0.2);
+  const games=[]; const errs={};
+  for(const r of recs){ const o=results.get(r.id); if(!o||o.err){ const k=(o&&o.err)||'无结果'; errs[k]=(errs[k]||0)+1; continue; } games.push(o); }
+  for(const [k,v] of Object.entries(errs)) excl['跑失败:'+k]=v;
+  console.log('\n==== 排除 ===='); for(const [k,v] of Object.entries(excl)) console.log(`  ${k}: ${v}`);
+  console.log(`  进入归因: ${games.length} 局`);
+  // 恒等式检查
+  const bad=games.filter(g=>g.resid.pts!==0||g.resid.lv!==0);
+  let sumM={pts:0,lv:0}, gapTot={pts:0,lv:0};
+  for(const g of games){ for(const d of g.decs) if(d.m){ sumM.pts+=d.m.pts; sumM.lv+=d.m.lv; } gapTot.pts+=g.actual.pts-g.W0.pts; gapTot.lv+=g.actual.lv-g.W0.lv; }
+  console.log(`\n==== 恒等式 Σm(t) = ACTUAL − SWAP-SAME ====\n  逐局链尾 = ACTUAL 的局: ${games.length-bad.length}/${games.length}`+
+    `${bad.length?`  ✗ 有 ${bad.length} 局对不上(残差之和 ${bad.reduce((a,g)=>a+g.resid.pts,0)} 分 / ${bad.reduce((a,g)=>a+g.resid.lv,0).toFixed(2)} 级)`:'  ✓'}`+
+    `\n  全体 Σm/局: ${(sumM.pts/games.length).toFixed(2)} 分, ${(sumM.lv/games.length).toFixed(3)} 级;  ACTUAL−SWAP-SAME/局: ${(gapTot.pts/games.length).toFixed(2)} 分, ${(gapTot.lv/games.length).toFixed(3)} 级`);
+  const sets=[['(a) 全部局',games],['(b) 无悔棋且托管+照提示 ≤'+AUTO*100+'%',games.filter(g=>g.undos===0&&g.share<=AUTO)]];
+  const bucket=l=>l>=19?'25-19':l>=13?'18-13':l>=7?'12-7':'6-1';
+  const BK=['25-19','18-13','12-7','6-1'];
+  const stat=(xs)=>{ const n=xs.length; if(!n) return {n:0,m:0,se:0}; const m=xs.reduce((a,x)=>a+x,0)/n; const sd=n>1?Math.sqrt(xs.reduce((a,x)=>a+(x-m)*(x-m),0)/(n-1)):0; return {n,m,se:sd/Math.sqrt(n)}; };
+  function rows(title,decs,labelFn,G,order){
+    const g={}; for(const d of decs){ const l=labelFn(d); if(l==null) continue; (g[l]=g[l]||[]).push(d); }
+    console.log(`\n  -- ${title}`);
+    console.log('  '+'类别'.padEnd(34)+'n'.padStart(5)+'  均值分±SE'.padEnd(16)+'贡献分/局'.padStart(10)+'  均值级±SE'.padEnd(18)+'贡献级/局'.padStart(10));
+    const keys=Object.keys(g); if(order) keys.sort((a,b)=>order.indexOf(a)-order.indexOf(b)); else keys.sort((a,b)=>Math.abs(g[b].reduce((x,d)=>x+d.m.pts,0))-Math.abs(g[a].reduce((x,d)=>x+d.m.pts,0)));
+    for(const k of keys){ const a=g[k], sp=stat(a.map(d=>d.m.pts)), sl=stat(a.map(d=>d.m.lv));
+      const sump=a.reduce((x,d)=>x+d.m.pts,0)/G, suml=a.reduce((x,d)=>x+d.m.lv,0)/G;
+      console.log('  '+String(k).padEnd(34-[...String(k)].filter(c=>c.charCodeAt(0)>255).length)+String(a.length).padStart(5)+`  ${sp.m.toFixed(1)}±${sp.se.toFixed(1)}`.padEnd(16)+sump.toFixed(2).padStart(10)+`  ${sl.m.toFixed(2)}±${sl.se.toFixed(2)}`.padEnd(18)+suml.toFixed(3).padStart(10)); }
+  }
+  for(const [name,gs] of sets){
+    const G=gs.length; if(!G) continue;
+    const all=[]; for(const g of gs) for(const d of g.decs) all.push({...d,g});
+    const hd=all.filter(d=>d.by==='h'), diff=hd.filter(d=>!d.same);
+    const other=all.filter(d=>d.by!=='h');
+    const otherDiff=other.filter(d=>!d.same);
+    console.log(`\n\n################ ${name}:${G} 局 ################`);
+    console.log(`人的决策(by=h)${hd.length} 手,和 AI 不同 ${diff.length} 手(${(100*diff.length/hd.length).toFixed(1)}%);其余(托管 / 照提示 / 没得选)${other.length} 手,其中和 AI 不同 ${otherDiff.length} 手,m 之和 ${(otherDiff.reduce((a,d)=>a+d.m.pts,0)/G).toFixed(2)} 分/局, ${(otherDiff.reduce((a,d)=>a+d.m.lv,0)/G).toFixed(3)} 级/局`);
+    console.log(`这一组总差距 ACTUAL−SWAP-SAME: ${(gs.reduce((a,g)=>a+g.actual.pts-g.W0.pts,0)/G).toFixed(2)} 分/局, ${(gs.reduce((a,g)=>a+g.actual.lv-g.W0.lv,0)/G).toFixed(3)} 级/局;by=h 的 m 之和: ${(diff.reduce((a,d)=>a+d.m.pts,0)/G).toFixed(2)} 分/局, ${(diff.reduce((a,d)=>a+d.m.lv,0)/G).toFixed(3)} 级/局`);
+    // 5 一致率
+    console.log('\n  -- 5. 人 = AI 的一致率(by=h)');
+    for(const pos of ['领出','跟牌']){ for(const b of BK){ const a=hd.filter(d=>bucket(d.left)===b&&(d.pos===0)===(pos==='领出'));
+      if(a.length) console.log(`     ${pos} 剩${b.padEnd(6)} n=${String(a.length).padStart(4)}  一致 ${(100*a.filter(d=>d.same).length/a.length).toFixed(1)}%`); } }
+    // 1 剩牌×位置
+    rows('1. 剩牌数 × 位置(只含和 AI 不同的手;贡献 = Σm / 局数)',diff,d=>bucket(d.left)+(d.pos===0?' 领出':' 跟牌'),G,BK.flatMap(b=>[b+' 领出',b+' 跟牌']));
+    // 4 身份
+    rows('4. 身份 × 领出/跟牌',diff,d=>d.g.role+(d.pos===0?' 领出':' 跟牌'),G);
+    // 2 领出
+    const ld=diff.filter(d=>d.pos===0);
+    rows('2a. 领出:人的牌型',ld,d=>'人 '+d.hf.cls,G);
+    rows('2b. 领出:AI 的牌型(同一局面)',ld,d=>'AI '+d.af.cls,G);
+    rows('2c. 领出:人→AI 牌型对照(m 之和前 14 类)',ld,d=>d.hf.cls+' → '+d.af.cls,G);
+    for(const [fl,lab] of [['bigJ','领大王'],['smallJ','领小王'],['partnerVoid','领对家已缺的门'],['oppVoid','领对手已缺的门'],['shortest','领最短边门'],['longest','领最长边门']])
+      rows('2d. 领出标记:'+lab,ld,d=>(d.hf[fl]?'人有':'人无')+'/'+(d.af[fl]?'AI有':'AI无'),G);
+    // 3 跟牌
+    const fo=diff.filter(d=>d.pos>0);
+    rows('3a. 跟牌:缺门时 毙 / 垫(人→AI)',fo.filter(d=>d.hf.void),d=>'人'+d.hf.kind+' / AI'+d.af.kind,G);
+    rows('3b. 跟牌:都毙时 主牌大小(人相对 AI)',fo.filter(d=>d.hf.kind==='毙'&&d.af.kind==='毙'),d=>d.hf.trumpTop>d.af.trumpTop?'人毙得更大':d.hf.trumpTop<d.af.trumpTop?'人毙得更小':'同大小',G);
+    rows('3c. 跟牌:出的分牌(人 − AI)',fo,d=>d.hf.pts>d.af.pts?'人多出分':d.hf.pts<d.af.pts?'人少出分':'分数一样',G);
+    rows('3d. 跟牌:出完后牌桌上暂时最大是自己吗',fo,d=>'人'+(d.hf.win?'暂赢':'不赢')+' / AI'+(d.af.win?'暂赢':'不赢'),G);
+    rows('3e. 跟牌:都跟本门时出的牌(人相对 AI)',fo.filter(d=>d.hf.ledTop!==undefined&&d.af.ledTop!==undefined),d=>d.hf.ledTop>d.af.ledTop?'人出更大':d.hf.ledTop<d.af.ledTop?'人出更小':'同大小',G);
+    rows('3f. 跟牌(单张):拆对(人/AI)',fo.filter(d=>d.hf.single&&d.af.single),d=>'人'+(d.hf.brk?'拆对':'不拆')+' / AI'+(d.af.brk?'拆对':'不拆'),G);
+  }
+  // 示例
+  const clean=sets[1][1];
+  const ex=[]; for(const g of clean) for(const d of g.decs) if(d.m&&d.by==='h') ex.push({...d,g});
+  ex.sort((a,b)=>Math.abs(b.m.pts)-Math.abs(a.m.pts)||Math.abs(b.m.lv)-Math.abs(a.m.lv));
+  console.log(`\n\n################ 无悔棋且托管+照提示 ≤${AUTO*100}% 的局里,|m(分)| 最大的 25 手(给产品方过目) ################`);
+  const SN=['南','东','北','西'], tn=t=>t.suit?SUITSYM[t.suit]+t.rank:'无主'+t.rank;
+  ex.slice(0,25).forEach((d,i)=>{
+    console.log(`\n[${i+1}] 局 ${d.g.id.slice(0,8)} 玩家 ${String(recs.find(r=>r.id===d.g.id).pid).slice(0,6)}  第 ${d.k+1} 墩  主 ${tn(d.g.trump)}  人是${d.g.role}  剩 ${d.left} 张  ${['领出','第2家','第3家','第4家'][d.pos]}${d.u?'(悔棋后重出)':''}`);
+    console.log(`    手牌: ${d.hand}`); if(d.table) console.log(`    台面: ${d.table}`);
+    console.log(`    人出: ${d.humS}   AI 会出: ${d.aiS}   → 人比 AI ${d.m.pts>=0?'+':''}${d.m.pts} 分 / ${d.m.lv>=0?'+':''}${d.m.lv} 级`);
+  });
+  console.log(`\n耗时: 墙钟 ${wall.toFixed(0)} s;每局 CPU 平均 ${(games.reduce((a,g)=>a+g.ms,0)/Math.max(1,games.length)/1000).toFixed(1)} s`);
+  const out=opt('out');
+  if(out){ fs.writeFileSync(out,JSON.stringify({excluded:excl,wallSec:wall,games:games.map(g=>({...g,id:g.id.slice(0,8),pid:String(recs.find(r=>r.id===g.id).pid).slice(0,6)}))}));
+    console.log('已写 '+out); }
+  if(selftest) process.exitCode=bad.length?1:0;
+}
+
 /* ---------------- SELFTEST:用当前 AI 自对弈造「牌谱」(人 = 同一个 AI) ---------------- */
-function selfRecords(n){
+function selfRecords(n,perturb){
+  let rs=12345; const rnd=()=>{ rs=(rs*1103515245+12345)&0x7fffffff; return rs/0x7fffffff; };
   const E=getCur(), out=[];
   for(let seed=1;out.length<n;seed++){
     const {first}=E.cutForFirst(seed);
@@ -430,7 +630,11 @@ function selfRecords(n){
     let leader=declSeat;
     while(st.hands.some(h=>h.length)){
       const plays=[];
-      for(let i=0;i<4;i++){ const seat=(leader+i)%4, cards=decide(E,rec,st,seat,plays);
+      for(let i=0;i<4;i++){ const seat=(leader+i)%4; let cards=decide(E,rec,st,seat,plays);
+        if(perturb&&seat===0&&rnd()<0.4){      // 扰动:"人"有时乱出合法牌 → 恒等式要在 m≠0 时也成立
+          const hand=st.hands[0];
+          if(!plays.length) cards=[hand[Math.floor(rnd()*hand.length)]];
+          else{ const lead=E.classify(plays[0].cards,trump); cards=E.genFollow(hand,lead,trump,E.rng(Math.floor(rnd()*1e6))); } }
         cards.forEach(c=>E.removeCard(st.hands[seat],c)); plays.push({seat,cards}); }
       st.history.push(...plays);
       const res=E.resolveTrick(plays,trump);
