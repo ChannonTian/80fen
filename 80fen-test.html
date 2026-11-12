@@ -1844,6 +1844,7 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   hfFollow: 0,                     // 跟牌修正的整体强度 λ(0 = 关)
   hfLead: 0,                       // 领出修正的整体强度 λ(0 = 关)
   hfSet: 0,                        // 权重集:0 = 全部局拟合;1 / 2 = 按局 fold 奇偶各拟合一半(交叉拟合的人机基准用)
+  hfMask: 0,                       // 0 = 用全部特征;1 = 只用拆对那一族(看「按情况的拆对代价」单独值多少)
   /* 毙牌保留价的权重(见 ruffReserve)。**默认 0 —— 第一步,还在量。**
    * 毙的代价 = ruffReserveW × max(0, reserve − 本墩台面分)。 */
   ruffReserveW: 0,
@@ -4037,7 +4038,12 @@ function hfLeadFeats(view,C,K){
 // 一个候选的修正(分,λ=1);权重集没装(HF_W 为空)时返回 0
 function hfCorr(kind,vec){
   const W=HF_W[kind].sets[AIP.hfSet]; if(!W) return 0;
-  let v=0; for(let j=0;j<vec.length;j++) v+=W[j]*vec[j];
+  let v=0;
+  if(AIP.hfMask===1){   // 只留拆对那一族(names 以 split 开头),其余特征不计
+    const nm=HF_W[kind].names; for(let j=0;j<vec.length;j++) if(nm[j].startsWith('split')) v+=W[j]*vec[j];
+    return v;
+  }
+  for(let j=0;j<vec.length;j++) v+=W[j]*vec[j];
   return v;
 }
 
