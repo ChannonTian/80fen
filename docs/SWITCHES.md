@@ -567,6 +567,7 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | `hfFollow` | `0` | 跟牌修正的整体强度 λ(0 = 关) | `pairKeepAlt` `aiChooseFollow` |
 | `hfLead` | `0` | 领出修正的整体强度 λ(0 = 关) | `aiChooseLead` |
 | `hfSet` | `0` | 权重集:0 = 全部局拟合;1 / 2 = 按局 fold 奇偶各拟合一半(交叉拟合的人机基准用) | `hfCorr` |
+| `hfMask` | `0` | 0 = 用全部特征;1 = 只用拆对那一族(看「按情况的拆对代价」单独值多少) | `hfCorr` |
 
 ### 毙牌保留价的权重(见 ruffReserve)。**默认 0 —— 第一步,还在量。**
 
