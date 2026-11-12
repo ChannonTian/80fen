@@ -74,10 +74,11 @@ function getNew(){
   if(!NEWE){ NEWE=loadSrc(blockOf(fs.readFileSync(HTML,'utf8'))); Object.assign(NEWE.AIP,OVN); }
   return NEWE;
 }
-/* 交叉拟合:OVN 里开了 hfFollow / hfLead 时,每局用「没见过这一局」的那套权重 ——
+/* 交叉拟合:新引擎生效的 hfFollow / hfLead 不为 0 时(默认值或 OVN),每局用「没见过这一局」的那套权重 ——
  * fold = md5(局 id) 前 8 位 mod 5(与 human-fit-data.js 同);偶数 fold 的局用 hfSet=2(奇数 fold 训练),奇数 fold 的局用 hfSet=1。 */
 function crossfitSet(r){
-  if(!OVN||!(OVN.hfFollow||OVN.hfLead)||OVN.hfSet!==undefined) return;
+  const A=getNew().AIP;   // 看生效的开关:v0.7.67 起 hfFollow 默认开,不带 OVN 也要交叉拟合
+  if(!(A.hfFollow||A.hfLead)||(OVN&&OVN.hfSet!==undefined)) return;
   const fold=parseInt(crypto.createHash('md5').update(r.id).digest('hex').slice(0,8),16)%5;
   getNew().AIP.hfSet=fold%2===0?2:1;
 }

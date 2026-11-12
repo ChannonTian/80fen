@@ -814,7 +814,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.66(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.67(测试版)</div>
 
 
 <script>
@@ -1837,14 +1837,16 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * pairKeepCands:1 = 给每个「拆对子的单张候选」补一个不拆的同位替身(同花同输赢、毙牌要压得住且不低于原候选、
    *   垫牌按 discardVal 最省;对手暂大时不比原候选多送分),见 pairKeepAlt。0 = 不补。 */
   pairKeep: 0,
-  pairKeepCands: 0,                // 0 / 1:给拆对子的单张候选补不拆的替身
-  /* 真人出牌拟合的修正(test/human-fit*.js,**默认 0,还在量**)。引擎候选表里的每个候选 score += λ × Σ c_k·x_k,
+  pairKeepCands: 1,                // (v0.7.67 测试版默认 1)0 / 1:给拆对子的单张候选补不拆的替身
+  /* 真人出牌拟合的修正(test/human-fit*.js)。引擎候选表里的每个候选 score += λ × Σ c_k·x_k,
    * x_k 是 hfFollowFeats / hfLeadFeats 算的特征,c_k 是真人选择的条件 logit 拟合出来的修正(θ_k/θ_s,引擎分单位),见 HF_W。
-   * 拟合用的是 pairKeep 0 + pairKeepCands 1;打开 hfFollow 时 pairKeep 保持 0(模型自带拆对子项)。λ 是整体强度,用整局结果标定。 */
-  hfFollow: 0,                     // 跟牌修正的整体强度 λ(0 = 关)
+   * 拟合用的是 pairKeep 0 + pairKeepCands 1;打开 hfFollow 时 pairKeep 保持 0(模型自带拆对子项)。λ 是整体强度,用整局结果标定。
+   * **v0.7.67 测试版:hfFollow 0.4 + hfMask 1 + pairKeepCands 1**(只留拆对一族):h2h 4 × 350 +1.86 ±0.34 分 / +0.035 ±0.007 级;
+   * 人机对照尺 234 局 +1.75 ±0.67 分(真人 − AI 6.71 → 4.96);池子(开搜索)+2.22 ±0.68 分。全部特征(hfMask 0)池子不过;hfLead 两把尺子都没用,保持 0。 */
+  hfFollow: 0.4,                   // (v0.7.67 测试版默认 0.4,配 hfMask 1)跟牌修正的整体强度 λ(0 = 关)
   hfLead: 0,                       // 领出修正的整体强度 λ(0 = 关)
   hfSet: 0,                        // 权重集:0 = 全部局拟合;1 / 2 = 按局 fold 奇偶各拟合一半(交叉拟合的人机基准用)
-  hfMask: 0,                       // 0 = 用全部特征;1 = 只用拆对那一族(看「按情况的拆对代价」单独值多少)
+  hfMask: 1,                       // (v0.7.67 测试版默认 1)0 = 用全部特征;1 = 只用拆对那一族(按阶段 / 身份 / 这门还剩多少 / 拖拉机算的拆对代价)
   /* 毙牌保留价的权重(见 ruffReserve)。**默认 0 —— 第一步,还在量。**
    * 毙的代价 = ruffReserveW × max(0, reserve − 本墩台面分)。 */
   ruffReserveW: 0,

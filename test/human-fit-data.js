@@ -7,7 +7,7 @@
  *   features.json    {lead:[特征名],follow:[特征名]}
  *   coverage.json    覆盖率统计(真人那手不在引擎自己的候选表里的比例、候选集大小、被丢弃的决策)
  *
- * 引擎:当前 80fen-test.html,AIP {pairKeep:0, pairKeepCands:1},收官搜索关(要的是启发式分,不是搜索的改判)。
+ * 引擎:当前 80fen-test.html,AIP {pairKeep:0, pairKeepCands:1, hfFollow:0, hfLead:0}(拟合用的是不带修正的引擎分),收官搜索关(要的是启发式分,不是搜索的改判)。
  * 候选集 = 引擎候选表 ∪ 真人所出 ∪ 系统枚举:
  *   · 领出:每个不同的单张、每个对子、每个拖拉机(含子拖拉机,长度 ≥2);甩牌只有引擎或真人提出才有。
  *   · 单张领出的跟牌:每张不同的合法牌。多张领出的跟牌:引擎候选 ∪ 真人所出。
@@ -31,7 +31,7 @@ function engine(){
   if(E) return E;
   const src=M.blockOf(fs.readFileSync(M.HTML,'utf8'));
   E=M.loadSrc(src);
-  Object.assign(E.AIP,{egSearch:0,pairKeep:0,pairKeepCands:1});
+  Object.assign(E.AIP,{egSearch:0,pairKeep:0,pairKeepCands:1,hfFollow:0,hfLead:0,hfMask:0});
   M.EXTRA_ENG.push(E);
   /* 第二份引擎(只在本脚本里对源码做文本改动,仓库里的引擎不动):领出候选生成处多收一批「额外组件」globalThis.__XC,
    * 让枚举出来的领法(拆对子领单张、拖拉机里的对子、子拖拉机、真人的甩牌)走引擎自己的 scoreLeadPlay + 事后加减分流水线。 */
@@ -43,7 +43,7 @@ function engine(){
   src2=src2.replace(needle2,"const cl=comp.__cl?Object.assign({},comp.__cl,{cards:comp.cards}):{type:comp.type,len:comp.len,suit:s,top:comp.top,cards:comp.cards};");
   CTX2={module:{exports:{}},console,Math,Object,Array,Set,Map,JSON,String,Number};
   CTX2.globalThis=CTX2; vm.createContext(CTX2); vm.runInContext(src2,CTX2); E2=CTX2.module.exports;
-  Object.assign(E2.AIP,{egSearch:0,pairKeep:0,pairKeepCands:1});
+  Object.assign(E2.AIP,{egSearch:0,pairKeep:0,pairKeepCands:1,hfFollow:0,hfLead:0,hfMask:0});
   M.EXTRA_ENG.push(E2);
   return E;
 }
