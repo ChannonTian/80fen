@@ -49,7 +49,8 @@ function buildIndex(){
   const commits=execFileSync('git',['log','--format=%H','--','80fen-test.html'],{cwd:ROOT,encoding:'utf8'}).trim().split('\n');
   const byTag={};
   for(const c of commits){
-    const html=execFileSync('git',['show',`${c}:80fen-test.html`],{cwd:ROOT,encoding:'utf8',maxBuffer:128<<20});
+    let html; try{ html=execFileSync('git',['show',`${c}:80fen-test.html`],{cwd:ROOT,encoding:'utf8',maxBuffer:128<<20,stdio:['ignore','pipe','ignore']}); }
+    catch(e){ continue; }   // 这个提交里没有这个文件(改名 / 删除的那一笔),跳过
     const tag=((html.match(/id="versionTag">[^<]*?(v\d+\.\d+\.\d+)/)||[])[1]);
     if(!tag) continue;
     const blk=blockOf(html), hash=crypto.createHash('sha1').update(blk).digest('hex').slice(0,12);
