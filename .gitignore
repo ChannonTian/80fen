@@ -10,3 +10,6 @@ learn/test/shots/
 
 # 走查脚本早期版本往根目录扔的截图,别再让它们进来
 [a-z]-*.png
+
+# Python 字节码缓存(test/sjplus/ 的适配层会生成)
+__pycache__/
