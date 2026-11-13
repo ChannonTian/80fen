@@ -325,6 +325,14 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 | 参数 | 默认 | 说明 | 读取于 |
 |---|---|---|---|
 | `egPointsEps` | `0.008` | (见上方注释)阶梯是阶跃的 —— 台阶内部要有梯度,搜索才不是瞎的。 | `levelUtility` |
+
+### ai2 价值网络(M1,2026-11-11):手牌多于 egMaxCards 时,收官搜索不再放弃,而是对抽样世界里的每个候选
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `vnet` | `0` | (见上方注释)ai2 价值网络(M1,2026-11-11):手牌多于 egMaxCards 时,收官搜索不再放弃,而是对抽样世界里的每个候选 | `endgameSearch` |
+| `vnetSamples` | `30` | 每次决策抽几个世界 | `endgameSearch` |
+| `vnetMaxCands` | `4` | 只评分最高的前几个候选 | `endgameSearch` |
 | `bossSize` | `8` | 每多一张的加成(对子/拖拉机更难被压) | `scoreLeadCore` |
 | `leadTrumpPenalty` | `26` | 未到收官时领出主牌钢板的折扣 | `scoreLeadCore` |
 | `drawTrumpUnit` | `6` | 钓主:我方每比对手多一张主牌值多少分 | `drawTrumpValue` |
@@ -544,6 +552,22 @@ node test/gen-switches.js 80fen-test.html > /tmp/sw.md   # 再把主体贴回本
 |---|---|---|---|
 | `pairHoldMaxTricks` | `3` | 已打过的墩数超过它就不给 | `futureValue` |
 | `pairHoldMinPairs` | `3` | 手上副花对子少于它就不给 | `futureValue` |
+
+### 单张跟牌时不拆手上的对子(pairKeep / pairKeepCands,**默认 0,还在量**)。
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `pairKeep` | `0` | (见上方注释)单张跟牌时不拆手上的对子(pairKeep / pairKeepCands,**默认 0,还在量**)。 | `pairUnit` `pairKeepCost` `aiChooseFollow` |
+| `pairKeepCands` | `1` | (v0.7.67 测试版默认 1)0 / 1:给拆对子的单张候选补不拆的替身 | `aiChooseFollow` |
+
+### 真人出牌拟合的修正(test/human-fit*.js)。引擎候选表里的每个候选 score += λ × Σ c_k·x_k,
+
+| 参数 | 默认 | 说明 | 读取于 |
+|---|---|---|---|
+| `hfFollow` | `0.4` | (v0.7.67 测试版默认 0.4,配 hfMask 1)跟牌修正的整体强度 λ(0 = 关) | `pairKeepAlt` `aiChooseFollow` |
+| `hfLead` | `0` | 领出修正的整体强度 λ(0 = 关) | `aiChooseLead` |
+| `hfSet` | `0` | 权重集:0 = 全部局拟合;1 / 2 = 按局 fold 奇偶各拟合一半(交叉拟合的人机基准用) | `hfCorr` |
+| `hfMask` | `1` | (v0.7.67 测试版默认 1)0 = 用全部特征;1 = 只用拆对那一族(按阶段 / 身份 / 这门还剩多少 / 拖拉机算的拆对代价) | `hfCorr` |
 
 ### 毙牌保留价的权重(见 ruffReserve)。**默认 0 —— 第一步,还在量。**
 

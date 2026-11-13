@@ -35,6 +35,8 @@ const OLD=load(process.argv[3]||'index.html');
  * LEVEL=10 把两边的 levelStart 都设成 10 —— 分级(5/10/K 级牌带分)的行为要单独量。 */
 if(process.env.OVN) Object.assign(NEW.AIP,JSON.parse(process.env.OVN));
 if(process.env.OVO) Object.assign(OLD.AIP,JSON.parse(process.env.OVO));
+/* VNET=ai2/weights/vnet-x.json:只给新版注册 ai2 价值网络(还要 OVN='{"vnet":1}' 才生效) */
+if(process.env.VNET) require('../ai2/register.js').register(NEW,process.env.VNET);
 if(process.env.LEVEL){ NEW.RULES.levelStart=+process.env.LEVEL; OLD.RULES.levelStart=+process.env.LEVEL; }
 const E=NEW;
 

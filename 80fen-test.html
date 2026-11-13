@@ -814,7 +814,7 @@ body.m-l #side,body.m-w #side{left:auto;top:0;height:100dvh;width:min(440px,max(
 <div id="setOverlay"><div class="panel" id="setContent"></div></div>
 <div id="tests"></div>
 <div id="app" hidden></div>
-<div id="versionTag">六六八十分 v0.7.66(测试版)</div>
+<div id="versionTag">六六八十分 v0.7.67(测试版)</div>
 
 
 <script>
@@ -1573,6 +1573,13 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
   /* 阶梯是阶跃的 —— 台阶内部要有梯度,搜索才不是瞎的。
    * 一级台阶 40 分,0.008×40 = 0.32 级:阶梯仍然主导,但同一级里分多的胜出。 */
   egPointsEps: 0.008,
+  /* ai2 价值网络(M1,2026-11-11):手牌多于 egMaxCards 时,收官搜索不再放弃,而是对抽样世界里的每个候选
+   * 用「全明牌价值网络 V(落子后的局面)→ 终局闲家总分分布」算 u,再取世界平均(见 ai2/README.md)。
+   * 需要先 setVnet({probs:sv=>Float32Array(41)}) 注册模型(Node 测试用 VNET=权重文件;网页里暂无模型,开了也不生效)。
+   * 0 = 关(旧行为,逐位相同)。 */
+  vnet: 0,
+  vnetSamples: 30,            // 每次决策抽几个世界
+  vnetMaxCands: 4,            // 只评分最高的前几个候选
   bossSize: 8,                // 每多一张的加成(对子/拖拉机更难被压)
   leadTrumpPenalty: 26,       // 未到收官时领出主牌钢板的折扣
   drawTrumpUnit: 6,           // 钓主:我方每比对手多一张主牌值多少分
@@ -1823,6 +1830,23 @@ const AIP = {                 // v3 可调参数,全部集中在这里便于调�
    * ⚠️ 闸门是从这批数据里挑出来的,所以验收必须换全新种子,见 CHANGELOG。 */
   pairHoldMaxTricks: 3,       // 已打过的墩数超过它就不给
   pairHoldMinPairs: 3,        // 手上副花对子少于它就不给
+  /* 单张跟牌时不拆手上的对子(pairKeep / pairKeepCands,**默认 0,还在量**)。
+   * 真人牌谱 226 局的逐手归因(test/records-seat-swap.js --attrib):AI 常拆自己的对子出最小那张,真人几乎不拆(真人保 / AI 拆 140 次,真人拆 / AI 保 12 次)。
+   * pairKeep:领出是单张时,跟牌候选恰好出了手上某个对子里的一张(同花同点,主牌对子 / 王对也算)→ 扣这么多分(打分器的单位);
+   *   那个对子是拖拉机的一部分 ×1.5,分牌对子不另算(被拆的那张自己的分已在 scorePlay 里计过一次)。
+   * pairKeepCands:1 = 给每个「拆对子的单张候选」补一个不拆的同位替身(同花同输赢、毙牌要压得住且不低于原候选、
+   *   垫牌按 discardVal 最省;对手暂大时不比原候选多送分),见 pairKeepAlt。0 = 不补。 */
+  pairKeep: 0,
+  pairKeepCands: 1,                // (v0.7.67 测试版默认 1)0 / 1:给拆对子的单张候选补不拆的替身
+  /* 真人出牌拟合的修正(test/human-fit*.js)。引擎候选表里的每个候选 score += λ × Σ c_k·x_k,
+   * x_k 是 hfFollowFeats / hfLeadFeats 算的特征,c_k 是真人选择的条件 logit 拟合出来的修正(θ_k/θ_s,引擎分单位),见 HF_W。
+   * 拟合用的是 pairKeep 0 + pairKeepCands 1;打开 hfFollow 时 pairKeep 保持 0(模型自带拆对子项)。λ 是整体强度,用整局结果标定。
+   * **v0.7.67 测试版:hfFollow 0.4 + hfMask 1 + pairKeepCands 1**(只留拆对一族):h2h 4 × 350 +1.86 ±0.34 分 / +0.035 ±0.007 级;
+   * 人机对照尺 234 局 +1.75 ±0.67 分(真人 − AI 6.71 → 4.96);池子(开搜索)+2.22 ±0.68 分。全部特征(hfMask 0)池子不过;hfLead 两把尺子都没用,保持 0。 */
+  hfFollow: 0.4,                   // (v0.7.67 测试版默认 0.4,配 hfMask 1)跟牌修正的整体强度 λ(0 = 关)
+  hfLead: 0,                       // 领出修正的整体强度 λ(0 = 关)
+  hfSet: 0,                        // 权重集:0 = 全部局拟合;1 / 2 = 按局 fold 奇偶各拟合一半(交叉拟合的人机基准用)
+  hfMask: 1,                       // (v0.7.67 测试版默认 1)0 = 用全部特征;1 = 只用拆对那一族(按阶段 / 身份 / 这门还剩多少 / 拖拉机算的拆对代价)
   /* 毙牌保留价的权重(见 ruffReserve)。**默认 0 —— 第一步,还在量。**
    * 毙的代价 = ruffReserveW × max(0, reserve − 本墩台面分)。 */
   ruffReserveW: 0,
@@ -3887,6 +3911,144 @@ function pairUnit(X){
   return X._pu=best;
 }
 
+/* pairKeep / pairKeepCands(见 AIP.pairKeep):单张候选是不是恰好拆了手上的一个对子 */
+function pairSplitCard(hand,cards){
+  if(cards.length!==1) return false;
+  const k=pairKey(cards[0]);
+  return hand.filter(x=>pairKey(x)===k).length>=2;
+}
+function pairInTractor(hand,c,trump){
+  const su=effSuit(c,trump);
+  return decompose(hand.filter(x=>effSuit(x,trump)===su),trump)
+    .some(m=>m.type==='tractor'&&m.cards.some(x=>x.id===c.id));
+}
+function pairKeepCost(hand,c,trump){
+  return AIP.pairKeep*(pairInTractor(hand,c,trump)?1.5:1);
+}
+/* 拆对子那张 c 的「同位不拆替身」:没成对的合法牌里,同样输赢、同样主 / 副类;
+ * 赢墩的(压 / 毙)要不低于 c(c 本来就是最省的压法,或被 ruffGuard 抬过);对手暂大时不比 c 多送分;
+ * 取最省的 —— 在领出门里按牌序,断门垫牌按 discardVal。没有就返回 null。 */
+function pairKeepAlt(view,plays,c){
+  const hand=view.hand, trump=view.trump, seat=view.seat;
+  const lead=classify(plays[0].cards,trump);
+  if(!lead||lead.type!=='single'||!pairSplitCard(hand,[c])) return null;
+  const wins=x=>currentWinner([...plays,{seat,cards:[x]}],trump).seat===seat;
+  const cw=currentWinner(plays,trump), oppWin=cw.seat%2!==seat%2;
+  const cWin=wins(c), cT=effSuit(c,trump)==='T', cp=cardPoints(c);
+  const cnt={}; for(const x of hand){ const k=pairKey(x); cnt[k]=(cnt[k]||0)+1; }
+  const pool=hand.filter(x=>x.id!==c.id&&cnt[pairKey(x)]===1
+    &&isLegalFollow(hand,lead,[x],trump)&&wins(x)===cWin&&(effSuit(x,trump)==='T')===cT
+    &&(!oppWin||cardPoints(x)<=cp)&&(!cWin||ordIdx(x,trump)>=ordIdx(c,trump)));
+  if(!pool.length) return null;
+  const follow=hand.some(x=>effSuit(x,trump)===lead.suit);
+  const dv=discardVal(hand,trump);
+  const key=x=>follow?ordIdx(x,trump):dv(x);
+  return pool.sort((a,b)=>key(a)-key(b))[0];
+}
+
+/* ============================================================
+ * 真人出牌拟合(AIP.hfFollow / hfLead):特征 + 权重表。特征函数是 test/human-fit-data.js 与引擎共用的唯一一份。
+ * 候选 c 的修正 = Σ_k HF_W[k]·x_ck(分),x 的顺序见 HF_*_F;权重由 test/human-fit-embed.js 从拟合结果写进来。
+ * ============================================================ */
+const HF_GROUPS=['st1','st2','decl','dpart'];
+const HF_LEAD_BASE=['ty_pair','ty_tr','ty_th','trLen','isT','boss','pts','ownLen10','shortest','longest','partnerVoid','oppVoid','joker','level','splits','nBeat10','nOut10'];
+const HF_FOLLOW_BASE=['beats','beats_pW','beats_s3','beats_s4','ru','di','ru_pW','di_pW','pts_pW','pts_oW','boss','nBeat10','nOut10','remLen10','voidMade',
+  'splits','splits_pW','splitTract','splitBoss','splitOut10','isT','isJoker','isLevel'];
+const HF_LEAD_INT=['ty_pair','isT','pts','splits'], HF_FOLLOW_INT=['splits','pts','beats'];
+const HF_LEAD_F=HF_LEAD_BASE.concat(HF_LEAD_INT.flatMap(f=>HF_GROUPS.map(g=>f+'*'+g)));
+const HF_FOLLOW_F=HF_FOLLOW_BASE.concat(HF_FOLLOW_INT.flatMap(f=>HF_GROUPS.map(g=>f+'*'+g)));
+/*HF_W_BEGIN*/
+/* 生成的,别手改:test/human-fit.js --export → test/human-fit-embed.js。names 与 HF_*_F 同序。 */
+const HF_W={
+  lead:{names:["ty_pair","ty_tr","ty_th","trLen","isT","boss","pts","ownLen10","shortest","longest","partnerVoid","oppVoid","joker","level","splits","nBeat10","nOut10","ty_pair*st1","ty_pair*st2","ty_pair*decl","ty_pair*dpart","isT*st1","isT*st2","isT*decl","isT*dpart","pts*st1","pts*st2","pts*decl","pts*dpart","splits*st1","splits*st2","splits*decl","splits*dpart"],
+    sets:[
+      [25.302,69.675,-4.132,-19.713,16.36,11.23,-1.787,-34.466,5.57,-1.556,16.694,0.507,-70.202,-19.902,0,5.383,4.459,-2.146,2.135,-14.826,6.704,-31.717,-2.853,19.671,-14.597,-0.313,-3.828,-3.648,2.739,0,0,0,0],
+      [25.676,96.872,-3.136,-30.281,10.181,7.998,-3.194,-35.184,4.108,1.679,9.914,-4.025,-58.2,-9.518,0,3.904,2.521,-6.402,2.474,-8.492,11.67,-23.194,0.895,14.976,-6.25,3.079,-1.088,-4.726,-2.628,0,0,0,0],
+      [21.863,22.031,-6.144,0.079,15.604,12.939,-0.211,-27.886,8.562,-6.024,23.743,2.513,-72.744,-28.911,0,7.78,6.984,1.343,-0.518,-17.841,1.775,-30.754,-4.361,19.192,-27.944,-2.704,-7.429,-2.917,15.291,0,0,0,0]
+    ]},
+  follow:{names:["beats","beats_pW","beats_s3","beats_s4","ru","di","ru_pW","di_pW","pts_pW","pts_oW","boss","nBeat10","nOut10","remLen10","voidMade","splits","splits_pW","splitTract","splitBoss","splitOut10","isT","isJoker","isLevel","splits*st1","splits*st2","splits*decl","splits*dpart","pts*st1","pts*st2","pts*decl","pts*dpart","beats*st1","beats*st2","beats*decl","beats*dpart"],
+    sets:[
+      [30.071,-22.769,21.906,0.592,12.678,-9.369,-10.296,3.808,35.747,-34.998,-4.331,-3.521,1.079,-13.299,21.797,-36.473,-17.501,-77.189,-4.811,-17.132,-21.466,-24.143,1.279,-26.901,13.012,1.073,40.114,-15.472,-15.38,3.374,11.901,20.45,14.148,-12.619,-26.894],
+      [15.07,-13.407,17.746,0.389,3.417,-2.451,-13.257,4.776,19.287,-22.161,-4.01,-3.469,-3.025,-9.997,13.69,-15.855,-10.826,-42.633,-13.279,-9.151,-4.081,-15.579,5.403,-20.077,-3.523,-16.304,22.09,-7.604,-7.112,-2.972,5.86,16.655,5.769,-5.091,-9.243],
+      [22.504,-14.356,7.919,5.386,5.99,-4.576,-2.89,1.101,51.571,-40.499,2.571,3.056,10.523,-11.606,19.118,-39.615,-18.167,-34.087,12.31,-22.114,-3.185,-15.35,-1.269,-33.515,15.324,-5.721,2.655,-19.123,-19.27,10.406,19.004,4.486,21.995,-4.656,-37.249]
+    ]}
+};
+/*HF_W_END*/
+// 一个决策算一次的局面量。mem / voids 可以传进来复用(followCtx / leadCtx 已经算过)
+function hfCtx(view,mem,voids){
+  const T=view.trump, eff=c=>effSuit(c,T), oi=c=>ordIdx(c,T), hand=view.hand;
+  mem=mem||makeMemory(view); voids=voids||makeVoids(view.history||[],T);
+  const unseen=[]; for(const k in mem.unseen){ const n=mem.unseen[k]; if(n>0){ const c=keyToCard(k); unseen.push({su:eff(c),o:oi(c),n}); } }
+  const hcnt={}, suitN={};
+  for(const c of hand){ const k=c.suit+':'+c.rank; hcnt[k]=(hcnt[k]||0)+1; const s=eff(c); suitN[s]=(suitN[s]||0)+1; }
+  const left=hand.length, stage=left>=19?'st1':left>=13?'st2':'st3';
+  const role=view.seat===view.declSeat?'decl':view.seat%2===view.declSeat%2?'dpart':'def';
+  return {T,eff,oi,voids,unseen,hand,hcnt,suitN,stage,role,
+    nBeat:c=>{ const s=eff(c), o=oi(c); let n=0; for(const u of unseen) if(u.su===s&&u.o>o) n+=u.n; return n; },
+    nOut:s=>{ let n=0; for(const u of unseen) if(u.su===s) n+=u.n; return n; },
+    higherPair:c=>{ const s=eff(c), o=oi(c); return unseen.some(u=>u.su===s&&u.o>o&&u.n>=2); },
+    inTractor:c=>{ const s=eff(c); return decompose(hand.filter(x=>eff(x)===s),T).some(m=>m.type==='tractor'&&m.cards.some(x=>x.id===c.id)); }};
+}
+// 候选拆了手里哪个对子(多个取最大的那张);没拆 = null
+function hfSplitCard(C,K){
+  const per={}; for(const c of C){ const k=c.suit+':'+c.rank; per[k]=(per[k]||0)+1; }
+  let best=null;
+  for(const c of C){ const k=c.suit+':'+c.rank; if((K.hcnt[k]||0)>=2&&per[k]===1&&(!best||K.oi(c)>K.oi(best))) best=c; }
+  return best;
+}
+function hfInter(vec,names,b,K){
+  for(const f of names){ const v=b[f]||0;
+    vec.push(K.stage==='st1'?v:0, K.stage==='st2'?v:0, K.role==='decl'?v:0, K.role==='dpart'?v:0); }
+  return vec;
+}
+function hfFollowFeats(view,plays,C,K,lead){
+  const T=K.T, H=view.seat, eff=K.eff, pos=plays.length;
+  lead=lead||classify(plays[0].cards,T);
+  const cw=currentWinner(plays,T).seat, pW=cw%2===H%2?1:0;
+  const beats=currentWinner([...plays,{seat:H,cards:C}],T).seat===H?1:0;
+  const fs=C.every(c=>eff(c)===lead.suit), ru=!fs&&lead.suit!=='T'&&C.every(c=>eff(c)==='T'), di=!fs&&!ru;
+  const pts=countPoints(C)/10;
+  const prim=fs?lead.suit:eff(C.reduce((a,c)=>K.oi(c)>K.oi(a)?c:a,C[0]));
+  const inP=C.filter(c=>eff(c)===prim);
+  const top=inP.reduce((a,c)=>K.oi(c)>K.oi(a)?c:a,inP[0]);
+  const nb=K.nBeat(top), multi=C.length>=2;
+  const boss=multi?!K.higherPair(top):nb===0;
+  const handN=K.suitN[prim]||0, remLen=handN-inP.length;
+  const sp=hfSplitCard(C,K);
+  const b={beats,beats_pW:beats*pW,beats_s3:beats*(pos===2?1:0),beats_s4:beats*(pos===3?1:0),ru:+ru,di:+di,ru_pW:+ru*pW,di_pW:+di*pW,
+    pts_pW:pts*pW,pts_oW:pts*(1-pW),boss:+boss,nBeat10:Math.min(nb,30)/10,nOut10:K.nOut(prim)/10,remLen10:remLen/10,voidMade:+(handN>0&&remLen===0),
+    splits:+!!sp,splits_pW:sp?pW:0,splitTract:sp&&K.inTractor(sp)?1:0,splitBoss:sp&&!K.higherPair(sp)?1:0,splitOut10:sp?K.nOut(eff(sp))/10:0,
+    isT:+(prim==='T'),isJoker:+C.some(c=>c.suit==='X'),isLevel:+C.some(c=>c.suit!=='X'&&c.rank===T.rank),pts};
+  return hfInter(HF_FOLLOW_BASE.map(f=>b[f]),HF_FOLLOW_INT,b,K);
+}
+function hfLeadFeats(view,C,K){
+  const T=K.T, eff=K.eff, H=view.seat;
+  const cl=classify(C,T)||{type:'throw'};
+  const s=eff(C[0]), top=C.reduce((a,c)=>K.oi(c)>K.oi(a)?c:a,C[0]);
+  const nb=K.nBeat(top);
+  const boss=cl.type==='single'?nb===0:(cl.type==='pair'||cl.type==='tractor')?!K.higherPair(top):false;
+  const sides=Object.keys(K.suitN).filter(x=>x!=='T'), lens=sides.map(x=>K.suitN[x]);
+  const own=K.suitN[s]||0, mn=Math.min(...lens), mx=Math.max(...lens), side=s!=='T'&&sides.length>=2;
+  const partner=(H+2)%4, opps=[(H+1)%4,(H+3)%4], sp=hfSplitCard(C,K), pts=countPoints(C)/10;
+  const b={ty_pair:+(cl.type==='pair'),ty_tr:+(cl.type==='tractor'),ty_th:+(cl.type==='throw'),trLen:cl.type==='tractor'?cl.len:0,
+    isT:+(s==='T'),boss:+boss,pts,ownLen10:own/10,shortest:side&&own===mn&&lens.filter(x=>x===mn).length===1?1:0,
+    longest:side&&own===mx&&lens.filter(x=>x===mx).length===1?1:0,partnerVoid:+!!(K.voids[partner]&&K.voids[partner][s]),
+    oppVoid:+opps.some(o=>K.voids[o]&&K.voids[o][s]),joker:+C.some(c=>c.suit==='X'),level:+C.some(c=>c.suit!=='X'&&c.rank===T.rank),
+    splits:+!!sp,nBeat10:Math.min(nb,30)/10,nOut10:K.nOut(s)/10};
+  return hfInter(HF_LEAD_BASE.map(f=>b[f]),HF_LEAD_INT,b,K);
+}
+// 一个候选的修正(分,λ=1);权重集没装(HF_W 为空)时返回 0
+function hfCorr(kind,vec){
+  const W=HF_W[kind].sets[AIP.hfSet]; if(!W) return 0;
+  let v=0;
+  if(AIP.hfMask===1){   // 只留拆对那一族(names 以 split 开头),其余特征不计
+    const nm=HF_W[kind].names; for(let j=0;j<vec.length;j++) if(nm[j].startsWith('split')) v+=W[j]*vec[j];
+    return v;
+  }
+  for(let j=0;j<vec.length;j++) v+=W[j]*vec[j];
+  return v;
+}
+
 /* 毙牌的**保留价** —— §7 那条「给资源定保留价,而不是给这一墩定价」的第一步。
  * **默认关**(`ruffReserveW: 0`)。
  *
@@ -4421,6 +4583,14 @@ function aiChooseFollow(view, plays, extra){
     discPts===0&&!discTrump ? '垫废牌,不送分也不拆主'
     : discTrump ? '没有废牌可垫,只能拆一张主'
     : '躲不掉,垫掉手上最轻的分牌');
+  /* pairKeepCands:给拆对子的单张候选补不拆的替身(见 pairKeepAlt) */
+  if(AIP.pairKeepCands&&lead.type==='single'){
+    for(const c of cands.slice()){
+      if(c.cards.length!==1) continue;
+      const alt=pairKeepAlt(view,plays,c.cards[0]);
+      if(alt) push([alt],c.cat,currentWinner([...plays,{seat:view.seat,cards:[alt]}],trump).seat===view.seat,'不拆手上的对子');
+    }
+  }
   let extraC=null;
   if(extra){
     const q=coachFollowPen(X,view,plays,extra);
@@ -4488,7 +4658,15 @@ function aiChooseFollow(view, plays, extra){
       }
     }
   }
+  if(AIP.pairKeep&&lead.type==='single'){
+    for(const c of cands.concat(extraC?[extraC]:[]))
+      if(pairSplitCard(view.hand,c.cards)) c.score-=pairKeepCost(view.hand,c.cards[0],trump);
+  }
   if(extraC) return {extraScore:extraC.score,extraCat:extraC.cat,extraSteer:extraC.steer||0};
+  if(AIP.hfFollow){
+    const K=hfCtx(view,X.mem,X.voids);
+    for(const c of cands){ c.hfc=hfCorr('follow',hfFollowFeats(view,plays,c.cards,K,lead)); c.score+=AIP.hfFollow*c.hfc; }
+  }
   cands.sort((a,b)=>b.score-a.score);
   const ctx={partnerWinning:X.partnerWinning,isLast:X.isLast,ptsTable:X.ptsTable,
              curSeat:X.cur.seat,curBoss:X.curBoss,leadSuit:lead.suit,phase:X.phase};
@@ -6114,11 +6292,15 @@ function rolloutAI(st){
   return {defPoints,lastWinner,lastLeadSize};
 }
 
+let VNET_MODEL=null;       // {probs(sv)→41 类概率};由测试脚本 / 以后的网页加载器注册
+function setVnet(m){ VNET_MODEL=m||null; }
 function endgameSearch(view, plays, cands){
   if(!AIP.egSearch||EG_IN_ROLLOUT) return null;
   const trump=view.trump;
   const n=view.hand.length;
-  if(n<1||n>AIP.egMaxCards) return null;
+  const useV=!!(AIP.vnet&&VNET_MODEL&&n>AIP.egMaxCards);
+  if(n<1||(n>AIP.egMaxCards&&!useV)) return null;
+  if(useV) cands=cands.slice(0,AIP.vnetMaxCands);
   if(view.declSeat===undefined||view.declSeat<0) return null;
   if(cands.length<2||cands.length>AIP.egMaxCands) return null;   // 只有一个候选,没什么可搜的
   const mem=makeMemory(view);
@@ -6156,13 +6338,18 @@ function endgameSearch(view, plays, cands){
   const myTeam=view.seat%2, declTeam=view.declSeat%2;
   const rs=roundScore(view);
   const worlds=[];
-  const nSamp=AIP.egSamplesBy>0&&n>5?Math.max(AIP.egMinSamples,AIP.egSamples-AIP.egSamplesBy*(n-5)):AIP.egSamples;
+  const nSamp=useV?AIP.vnetSamples:AIP.egSamplesBy>0&&n>5?Math.max(AIP.egMinSamples,AIP.egSamples-AIP.egSamplesBy*(n-5)):AIP.egSamples;
   for(let i=0;i<nSamp;i++){
     const w=sampleWorld(ctx,rand);
     if(w) worlds.push(w);
   }
   if(worlds.length<AIP.egMinSamples) return null;
   const out=cands.map(c=>({cards:c.cards,u:0,v:[]}));
+  let utilBin=null;
+  if(useV){   // 终局闲家总分 5b → 本队净升几级(同一把 scoreRound / levelUtility,最后一箱记 200)
+    utilBin=new Float64Array(41);
+    for(let b=0;b<41;b++) utilBin[b]=levelUtility(scoreRound({defPoints:5*b,kitty:[],defWonLastTrick:false,lastLeadSize:1}),myTeam,declTeam);
+  }
   for(const w of worlds){
     const kitty=view.buriedKnown&&view.buriedKnown.length?view.buriedKnown:w.kitty;
     for(const o of out){
@@ -6181,6 +6368,12 @@ function endgameSearch(view, plays, cands){
                                lastLeadSize:p2[0].cards.length});
           const u=levelUtility(sc,myTeam,declTeam); o.u+=u; o.v.push(u); continue;
         }
+      }
+      if(useV){
+        const pr=VNET_MODEL.probs({hands,kitty,plays:pl,leader,defPoints,trump,declSeat:view.declSeat,
+                                   curWinner:pl.length?currentWinner(pl,trump).seat:-1});
+        let u=0; for(let b=0;b<41;b++) u+=pr[b]*utilBin[b];
+        o.u+=u; o.v.push(u); continue;
       }
       if(AIP.egExact&&n<=AIP.egExact){
         const u=egSolve({hands,plays:pl,leader,defPoints,trump,declSeat:view.declSeat,kitty,rootTeam:myTeam},-1e9,1e9);
@@ -6302,6 +6495,10 @@ function aiChooseLead(view){
       if(AIP.kittyGuard&4&&n>AIP.kgEnd&&view.declSeat===view.seat&&view.buriedKnown&&countPoints(view.buriedKnown)>0
          &&c.cards.some(x=>x.suit==='X'||(x.rank===T.rank&&x.suit===T.suit))) c.score-=countPoints(view.buriedKnown)*2*AIP.kgLeadW;
     }
+  }
+  if(AIP.hfLead){
+    const K=hfCtx(view,L.mem);
+    for(const c of cands){ c.hfc=hfCorr('lead',hfLeadFeats(view,c.cards,K)); c.score+=AIP.hfLead*c.hfc; }
   }
   cands.sort((a,b)=>b.score-a.score);
   let best=cands[0]||{cards:[view.hand[0]],reason:'兜底',score:0};
@@ -6995,7 +7192,7 @@ function simulateRound(seed, smartSeats=[0,1,2,3]){
 }
 
 /* 引擎公开面 —— 浏览器 #test 与 node 无头测试共用同一份,避免两边漂移 */
-const ENGINE={RULES,makeDeck,fateFeat,fateP,fateX,willP,expHoldIn,drawTrumpValue,isBossPlay,willMateFeat,beatChoiceCands,leadClass8,leadHandFeat,leadAvail,leadLik,cardPoints,countPoints,rng,dealRound,
+const ENGINE={RULES,makeDeck,fateFeat,fateP,fateX,willP,expHoldIn,drawTrumpValue,isBossPlay,willMateFeat,beatChoiceCands,leadClass8,leadHandFeat,leadAvail,leadLik,cardPoints,countPoints,rng,dealRound,pairKeepAlt,pairSplitCard,hfCtx,hfFollowFeats,hfLeadFeats,hfCorr,HF_W,HF_LEAD_F,HF_FOLLOW_F,
   cutForFirst,effSuit,ordIdx,decompose,classify,isLegalFollow,resolveTrick,checkThrow,declarationOf,
   canOverride,declOptions,jokerPairOf,canReinforce2,canFullRebel,dealerAfterDecl,scoreRound,advanceMatch,clampAtGate,countPairsIn,maxTractorLen,
   structMatches,removeCard,aiLead,genFollow,aiDiscard,simulateRound,bruteFollow,
@@ -7007,7 +7204,7 @@ const ENGINE={RULES,makeDeck,fateFeat,fateP,fateX,willP,expHoldIn,drawTrumpValue
   phaseOf,futureValue,pTeamWin,laterPoints,scorePlay,unseenPointsIn,leadPointsEV,pSurvive,unseenBeats,roundScore,pointWeight,ruffThrow,SCORE_LADDER,makeReads,maxHoldIn,makeVoidProb,cheapKey,dumpKey,kittyPointsEst,tempoValue,
   bossUnits,feedRuffValue,reserveHold,reserveUnit,guardFeat,guardP,
   makeHoldRange,partnerAceRead,tiaoWangValue,
-  endgameSearch,egOverride,sampleWorld,makeBelief,pSurviveBelief,teamWinBelief,leadWinBelief,leadWinP,trickEVBelief,dumpExp,rolloutToEnd,rolloutLead,rolloutFollow,levelUtility,trumpLeadPrior};
+  endgameSearch,setVnet,egOverride,sampleWorld,makeBelief,pSurviveBelief,teamWinBelief,leadWinBelief,leadWinP,trickEVBelief,dumpExp,rolloutToEnd,rolloutLead,rolloutFollow,levelUtility,trumpLeadPrior};
 if(typeof module!=='undefined') module.exports=ENGINE;
 </script>
 

@@ -23,6 +23,8 @@ const FILE=process.argv[2]||'80fen-test.html', N=+process.argv[3]||200, S0=+(pro
 const A=loadHtml(FILE), B=loadHtml(FILE), E=A;
 if(process.env.OVA) Object.assign(A.AIP,JSON.parse(process.env.OVA));
 if(process.env.OVB) Object.assign(B.AIP,JSON.parse(process.env.OVB));
+/* VNET=权重文件:只给 A(测试方)注册 ai2 价值网络;还要 OVA='{"vnet":1}' 且 EG=1(vnet 走收官搜索那条路) */
+if(process.env.VNET) require('../ai2/register.js').register(A,process.env.VNET);
 if(process.env.EG!=='1'){ A.AIP.egSearch=0; B.AIP.egSearch=0; }
 const POOL=(process.env.POOL||'index.html').split(',').map(f=>{ const m=load(f);
   if(m.AIP&&'egSearch' in m.AIP) m.AIP.egSearch=0; return {name:path.basename(f),m}; });
