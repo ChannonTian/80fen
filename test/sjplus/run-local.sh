@@ -45,10 +45,10 @@ grep -q -- '--static-encoding' "$CK/command.txt" 2>/dev/null && stop "权重是�
 SJARGS=(--repo "$EXT/repo" --ckpt "$CK" --py "$PY")
 
 say "3 在它自己的环境里验权重(README:对随机 Level Rate 97.7%)"
-"$PY" -I "$HERE/sj_eval.py" --repo "$EXT/repo" --ckpt "$CK" --opp random --games "$EVAL_GAMES" --procs "$JOBS" | tee "$OUT/eval-random.txt" | tee -a "$SUM" \
+"$PY" -I "$HERE/sj_eval.py" --repo "$EXT/repo" --ckpt "$CK" --opp random --games "$EVAL_GAMES" --procs "$JOBS" --json "$OUT/eval-random.json" | tee "$OUT/eval-random.txt" | tee -a "$SUM" \
   || stop "权重读不进它的网络(结构对不上?)或评测出错"
-LR="$(sed -n 's/.*Level Rate)\([0-9.]*\)%.*/\1/p' "$OUT/eval-random.txt")"
-"$PY" -c "import sys; sys.exit(0 if float('${LR:-0}')>=93 else 1)" || gate "对随机的级数占比 ${LR:-?}% 和 README 的 97.7% 不符(阈值 93%)"
+node -e 'process.exit(require(process.argv[1]).level_rate>=0.93?0:1)' "$OUT/eval-random.json" \
+  || gate "对随机的级数占比和 README 的 97.7% 不符(门槛 93%;读数见上)"
 "$PY" -I "$HERE/sj_eval.py" --repo "$EXT/repo" --ckpt "$CK" --opp strategic --games "$EVAL_GAMES" --procs "$JOBS" | tee "$OUT/eval-strategic.txt" | tee -a "$SUM"
 
 say "4a 适配层自检:张量对拍(不需要权重)"

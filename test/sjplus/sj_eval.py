@@ -12,6 +12,7 @@
 读数对照:README 说对随机出牌「Level Rate 97.7%」= 下面的「级数占比」。
 """
 import argparse
+import json
 import multiprocessing as mp
 import os
 import random
@@ -91,6 +92,7 @@ def main():
     ap.add_argument('--enable-combos', action='store_true', help='它 README 的评测命令不带这个开关(默认不甩牌)')
     ap.add_argument('--disable-chaodi', action='store_true')
     ap.add_argument('--static-encoding', action='store_true', help='权重若是 --static-encoding 练的才加;默认(动态编码)对不上 README 读数时试它')
+    ap.add_argument('--json', help='把读数另存成 JSON(run-local.sh 用它判门槛)')
     ap.add_argument('--selfplay', type=int, default=0, help='只量速度:跑这么多局训练口径的自对弈(四家都是网络、带甩牌、带探索)')
     args = ap.parse_args()
     a = {'repo': os.path.abspath(args.repo), 'ckpt': os.path.abspath(args.ckpt), 'opp': args.opp, 'seed': args.seed,
@@ -134,6 +136,9 @@ def main():
     print(f'  Win counts: {win}   level counts: {lv}')
     print(f'  胜率 {100 * win[0] / n:.1f}%   级数占比(README 的 Level Rate){100 * lv[0] / max(1, sum(lv)):.1f}%')
     print(f'  对手坐庄时 ShengJi+ 平均抓分 {avg(pts[0]):.1f};ShengJi+ 坐庄时对手平均抓分 {avg(pts[1]):.1f}')
+    if args.json:
+        with open(args.json, 'w') as f:
+            json.dump({'opp': args.opp, 'games': n, 'win': win, 'lv': lv, 'win_rate': win[0] / n, 'level_rate': lv[0] / max(1, sum(lv))}, f)
     print(f'  每次打牌决策 {1000 * inf_t / max(1, inf_n):.1f} ms(它的写法:每个候选单独前向一次);{wall:.0f} 秒,{procs} 个进程,{n / wall:.2f} 局/秒')
 
 
