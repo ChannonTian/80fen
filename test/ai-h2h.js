@@ -39,6 +39,27 @@ if(process.env.OVO) Object.assign(OLD.AIP,JSON.parse(process.env.OVO));
 if(process.env.VNET) require('../ai2/register.js').register(NEW,process.env.VNET);
 if(process.env.LEVEL){ NEW.RULES.levelStart=+process.env.LEVEL; OLD.RULES.levelStart=+process.env.LEVEL; }
 const E=NEW;
+/* PNET=<权重目录>[:agree]:新版这一方的**打牌阶段**由 ai3 策略网络决定(亮主 / 埋底仍用引擎);旧版 = 引擎。
+ * 做法:随对局维护一份 ai3 内核状态,轮到网络座位时 特征→候选→前向→取最高分→映射回手里的牌对象;甩牌仍过 checkThrow。
+ * 带 :agree 时,网络座位的每个决策也算一遍引擎的选择,只统计一致率(领出 / 跟牌 × 前半 / 后半),不改打法。不设 PNET 则下面全部不执行。 */
+let NETP=null, KST=null, KERN=null, AGREE=null, NSYNC=0, NNET=0;
+if(process.env.PNET){
+  const [dir,flag]=process.env.PNET.split(':');
+  KERN=require('../ai3/kernel.js'); KST=KERN.newState();
+  NETP=new (require('../ai3/policy.js'))(require('../ai3/net.js').load(dir),KERN.makeRng(1));
+  if(flag==='agree') AGREE={};
+}
+const KBUF=new Uint8Array(64);
+function netCards(seat,hands){        // 网络在当前内核状态上选一手,映射成 seat 手里的牌对象
+  const i=NETP.choose(KST), p=KERN.pos[i], L=NETP.buf[p], used=new Set(), out=[];
+  for(let k=0;k<L;k++){ const t=NETP.buf[p+1+k], c=hands[seat].find(x=>x.id%54===t&&!used.has(x.id)); used.add(c.id); out.push(c); }
+  return out;
+}
+function kSync(cards,isLead){          // 把这一手(已过 checkThrow / 合法性修正)喂给内核状态
+  const ts=cards.map(c=>c.id%54).sort((a,b)=>a-b); KBUF[0]=ts.length; for(let k=0;k<ts.length;k++) KBUF[1+k]=ts[k];
+  if(isLead){ if(KERN.playLead(KST,KBUF,0)!==0) NSYNC++; } else KERN.playFollow(KST,KBUF,0);
+}
+const tkey=cards=>cards.map(c=>c.id%54).sort((a,b)=>a-b).join(',');
 
 function playRound(seed, aiOf){
   const {first}=E.cutForFirst(seed);
@@ -65,6 +86,7 @@ function playRound(seed, aiOf){
   const buried=aiOf(declSeat).aiDiscard(hands[declSeat],trump);
   buried.forEach(c=>E.removeCard(hands[declSeat],c));
   const declTeam=declSeat%2, history=[];
+  if(NETP) KERN.reset(KST,hands.map(h=>h.map(c=>c.id%54)),buried.map(c=>c.id%54),trump.suit?'SHDC'.indexOf(trump.suit):4,trump.rank,declSeat);
   let leader=declSeat, defPoints=0, lastWinner=declSeat, lastLeadSize=1, tricks=0;
   while(hands.some(h=>h.length)){
     const plays=[];
@@ -73,16 +95,22 @@ function playRound(seed, aiOf){
       const view={seat,hand:hands[seat],trump,declSeat,history:[...history,...plays],
                   buriedKnown:seat===declSeat?buried:[],curDecl};
       let cards;
+      const useNet=NETP&&aiOf(seat)===NEW;
       if(i===0){
-        cards=aiOf(seat).aiChooseLead(view).cards;
+        if(useNet){ cards=netCards(seat,hands); NNET++; } else cards=aiOf(seat).aiChooseLead(view).cards;
+        if(useNet&&AGREE&&NETP.lastN>=2){ const k=(hands[seat].length>12?'前半':'后半')+'·领出'; const a=AGREE[k]||(AGREE[k]=[0,0]);
+          a[1]++; if(tkey(aiOf(seat).aiChooseLead(view).cards)===tkey(cards)) a[0]++; }
         const chk=E.checkThrow(hands,seat,cards,trump);
         if(!chk.ok) cards=chk.forced;
       }else{
         const lead=E.classify(plays[0].cards,trump);
-        cards=aiOf(seat).aiChooseFollow(view,plays).cards;
+        if(useNet){ cards=netCards(seat,hands); NNET++; } else cards=aiOf(seat).aiChooseFollow(view,plays).cards;
+        if(useNet&&AGREE&&NETP.lastN>=2){ const k=(hands[seat].length>12?'前半':'后半')+'·跟牌'; const a=AGREE[k]||(AGREE[k]=[0,0]);
+          a[1]++; if(tkey(aiOf(seat).aiChooseFollow(view,plays).cards)===tkey(cards)) a[0]++; }
         if(!E.isLegalFollow(hands[seat],lead,cards,trump))
           cards=E.genFollow(hands[seat],lead,trump,rand);
       }
+      if(NETP) kSync(cards,i===0);
       cards.forEach(c=>E.removeCard(hands[seat],c));
       plays.push({seat,cards});
     }
@@ -182,3 +210,7 @@ console.log(`    跳级(本局升 ≥2 级)  新版 ${jumpNew} 次 / 旧版 ${ju
 console.log(`  新版坐庄丢掉最后一墩 ${(100*lostNew/nNew).toFixed(1)}%  (${lostNew}/${nNew})`);
 console.log(`  旧版坐庄丢掉最后一墩 ${(100*lostOld/nOld).toFixed(1)}%  (${lostOld}/${nOld})`);
 console.log(`  庄家守住 ${(100*held/nDecl).toFixed(1)}%  (${held}/${nDecl})—— 两边合计,LEVEL 分级对照时看它`);
+if(NETP){
+  console.log(`  [PNET] 网络接管 ${NNET} 手(领出 ${NETP.stat.lead} / 跟牌 ${NETP.stat.follow},降级或超 cap ${NETP.stat.over}),内核同步不符 ${NSYNC}`);
+  if(AGREE) console.log('  [PNET] 与引擎选择的一致率(候选≥2 的决策):'+Object.keys(AGREE).sort().map(k=>`${k} ${(100*AGREE[k][0]/AGREE[k][1]).toFixed(1)}%(${AGREE[k][1]})`).join('  '));
+}

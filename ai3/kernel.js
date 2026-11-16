@@ -203,8 +203,9 @@ function describeLead(st,a,off,n){
 /* ================= 甩牌校验 ================= */
 const SM_MAX=new Int8Array(4), SM_PAIR=new Int8Array(4), SM_TR=new Int8Array(64), SPC=new Uint8Array(16);
 /* 座位 p 在有效花色 s 里:最大牌序 / 最大对序 / 各长度 (>=L) 拖拉机的最大 top */
-function summ(st,p,s){
-  const T=st.tbl, sl=T.sl[s], n=T.sn[s], ord=T.ord, h=st.hand, b=p*54;
+function summ(st,p,s){ TBL_CUR=st.tbl; summA(st.hand,p*54,p,s); }
+function summA(h,b,p,s){
+  const T=TBL_CUR, sl=T.sl[s], n=T.sn[s], ord=T.ord;
   let mx=-1, mp=-1, maxL=0; SPC.fill(0);
   for(let i=0;i<n;i++){ const t=sl[i], c=h[b+t];
     if(c){ const o=ord[t]; if(o>mx) mx=o;
@@ -216,6 +217,36 @@ function summ(st,p,s){
     for(let o=0;o<16;o++){
       if(SPC[o]>L){ run++; for(let l=2;l<=run;l++) if(o>SM_TR[q+l]) SM_TR[q+l]=o; } else run=0;
     }
+  }
+}
+let TBL_CUR=null;
+
+/* 座位 seat 的视角:没见过的牌(108 − 自己手牌 − 已打出 − 自己是庄时的底)与各家各有效花色的「已知断门」。
+ * 断门 = 该门被领出时,这家出的该门牌数不足张数(只能是出完了)。outUnseen: Uint8Array(54);outVoid: Uint8Array(20)(座位*5+有效花色)。
+ * 只读自己的手牌、出牌日志和(庄家的)底,不读别家手牌。 */
+function viewInfo(st,seat,outUnseen,outVoid){
+  const T=st.tbl, eff=T.eff, h=st.hand, b=seat*54, lg=st.log;
+  for(let t=0;t<54;t++) outUnseen[t]=2-h[b+t]-(seat===st.declarer?st.kitty[t]:0);
+  outVoid.fill(0);
+  let p=0, i=0, ls=0;
+  while(p<st.logLen){
+    const sd=lg[p], n=lg[p+1];
+    for(let k=0;k<n;k++) outUnseen[lg[p+2+k]]--;
+    if((i&3)===0) ls=eff[lg[p+2]];
+    else { let c=0; for(let k=0;k<n;k++) if(eff[lg[p+2+k]]===ls) c++; if(c<n) outVoid[sd*5+ls]=1; }
+    p+=2+n; i++;
+  }
+}
+const VU=new Uint8Array(54), VV=new Uint8Array(20), VPH=new Uint8Array(54);
+/* 甩牌模式 2:假想对手 = 该门全部没见过的牌;另三家都已知断这门则没有对手 */
+function summPhantom(st,seat,s){
+  const T=st.tbl; TBL_CUR=T;
+  let opp=false;
+  for(let p=0;p<4;p++) if(p!==seat && !VV[p*5+s]) opp=true;
+  const ph=(seat+1)&3;
+  for(let p=0;p<4;p++){ if(p===seat) continue;
+    if(p===ph && opp){ summA(VPH,0,p,s); }
+    else { SM_MAX[p]=-1; SM_PAIR[p]=-1; for(let l=0;l<16;l++) SM_TR[p*16+l]=-1; }
   }
 }
 function beaten(kind,len,top,seat){
@@ -356,6 +387,33 @@ function resolveTrick(st){
   st.lastLeadSize=n; st.lastWinner=w; st.leader=w; st.cur=w; st.tricks++; st.nPlays=0;
   return w;
 }
+/* 假设当前座位把 buf[pos..](len,牌种…)跟在本墩已有的出牌后面,此刻本墩暂时最大的是谁(座位号)。不改状态
+ * (只写本墩尚未使用的下一个槽)。要求 nPlays>=1 且领出描述已设;逻辑与 resolveTrick 一致,只是不要求 4 手到齐。 */
+function peekWinner(st,buf,pos){
+  const i0=st.nPlays, q0=i0*32, n0=buf[pos];
+  for(let k=0;k<n0;k++) st.trickBuf[q0+k]=buf[pos+1+k];
+  st.trickLen[i0]=n0; st.trickSeat[i0]=st.cur;
+  const T=st.tbl, eff=T.eff, ord=T.ord, tb=st.trickBuf, n=st.leadN, nr=st.leadNRuns;
+  let win=0, bestSuit=st.leadSuit, bestTop=st.leadTop;
+  for(let i=1;i<=i0;i++){
+    const q=i*32;
+    if(st.trickLen[i]!==n) continue;
+    const s=eff[tb[q]];
+    let same=true, top=ord[tb[q]];
+    for(let k=0;k<n;k++){ const t=tb[q+k]; if(eff[t]!==s) same=false; const o=ord[t]; if(o>top) top=o; }
+    if(!same) continue;
+    if(s!==bestSuit && s!==4) continue;
+    if(nr>0){
+      const cn=runsOf(tb,q,n,T,CR);
+      for(let k=0;k<cn;k++) CAPA[k]=CR[k];
+      CRN=st.leadRuns;
+      if(!fitR(0,nr,cn)) continue;
+    }
+    if(s===bestSuit){ if(top>bestTop){ win=i; bestTop=top; } }
+    else { win=i; bestSuit=4; bestTop=top; }
+  }
+  return st.trickSeat[win];
+}
 const done=st=>st.nPlays===0 && (st.hn[0]+st.hn[1]+st.hn[2]+st.hn[3])===0;
 function score(st){
   const r=st.res, mult=2*(st.lastLeadSize||1);
@@ -391,6 +449,7 @@ function tracDfs(o,d){
 function enumLeads(st,buf,throwMode){
   const seat=st.cur, T=st.tbl, h=st.hand, b=seat*54, ord=T.ord;
   OB=buf; OP=0; OC=0; OVER=0;
+  if(throwMode===2) viewInfo(st,seat,VU,VV);
   for(let s=0;s<5;s++){
     const sl=T.sl[s], sn=T.sn[s];
     EPC.fill(0); let any=false, anyPair=false, risky=false;
@@ -412,7 +471,10 @@ function enumLeads(st,buf,throwMode){
     if(throwMode && !(sn<2)){
       decomp(h,b,s,T,DEC2);
       if(DEC2.nc>=2){
-        for(let p=0;p<4;p++) if(p!==seat) summ(st,p,s);
+        if(throwMode===2){
+          for(let t=0;t<54;t++) VPH[t]=T.eff[t]===s?VU[t]:0;
+          summPhantom(st,seat,s);
+        } else for(let p=0;p<4;p++) if(p!==seat) summ(st,p,s);
         let nu=0;
         for(let i=0;i<DEC2.nc;i++) if(!beaten(DEC2.kind[i],DEC2.len[i],DEC2.top[i],seat)) UI[nu++]=i;
         if(nu>=2){
@@ -567,6 +629,186 @@ function sampleFollow(st,rng,buf,pos){
   return n+1;
 }
 
+/* ---- 跟牌候选的降级(全枚举超 cap / 预算时用)----
+ * 门内必出的部分(本门全出;或必出的拖拉机 / 对子)照规则穷举,太多就抽样;自由张取几族(贪心最小垫法及邻近变体、
+ * 每门「从小到大」「整门垫空」、断门时能毙的主牌组合)并去重;再用 sampleFollow 随机补到约 128 个。每个候选都过 isLegalFollow。
+ * 返回候选数(>=1);候选写进 buf / K80.pos,与 enumFollows 同格式。 */
+const RTB=new Uint8Array(64), RTB2=new Uint8Array(64), RMC=new Uint8Array(54);
+function enumFollowsReduced(st,buf,cap,rng){
+  const seat=st.cur, T=st.tbl, h=st.hand, b=seat*54, s=st.leadSuit, n=st.leadN, eff=T.eff, ord=T.ord, pt=T.pts;
+  if(cap>POS.length-1) cap=POS.length-1;
+  const target=Math.min(cap,128);
+  OB=buf; OP=0; OC=0;
+  const seen=new Set();
+  const add=(c)=>{
+    if(OC>=cap) return false;
+    let m=0, key='';
+    for(let t=0;t<54;t++){ const x=c[t]; if(x){ m+=x; key+=t+(x===2?'x':','); } }
+    if(m!==n||seen.has(key)) return false;
+    let w=1; for(let t=0;t<54;t++){ const x=c[t]; for(let q=0;q<x;q++) RTB[w++]=t; }
+    RTB[0]=n;
+    if(!isLegalFollow(st,seat,RTB,0)) return false;
+    if(OP+n+1>OB.length) return false;
+    seen.add(key);
+    POS[OC++]=OP; OB[OP++]=n; for(let i=0;i<n;i++) OB[OP++]=RTB[1+i];
+    return true;
+  };
+  const sl=T.sl[s], sn=T.sn[s];
+  let k=0, pairsS=0;
+  for(let i=0;i<sn;i++){ const c=h[b+sl[i]]; k+=c; if(c===2) pairsS++; }
+  const shuf=(arr)=>{ for(let i=arr.length-1;i>0;i--){ const j=(rng()*(i+1))|0; const x=arr[i]; arr[i]=arr[j]; arr[j]=x; } return arr; };
+  const key1=(a,c)=>(pt[a]-pt[c])||((eff[a]===4?1:0)-(eff[c]===4?1:0))||(ord[a]-ord[c])||(a-c);   // 分值小、非主、序号小
+  const key3=(a,c)=>(pt[c]-pt[a])||((eff[a]===4?1:0)-(eff[c]===4?1:0))||(ord[a]-ord[c])||(a-c);
+  const key2=(a,c)=>((eff[a]===4?1:0)-(eff[c]===4?1:0))||(ord[a]-ord[c])||(pt[a]-pt[c])||(a-c);
+  /* 自由张:在池 P(计数)里取 f 张,与必出部分 M 合并后 add */
+  const C=new Uint8Array(54);
+  const withM=(M,pick)=>{ C.set(M); for(let i=0;i<pick.length;i++) C[pick[i]]++; const r=add(C); return r; };
+  const fills=(M,P,f,rich)=>{
+    if(f===0){ withM(M,[]); return; }
+    const types=[]; for(let t=0;t<54;t++) if(P[t]) types.push(t);
+    const expand=(cmp)=>{ const L=types.slice().sort(cmp), X=[]; for(const t of L) for(let q=0;q<P[t];q++) X.push(t); return X; };
+    for(const cmp of [key1,key2,key3]){
+      const X=expand(cmp);
+      withM(M,X.slice(0,f));
+      if(rich){
+        for(let j=0;j<f;j++) for(let r=0;r<3;r++){
+          const e=f+r; if(e>=X.length) break;
+          const pk=X.slice(0,f); pk[j]=X[e]; withM(M,pk);
+        }
+      }
+    }
+    if(rich){
+      const bySuit={}; for(const t of types){ (bySuit[eff[t]]=bySuit[eff[t]]||[]).push(t); }
+      for(const g in bySuit){
+        const L=bySuit[g].slice().sort((x,y)=>(ord[x]-ord[y])||(x-y)), X=[];
+        for(const t of L) for(let q=0;q<P[t];q++) X.push(t);
+        if(X.length>=f) withM(M,X.slice(0,f));
+        else if(X.length>0){                                  // 整门垫空,其余按贪心补
+          const rest=P.slice(); for(const t of X) rest[t]--;
+          const tl=[]; for(let t=0;t<54;t++) if(rest[t]) tl.push(t);
+          tl.sort(key1); const Y=[]; for(const t of tl) for(let q=0;q<rest[t];q++) Y.push(t);
+          withM(M,X.concat(Y.slice(0,f-X.length)));
+        }
+      }
+      /* 分门取小:每门各取若干张「分少、序号小」的牌,门间张数的各种组合(超 80 个随机抽) */
+      const gl=[]; for(const g in bySuit){
+        const L=bySuit[g].slice().sort(key1), X=[]; for(const t of L) for(let q=0;q<P[t];q++) X.push(t); gl.push(X); }
+      if(gl.length>=2){
+        const combos=[], cnt=new Array(gl.length).fill(0);
+        const dfs=(gi,left)=>{
+          if(combos.length>=3000) return;
+          if(gi===gl.length-1){ if(left<=gl[gi].length){ cnt[gi]=left; combos.push(cnt.slice()); } return; }
+          for(let c=0;c<=Math.min(left,gl[gi].length);c++){ cnt[gi]=c; dfs(gi+1,left-c); }
+        };
+        dfs(0,f);
+        let pick=combos; if(combos.length>80) pick=shuf(combos.slice()).slice(0,80);
+        for(const cb of pick){ const sel=[]; for(let i=0;i<gl.length;i++) for(let q=0;q<cb[i];q++) sel.push(gl[i][q]); withM(M,sel); }
+      }
+    }
+  };
+  const zero=new Uint8Array(54);
+  if(k<=n){
+    const M=new Uint8Array(54), P=new Uint8Array(54);
+    for(let t=0;t<54;t++){ if(eff[t]===s) M[t]=h[b+t]; else P[t]=h[b+t]; }
+    fills(M,P,n-k,true);
+    if(k===0){
+      /* 断门:能毙的主牌组合(structMatches 领出的) */
+      const tp=new Uint8Array(54); let tn=0; for(let t=0;t<54;t++) if(eff[t]===4){ tp[t]=h[b+t]; tn+=tp[t]; }
+      if(tn>=n){
+        const runs=[]; for(let i=0;i<st.leadNRuns;i++) runs.push(st.leadRuns[i]);
+        const found=[];
+        const construct=(mode)=>{   // mode 0 最小 1 最大 2 随机
+          const rem=tp.slice(), pick=new Uint8Array(54);
+          for(const r of runs){
+            const starts=[];
+            for(let o=0;o+r<=16;o++){ let ok=true; for(let q=0;q<r;q++){ if(!ocnt(rem,o+q,2)){ ok=false; break; } } if(ok) starts.push(o); }
+            if(!starts.length) return null;
+            const o0=mode===0?starts[0]:mode===1?starts[starts.length-1]:starts[(rng()*starts.length)|0];
+            for(let q=0;q<r;q++){ const ts=typesAtOrd(rem,o0+q,2); const t=mode===2?ts[(rng()*ts.length)|0]:ts[0]; rem[t]-=2; pick[t]+=2; }
+          }
+          let need=n-2*runs.reduce((x,y)=>x+y,0);
+          const sg=[]; for(let t=0;t<54;t++) for(let q=0;q<rem[t];q++) sg.push(t);
+          sg.sort((x,y)=>(ord[x]-ord[y])||(x-y));
+          if(mode===1) sg.reverse(); else if(mode===2) shuf(sg);
+          if(sg.length<need) return null;
+          for(let i=0;i<need;i++) pick[sg[i]]++;
+          return pick;
+        };
+        const ocnt=(rem,o,c)=>{ for(let t=0;t<54;t++) if(eff[t]===4&&ord[t]===o&&rem[t]>=c) return true; return false; };
+        const typesAtOrd=(rem,o,c)=>{ const r=[]; for(let t=0;t<54;t++) if(eff[t]===4&&ord[t]===o&&rem[t]>=c) r.push(t); return r; };
+        const okStruct=(pick)=>{ for(let t=0;t<54;t++) if(pick[t]>tp[t]) return false;
+          const q=[]; for(let t=0;t<54;t++) for(let c=0;c<pick[t];c++) q.push(t);
+          if(!runs.length) return true;
+          const cn=runsOf(Uint8Array.from(q),0,q.length,T,CR);
+          for(let i=0;i<cn;i++) CAPA[i]=CR[i];
+          CRN=st.leadRuns; return fitR(0,runs.length,cn); };
+        const seenR=new Set();
+        for(let it=0;it<48;it++){
+          const pk=construct(it<2?it:2); if(!pk) { if(it<2) continue; else break; }
+          if(!okStruct(pk)) continue;
+          const kk=pk.join(''); if(seenR.has(kk)) continue; seenR.add(kk); found.push(pk);
+        }
+        const sc=(pk)=>{ let v=0; for(let t=0;t<54;t++) v+=pk[t]*(ord[t]*4+pt[t]); return v; };
+        found.sort((x,y)=>sc(x)-sc(y));
+        const keep=found.length>32?found.slice(0,16).concat(found.slice(-16)):found;
+        for(const pk of keep){ C.set(pk); add(C); }
+      }
+    }
+  } else {
+    /* k>n:全在本门;必出的拖拉机 / 对子穷举(超 48 抽样),其余自由张按贪心族取 */
+    const need=st.leadNeed, mustP=need<pairsS?need:pairsS;
+    let R=0; if(st.leadKind===2){ const m=maxTractor(h,b,s,T), L=st.leadLen; R=m>=L?L:(m>=2?m:0); }
+    const pairT=[]; // 本门所有对子牌种,按序号
+    for(let i=0;i<sn;i++){ const t=sl[i]; if(h[b+t]===2) pairT.push(t); }
+    let Ms=[new Uint8Array(54)];
+    if(R>=2){
+      const byOrd=[]; for(let o=0;o<16;o++) byOrd.push([]);
+      for(const t of pairT) byOrd[ord[t]].push(t);
+      const out=[];
+      const dfs=(o,left,cur)=>{
+        if(left===0){ out.push(cur.slice()); return; }
+        if(o>=16||!byOrd[o].length) return;
+        for(const t of byOrd[o]){ cur.push(t); dfs(o+1,left-1,cur); cur.pop(); }
+      };
+      for(let o0=0;o0+R<=16;o0++) dfs(o0,R,[]);
+      let sel=out; if(sel.length>40) sel=shuf(out.slice()).slice(0,40);
+      Ms=sel.map(ts=>{ const m=new Uint8Array(54); for(const t of ts) m[t]=2; return m; });
+    }
+    const extra=mustP-(R>=2?R:0);
+    if(extra>0){
+      const Ms2=[];
+      for(const m0 of Ms){
+        const avail=pairT.filter(t=>m0[t]===0);
+        if(avail.length<extra) continue;
+        const combos=[];
+        const dfs=(i,left,cur)=>{ if(combos.length>=400) return; if(left===0){ combos.push(cur.slice()); return; }
+          for(let j=i;j<=avail.length-left;j++){ cur.push(avail[j]); dfs(j+1,left-1,cur); cur.pop(); } };
+        dfs(0,extra,[]);
+        let pickc=combos;
+        if(combos.length>12){ pickc=[combos[0],combos[combos.length-1]].concat(shuf(combos.slice(1,-1)).slice(0,10)); }
+        for(const cb of pickc){ const m=m0.slice(); for(const t of cb) m[t]=2; Ms2.push(m); }
+      }
+      Ms=Ms2;
+    }
+    if(Ms.length>60) Ms=Ms.slice(0,2).concat(shuf(Ms.slice(2)).slice(0,58));
+    const f=n-2*mustP;
+    let first=true;
+    for(const M of Ms){
+      const P=new Uint8Array(54); for(let t=0;t<54;t++) P[t]=eff[t]===s?h[b+t]-M[t]:0;
+      fills(M,P,f,first||Ms.length<=6); first=false;
+      if(OC>=target) break;
+    }
+  }
+  /* 随机补足 */
+  for(let tries=0; OC<target && tries<4*target; tries++){
+    sampleFollow(st,rng,RTB2,0);
+    C.fill(0); for(let i=0;i<n;i++) C[RTB2[1+i]]++;
+    add(C);
+  }
+  if(OC===0){ sampleFollow(st,rng,RTB2,0); POS[OC++]=OP; for(let i=0;i<=n;i++) OB[OP++]=RTB2[i]; }
+  return OC;
+}
+
 /* ================= 无状态辅助(给向量 / 对拍用) ================= */
 function typesToCnt(arr,cnt){ for(let i=0;i<arr.length;i++) cnt[arr[i]]++; }
 function effSuitT(t,ts,tr){ return tbl(ts,tr).eff[t]; }
@@ -657,7 +899,7 @@ function scoreRoundT(defPoints,kittyPts,defWonLast,lastLeadSize){
 return {tbl,newState,setTrump,copy,reset,dealRandom,makeRng,
   decomp,maxTractor,runsOf,describeLead,
   playLead,playFollow,isLegalFollow,resolveTrick,done,score,
-  enumLeads,enumFollows,sampleFollow,pos:POS,PTS,
+  enumLeads,enumFollows,enumFollowsReduced,sampleFollow,viewInfo,peekWinner,pos:POS,PTS,
   util:{effSuitT,ordIdxT,decomposeT,classifyT,isLegalFollowT,structMatchesT,resolveTrickT,checkThrowT,
         countPairsInT,maxTractorLenT,scoreRoundT,loadHands}};
 });
