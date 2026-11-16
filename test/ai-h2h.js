@@ -42,12 +42,14 @@ const E=NEW;
 /* PNET=<权重目录>[:agree]:新版这一方的**打牌阶段**由 ai3 策略网络决定(亮主 / 埋底仍用引擎);旧版 = 引擎。
  * 做法:随对局维护一份 ai3 内核状态,轮到网络座位时 特征→候选→前向→取最高分→映射回手里的牌对象;甩牌仍过 checkThrow。
  * 带 :agree 时,网络座位的每个决策也算一遍引擎的选择,只统计一致率(领出 / 跟牌 × 前半 / 后半),不改打法。不设 PNET 则下面全部不执行。 */
-let NETP=null, KST=null, KERN=null, AGREE=null, NSYNC=0, NNET=0;
+let NETP=null, KST=null, KERN=null, AGREE=null, EARLY=false, NSYNC=0, NNET=0;
 if(process.env.PNET){
   const [dir,flag]=process.env.PNET.split(':');
   KERN=require('../ai3/kernel.js'); KST=KERN.newState();
   NETP=new (require('../ai3/policy.js'))(require('../ai3/net.js').load(dir),KERN.makeRng(1));
-  if(flag==='agree') AGREE={};
+  const fl=(flag||'').split(',');
+  if(fl.includes('agree')) AGREE={};
+  if(fl.includes('early')) EARLY=true;      // :early 只在手牌 > 12 张时用网络,≤ 12 张交还引擎(带搜索)
 }
 const KBUF=new Uint8Array(64);
 function netCards(seat,hands){        // 网络在当前内核状态上选一手,映射成 seat 手里的牌对象
@@ -95,7 +97,7 @@ function playRound(seed, aiOf){
       const view={seat,hand:hands[seat],trump,declSeat,history:[...history,...plays],
                   buriedKnown:seat===declSeat?buried:[],curDecl};
       let cards;
-      const useNet=NETP&&aiOf(seat)===NEW;
+      const useNet=NETP&&aiOf(seat)===NEW&&!(EARLY&&hands[seat].length<=12);
       if(i===0){
         if(useNet){ cards=netCards(seat,hands); NNET++; } else cards=aiOf(seat).aiChooseLead(view).cards;
         if(useNet&&AGREE&&NETP.lastN>=2){ const k=(hands[seat].length>12?'前半':'后半')+'·领出'; const a=AGREE[k]||(AGREE[k]=[0,0]);
