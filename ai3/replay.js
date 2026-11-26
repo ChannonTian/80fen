@@ -41,6 +41,12 @@ function replayGame(rec,onDecision){
   if(sc.ups!==(rec.win?rec.du:rec.cu)) return {ok:false,why:`升级数 ${sc.ups}≠${rec.win?rec.du:rec.cu}`};
   return {ok:true};
 }
+/* 一手牌谱的字段(见 gen-records.js 的格式说明):cho 实际选的、act 被强制 / 修正后打出的、label 引擎的选择(训练标签)。
+ * isNet = DAgger 局里网络座位(有第 6 项);labelBad = 标签本身被强制 / 非法,训练时剔掉。老牌谱 / 引擎座位 label == cho。 */
+function playInfo(p){
+  const isNet=p[5]!==undefined;
+  return {seat:p[0],cho:p[1],act:p[2],eg:p[3],nc:p[4],isNet,label:isNet?(p[5]===1?p[1]:p[5]):p[1],labelBad:isNet?p[6]===1:!!p[2]};
+}
 const fs=require('fs'),zlib=require('zlib'),path=require('path');
 function* readRecs(dir){
   for(const f of fs.readdirSync(dir).filter(f=>f.endsWith('.jsonl.gz')).sort()){
@@ -48,4 +54,4 @@ function* readRecs(dir){
     for(const ln of txt.split('\n')) if(ln) yield JSON.parse(ln);
   }
 }
-module.exports={replayGame,readRecs};
+module.exports={replayGame,readRecs,playInfo};

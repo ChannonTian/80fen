@@ -13,8 +13,17 @@ def fwd(x, c):
     z = torch.relu((ctx @ T['wa.weight'].T + T['wa.bias'])[None, :] + c @ T['wb.weight'].T)
     z = torch.relu(z @ T['c2.weight'].T + T['c2.bias'])
     return (z @ T['o.weight'].T + T['o.bias']).squeeze(-1)
+import base64
 rng = np.random.default_rng(1); names = sorted(f[:-5] for f in os.listdir(a.feat) if f.endswith('.done'))
 out = []
+if not names:                                   # 只有合并格式(<feat>/merged/):随机抽决策,把特征字节一并写进 check.json
+    md = os.path.join(a.feat, 'merged'); M = np.load(os.path.join(md, 'M.npy'), mmap_mode='r')
+    Sm = np.memmap(os.path.join(md, 'S.bin'), dtype=np.uint8, mode='r').reshape(-1, SD); Cm = np.memmap(os.path.join(md, 'C.bin'), dtype=np.uint8, mode='r').reshape(-1, CD)
+    for i in sorted(rng.choice(M.shape[0], a.n, replace=False).tolist()):
+        n, off = int(M[i, 4]), int(M[i, 5]); S = np.array(Sm[i]); C = np.array(Cm[off:off + n])
+        s = fwd(torch.from_numpy(S.astype(np.float32)) * ss, torch.from_numpy(C.astype(np.float32)) * cs).tolist()
+        out.append({'i': i, 'n': n, 'S': base64.b64encode(S.tobytes()).decode(), 'C': base64.b64encode(C.tobytes()).decode(), 'scores': s})
+    names = []; a.n = 0
 for k in range(a.n):
     nm = names[rng.integers(len(names))]; p = os.path.join(a.feat, nm)
     M = np.fromfile(p + '.M.bin', dtype=np.int32).reshape(-1, 14); i = int(rng.integers(M.shape[0]))
